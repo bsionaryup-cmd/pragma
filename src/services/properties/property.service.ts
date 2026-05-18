@@ -1,0 +1,384 @@
+import type { PropertyFormValues } from "@/features/properties/schemas/property.schema";
+import type { AirbnbListingPreview } from "@/services/airbnb/airbnb-import.service";
+import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
+import {
+  computeMonthOccupancyPercent,
+  startOfDay,
+  sumMonthRevenue,
+} from "@/features/properties/lib/property-stats";
+import type {
+  PropertyDetailDto,
+  PropertyGridItem,
+  PropertyTaskItem,
+  PropertyUpcomingReservation,
+} from "@/features/properties/types/property.types";
+import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import { db } from "@/lib/db";
+
+function getMonthBounds(reference = new Date()) {
+  const monthStart = new Date(reference.getFullYear(), reference.getMonth(), 1);
+  const monthEnd = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
+  return { monthStart, monthEnd };
+}
+
+function toUpcomingReservation(r: {
+  id: string;
+  guestName: string;
+  checkIn: Date;
+  checkOut: Date;
+  status: PropertyUpcomingReservation["status"];
+}): PropertyUpcomingReservation {
+  return {
+    id: r.id,
+    guestName: r.guestName,
+    checkIn: r.checkIn.toISOString().slice(0, 10),
+    checkOut: r.checkOut.toISOString().slice(0, 10),
+    status: r.status,
+  };
+}
+
+function mapPropertyRow(
+  property: {
+    id: string;
+    name: string;
+    city: string;
+    country: string;
+    neighborhood: string | null;
+    coverImageUrl: string | null;
+    propertyType: PropertyGridItem["propertyType"];
+    status: PropertyGridItem["status"];
+    maxGuests: number;
+    bedrooms: number;
+    beds: number;
+    bathrooms: { toString(): string };
+    reservations: Array<{
+      id: string;
+      guestName: string;
+      checkIn: Date;
+      checkOut: Date;
+      status: PropertyUpcomingReservation["status"];
+      totalAmount?: { toString(): string };
+    }>;
+  },
+  today: Date,
+  monthStart: Date,
+  monthEnd: Date,
+): PropertyGridItem {
+  const upcoming = property.reservations
+    .filter(
+      (r) =>
+        r.status !== ReservationStatus.CANCELLED &&
+        startOfDay(r.checkOut) > today,
+    )
+    .sort((a, b) => a.checkIn.getTime() - b.checkIn.getTime());
+
+  const monthReservations = property.reservations.filter(
+    (r) =>
+      r.status !== ReservationStatus.CANCELLED &&
+      r.checkIn <= monthEnd &&
+      r.checkOut > monthStart,
+  );
+
+  return {
+    id: property.id,
+    name: property.name,
+    city: property.city,
+    country: property.country,
+    neighborhood: property.neighborhood,
+    coverImageUrl: property.coverImageUrl,
+    propertyType: property.propertyType,
+    status: property.status,
+    maxGuests: property.maxGuests,
+    bedrooms: property.bedrooms,
+    beds: property.beds,
+    bathrooms: property.bathrooms.toString(),
+    nextReservation: upcoming[0] ? toUpcomingReservation(upcoming[0]) : null,
+    upcomingCount: upcoming.length,
+    monthOccupancyPercent: computeMonthOccupancyPercent(
+      monthReservations,
+      monthStart,
+      monthEnd,
+    ),
+  };
+}
+
+export async function listPropertiesForGrid(
+  ownerId: string,
+): Promise<PropertyGridItem[]> {
+  const today = startOfDay(new Date());
+  const { monthStart, monthEnd } = getMonthBounds();
+
+  const properties = await db.property.findMany({
+    where: { ownerId },
+    orderBy: { name: "asc" },
+    include: {
+      reservations: {
+        where: {
+          status: { not: ReservationStatus.CANCELLED },
+          OR: [
+            { checkIn: { lte: monthEnd }, checkOut: { gt: monthStart } },
+            { checkOut: { gt: today } },
+          ],
+        },
+        select: {
+          id: true,
+          guestName: true,
+          checkIn: true,
+          checkOut: true,
+          status: true,
+          totalAmount: true,
+        },
+        orderBy: { checkIn: "asc" },
+      },
+    },
+  });
+
+  return properties.map((p) => mapPropertyRow(p, today, monthStart, monthEnd));
+}
+
+export async function getPropertyDetail(
+  id: string,
+  ownerId: string,
+): Promise<PropertyDetailDto | null> {
+  const today = startOfDay(new Date());
+  const { monthStart, monthEnd } = getMonthBounds();
+
+  const property = await db.property.findFirst({
+    where: { id, ownerId },
+    include: {
+      reservations: {
+        where: {
+          status: { not: ReservationStatus.CANCELLED },
+          checkOut: { gt: today },
+        },
+        select: {
+          id: true,
+          guestName: true,
+          checkIn: true,
+          checkOut: true,
+          status: true,
+          totalAmount: true,
+        },
+        orderBy: { checkIn: "asc" },
+        take: 8,
+      },
+      tasks: {
+        where: {
+          status: { in: ["PENDING", "IN_PROGRESS"] },
+        },
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          status: true,
+          dueDate: true,
+        },
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        take: 6,
+      },
+    },
+  });
+
+  if (!property) return null;
+
+  const allMonthReservations = await db.reservation.findMany({
+    where: {
+      propertyId: id,
+      status: { not: ReservationStatus.CANCELLED },
+      checkIn: { lte: monthEnd },
+      checkOut: { gt: monthStart },
+    },
+    select: {
+      id: true,
+      guestName: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      totalAmount: true,
+    },
+  });
+
+  const grid = mapPropertyRow(
+    {
+      ...property,
+      reservations: allMonthReservations.length
+        ? allMonthReservations
+        : property.reservations,
+    },
+    today,
+    monthStart,
+    monthEnd,
+  );
+
+  const pendingTasks: PropertyTaskItem[] = property.tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    type: t.type,
+    status: t.status,
+    dueDate: t.dueDate?.toISOString() ?? null,
+  }));
+
+  return {
+    ...grid,
+    description: property.description,
+    address: property.address,
+    checkInTime: property.checkInTime,
+    checkOutTime: property.checkOutTime,
+    accessCode: property.accessCode,
+    accessInstructions: property.accessInstructions,
+    wifiName: property.wifiName,
+    wifiPassword: property.wifiPassword,
+    houseRules: property.houseRules,
+    baseRate: property.baseRate?.toString() ?? null,
+    cleaningFee: property.cleaningFee?.toString() ?? null,
+    currency: property.currency,
+    airbnbListingUrl: property.airbnbListingUrl,
+    icalUrl: property.icalUrl,
+    lastIcalSyncedAt: property.lastIcalSyncedAt?.toISOString() ?? null,
+    upcomingReservations: property.reservations.map(toUpcomingReservation),
+    pendingTasks,
+    monthRevenue: String(sumMonthRevenue(allMonthReservations, monthStart, monthEnd)),
+    createdAt: property.createdAt.toISOString(),
+  };
+}
+
+/** Para selects en reservas/tareas — solo activas y reservables */
+export async function listPropertiesForSelect() {
+  return db.property.findMany({
+    where: { status: PropertyStatus.ACTIVE },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function listPropertiesForInbox() {
+  return db.property.findMany({
+    where: { status: PropertyStatus.ACTIVE },
+    select: { id: true, name: true, address: true, city: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function getPropertyById(id: string, ownerId: string) {
+  return db.property.findFirst({
+    where: { id, ownerId },
+  });
+}
+
+function normalizeTime(value: string | undefined, fallback: string): string {
+  if (!value?.trim()) return fallback;
+  const match = value.trim().match(/^(\d{2}:\d{2})/);
+  return match ? match[1] : fallback;
+}
+
+function normalizeFormData(data: PropertyFormValues) {
+  return {
+    name: data.name.trim(),
+    description: data.description?.trim() || null,
+    address: data.address.trim(),
+    neighborhood: data.neighborhood?.trim() || null,
+    city: data.city.trim(),
+    country: data.country.trim(),
+    propertyType: data.propertyType,
+    maxGuests: data.maxGuests,
+    bedrooms: data.bedrooms,
+    beds: data.beds,
+    bathrooms: data.bathrooms,
+    checkInTime: normalizeTime(data.checkInTime, "15:00"),
+    checkOutTime: normalizeTime(data.checkOutTime, "11:00"),
+    accessCode: data.accessCode?.trim() || null,
+    accessInstructions: data.accessInstructions?.trim() || null,
+    wifiName: data.wifiName?.trim() || null,
+    wifiPassword: data.wifiPassword?.trim() || null,
+    houseRules: data.houseRules?.trim() || null,
+    baseRate: data.baseRate ?? null,
+    cleaningFee: data.cleaningFee ?? null,
+    coverImageUrl: data.coverImageUrl?.trim() || null,
+    status: data.status,
+  };
+}
+
+export async function createProperty(ownerId: string, data: PropertyFormValues) {
+  const created = await db.property.create({
+    data: {
+      ownerId,
+      ...normalizeFormData(data),
+    },
+  });
+  await ensurePropertyIcalExportToken(created.id);
+  return created;
+}
+
+export type AirbnbImportPayload = AirbnbListingPreview & {
+  icalUrl: string;
+};
+
+function sanitizeAirbnbImport(preview: AirbnbImportPayload) {
+  const address =
+    preview.address.trim().length >= 5
+      ? preview.address.trim()
+      : `${preview.city.trim()} — importado desde Airbnb`;
+
+  return {
+    name: preview.name.trim().slice(0, 120),
+    description: preview.description?.trim().slice(0, 4000) ?? null,
+    address: address.slice(0, 200),
+    neighborhood: preview.neighborhood?.trim().slice(0, 80) ?? null,
+    city: preview.city.trim().slice(0, 80),
+    country: preview.country.trim().slice(0, 2).toUpperCase() || "CO",
+    propertyType: preview.propertyType,
+    maxGuests: Math.max(1, Math.min(preview.maxGuests, 30)),
+    bedrooms: Math.max(0, Math.min(preview.bedrooms, 20)),
+    beds: Math.max(1, Math.min(preview.beds, 30)),
+    bathrooms: Math.max(0.5, Math.min(preview.bathrooms, 20)),
+    coverImageUrl: preview.coverImageUrl?.trim().slice(0, 2048) ?? null,
+    airbnbListingUrl: preview.listingUrl.trim().slice(0, 2048),
+    airbnbRoomId: preview.roomId?.trim().slice(0, 64) ?? null,
+    icalUrl: preview.icalUrl.trim().slice(0, 2048),
+  };
+}
+
+export async function createPropertyFromAirbnbImport(
+  ownerId: string,
+  preview: AirbnbImportPayload,
+) {
+  const data = sanitizeAirbnbImport(preview);
+
+  const created = await db.property.create({
+    data: {
+      ownerId,
+      ...data,
+      status: PropertyStatus.ACTIVE,
+      checkInTime: "15:00",
+      checkOutTime: "11:00",
+    },
+  });
+
+  await ensurePropertyIcalExportToken(created.id);
+  return created;
+}
+
+export async function updateProperty(
+  id: string,
+  ownerId: string,
+  data: PropertyFormValues,
+) {
+  return db.property.updateMany({
+    where: { id, ownerId },
+    data: normalizeFormData(data),
+  });
+}
+
+export async function deleteProperty(id: string, ownerId: string) {
+  return db.property.deleteMany({
+    where: { id, ownerId },
+  });
+}
+
+/** @deprecated Usar listPropertiesForGrid */
+export async function listProperties(ownerId: string) {
+  return db.property.findMany({
+    where: { ownerId },
+    orderBy: { createdAt: "desc" },
+  });
+}

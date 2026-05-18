@@ -1,0 +1,145 @@
+import type { ReservationWizardValues } from "@/features/reservations/schemas/reservation.schema";
+import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
+import { PropertyStatus } from "@prisma/client";
+import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
+import { db } from "@/lib/db";
+import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
+import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
+import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
+
+function buildGuestName(firstName: string, lastName?: string | null): string {
+  return [firstName.trim(), lastName?.trim()].filter(Boolean).join(" ");
+}
+
+type ReservationRow = {
+  id: string;
+  guestName: string;
+  guestFirstName: string;
+  guestLastName: string | null;
+  guestEmail: string | null;
+  guestPhone: string | null;
+  guestCountry: string | null;
+  guestLanguage: string | null;
+  adults: number;
+  children: number;
+  infants: number;
+  checkIn: Date;
+  checkOut: Date;
+  platform: ReservationInboxItem["platform"];
+  status: ReservationInboxItem["status"];
+  totalAmount: { toString(): string };
+  currency: string;
+  internalNotes: string | null;
+  property: ReservationInboxItem["property"];
+};
+
+function toInboxItem(r: ReservationRow): ReservationInboxItem {
+  return {
+    id: r.id,
+    guestName: r.guestName,
+    guestFirstName: r.guestFirstName,
+    guestLastName: r.guestLastName,
+    guestEmail: r.guestEmail,
+    guestPhone: r.guestPhone,
+    guestCountry: r.guestCountry,
+    guestLanguage: r.guestLanguage,
+    adults: r.adults,
+    children: r.children,
+    infants: r.infants,
+    checkIn: prismaDateToKey(r.checkIn),
+    checkOut: prismaDateToKey(r.checkOut),
+    platform: r.platform,
+    status: r.status,
+    totalAmount: r.totalAmount.toString(),
+    currency: r.currency,
+    internalNotes: r.internalNotes,
+    property: {
+      id: r.property.id,
+      name: r.property.name,
+      address: r.property.address,
+      city: r.property.city,
+    },
+  };
+}
+
+export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
+  const rows = await db.reservation.findMany({
+    include: {
+      property: {
+        select: { id: true, name: true, address: true, city: true },
+      },
+    },
+    orderBy: [{ checkIn: "desc" }, { createdAt: "desc" }],
+  });
+
+  return rows.map(toInboxItem);
+}
+
+/** @deprecated Usar listReservationsForInbox */
+export async function listReservations() {
+  return db.reservation.findMany({
+    include: { property: { select: { name: true } } },
+    orderBy: { checkIn: "desc" },
+  });
+}
+
+export async function getReservationById(id: string) {
+  return db.reservation.findUnique({
+    where: { id },
+    include: { property: true },
+  });
+}
+
+export async function createReservation(data: ReservationWizardValues) {
+  const property = await db.property.findFirst({
+    where: { id: data.propertyId, status: PropertyStatus.ACTIVE },
+  });
+  if (!property) throw new Error("Propiedad no encontrada");
+
+  const checkIn = dateKeyToPrismaDate(data.checkIn);
+  const checkOut = dateKeyToPrismaDate(data.checkOut);
+  await assertNoReservationOverlap(data.propertyId, checkIn, checkOut);
+
+  const guestName = buildGuestName(data.guestFirstName, data.guestLastName);
+  const status =
+    data.platform === "DIRECT" || data.platform === "BOOKING"
+      ? deriveReservationStatusFromDates(checkIn, checkOut)
+      : data.status;
+
+  const created = await db.reservation.create({
+    data: {
+      propertyId: data.propertyId,
+      guestName,
+      guestFirstName: data.guestFirstName.trim(),
+      guestLastName: data.guestLastName?.trim() || null,
+      guestEmail: data.guestEmail?.trim() || null,
+      guestPhone: data.guestPhone?.trim() || null,
+      guestCountry: data.guestCountry?.trim() || null,
+      guestLanguage: data.guestLanguage?.trim() || null,
+      adults: data.adults,
+      children: data.children,
+      infants: data.infants,
+      checkIn,
+      checkOut,
+      platform: data.platform,
+      status,
+      totalAmount: data.totalAmount,
+      internalNotes: data.internalNotes?.trim() || null,
+    },
+    include: {
+      property: {
+        select: { id: true, name: true, address: true, city: true },
+      },
+    },
+  });
+
+  if (data.platform === "DIRECT" || data.platform === "BOOKING") {
+    await ensurePropertyIcalExportToken(data.propertyId);
+  }
+
+  return created;
+}
+
+export async function deleteReservation(id: string) {
+  return db.reservation.delete({ where: { id } });
+}

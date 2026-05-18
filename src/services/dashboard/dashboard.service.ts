@@ -1,0 +1,194 @@
+import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import { db } from "@/lib/db";
+import { startOfDay } from "@/lib/helpers/date";
+
+export type DashboardStats = {
+  activeReservations: number;
+  checkInsToday: number;
+  checkOutsToday: number;
+  occupancyRate: number;
+  totalProperties: number;
+  activeProperties: number;
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const today = startOfDay();
+
+  const [
+    totalProperties,
+    activeProperties,
+    activeReservations,
+    checkInsToday,
+    checkOutsToday,
+  ] = await Promise.all([
+    db.property.count(),
+    db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
+    db.reservation.count({
+      where: {
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+        },
+      },
+    }),
+    db.reservation.count({
+      where: {
+        checkIn: today,
+        status: { not: ReservationStatus.CANCELLED },
+      },
+    }),
+    db.reservation.count({
+      where: {
+        checkOut: today,
+        status: { not: ReservationStatus.CANCELLED },
+      },
+    }),
+  ]);
+
+  const occupancyRate =
+    activeProperties > 0
+      ? Math.round((activeReservations / activeProperties) * 100)
+      : 0;
+
+  return {
+    activeReservations,
+    checkInsToday,
+    checkOutsToday,
+    occupancyRate,
+    totalProperties,
+    activeProperties,
+  };
+}
+
+const panelReservationInclude = {
+  property: {
+    select: {
+      name: true,
+      coverImageUrl: true,
+      checkInTime: true,
+      checkOutTime: true,
+      neighborhood: true,
+    },
+  },
+} as const;
+
+export type PanelReservation = Awaited<
+  ReturnType<typeof getUpcomingArrivals>
+>[number];
+
+/** Serializable para Client Components (sin Decimal ni Date). */
+export type PanelReservationRow = {
+  id: string;
+  guestName: string;
+  adults: number;
+  children: number;
+  infants: number;
+  checkIn: string;
+  checkOut: string;
+  platform: PanelReservation["platform"];
+  property: {
+    name: string;
+    coverImageUrl: string | null;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    neighborhood: string | null;
+  };
+};
+
+export function toPanelReservationRow(
+  reservation: PanelReservation,
+): PanelReservationRow {
+  return {
+    id: reservation.id,
+    guestName: reservation.guestName,
+    adults: reservation.adults,
+    children: reservation.children,
+    infants: reservation.infants,
+    checkIn: reservation.checkIn.toISOString(),
+    checkOut: reservation.checkOut.toISOString(),
+    platform: reservation.platform,
+    property: {
+      name: reservation.property.name,
+      coverImageUrl: reservation.property.coverImageUrl,
+      checkInTime: reservation.property.checkInTime,
+      checkOutTime: reservation.property.checkOutTime,
+      neighborhood: reservation.property.neighborhood,
+    },
+  };
+}
+
+export type PanelCounts = {
+  arrivals: number;
+  departures: number;
+  current: number;
+};
+
+export async function getPanelCounts(): Promise<PanelCounts> {
+  const today = startOfDay();
+  const weekAhead = new Date(today);
+  weekAhead.setDate(weekAhead.getDate() + 7);
+
+  const [arrivals, departures, current] = await Promise.all([
+    db.reservation.count({
+      where: {
+        checkIn: { gte: today, lte: weekAhead },
+        status: ReservationStatus.CONFIRMED,
+      },
+    }),
+    db.reservation.count({
+      where: {
+        checkOut: { gte: today, lte: weekAhead },
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+        },
+      },
+    }),
+    db.reservation.count({
+      where: { status: ReservationStatus.CHECKED_IN },
+    }),
+  ]);
+
+  return { arrivals, departures, current };
+}
+
+export async function getUpcomingArrivals(limit = 20) {
+  const today = startOfDay();
+  const weekAhead = new Date(today);
+  weekAhead.setDate(weekAhead.getDate() + 7);
+
+  return db.reservation.findMany({
+    where: {
+      checkIn: { gte: today, lte: weekAhead },
+      status: ReservationStatus.CONFIRMED,
+    },
+    include: panelReservationInclude,
+    orderBy: { checkIn: "asc" },
+    take: limit,
+  });
+}
+
+export async function getUpcomingDepartures(limit = 20) {
+  const today = startOfDay();
+  const weekAhead = new Date(today);
+  weekAhead.setDate(weekAhead.getDate() + 7);
+
+  return db.reservation.findMany({
+    where: {
+      checkOut: { gte: today, lte: weekAhead },
+      status: {
+        in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+      },
+    },
+    include: panelReservationInclude,
+    orderBy: { checkOut: "asc" },
+    take: limit,
+  });
+}
+
+export async function getCurrentStays(limit = 20) {
+  return db.reservation.findMany({
+    where: { status: ReservationStatus.CHECKED_IN },
+    include: panelReservationInclude,
+    orderBy: { checkOut: "asc" },
+    take: limit,
+  });
+}

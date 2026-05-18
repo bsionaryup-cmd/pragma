@@ -1,0 +1,40 @@
+import type {
+  BookingPlatform,
+  ReservationStatus,
+} from "@prisma/client";
+
+export type ReservationPropertyDto = {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+};
+
+export type ReservationInboxItem = {
+  id: string;
+  guestName: string;
+  guestFirstName: string;
+  guestLastName: string | null;
+  guestEmail: string | null;
+  guestPhone: string | null;
+  guestCountry: string | null;
+  guestLanguage: string | null;
+  adults: number;
+  children: number;
+  infants: number;
+  checkIn: string;
+  checkOut: string;
+  platform: BookingPlatform;
+  status: ReservationStatus;
+  totalAmount: string;
+  currency: string;
+  internalNotes: string | null;
+  property: ReservationPropertyDto;
+};
+
+export type PropertyOption = {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+};
