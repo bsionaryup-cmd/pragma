@@ -1,8 +1,8 @@
 /** Auto-sync Airbnb → PRAGMA: primera ejecución inmediata. */
 export const AIRBNB_AUTO_SYNC_INITIAL_MS = 0;
 
-/** Sondeo periódico estable para múltiples propiedades (evita saturar Server Actions). */
-export const AIRBNB_AUTO_SYNC_MS = 90_000;
+/** Sondeo periódico en dashboard abierto (60s). */
+export const AIRBNB_AUTO_SYNC_MS = 60_000;
 
 export const AIRBNB_SYNC_COMPLETE_EVENT = "pragma-airbnb-sync-complete";
 export const AIRBNB_SYNC_FAILED_EVENT = "pragma-airbnb-sync-failed";

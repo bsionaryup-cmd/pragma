@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/airbnb-ical-sync",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}

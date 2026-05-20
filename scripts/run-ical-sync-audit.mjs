@@ -114,7 +114,7 @@ async function main() {
   assert.ok(linked.length > 0, "Debe haber al menos una propiedad con iCal");
 
   console.log(
-    "\nSync en producción: Vercel Cron → /api/cron/airbnb-ical-sync (cada 5 min).\n",
+    "\nSync servidor: GET /api/cron/airbnb-ical-sync (Bearer CRON_SECRET).\n",
   );
   console.log("Audit complete.\n");
 }
