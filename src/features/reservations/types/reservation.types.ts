@@ -10,6 +10,13 @@ export type ReservationPropertyDto = {
   city: string;
 };
 
+export type ReservationRelatedBlock = {
+  id: string;
+  guestName: string;
+  checkIn: string;
+  checkOut: string;
+};
+
 export type ReservationInboxItem = {
   id: string;
   guestName: string;
@@ -30,6 +37,13 @@ export type ReservationInboxItem = {
   currency: string;
   internalNotes: string | null;
   property: ReservationPropertyDto;
+};
+
+/** Detalle ampliado (calendario / drawer) con metadatos y bloqueos relacionados. */
+export type ReservationDetailItem = ReservationInboxItem & {
+  createdAt?: string;
+  icalUid?: string | null;
+  relatedBlocks?: ReservationRelatedBlock[];
 };
 
 export type PropertyOption = {

@@ -5,6 +5,7 @@ import { ReservationCreateWizard } from "@/features/reservations/components/rese
 import { ReservationDetailPanel } from "@/features/reservations/components/reservation-detail-panel";
 import type {
   PropertyOption,
+  ReservationDetailItem,
   ReservationInboxItem,
 } from "@/features/reservations/types/reservation.types";
 import {
@@ -26,7 +27,7 @@ export type ReservationCreateInitialValues = {
 type ReservationDrawerProps = {
   open: boolean;
   mode: ReservationDrawerMode;
-  reservation: ReservationInboxItem | null;
+  reservation: ReservationDetailItem | null;
   properties: PropertyOption[];
   canWrite: boolean;
   initialCreateValues?: ReservationCreateInitialValues;
@@ -34,6 +35,7 @@ type ReservationDrawerProps = {
   onCreated: (reservation: ReservationInboxItem) => void;
   onDeleted: (id: string) => void;
   detailLoading?: boolean;
+  refreshAfterDelete?: boolean;
 };
 
 export function ReservationDrawer({
@@ -47,6 +49,7 @@ export function ReservationDrawer({
   onCreated,
   onDeleted,
   detailLoading = false,
+  refreshAfterDelete = true,
 }: ReservationDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -55,7 +58,7 @@ export function ReservationDrawer({
         showCloseButton
         className={cn(
           "flex w-full flex-col gap-0 border-l border-border p-0",
-          "sm:max-w-[440px]",
+          "sm:max-w-[min(100%,480px)]",
           "data-[state=open]:duration-300 data-[state=closed]:duration-200",
         )}
       >
@@ -86,6 +89,7 @@ export function ReservationDrawer({
               canWrite={canWrite}
               onDeleted={onDeleted}
               onClose={onClose}
+              refreshAfterDelete={refreshAfterDelete}
             />
           ) : null}
         </div>

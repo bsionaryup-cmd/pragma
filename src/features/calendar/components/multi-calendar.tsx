@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
@@ -13,6 +12,7 @@ import { groupReservationsByProperty } from "@/features/calendar/lib/reservation
 import type {
   CalendarDataDto,
   CalendarDateSelection,
+  CalendarReservationDto,
 } from "@/features/calendar/types/calendar.types";
 import {
   ReservationDrawer,
@@ -20,6 +20,7 @@ import {
 } from "@/features/reservations/components/reservation-drawer";
 import type {
   PropertyOption,
+  ReservationDetailItem,
   ReservationInboxItem,
 } from "@/features/reservations/types/reservation.types";
 
@@ -36,13 +37,15 @@ export function MultiCalendar({
   canSyncAirbnb,
   propertyOptions,
 }: MultiCalendarProps) {
-  const router = useRouter();
   const viewport = data.viewport;
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<CalendarDateSelection | null>(null);
   const [drawerMode, setDrawerMode] = useState<ReservationDrawerMode>(null);
   const [selectedReservation, setSelectedReservation] =
-    useState<ReservationInboxItem | null>(null);
+    useState<ReservationDetailItem | null>(null);
+  const [calendarReservations, setCalendarReservations] = useState<
+    CalendarReservationDto[] | null
+  >(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [createDefaults, setCreateDefaults] = useState<{
     propertyId: string;
@@ -67,10 +70,16 @@ export function MultiCalendar({
     );
   }, [data.properties, search]);
 
+  const visibleReservations = calendarReservations ?? data.reservations;
+
   const reservationsByProperty = useMemo(
-    () => groupReservationsByProperty(data.reservations),
-    [data.reservations],
+    () => groupReservationsByProperty(visibleReservations),
+    [visibleReservations],
   );
+
+  useEffect(() => {
+    setCalendarReservations(null);
+  }, [data.reservations, data.viewport.anchor]);
 
   useEffect(() => {
     if (scrolledRef.current === viewport.anchor) return;
@@ -187,14 +196,33 @@ export function MultiCalendar({
     }
   }, []);
 
-  function handleCreated(_reservation: ReservationInboxItem) {
-    closeDrawer();
-    router.refresh();
+  function inboxToCalendarBar(
+    reservation: ReservationInboxItem,
+  ): CalendarReservationDto {
+    return {
+      id: reservation.id,
+      propertyId: reservation.property.id,
+      guestName: reservation.guestName,
+      checkIn: reservation.checkIn,
+      checkOut: reservation.checkOut,
+      status: reservation.status,
+      totalAmount: reservation.totalAmount,
+      currency: reservation.currency,
+      platform: reservation.platform,
+    };
   }
 
-  function handleDeleted(_id: string) {
+  function handleCreated(reservation: ReservationInboxItem) {
+    const bar = inboxToCalendarBar(reservation);
+    setCalendarReservations((prev) => [...(prev ?? data.reservations), bar]);
     closeDrawer();
-    router.refresh();
+  }
+
+  function handleDeleted(id: string) {
+    setCalendarReservations((prev) =>
+      (prev ?? data.reservations).filter((r) => r.id !== id),
+    );
+    closeDrawer();
   }
 
   return (
@@ -259,6 +287,7 @@ export function MultiCalendar({
         canWrite={canWrite}
         initialCreateValues={createDefaults ?? undefined}
         detailLoading={detailLoading}
+        refreshAfterDelete={false}
         onClose={closeDrawer}
         onCreated={handleCreated}
         onDeleted={handleDeleted}

@@ -1,6 +1,10 @@
 import type { ReservationWizardValues } from "@/features/reservations/schemas/reservation.schema";
-import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
-import { PropertyStatus } from "@prisma/client";
+import type {
+  ReservationDetailItem,
+  ReservationInboxItem,
+  ReservationRelatedBlock,
+} from "@/features/reservations/types/reservation.types";
+import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -92,10 +96,27 @@ export async function getReservationById(id: string) {
   });
 }
 
+type ReservationDetailRow = ReservationRow & {
+  createdAt: Date;
+  icalUid: string | null;
+};
+
+function toDetailItem(
+  row: ReservationDetailRow,
+  relatedBlocks: ReservationRelatedBlock[],
+): ReservationDetailItem {
+  return {
+    ...toInboxItem(row),
+    createdAt: row.createdAt.toISOString(),
+    icalUid: row.icalUid,
+    relatedBlocks,
+  };
+}
+
 /** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
 export async function getReservationForInbox(
   id: string,
-): Promise<ReservationInboxItem | null> {
+): Promise<ReservationDetailItem | null> {
   const row = await db.reservation.findFirst({
     where: withVisibleReservationsFilter({ id }),
     include: {
@@ -105,7 +126,32 @@ export async function getReservationForInbox(
     },
   });
   if (!row) return null;
-  return toInboxItem(row);
+
+  const blockRows = await db.reservation.findMany({
+    where: withVisibleReservationsFilter({
+      propertyId: row.propertyId,
+      id: { not: row.id },
+      status: ReservationStatus.BLOCKED,
+      checkIn: { lt: row.checkOut },
+      checkOut: { gt: row.checkIn },
+    }),
+    select: {
+      id: true,
+      guestName: true,
+      checkIn: true,
+      checkOut: true,
+    },
+    orderBy: { checkIn: "asc" },
+  });
+
+  const relatedBlocks: ReservationRelatedBlock[] = blockRows.map((b) => ({
+    id: b.id,
+    guestName: b.guestName,
+    checkIn: prismaDateToKey(b.checkIn),
+    checkOut: prismaDateToKey(b.checkOut),
+  }));
+
+  return toDetailItem(row, relatedBlocks);
 }
 
 export async function createReservation(data: ReservationWizardValues) {
