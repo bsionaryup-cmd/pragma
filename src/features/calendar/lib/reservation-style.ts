@@ -43,7 +43,7 @@ export function getReservationVisualState(
 }
 
 const pillBase =
-  "absolute top-2 z-20 flex h-[calc(100%-14px)] min-w-[32px] cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-[#1B1F23] px-2.5 text-[11px] font-medium leading-tight text-[#F8F9FA] shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(0,0,0,0.45)] pointer-events-auto";
+  "absolute top-1/2 z-20 flex h-8 min-w-[28px] -translate-y-1/2 cursor-pointer items-center gap-1.5 overflow-hidden border border-white/10 bg-[#1B1F23] px-2 text-[11px] font-medium leading-tight text-[#F8F9FA] shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(0,0,0,0.45)] pointer-events-auto";
 
 export function getReservationBarClasses(state: ReservationVisualState): string {
   switch (state) {

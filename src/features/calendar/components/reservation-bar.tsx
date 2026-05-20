@@ -38,7 +38,9 @@ function ReservationBarComponent({
       type="button"
       className={cn(
         getReservationBarClasses(visualState),
-        "relative z-20 text-left pointer-events-auto",
+        "text-left",
+        span.roundedStart ? "rounded-l-full" : "rounded-l-none",
+        span.roundedEnd ? "rounded-r-full" : "rounded-r-none",
       )}
       style={{ left: span.leftPx, width: span.widthPx }}
       title={`${reservation.guestName} · ${getStatusLabel(reservation.status)}`}

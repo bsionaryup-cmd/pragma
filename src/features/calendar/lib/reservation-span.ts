@@ -9,10 +9,12 @@ import type {
   ReservationSpan,
 } from "@/features/calendar/types/calendar.types";
 
-const BAR_GAP = 3;
+/** Mitad de celda: check-in/check-out ocurren a mediodía (estilo Lodgify). */
+const HALF_DAY = CALENDAR_DAY_WIDTH / 2;
 
 /**
  * Noches ocupadas: check-in inclusive, check-out exclusive (estándar PMS).
+ * Visualmente la barra empieza a mitad del día de entrada y termina a mitad del día de salida.
  */
 export function computeReservationSpan(
   reservation: CalendarReservationDto,
@@ -50,8 +52,15 @@ export function computeReservationSpan(
   }
 
   const clippedSpan = Math.min(spanCols, dayKeys.length - startCol);
-  const leftPx = startCol * CALENDAR_DAY_WIDTH + BAR_GAP;
-  const widthPx = clippedSpan * CALENDAR_DAY_WIDTH - BAR_GAP * 2;
+  const continuesFromPast = checkInKey < rangeStartKey;
+  const continuesToFuture = checkOutKey > addDaysToKey(rangeEndKey, 1);
+
+  const leftPx =
+    startCol * CALENDAR_DAY_WIDTH + (continuesFromPast ? 0 : HALF_DAY);
+  const rightPx = continuesToFuture
+    ? (startCol + clippedSpan) * CALENDAR_DAY_WIDTH
+    : endCol * CALENDAR_DAY_WIDTH + HALF_DAY;
+  const widthPx = Math.max(HALF_DAY, rightPx - leftPx);
 
   return {
     reservationId: reservation.id,
@@ -59,6 +68,8 @@ export function computeReservationSpan(
     spanCols: clippedSpan,
     leftPx,
     widthPx,
+    roundedStart: !continuesFromPast,
+    roundedEnd: !continuesToFuture,
   };
 }
 

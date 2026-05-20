@@ -66,6 +66,10 @@ export type ReservationSpan = {
   spanCols: number;
   leftPx: number;
   widthPx: number;
+  /** Borde redondeado al inicio (check-in visible). */
+  roundedStart: boolean;
+  /** Borde redondeado al final (check-out visible). */
+  roundedEnd: boolean;
 };
 
 export type ReservationVisualState =

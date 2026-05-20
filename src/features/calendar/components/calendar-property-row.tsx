@@ -110,7 +110,12 @@ function CalendarPropertyRowComponent({
               height: CALENDAR_ROW_HEIGHT,
             }}
             aria-label={`${day.date}${selected ? " (seleccionado)" : ""}`}
-          />
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
+            />
+          </button>
         );
       })}
 
