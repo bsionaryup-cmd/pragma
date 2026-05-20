@@ -6,7 +6,7 @@ import { listPropertiesForInbox } from "@/services/properties/property.service";
 import type { AppUserRole } from "@/types/auth";
 
 type CalendarPageProps = {
-  searchParams: Promise<{ anchor?: string }>;
+  searchParams: Promise<{ anchor?: string; reservation?: string }>;
 };
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
@@ -24,6 +24,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     listPropertiesForInbox(),
   ]);
 
+  const reservationParam = params.reservation?.trim() ?? null;
+  const initialReservationId =
+    reservationParam &&
+    data.reservations.some((r) => r.id === reservationParam)
+      ? reservationParam
+      : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <MultiCalendar
@@ -31,6 +38,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         canWrite={canWrite}
         canSyncAirbnb={canSyncAirbnb}
         propertyOptions={propertyOptions}
+        initialReservationId={initialReservationId}
       />
     </div>
   );

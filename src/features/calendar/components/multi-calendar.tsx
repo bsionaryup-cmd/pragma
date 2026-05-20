@@ -29,6 +29,8 @@ type MultiCalendarProps = {
   canWrite: boolean;
   canSyncAirbnb: boolean;
   propertyOptions: PropertyOption[];
+  /** Abre detalle al montar (p. ej. /calendar?reservation=id) sin ir a /reservations */
+  initialReservationId?: string | null;
 };
 
 export function MultiCalendar({
@@ -36,6 +38,7 @@ export function MultiCalendar({
   canWrite,
   canSyncAirbnb,
   propertyOptions,
+  initialReservationId = null,
 }: MultiCalendarProps) {
   const viewport = data.viewport;
   const [search, setSearch] = useState("");
@@ -58,6 +61,7 @@ export function MultiCalendar({
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
   const scrolledRef = useRef<string | null>(null);
+  const openedInitialReservationRef = useRef(false);
 
   const filteredProperties = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -196,6 +200,12 @@ export function MultiCalendar({
       setDetailLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!initialReservationId || openedInitialReservationRef.current) return;
+    openedInitialReservationRef.current = true;
+    void openReservationDetail(initialReservationId);
+  }, [initialReservationId, openReservationDetail]);
 
   function inboxToCalendarBar(
     reservation: ReservationInboxItem,

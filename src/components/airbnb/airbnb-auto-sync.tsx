@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   cleanupDisconnectedAirbnbImportsAction,
@@ -20,6 +20,7 @@ type AirbnbAutoSyncProps = {
 
 export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const syncingRef = useRef(false);
 
   useEffect(() => {
@@ -45,7 +46,9 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         const { status } = await getAirbnbSyncStatusAction();
         if (status.linkedCount === 0) {
           await cleanupDisconnectedAirbnbImportsAction();
-          router.refresh();
+          if (!pathname?.startsWith("/calendar")) {
+            router.refresh();
+          }
           if (process.env.NODE_ENV === "development") {
             console.info("[ical-sync:auto] skip — sin iCal; huérfanos archivados", trigger);
           }
@@ -62,7 +65,10 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
           errors: summary.results.filter((r) => r.error).length,
           durationMs: summary.durationMs,
         });
-        router.refresh();
+        // En calendario no refrescar RSC: preserva scroll y drawer abierto
+        if (!pathname?.startsWith("/calendar")) {
+          router.refresh();
+        }
 
         if (process.env.NODE_ENV === "development") {
           console.info("[ical-sync:auto]", trigger, summary);
@@ -112,7 +118,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [enabled, router]);
+  }, [enabled, pathname, router]);
 
   return null;
 }
