@@ -10,7 +10,7 @@ type InboxReservationSidebarProps = {
   conversation: InboxConversation;
 };
 
-function formatMoney(amount: number, currency: string) {
+function formatMoney(amount: number) {
   return new Intl.NumberFormat("es-CO", {
     style: "decimal",
     minimumFractionDigits: 2,
@@ -94,21 +94,21 @@ export function InboxReservationSidebar({
             <div className="flex justify-between text-muted-foreground">
               <span>Debido</span>
               <span>
-                {formatMoney(conversation.dueAmount, conversation.currency)}{" "}
+                {formatMoney(conversation.dueAmount)}{" "}
                 {conversation.currency}
               </span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Pagado</span>
               <span>
-                {formatMoney(conversation.paidAmount, conversation.currency)}{" "}
+                {formatMoney(conversation.paidAmount)}{" "}
                 {conversation.currency}
               </span>
             </div>
             <div className="flex justify-between font-bold text-foreground">
               <span>Total</span>
               <span>
-                {formatMoney(conversation.totalAmount, conversation.currency)}{" "}
+                {formatMoney(conversation.totalAmount)}{" "}
                 {conversation.currency}
               </span>
             </div>

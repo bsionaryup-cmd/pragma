@@ -82,7 +82,10 @@ export function MultiCalendar({
   );
 
   useEffect(() => {
-    setCalendarReservations(null);
+    const id = window.setTimeout(() => {
+      setCalendarReservations(null);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [data.reservations, data.viewport.anchor]);
 
   useEffect(() => {

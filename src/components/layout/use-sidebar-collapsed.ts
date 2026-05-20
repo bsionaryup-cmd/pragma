@@ -9,12 +9,15 @@ export function useSidebarCollapsed() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
-    } catch {
-      /* ignore */
-    }
-    setReady(true);
+    const id = window.setTimeout(() => {
+      try {
+        setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
+      } catch {
+        /* ignore */
+      }
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, []);
 
   const toggle = useCallback(() => {

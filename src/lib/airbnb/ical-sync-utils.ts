@@ -1,8 +1,8 @@
 import { BookingPlatform, PropertyStatus, type Prisma } from "@prisma/client";
 
 /**
- * Guard global: null | "" | solo espacios → sin iCal activo.
- * Equivalente a `if (!icalUrl || !icalUrl.trim()) return`.
+ * Guard global: null | "" | solo espacios | URL inválida → sin iCal activo.
+ * Equivalente a `if (!icalUrl || !icalUrl.trim()) return`, con validación URL.
  */
 export function guardActiveIcalImportUrl(
   icalUrl: string | null | undefined,
@@ -10,6 +10,14 @@ export function guardActiveIcalImportUrl(
   if (!icalUrl) return null;
   const trimmed = icalUrl.trim();
   if (!trimmed) return null;
+  const normalized = trimmed.replace(/^webcal:\/\//i, "https://");
+  try {
+    new URL(
+      normalized.startsWith("http") ? normalized : `https://${normalized}`,
+    );
+  } catch {
+    return null;
+  }
   return trimmed;
 }
 
@@ -38,10 +46,14 @@ export function activePropertiesWithIcalFilter(
   };
 }
 
-/** Propiedad con iCal activo en Prisma (null/vacío excluidos; trim validado en runtime). */
+/** Propiedad con iCal activo en Prisma (null/vacío/espacios excluidos). */
 export function activeIcalUrlOnPropertyFilter(): Prisma.PropertyWhereInput {
   return {
-    AND: [{ icalUrl: { not: null } }, { NOT: { icalUrl: "" } }],
+    OR: [
+      { icalUrl: { startsWith: "https://" } },
+      { icalUrl: { startsWith: "http://" } },
+      { icalUrl: { startsWith: "webcal://" } },
+    ],
   };
 }
 

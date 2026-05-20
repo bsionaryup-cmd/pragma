@@ -3,7 +3,7 @@ import { z } from "zod";
 export const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   CLERK_SECRET_KEY: z.string().min(1),
-  /** URL pública (ngrok / producción). Alternativa a NEXT_PUBLIC_APP_URL. */
+  /** URL pública estable de producción. Alternativa a NEXT_PUBLIC_APP_URL. */
   APP_URL: z.string().url().optional(),
 });
 

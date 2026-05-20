@@ -36,7 +36,10 @@ export function PropertyIcalExportLink({
   }, [propertyId]);
 
   useEffect(() => {
-    void loadUrl();
+    const id = window.setTimeout(() => {
+      void loadUrl();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [loadUrl]);
 
   async function handleExportClick() {

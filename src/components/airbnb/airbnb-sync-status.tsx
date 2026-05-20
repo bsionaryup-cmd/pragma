@@ -15,9 +15,9 @@ type AirbnbSyncStatusProps = {
   compact?: boolean;
 };
 
-function formatRelativeTime(iso: string | null): string {
+function formatRelativeTime(iso: string | null, now: number): string {
   if (!iso) return "Nunca";
-  const diff = Date.now() - new Date(iso).getTime();
+  const diff = now - new Date(iso).getTime();
   if (diff < 0) return "Ahora";
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return `Hace ${sec}s`;
@@ -43,7 +43,7 @@ export function AirbnbSyncStatus({
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [linkedCount, setLinkedCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(0);
 
   const refreshStatus = useCallback(async () => {
     if (!canSync) {
@@ -62,7 +62,10 @@ export function AirbnbSyncStatus({
   }, [canSync]);
 
   useEffect(() => {
-    void refreshStatus();
+    const id = window.setTimeout(() => {
+      void refreshStatus();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [refreshStatus]);
 
   useEffect(() => {
@@ -77,15 +80,21 @@ export function AirbnbSyncStatus({
   }, [refreshStatus]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setTick((t) => t + 1), 1_000);
-    return () => window.clearInterval(id);
+    const updateNow = () => setNow(Date.now());
+    const timeoutId = window.setTimeout(updateNow, 0);
+    const intervalId = window.setInterval(updateNow, 1_000);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   if (!canSync || linkedCount === 0) return null;
 
   const isRecent =
     lastSyncedAt &&
-    Date.now() - new Date(lastSyncedAt).getTime() < 60_000;
+    now > 0 &&
+    now - new Date(lastSyncedAt).getTime() < 60_000;
 
   return (
     <div
@@ -112,9 +121,12 @@ export function AirbnbSyncStatus({
         />
         {loading
           ? "Sync…"
-          : `Airbnb · ${formatRelativeTime(lastSyncedAt)}`}
+          : `Airbnb · ${formatRelativeTime(lastSyncedAt, now)}`}
       </span>
-      <AirbnbSyncButton variant="header" className={compact ? "h-7 px-3 text-[10px]" : undefined} />
+      <AirbnbSyncButton
+        variant="header"
+        className={compact ? "h-7 px-3 text-[10px]" : undefined}
+      />
     </div>
   );
 }

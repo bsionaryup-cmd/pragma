@@ -12,7 +12,6 @@ import {
   isPortBusy,
   isProcessRunning,
   killListenersOnPorts,
-  killPid,
   sleep,
 } from "./dev-port-utils.mjs";
 
