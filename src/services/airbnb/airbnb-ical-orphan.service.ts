@@ -68,3 +68,22 @@ export async function enforcePropertyAirbnbIcalIsolation(
   await sanitizeInactivePropertyIcalUrl(propertyId, icalUrl);
   return archiveOrphanAirbnbImportsForProperty(propertyId, null);
 }
+
+/** Aísla todas las propiedades del owner sin iCal (801/802/803/804 por propertyId). */
+export async function enforceOwnerDisconnectedAirbnbImports(
+  ownerId: string,
+): Promise<number> {
+  const properties = await db.property.findMany({
+    where: { ownerId },
+    select: { id: true, icalUrl: true },
+  });
+
+  let archived = 0;
+  for (const property of properties) {
+    archived += await enforcePropertyAirbnbIcalIsolation(
+      property.id,
+      property.icalUrl,
+    );
+  }
+  return archived;
+}

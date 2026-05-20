@@ -10,6 +10,7 @@ import {
   ensurePropertyIcalExportToken,
 } from "@/services/airbnb/ical-export.service";
 import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
+import { enforceOwnerDisconnectedAirbnbImports } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { disconnectPropertyAirbnbIcal } from "@/services/airbnb/airbnb-ical-disconnect.service";
 import {
   getAirbnbSyncStatusForOwner,
@@ -28,6 +29,8 @@ function revalidateSyncedPaths() {
 
 export async function syncAirbnbCalendarsAction() {
   const user = await requirePermission("properties:write");
+  await enforceOwnerDisconnectedAirbnbImports(user.dbUserId);
+
   const linked = await db.property.findMany({
     where: { ownerId: user.dbUserId },
     select: { icalUrl: true },
@@ -77,6 +80,13 @@ export async function syncPropertyAirbnbAction(propertyId: string) {
   const result = await syncPropertyIcalCalendar(propertyId, user.dbUserId);
   revalidateSyncedPaths();
   return { success: true as const, result };
+}
+
+export async function cleanupDisconnectedAirbnbImportsAction() {
+  const user = await requirePermission("properties:write");
+  const archived = await enforceOwnerDisconnectedAirbnbImports(user.dbUserId);
+  revalidateSyncedPaths();
+  return { success: true as const, archived };
 }
 
 export async function getAirbnbSyncStatusAction() {

@@ -1,21 +1,30 @@
 import { BookingPlatform, PropertyStatus, type Prisma } from "@prisma/client";
 
-/** Propiedad con iCal de importación Airbnb activo (no null, no vacío, no solo espacios). */
+/**
+ * Guard global: null | "" | solo espacios → sin iCal activo.
+ * Equivalente a `if (!icalUrl || !icalUrl.trim()) return`.
+ */
+export function guardActiveIcalImportUrl(
+  icalUrl: string | null | undefined,
+): string | null {
+  if (!icalUrl) return null;
+  const trimmed = icalUrl.trim();
+  if (!trimmed) return null;
+  return trimmed;
+}
+
+/** Propiedad con iCal de importación Airbnb activo. */
 export function hasActiveAirbnbIcalImport(
   icalUrl: string | null | undefined,
 ): boolean {
-  return Boolean(icalUrl?.trim());
+  return guardActiveIcalImportUrl(icalUrl) !== null;
 }
 
-/**
- * Guard obligatoria en todos los puntos de entrada de sync/import fetch.
- * Devuelve false si no hay iCal activo (null, "", solo espacios).
- */
+/** Guard obligatoria en sync/fetch — false si no hay iCal activo. */
 export function canSyncAirbnbIcalImport(
   icalUrl: string | null | undefined,
 ): boolean {
-  if (!icalUrl) return false;
-  return icalUrl.trim().length > 0;
+  return hasActiveAirbnbIcalImport(icalUrl);
 }
 
 /** Propiedades activas con iCal de Airbnb configurado (no vacío). */
