@@ -57,14 +57,14 @@ function applyTheme(resolved: ResolvedTheme) {
 }
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
     if (raw === "light" || raw === "dark" || raw === "system") return raw;
   } catch {
     // ignore
   }
-  return "light";
+  return "dark";
 }
 
 function persistTheme(theme: Theme, resolved: ResolvedTheme) {
