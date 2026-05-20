@@ -28,7 +28,7 @@ const mainNavItems: NavItem[] = [
     permission: "dashboard:read",
   },
   {
-    title: "Reservas",
+    title: "Reservas y Huéspedes",
     href: "/reservations",
     icon: "clipboard-list",
     permission: "reservations:read",

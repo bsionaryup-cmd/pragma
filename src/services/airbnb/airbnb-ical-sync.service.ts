@@ -22,6 +22,7 @@ import {
 } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
+import { ensureGuestRegistrationForReservation } from "@/services/guests/guest-registration.service";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 import { db } from "@/lib/db";
@@ -68,7 +69,7 @@ async function findReservationByIcalUid(
 ) {
   return db.reservation.findFirst({
     where: { propertyId, icalUid },
-    select: { id: true },
+    select: { id: true, guestRegistrationCompletedAt: true },
   });
 }
 
@@ -317,8 +318,18 @@ export async function syncPropertyIcalCalendarInner(
       if (existing) {
         await db.reservation.update({
           where: { id: existing.id },
-          data: payload,
+          data: existing.guestRegistrationCompletedAt
+            ? {
+                checkIn: payload.checkIn,
+                checkOut: payload.checkOut,
+                status: payload.status,
+                platform: payload.platform,
+              }
+            : payload,
         });
+        if (!blocked && status === ReservationStatus.CONFIRMED) {
+          await ensureGuestRegistrationForReservation(existing.id);
+        }
         updated += 1;
         continue;
       }
@@ -335,6 +346,9 @@ export async function syncPropertyIcalCalendarInner(
             where: { id: overlap.id },
             data: payload,
           });
+          if (!blocked && status === ReservationStatus.CONFIRMED) {
+            await ensureGuestRegistrationForReservation(overlap.id);
+          }
           updated += 1;
         } else {
           skipped += 1;
@@ -348,7 +362,7 @@ export async function syncPropertyIcalCalendarInner(
         continue;
       }
 
-      await db.reservation.create({
+      const createdReservation = await db.reservation.create({
         data: {
           propertyId: property.id,
           icalUid: event.uid,
@@ -360,6 +374,9 @@ export async function syncPropertyIcalCalendarInner(
             : "Sincronizado desde iCal Airbnb",
         },
       });
+      if (!blocked && status === ReservationStatus.CONFIRMED) {
+        await ensureGuestRegistrationForReservation(createdReservation.id);
+      }
       created += 1;
     }
 

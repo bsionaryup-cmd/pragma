@@ -1,5 +1,10 @@
+import { cookies } from "next/headers";
+
 import { Sidebar } from "@/components/layout/sidebar";
+import { ThemedMainContent } from "@/components/layout/themed-main-content";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
+import { THEME_STORAGE_KEY } from "@/lib/constants";
+import { resolveThemeFromCookies } from "@/lib/theme";
 import type { NavItem } from "@/lib/navigation";
 
 type AppShellProps = {
@@ -9,18 +14,26 @@ type AppShellProps = {
   user: SidebarUser;
 };
 
-export function AppShell({
+export async function AppShell({
   children,
   navItems,
   settingsItem,
   user,
 }: AppShellProps) {
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get(THEME_STORAGE_KEY)?.value;
+  const resolvedCookie = cookieStore.get("pragma-theme-resolved")?.value;
+  const { resolved: initialResolved } = resolveThemeFromCookies(
+    themeCookie,
+    resolvedCookie,
+  );
+
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-background">
+    <div className="flex h-screen overflow-hidden bg-[#F7F8FA]">
       <Sidebar items={navItems} settingsItem={settingsItem} user={user} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-background">
+      <ThemedMainContent initialResolved={initialResolved}>
         {children}
-      </div>
+      </ThemedMainContent>
     </div>
   );
 }

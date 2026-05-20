@@ -9,6 +9,10 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
+import {
+  buildGuestRegistrationUrl,
+  getActiveGuestRegistrationForReservation,
+} from "@/services/guests/guest-registration.service";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 
@@ -35,13 +39,21 @@ type ReservationRow = {
   totalAmount: { toString(): string };
   currency: string;
   internalNotes: string | null;
+  guestRegistrationToken?: string | null;
+  guestRegistrationCompletedAt?: Date | null;
   property: ReservationInboxItem["property"];
+  guests?: ReservationDetailItem["guests"];
+  guestRegistration?: ReservationInboxItem["guestRegistration"];
 };
 
 function toInboxItem(r: ReservationRow): ReservationInboxItem {
+  const primaryGuest = r.guests?.find((guest) => guest.isPrimary);
+  const visibleGuestName =
+    primaryGuest?.fullName.trim() || r.guestName.trim() || "Registro pendiente";
+
   return {
     id: r.id,
-    guestName: r.guestName,
+    guestName: visibleGuestName,
     guestFirstName: r.guestFirstName,
     guestLastName: r.guestLastName,
     guestEmail: r.guestEmail,
@@ -58,6 +70,16 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
     internalNotes: r.internalNotes,
+    guestRegistrationUrl:
+      r.guestRegistration?.url ??
+      (r.guestRegistrationToken
+        ? buildGuestRegistrationUrl(r.guestRegistrationToken)
+        : null),
+    guestRegistrationCompletedAt:
+      r.guestRegistration?.usedAt ??
+      r.guestRegistrationCompletedAt?.toISOString() ??
+      null,
+    guestRegistration: r.guestRegistration ?? null,
     property: {
       id: r.property.id,
       name: r.property.name,
@@ -65,6 +87,43 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       city: r.property.city,
     },
   };
+}
+
+async function getGuestsByReservationIds(reservationIds: string[]) {
+  if (reservationIds.length === 0) return new Map();
+
+  const guests = await db.reservationGuest.findMany({
+    where: { reservationId: { in: reservationIds } },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+  });
+
+  const byReservation = new Map<string, ReservationDetailItem["guests"]>();
+  for (const guest of guests) {
+    const list = byReservation.get(guest.reservationId) ?? [];
+    list.push({
+      id: guest.id,
+      isPrimary: guest.isPrimary,
+      firstName: guest.firstName,
+      lastName: guest.lastName,
+      fullName: guest.fullName,
+      documentType: guest.documentType,
+      documentNumber: guest.documentNumber,
+      email: guest.email,
+      phone: guest.phone,
+    });
+    byReservation.set(guest.reservationId, list);
+  }
+  return byReservation;
+}
+
+async function getRegistrationsByReservationIds(reservationIds: string[]) {
+  const entries = await Promise.all(
+    reservationIds.map(async (id) => [
+      id,
+      await getActiveGuestRegistrationForReservation(id),
+    ] as const),
+  );
+  return new Map(entries);
 }
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
@@ -78,7 +137,19 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
     orderBy: [{ checkIn: "desc" }, { createdAt: "desc" }],
   });
 
-  return rows.map(toInboxItem);
+  const ids = rows.map((row) => row.id);
+  const [guestsByReservation, registrationsByReservation] = await Promise.all([
+    getGuestsByReservationIds(ids),
+    getRegistrationsByReservationIds(ids),
+  ]);
+
+  return rows.map((row) =>
+    toInboxItem({
+      ...row,
+      guests: guestsByReservation.get(row.id) ?? [],
+      guestRegistration: registrationsByReservation.get(row.id) ?? null,
+    }),
+  );
 }
 
 /** @deprecated Usar listReservationsForInbox */
@@ -109,6 +180,7 @@ function toDetailItem(
     ...toInboxItem(row),
     createdAt: row.createdAt.toISOString(),
     icalUid: row.icalUid,
+    guests: row.guests ?? [],
     relatedBlocks,
   };
 }
@@ -151,7 +223,19 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  return toDetailItem(row, relatedBlocks);
+  const [guestsByReservation, registration] = await Promise.all([
+    getGuestsByReservationIds([row.id]),
+    getActiveGuestRegistrationForReservation(row.id),
+  ]);
+
+  return toDetailItem(
+    {
+      ...row,
+      guests: guestsByReservation.get(row.id) ?? [],
+      guestRegistration: registration,
+    },
+    relatedBlocks,
+  );
 }
 
 export async function createReservation(data: ReservationWizardValues) {

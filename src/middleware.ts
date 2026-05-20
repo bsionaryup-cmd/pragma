@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/ical/export",
   "/api/ical/(.*)",
   "/api/cron/(.*)",
+  "/guest-registration/(.*)",
 ]);
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);

@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Bell } from "lucide-react";
+import {
+  BedDouble,
+  Bell,
+  CalendarCheck,
+  CalendarDays,
+  CalendarX,
+  Percent,
+} from "lucide-react";
 import { FirstPropertyBanner } from "@/components/dashboard/first-property-banner";
 import { PanelReservationsTable } from "@/components/dashboard/panel-reservations-table";
 import { getPanelMotivationalMessage } from "@/lib/dashboard/panel-messages";
 import type {
+  DashboardStats,
   PanelCounts,
   PanelReservationRow,
 } from "@/services/dashboard/dashboard.service";
@@ -15,6 +23,7 @@ type PanelTab = "arrivals" | "departures" | "current";
 
 type PanelControlViewProps = {
   firstName: string | null;
+  stats: DashboardStats;
   counts: PanelCounts;
   arrivals: PanelReservationRow[];
   departures: PanelReservationRow[];
@@ -35,7 +44,15 @@ const downloadLabels: Record<PanelTab, string> = {
   current: "Descargar alojados",
 };
 
+const tabDescriptions: Record<PanelTab, string> = {
+  arrivals: "Llegadas confirmadas para los próximos 7 días.",
+  departures: "Salidas programadas y estancias que cierran pronto.",
+  current: "Huéspedes alojados actualmente en propiedades activas.",
+};
+
 export function PanelControlView({
+  firstName,
+  stats,
   counts,
   arrivals,
   departures,
@@ -45,6 +62,7 @@ export function PanelControlView({
 }: PanelControlViewProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("arrivals");
   const headline = getPanelMotivationalMessage();
+  const displayName = firstName?.trim() || "equipo";
 
   const rowsByTab: Record<PanelTab, PanelReservationRow[]> = {
     arrivals,
@@ -52,56 +70,149 @@ export function PanelControlView({
     current: currentStays,
   };
 
+  const kpis = [
+    {
+      label: "Ocupación",
+      value: `${stats.occupancyRate}%`,
+      detail: `${stats.activeReservations} reservas activas`,
+      icon: Percent,
+    },
+    {
+      label: "Llegadas hoy",
+      value: stats.checkInsToday,
+      detail: `${counts.arrivals} próximas`,
+      icon: CalendarCheck,
+    },
+    {
+      label: "Salidas hoy",
+      value: stats.checkOutsToday,
+      detail: `${counts.departures} próximas`,
+      icon: CalendarX,
+    },
+    {
+      label: "Alojados",
+      value: counts.current,
+      detail: "En estancia ahora",
+      icon: BedDouble,
+    },
+    {
+      label: "Propiedades activas",
+      value: stats.activeProperties,
+      detail: `${stats.totalProperties} en portafolio`,
+      icon: CalendarDays,
+    },
+  ];
+
   return (
-    <div className="flex min-h-full flex-col bg-white dark:bg-background">
-      <header className="flex items-start justify-between gap-6 px-8 pb-2 pt-7">
-        <h1 className="max-w-3xl text-xl font-bold leading-snug tracking-tight text-[#111111] dark:text-foreground sm:text-[1.65rem]">
-          {headline}
-        </h1>
+    <div className="flex min-h-full flex-col bg-background">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col px-4 py-5 sm:px-6 lg:px-8">
+        <header className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              Panel de Control
+            </p>
+            <h1 className="mt-2 max-w-4xl text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl">
+              {headline}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Hola, {displayName}. Revisa prioridades operativas, llegadas,
+              salidas y ocupación desde una vista compacta.
+            </p>
+          </div>
 
-        <button
-          type="button"
-          className="relative inline-flex shrink-0 items-center gap-2 pt-1 text-sm font-medium text-[#111111] hover:underline dark:text-foreground"
-        >
-          <Bell className="h-5 w-5" strokeWidth={1.75} />
-          Novedades
-          <span className="absolute -right-2.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E53935] px-1 text-[10px] font-bold text-white">
-            0
-          </span>
-        </button>
-      </header>
+          <button
+            type="button"
+            className="relative inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-medium text-foreground shadow-pragma-soft transition-colors hover:bg-accent"
+          >
+            <Bell className="h-4 w-4" strokeWidth={1.75} />
+            Novedades
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">
+              0
+            </span>
+          </button>
+        </header>
 
-      <div className="flex-1 px-8 pb-8 pt-4">
+        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {kpis.map((kpi) => {
+            const Icon = kpi.icon;
+
+            return (
+              <article
+                key={kpi.label}
+                className="rounded-2xl border border-border bg-card p-4 shadow-pragma-soft"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {kpi.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                      {kpi.value}
+                    </p>
+                  </div>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Icon className="h-5 w-5" strokeWidth={1.75} />
+                  </span>
+                </div>
+                <p className="mt-3 truncate text-sm text-muted-foreground">
+                  {kpi.detail}
+                </p>
+              </article>
+            );
+          })}
+        </section>
+
         {showEmptyBanner ? (
-          <div className="mb-6">
+          <div className="mb-5">
             <FirstPropertyBanner canCreate={canCreateProperties} />
           </div>
         ) : null}
 
-        <div className="overflow-hidden rounded-xl border border-[#E9ECEF] bg-white shadow-pragma-soft dark:border-border dark:bg-card dark:shadow-none">
-          <div className="border-b border-[#E9ECEF] px-6 dark:border-border">
-            <div className="flex gap-8">
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "relative py-4 text-sm font-medium transition-colors",
-                      isActive
-                        ? "text-[#111111] dark:text-foreground"
-                        : "text-[#6B7280] hover:text-[#111111] dark:text-muted-foreground dark:hover:text-foreground",
-                    )}
-                  >
-                    {tab.label} ({counts[tab.countKey]})
-                    {isActive ? (
-                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#111111] dark:bg-foreground" />
-                    ) : null}
-                  </button>
-                );
-              })}
+        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-pragma-soft">
+          <div className="border-b border-border px-4 py-4 sm:px-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">
+                  Operación de reservas
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {tabDescriptions[activeTab]}
+                </p>
+              </div>
+
+              <div
+                className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-muted/50 p-1"
+                aria-label="Vista operativa"
+              >
+                {tabs.map((tab) => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-all",
+                        isActive
+                          ? "bg-card text-foreground shadow-pragma-soft"
+                          : "text-muted-foreground hover:bg-card/70 hover:text-foreground",
+                      )}
+                    >
+                      <span>{tab.label}</span>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "bg-background text-muted-foreground",
+                        )}
+                      >
+                        {counts[tab.countKey]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -110,7 +221,7 @@ export function PanelControlView({
             rows={rowsByTab[activeTab]}
             downloadLabel={downloadLabels[activeTab]}
           />
-        </div>
+        </section>
       </div>
     </div>
   );

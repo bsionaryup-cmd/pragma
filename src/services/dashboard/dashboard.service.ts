@@ -95,12 +95,44 @@ export type PanelReservationRow = {
   };
 };
 
+type PanelReservationWithPrimaryGuest = PanelReservation & {
+  primaryGuestName: string | null;
+};
+
+async function attachPrimaryGuestNames<T extends { id: string }>(
+  reservations: T[],
+): Promise<Array<T & { primaryGuestName: string | null }>> {
+  if (reservations.length === 0) return [];
+
+  const primaryGuests = await db.reservationGuest.findMany({
+    where: {
+      isPrimary: true,
+      reservationId: { in: reservations.map((reservation) => reservation.id) },
+    },
+    select: {
+      reservationId: true,
+      fullName: true,
+    },
+  });
+  const nameByReservation = new Map(
+    primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
+  );
+
+  return reservations.map((reservation) => ({
+    ...reservation,
+    primaryGuestName: nameByReservation.get(reservation.id) ?? null,
+  }));
+}
+
 export function toPanelReservationRow(
-  reservation: PanelReservation,
+  reservation: PanelReservationWithPrimaryGuest,
 ): PanelReservationRow {
   return {
     id: reservation.id,
-    guestName: reservation.guestName,
+    guestName:
+      reservation.primaryGuestName?.trim() ||
+      reservation.guestName.trim() ||
+      "Registro pendiente",
     adults: reservation.adults,
     children: reservation.children,
     infants: reservation.infants,
@@ -158,7 +190,7 @@ export async function getUpcomingArrivals(limit = 20) {
   const weekAhead = new Date(today);
   weekAhead.setDate(weekAhead.getDate() + 7);
 
-  return db.reservation.findMany({
+  const reservations = await db.reservation.findMany({
     where: withVisibleReservationsFilter({
       checkIn: { gte: today, lte: weekAhead },
       status: ReservationStatus.CONFIRMED,
@@ -167,6 +199,7 @@ export async function getUpcomingArrivals(limit = 20) {
     orderBy: { checkIn: "asc" },
     take: limit,
   });
+  return attachPrimaryGuestNames(reservations);
 }
 
 export async function getUpcomingDepartures(limit = 20) {
@@ -174,7 +207,7 @@ export async function getUpcomingDepartures(limit = 20) {
   const weekAhead = new Date(today);
   weekAhead.setDate(weekAhead.getDate() + 7);
 
-  return db.reservation.findMany({
+  const reservations = await db.reservation.findMany({
     where: withVisibleReservationsFilter({
       checkOut: { gte: today, lte: weekAhead },
       status: {
@@ -185,10 +218,11 @@ export async function getUpcomingDepartures(limit = 20) {
     orderBy: { checkOut: "asc" },
     take: limit,
   });
+  return attachPrimaryGuestNames(reservations);
 }
 
 export async function getCurrentStays(limit = 20) {
-  return db.reservation.findMany({
+  const reservations = await db.reservation.findMany({
     where: withVisibleReservationsFilter({
       status: ReservationStatus.CHECKED_IN,
     }),
@@ -196,4 +230,5 @@ export async function getCurrentStays(limit = 20) {
     orderBy: { checkOut: "asc" },
     take: limit,
   });
+  return attachPrimaryGuestNames(reservations);
 }

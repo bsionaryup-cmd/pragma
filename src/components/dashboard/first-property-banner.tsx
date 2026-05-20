@@ -10,9 +10,9 @@ export function FirstPropertyBanner({ canCreate }: FirstPropertyBannerProps) {
   if (!canCreate) return null;
 
   return (
-    <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-[#0E9F8D]/20 bg-pragma-gradient p-8 text-white shadow-pragma-card sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-4 rounded-2xl border border-primary/20 bg-pragma-gradient p-5 text-white shadow-pragma-card sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/10">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-foreground/10">
           <Building2 className="h-6 w-6" />
         </div>
         <div>
@@ -25,7 +25,7 @@ export function FirstPropertyBanner({ canCreate }: FirstPropertyBannerProps) {
       </div>
       <Button
         asChild
-        className="h-11 shrink-0 rounded-full bg-foreground px-6 text-background hover:bg-foreground/90"
+        className="h-10 shrink-0 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90"
       >
         <Link href="/properties?create=true">
           <Plus className="mr-2 h-4 w-4" />

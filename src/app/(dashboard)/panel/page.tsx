@@ -28,6 +28,7 @@ export default async function PanelControlPage() {
   return (
     <PanelControlView
       firstName={user.firstName}
+      stats={stats}
       counts={counts}
       arrivals={arrivals.map(toPanelReservationRow)}
       departures={departures.map(toPanelReservationRow)}

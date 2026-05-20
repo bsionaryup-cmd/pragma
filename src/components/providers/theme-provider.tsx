@@ -6,13 +6,14 @@ import {
   useContext,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import { THEME_STORAGE_KEY } from "@/lib/constants";
+import type { ResolvedTheme, Theme } from "@/lib/theme";
 
-export type Theme = "light" | "dark" | "system";
-export type ResolvedTheme = "light" | "dark";
+export type { ResolvedTheme, Theme } from "@/lib/theme";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -31,6 +32,7 @@ type ThemeContextValue = {
   setTheme: (theme: Theme) => void;
   themes: Theme[];
   systemTheme: ResolvedTheme;
+  registerContentRoot: (element: HTMLElement | null) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -46,14 +48,17 @@ function resolveTheme(theme: Theme): ResolvedTheme {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
-/** :root = light premium; .dark class for full dark app shell */
-function applyTheme(resolved: ResolvedTheme) {
-  const root = document.documentElement;
-  root.classList.remove("dark", "light");
+function applyThemeToContentRoot(
+  element: HTMLElement | null,
+  resolved: ResolvedTheme,
+) {
+  if (!element) return;
+  element.classList.remove("dark");
   if (resolved === "dark") {
-    root.classList.add("dark");
+    element.classList.add("dark");
   }
-  root.style.colorScheme = resolved;
+  element.dataset.theme = resolved;
+  element.style.colorScheme = resolved;
 }
 
 function readStoredTheme(): Theme {
@@ -87,7 +92,6 @@ function createInitialThemeState(
 
   const theme = readStoredTheme();
   const resolved = resolveTheme(theme);
-  applyTheme(resolved);
   persistTheme(theme, resolved);
   return { theme, resolved };
 }
@@ -97,9 +101,22 @@ export function ThemeProvider({
   defaultTheme = "light",
   defaultResolved = "light",
 }: ThemeProviderProps) {
+  const contentRootRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState<ThemeState>(() =>
     createInitialThemeState(defaultTheme, defaultResolved),
   );
+
+  const registerContentRoot = useCallback(
+    (element: HTMLElement | null) => {
+      contentRootRef.current = element;
+      applyThemeToContentRoot(element, state.resolved);
+    },
+    [state.resolved],
+  );
+
+  useLayoutEffect(() => {
+    applyThemeToContentRoot(contentRootRef.current, state.resolved);
+  }, [state.resolved]);
 
   useLayoutEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -107,7 +124,6 @@ export function ThemeProvider({
       setState((prev) => {
         if (prev.theme !== "system") return prev;
         const resolved = getSystemTheme();
-        applyTheme(resolved);
         persistTheme("system", resolved);
         return { theme: "system", resolved };
       });
@@ -120,7 +136,6 @@ export function ThemeProvider({
   const setTheme = useCallback((next: Theme) => {
     const resolved = resolveTheme(next);
     setState({ theme: next, resolved });
-    applyTheme(resolved);
     persistTheme(next, resolved);
   }, []);
 
@@ -131,8 +146,9 @@ export function ThemeProvider({
       setTheme,
       themes: ["light", "dark", "system"],
       systemTheme: getSystemTheme(),
+      registerContentRoot,
     }),
-    [state.theme, state.resolved, setTheme],
+    [state.theme, state.resolved, setTheme, registerContentRoot],
   );
 
   return (

@@ -99,36 +99,90 @@ enum PropertyStatus {
 // ─── Reservation ──────────────────────────────────────────────
 
 model Reservation {
-  id             String            @id @default(cuid())
-  propertyId     String
-  guestName      String
-  guestFirstName String            @default("")
-  guestLastName  String?
-  guestEmail     String?
-  guestPhone     String?
-  guestCountry   String?
-  guestLanguage  String?
-  adults         Int               @default(1)
-  children       Int               @default(0)
-  infants        Int               @default(0)
-  checkIn        DateTime          @db.Date
-  checkOut       DateTime          @db.Date
-  platform       BookingPlatform
-  status         ReservationStatus @default(CONFIRMED)
-  totalAmount    Decimal           @db.Decimal(12, 2)
-  currency       String            @default("COP")
-  internalNotes  String?
-  icalUid        String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id                           String            @id @default(cuid())
+  propertyId                   String
+  guestName                    String
+  guestFirstName               String            @default("")
+  guestLastName                String?
+  guestEmail                   String?
+  guestPhone                   String?
+  guestCountry                 String?
+  guestLanguage                String?
+  adults                       Int               @default(1)
+  children                     Int               @default(0)
+  infants                      Int               @default(0)
+  checkIn                      DateTime          @db.Date
+  checkOut                     DateTime          @db.Date
+  platform                     BookingPlatform
+  status                       ReservationStatus @default(CONFIRMED)
+  totalAmount                  Decimal           @db.Decimal(12, 2)
+  currency                     String            @default("COP")
+  internalNotes                String?
+  icalUid                      String?
+  guestRegistrationToken       String?           @unique
+  guestRegistrationCompletedAt DateTime?
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
 
-  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
-  tasks    Task[]
+  property                Property                 @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  guests                  ReservationGuest[]
+  guestRegistrationTokens GuestRegistrationToken[]
+  tasks                   Task[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
   @@index([status])
   @@map("reservations")
+}
+
+model ReservationGuest {
+  id             String   @id @default(cuid())
+  reservationId  String
+  isPrimary      Boolean  @default(false)
+  firstName      String
+  lastName       String
+  fullName       String
+  documentType   String
+  documentNumber String
+  email          String?
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@unique([reservationId, documentType, documentNumber])
+  @@unique([reservationId, documentNumber])
+  @@index([reservationId, isPrimary])
+  @@map("reservation_guests")
+}
+
+model GuestRegistrationToken {
+  id              String                  @id @default(cuid())
+  reservationId   String
+  token           String                  @unique
+  status          GuestRegistrationStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  usedAt          DateTime?
+  revokedAt       DateTime?
+  attempts        Int                     @default(0)
+  maxAttempts     Int                     @default(10)
+  createdBySystem Boolean                 @default(true)
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, status])
+  @@index([token, status])
+  @@map("guest_registration_tokens")
+}
+
+enum GuestRegistrationStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  REVOKED
 }
 
 enum BookingPlatform {

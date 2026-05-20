@@ -38,6 +38,8 @@ function toInboxFromCreated(
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
     internalNotes: r.internalNotes,
+    guestRegistrationUrl: null,
+    guestRegistrationCompletedAt: null,
     property: {
       id: r.property.id,
       name: r.property.name,

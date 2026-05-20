@@ -48,10 +48,27 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
     }),
   ]);
 
+  const primaryGuests = await db.reservationGuest.findMany({
+    where: {
+      isPrimary: true,
+      reservationId: { in: reservations.map((r) => r.id) },
+    },
+    select: {
+      reservationId: true,
+      fullName: true,
+    },
+  });
+  const primaryGuestByReservation = new Map(
+    primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
+  );
+
   const reservationDtos: CalendarReservationDto[] = reservations.map((r) => ({
     id: r.id,
     propertyId: r.propertyId,
-    guestName: r.guestName,
+    guestName:
+      primaryGuestByReservation.get(r.id)?.trim() ||
+      r.guestName.trim() ||
+      "Registro pendiente",
     checkIn: prismaDateToKey(r.checkIn),
     checkOut: prismaDateToKey(r.checkOut),
     status: r.status,

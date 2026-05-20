@@ -101,7 +101,9 @@ export function ReservationsInbox({
         <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-white dark:bg-background">
           <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold tracking-tight">Reservas</h2>
+              <h2 className="text-base font-semibold tracking-tight">
+                Reservas y Huéspedes
+              </h2>
               <p className="text-xs text-muted-foreground">
                 {reservations.length} en total
               </p>
@@ -153,7 +155,7 @@ export function ReservationsInbox({
           >
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
-                <p className="text-sm font-medium">Sin reservas</p>
+                <p className="text-sm font-medium">Sin reservas ni huéspedes</p>
                 <p className="text-xs text-muted-foreground">
                   {query
                     ? "No hay resultados para tu búsqueda."

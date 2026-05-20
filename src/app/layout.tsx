@@ -3,11 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { AppProviders } from "@/components/providers/app-providers";
 import { ClerkRootProvider } from "@/components/providers/clerk-root-provider";
-import type {
-  ResolvedTheme,
-  Theme,
-} from "@/components/providers/theme-provider";
 import { APP_DESCRIPTION, APP_NAME, THEME_STORAGE_KEY } from "@/lib/constants";
+import { resolveThemeFromCookies } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,13 +25,6 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
-function parseThemeCookie(value: string | undefined): Theme {
-  if (value === "light" || value === "dark" || value === "system") {
-    return value;
-  }
-  return "dark";
-}
-
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -43,19 +33,14 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const themeCookie = cookieStore.get(THEME_STORAGE_KEY)?.value;
   const resolvedCookie = cookieStore.get("pragma-theme-resolved")?.value;
-
-  const defaultTheme = parseThemeCookie(themeCookie);
-  const defaultResolved: ResolvedTheme =
-    defaultTheme === "dark" ||
-    (defaultTheme === "system" && resolvedCookie === "dark")
-      ? "dark"
-      : "light";
+  const { theme: defaultTheme, resolved: defaultResolved } =
+    resolveThemeFromCookies(themeCookie, resolvedCookie);
 
   return (
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full${defaultResolved === "dark" ? " dark" : ""}`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
       <body className="min-h-full font-sans antialiased">
         <ClerkRootProvider>

@@ -1,9 +1,13 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Copy, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import {
+  regenerateGuestRegistrationTokenAction,
+  revokeGuestRegistrationTokenAction,
+} from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
 import {
   countNights,
@@ -76,6 +80,21 @@ function formatCreatedAt(iso: string): string {
   });
 }
 
+const registrationStatusLabels = {
+  ACTIVE: "Pendiente",
+  COMPLETED: "Completado",
+  EXPIRED: "Expirado",
+  REVOKED: "Revocado",
+} as const;
+
+function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 export function ReservationDetailPanel({
   reservation,
   canWrite,
@@ -85,6 +104,7 @@ export function ReservationDetailPanel({
 }: ReservationDetailPanelProps) {
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
+  const [isTokenPending, startTokenTransition] = useTransition();
   const displayStatus = resolveDisplayStatus(
     reservation.status,
     reservation.checkOut,
@@ -96,6 +116,8 @@ export function ReservationDetailPanel({
     reservation.infants,
   );
   const relatedBlocks = reservation.relatedBlocks ?? [];
+  const registeredGuests = reservation.guests ?? [];
+  const registration = reservation.guestRegistration;
   const reservationCode = formatReservationCode(reservation);
 
   async function handleDelete() {
@@ -112,6 +134,43 @@ export function ReservationDetailPanel({
     } finally {
       setDeleting(false);
     }
+  }
+
+  async function copyRegistrationLink() {
+    const url = registration?.url ?? reservation.guestRegistrationUrl;
+    if (!url) return;
+    await navigator.clipboard.writeText(url);
+    toast.success("Link de registro copiado");
+  }
+
+  function regenerateRegistrationLink() {
+    startTokenTransition(async () => {
+      try {
+        const result = await regenerateGuestRegistrationTokenAction(reservation.id);
+        await navigator.clipboard.writeText(result.url);
+        toast.success("Nuevo link generado y copiado");
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo regenerar el link",
+        );
+      }
+    });
+  }
+
+  function revokeRegistrationLink() {
+    if (!confirm("¿Revocar el link de registro de huéspedes?")) return;
+    startTokenTransition(async () => {
+      try {
+        await revokeGuestRegistrationTokenAction(reservation.id);
+        toast.success("Link de registro revocado");
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo revocar el link",
+        );
+      }
+    });
   }
 
   return (
@@ -133,8 +192,7 @@ export function ReservationDetailPanel({
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <DetailSection title="Huésped">
-          <DetailRow label="Nombre" value={reservation.guestFirstName} />
-          <DetailRow label="Apellido" value={reservation.guestLastName} />
+          <DetailRow label="Huésped principal" value={reservation.guestName} />
           <DetailRow label="Email" value={reservation.guestEmail} />
           <DetailRow label="Teléfono" value={reservation.guestPhone} />
           <DetailRow label="País" value={reservation.guestCountry} />
@@ -175,6 +233,129 @@ export function ReservationDetailPanel({
               value={formatCreatedAt(reservation.createdAt)}
             />
           ) : null}
+        </DetailSection>
+
+        <DetailSection title="Registro de huéspedes">
+          {registration ? (
+            <div className="space-y-3 rounded-lg border border-border bg-muted/30 px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {registrationStatusLabels[registration.status]}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Creado: {formatDateTime(registration.createdAt)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Expira: {formatDateTime(registration.expiresAt)}
+                  </p>
+                </div>
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase text-primary">
+                  {registration.status}
+                </span>
+              </div>
+
+              {registration.status === "ACTIVE" ? (
+                <>
+                  <a
+                    href={registration.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block break-all text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  >
+                    {registration.url}
+                  </a>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={copyRegistrationLink}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar
+                    </Button>
+                    {canWrite ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={regenerateRegistrationLink}
+                          disabled={isTokenPending}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Regenerar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={revokeRegistrationLink}
+                          disabled={isTokenPending}
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Revocar
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : (
+            <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4">
+              <p className="text-sm text-muted-foreground">
+                Esta reserva todavía no tiene link activo de registro.
+              </p>
+              {canWrite ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={regenerateRegistrationLink}
+                  disabled={isTokenPending}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Generar link
+                </Button>
+              ) : null}
+            </div>
+          )}
+        </DetailSection>
+
+        <DetailSection title="Lista de huéspedes">
+          {registeredGuests.length > 0 ? (
+            <ul className="space-y-2">
+              {registeredGuests.map((guest) => (
+                <li
+                  key={guest.id}
+                  className="rounded-lg border border-border bg-muted/30 px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">
+                        {guest.fullName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {guest.documentType} · {guest.documentNumber}
+                      </p>
+                    </div>
+                    {guest.isPrimary ? (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                        Principal
+                      </span>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+              Registro de huéspedes pendiente. Se mostrará aquí cuando el
+              huésped principal complete el formulario.
+            </p>
+          )}
         </DetailSection>
 
         {relatedBlocks.length > 0 ? (
