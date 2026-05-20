@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Building2,
   CalendarDays,
   ClipboardList,
   LayoutDashboard,
@@ -16,6 +17,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   "clipboard-list": ClipboardList,
   "message-circle": MessageCircle,
   "calendar-days": CalendarDays,
+  "building-2": Building2,
   ribbon: Ribbon,
   settings: Settings,
 };

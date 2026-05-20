@@ -12,8 +12,8 @@ export function InboxStatusBadge({ status, label }: InboxStatusBadgeProps) {
       className={cn(
         "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
         status === "open"
-          ? "bg-[#e8f5e9] text-[#2e7d32]"
-          : "bg-[#fce8ec] text-[#c62828]",
+          ? "bg-success/15 text-success"
+          : "bg-danger/15 text-danger",
       )}
     >
       {label}

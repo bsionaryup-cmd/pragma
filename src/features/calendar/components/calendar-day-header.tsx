@@ -36,10 +36,10 @@ function CalendarDayHeaderComponent({
           <div
             key={day.date}
             className={cn(
-              "flex shrink-0 flex-col items-center justify-center border-r border-border/60 text-center",
-              day.isWeekend && "bg-muted/25",
-              !day.isCurrentMonth && "text-muted-foreground/70",
-              day.isToday && "bg-primary/[0.12]",
+              "flex shrink-0 flex-col items-center justify-center border-r border-border/80 text-center",
+              day.isWeekend && "bg-muted/30",
+              !day.isCurrentMonth && "text-muted-foreground/60",
+              day.isToday && "bg-primary/10",
             )}
             style={{ width: CALENDAR_DAY_WIDTH }}
           >
@@ -54,11 +54,13 @@ function CalendarDayHeaderComponent({
               {day.weekdayShort}
             </span>
             {day.isToday ? (
-              <span className="mt-0.5 flex h-6 min-w-6 items-center justify-center rounded-md bg-foreground px-1 text-[11px] font-semibold tabular-nums text-background">
+              <span className="mt-0.5 flex h-7 min-w-7 items-center justify-center rounded-lg bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
                 {day.label}
               </span>
             ) : (
-              <span className="mt-0.5 text-xs tabular-nums">{day.label}</span>
+              <span className="mt-0.5 text-xs tabular-nums text-foreground/90">
+                {day.label}
+              </span>
             )}
           </div>
         ))}

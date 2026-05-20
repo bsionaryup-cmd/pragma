@@ -196,6 +196,10 @@ export function PropertyDetailPanel({
 
         {property.airbnbListingUrl || property.icalUrl ? (
           <DetailSection title="Airbnb">
+            <p className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs leading-relaxed text-primary">
+              Los bloqueos se reflejarán en Airbnb por sincronización iCal
+              (puede tardar unos minutos).
+            </p>
             {property.airbnbListingUrl ? (
               <div className="flex justify-between gap-4 py-2 text-sm">
                 <span className="text-muted-foreground">Anuncio</span>
@@ -203,7 +207,7 @@ export function PropertyDetailPanel({
                   href={property.airbnbListingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="max-w-[60%] truncate text-right font-medium text-rose-600 hover:underline"
+                  className="max-w-[60%] truncate text-right font-medium text-danger hover:underline"
                 >
                   Ver en Airbnb
                 </a>

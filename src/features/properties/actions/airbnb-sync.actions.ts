@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
+import { withTimeout } from "@/lib/async-timeout";
+
+const AIRBNB_SYNC_TIMEOUT_MS = 45_000;
 import {
   buildIcalExportUrl,
   ensurePropertyIcalExportToken,
@@ -23,7 +26,11 @@ function revalidateSyncedPaths() {
 export async function syncAirbnbCalendarsAction() {
   const user = await requirePermission("properties:write");
   try {
-    const summary = await syncAllAirbnbCalendarsForOwner(user.dbUserId);
+    const summary = await withTimeout(
+      syncAllAirbnbCalendarsForOwner(user.dbUserId),
+      AIRBNB_SYNC_TIMEOUT_MS,
+      "La sincronización con Airbnb tardó demasiado. Comprueba la base de datos y vuelve a intentarlo.",
+    );
     revalidateSyncedPaths();
     return { success: true as const, summary };
   } catch (error) {

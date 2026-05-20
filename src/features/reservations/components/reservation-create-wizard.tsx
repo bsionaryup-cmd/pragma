@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type FormEvent, type MouseEvent, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { createReservationAction } from "@/features/reservations/actions/reservation.actions";
@@ -69,6 +69,7 @@ export function ReservationCreateWizard({
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [summaryConfirmed, setSummaryConfirmed] = useState(false);
 
   const form = useForm<ReservationWizardValues>({
     resolver: zodResolver(reservationWizardSchema),
@@ -143,11 +144,40 @@ export function ReservationCreateWizard({
       if (!ok) return;
       const parsed = reservationStep2Schema.safeParse(form.getValues());
       if (!parsed.success) return;
+      setSummaryConfirmed(false);
       setStep(3);
     }
   }
 
+  function goBack() {
+    setSummaryConfirmed(false);
+    setStep((s) => s - 1);
+  }
+
+  async function handleContinueClick(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    await goNext();
+  }
+
+  async function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (step < 3) {
+      await goNext();
+      return;
+    }
+
+    await form.handleSubmit(onSubmit)(event);
+  }
+
   async function onSubmit(data: ReservationWizardValues) {
+    if (step !== 3) return;
+    if (!summaryConfirmed) {
+      toast.error("Lee el resumen y confirma antes de crear la reserva");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await createReservationAction(data);
@@ -155,7 +185,14 @@ export function ReservationCreateWizard({
         toast.error(result.error);
         return;
       }
-      toast.success("Reserva creada");
+      if (result.airbnbCalendarLinked) {
+        toast.success(
+          "Reserva creada. Las fechas se publicaron al calendario de exportación; Airbnb las bloqueará en su próxima sincronización.",
+          { duration: 6000 },
+        );
+      } else {
+        toast.success("Reserva creada");
+      }
       onSuccess(result.reservation);
       router.refresh();
     } catch (err) {
@@ -169,7 +206,7 @@ export function ReservationCreateWizard({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="flex h-full flex-col">
+      <form onSubmit={handleFormSubmit} className="flex h-full flex-col">
         <div className="flex border-b border-border px-1">
           {STEPS.map((s) => (
             <div
@@ -310,11 +347,13 @@ export function ReservationCreateWizard({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(BookingPlatform).map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {platformLabels[p]}
-                          </SelectItem>
-                        ))}
+                        {[BookingPlatform.DIRECT, BookingPlatform.BOOKING].map(
+                          (p) => (
+                            <SelectItem key={p} value={p}>
+                              {platformLabels[p]}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -517,6 +556,21 @@ export function ReservationCreateWizard({
                   </span>
                 </p>
               )}
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 accent-primary"
+                  checked={summaryConfirmed}
+                  onChange={(event) =>
+                    setSummaryConfirmed(event.currentTarget.checked)
+                  }
+                />
+                <span>
+                  Confirmo que leí el resumen y que los datos de la reserva son
+                  correctos.
+                </span>
+              </label>
             </div>
           )}
         </div>
@@ -527,7 +581,7 @@ export function ReservationCreateWizard({
               type="button"
               variant="outline"
               className="flex-1"
-              onClick={() => setStep((s) => s - 1)}
+              onClick={goBack}
               disabled={isSubmitting}
             >
               Atrás
@@ -545,18 +599,27 @@ export function ReservationCreateWizard({
           )}
 
           {step < 3 ? (
-            <Button type="button" className="flex-1" onClick={goNext}>
+            <Button
+              type="button"
+              className="flex-1"
+              onClick={handleContinueClick}
+              disabled={isSubmitting}
+            >
               Continuar
             </Button>
           ) : (
-            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="flex-1"
+              disabled={isSubmitting || !summaryConfirmed}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creando...
                 </>
               ) : (
-                "Crear reserva"
+                "Confirmar reserva"
               )}
             </Button>
           )}

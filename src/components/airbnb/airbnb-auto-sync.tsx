@@ -5,7 +5,6 @@ import { useEffect, useRef } from "react";
 import { syncAirbnbCalendarsAction } from "@/features/properties/actions/airbnb-sync.actions";
 import {
   AIRBNB_AUTO_SYNC_INITIAL_MS,
-  AIRBNB_AUTO_SYNC_MS,
   dispatchAirbnbSyncComplete,
 } from "@/lib/airbnb-sync";
 
@@ -20,12 +19,28 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
   useEffect(() => {
     if (!enabled) return;
 
+    let cancelled = false;
+    let timerId: number | undefined;
+    let hasRunInitialSync = false;
+
+    function schedule(delayMs: number) {
+      if (cancelled) return;
+      window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => {
+        void runSync();
+      }, delayMs);
+    }
+
     async function runSync() {
-      if (syncingRef.current) return;
-      if (typeof document !== "undefined" && document.hidden) return;
+      if (syncingRef.current || cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
       syncingRef.current = true;
       try {
         const { summary } = await syncAirbnbCalendarsAction();
+
         dispatchAirbnbSyncComplete({
           created: summary.created,
           updated: summary.updated,
@@ -35,28 +50,39 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         });
         router.refresh();
       } catch {
-        // silencioso en auto-sync periódico
+        // Auto-sync no debe romper la navegación ni saturar Server Actions.
       } finally {
         syncingRef.current = false;
       }
     }
 
-    const initial = window.setTimeout(runSync, AIRBNB_AUTO_SYNC_INITIAL_MS);
-    const interval = window.setInterval(runSync, AIRBNB_AUTO_SYNC_MS);
+    function runInitialSyncOnce() {
+      if (hasRunInitialSync) return;
+      hasRunInitialSync = true;
+      void runSync();
+    }
+
+    if (AIRBNB_AUTO_SYNC_INITIAL_MS === 0) {
+      runInitialSyncOnce();
+    } else {
+      schedule(AIRBNB_AUTO_SYNC_INITIAL_MS);
+    }
 
     const onFocus = () => {
       void runSync();
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible") void runSync();
+      if (document.visibilityState === "visible") {
+        void runSync();
+      }
     };
 
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      window.clearTimeout(initial);
-      window.clearInterval(interval);
+      cancelled = true;
+      window.clearTimeout(timerId);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };

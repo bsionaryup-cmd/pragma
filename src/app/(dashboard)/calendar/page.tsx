@@ -1,4 +1,3 @@
-import { Topbar } from "@/components/layout/topbar";
 import { MultiCalendar } from "@/features/calendar/components/multi-calendar";
 import { resolveCalendarAnchor } from "@/features/calendar/lib/calendar-dates";
 import { hasPermission, requirePermission } from "@/lib/auth";
@@ -26,16 +25,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   ]);
 
   return (
-    <>
-      <Topbar title="Calendario" />
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <MultiCalendar
-          data={data}
-          canWrite={canWrite}
-          canSyncAirbnb={canSyncAirbnb}
-          propertyOptions={propertyOptions}
-        />
-      </div>
-    </>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <MultiCalendar
+        data={data}
+        canWrite={canWrite}
+        canSyncAirbnb={canSyncAirbnb}
+        propertyOptions={propertyOptions}
+      />
+    </div>
   );
 }

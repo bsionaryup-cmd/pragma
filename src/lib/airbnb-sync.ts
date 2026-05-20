@@ -1,7 +1,5 @@
-/** Intervalo de auto-sync Airbnb → PRAGMA (iCal). ~15s = máximo estable en cliente. */
-export const AIRBNB_AUTO_SYNC_MS = 15_000;
-
-export const AIRBNB_AUTO_SYNC_INITIAL_MS = 800;
+/** Auto-sync Airbnb → PRAGMA: primera ejecución inmediata, sin sondeo continuo. */
+export const AIRBNB_AUTO_SYNC_INITIAL_MS = 0;
 
 export const AIRBNB_SYNC_COMPLETE_EVENT = "pragma-airbnb-sync-complete";
 

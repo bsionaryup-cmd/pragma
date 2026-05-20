@@ -12,6 +12,7 @@ import {
 import type { CalendarViewport } from "@/features/calendar/types/calendar.types";
 import { AirbnbSyncStatus } from "@/components/airbnb/airbnb-sync-status";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const NAV_SHIFT_DAYS = 21;
 
@@ -32,11 +33,16 @@ function CalendarToolbarComponent({
 
   return (
     <div
-      className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4"
+      className="flex shrink-0 items-center justify-between gap-4 border-b border-[#E9ECEF] bg-white px-5 shadow-pragma-soft dark:border-border dark:bg-card dark:shadow-none"
       style={{ height: CALENDAR_TOOLBAR_HEIGHT }}
     >
-      <div className="flex items-center gap-1">
-        <Button variant="outline" size="icon" className="h-8 w-8" asChild>
+      <div className="flex items-center gap-1.5">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 rounded-lg border-[#E9ECEF] bg-white hover:bg-[#F7F8FA]"
+          asChild
+        >
           <Link
             href={`/calendar?anchor=${prevAnchor}`}
             aria-label="Período anterior"
@@ -44,7 +50,12 @@ function CalendarToolbarComponent({
             <ChevronLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8" asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 rounded-lg border-[#E9ECEF] bg-white hover:bg-[#F7F8FA]"
+          asChild
+        >
           <Link
             href={`/calendar?anchor=${nextAnchor}`}
             aria-label="Período siguiente"
@@ -55,7 +66,10 @@ function CalendarToolbarComponent({
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-xs"
+          className={cn(
+            "h-9 rounded-lg border-[#E9ECEF] bg-white px-4 text-xs font-medium hover:bg-[#F7F8FA]",
+            isOnToday && "opacity-60",
+          )}
           asChild={!isOnToday}
           disabled={isOnToday}
         >
@@ -67,13 +81,17 @@ function CalendarToolbarComponent({
         </Button>
       </div>
 
-      <h2 className="text-sm font-semibold tracking-tight">{label}</h2>
+      <h2 className="text-sm font-semibold tracking-tight text-[#111111] dark:text-foreground">
+        {label}
+      </h2>
 
       <div className="flex flex-col items-end gap-1">
         {canSyncAirbnb ? (
           <AirbnbSyncStatus canSync compact className="justify-end" />
         ) : (
-          <p className="text-[10px] text-muted-foreground tabular-nums">{today}</p>
+          <p className="text-[11px] text-[#6B7280] tabular-nums dark:text-muted-foreground">
+            {today}
+          </p>
         )}
       </div>
     </div>

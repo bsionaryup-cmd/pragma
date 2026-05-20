@@ -77,7 +77,7 @@ export function AirbnbSyncStatus({
   }, [refreshStatus]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setTick((t) => t + 1), 10_000);
+    const id = window.setInterval(() => setTick((t) => t + 1), 1_000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -99,7 +99,7 @@ export function AirbnbSyncStatus({
         className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
           isRecent
-            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            ? "border-success/30 bg-success/10 text-success"
             : "border-border bg-muted/40 text-muted-foreground",
         )}
         title={formatAbsoluteTime(lastSyncedAt)}
@@ -107,7 +107,7 @@ export function AirbnbSyncStatus({
         <span
           className={cn(
             "h-1.5 w-1.5 shrink-0 rounded-full",
-            isRecent ? "bg-emerald-500" : "bg-amber-500",
+            isRecent ? "bg-success" : "bg-warning",
           )}
         />
         {loading

@@ -19,7 +19,7 @@ export function InboxPageView() {
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-white">
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden bg-white dark:bg-background">
       <InboxConversationList
         conversations={MOCK_INBOX_CONVERSATIONS}
         selectedId={selectedId}

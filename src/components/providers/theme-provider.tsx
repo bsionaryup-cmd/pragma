@@ -46,21 +46,25 @@ function resolveTheme(theme: Theme): ResolvedTheme {
   return theme === "system" ? getSystemTheme() : theme;
 }
 
+/** :root = light premium; .dark class for full dark app shell */
 function applyTheme(resolved: ResolvedTheme) {
   const root = document.documentElement;
-  root.classList.toggle("dark", resolved === "dark");
+  root.classList.remove("dark", "light");
+  if (resolved === "dark") {
+    root.classList.add("dark");
+  }
   root.style.colorScheme = resolved;
 }
 
 function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "system";
+  if (typeof window === "undefined") return "light";
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
     if (raw === "light" || raw === "dark" || raw === "system") return raw;
   } catch {
     // ignore
   }
-  return "system";
+  return "light";
 }
 
 function persistTheme(theme: Theme, resolved: ResolvedTheme) {
@@ -90,7 +94,7 @@ function createInitialThemeState(
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "light",
   defaultResolved = "light",
 }: ThemeProviderProps) {
   const [state, setState] = useState<ThemeState>(() =>

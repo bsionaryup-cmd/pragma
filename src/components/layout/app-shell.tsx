@@ -16,9 +16,9 @@ export function AppShell({
   user,
 }: AppShellProps) {
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-background">
       <Sidebar items={navItems} settingsItem={settingsItem} user={user} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-background">
         {children}
       </div>
     </div>

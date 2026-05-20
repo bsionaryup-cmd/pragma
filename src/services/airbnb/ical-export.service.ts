@@ -1,8 +1,4 @@
-import {
-  BookingPlatform,
-  ReservationStatus,
-  type Reservation,
-} from "@prisma/client";
+import { ReservationStatus, type Reservation } from "@prisma/client";
 import { getPublicAppUrl } from "@/lib/app-url";
 import { prismaDateToKey, startOfTodayUtc } from "@/lib/dates";
 import { platformLabels, reservationStatusLabels } from "@/lib/labels";
@@ -81,10 +77,11 @@ function buildEventLines(r: ExportReservationRow, propertyName: string): string[
   const statusLabel = reservationStatusLabels[r.status];
   const platformLabel = platformLabels[r.platform];
 
+  /** Airbnb importa eventos con SUMMARY "Reserved" / "Not available" para bloquear fechas. */
   const summary =
     r.status === ReservationStatus.BLOCKED
-      ? `Bloqueado · ${r.guestName}`
-      : `${r.guestName} · ${statusLabel}`;
+      ? "(Not available)"
+      : "Reserved";
 
   const description = [
     `Huésped: ${r.guestName}`,
@@ -130,8 +127,8 @@ async function loadExportReservations(
       propertyId: property.id,
       status: { notIn: [ReservationStatus.CANCELLED] },
       checkOut: { gt: today },
-      /** Nunca re-exportar reservas importadas de Airbnb (evita duplicados). */
-      platform: { not: BookingPlatform.AIRBNB },
+      /** Solo reservas originadas en PRAGMA (las de Airbnb traen icalUid). */
+      icalUid: null,
     },
     select: {
       id: true,
@@ -158,6 +155,8 @@ export function formatIcalCalendar(
     "PRODID:-//PRAGMA PMS//ES",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT1M",
+    "X-PUBLISHED-TTL:PT1M",
     foldIcalLine(`X-WR-CALNAME:${escapeIcalText(`PRAGMA · ${propertyName}`)}`),
     "X-WR-TIMEZONE:UTC",
   ];

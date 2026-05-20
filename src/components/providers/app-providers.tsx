@@ -16,7 +16,7 @@ type AppProvidersProps = {
 
 export function AppProviders({
   children,
-  defaultTheme = "system",
+  defaultTheme = "light",
   defaultResolved = "light",
 }: AppProvidersProps) {
   const mounted = useMounted();

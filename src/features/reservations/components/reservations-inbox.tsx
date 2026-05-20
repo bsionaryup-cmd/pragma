@@ -96,9 +96,9 @@ export function ReservationsInbox({
 
   return (
     <>
-      <div className="flex h-full min-h-0 w-full overflow-hidden bg-background">
+      <div className="flex h-full min-h-0 w-full overflow-hidden bg-white dark:bg-background">
         {/* Inbox Lodgify — panel izquierdo fijo */}
-        <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-background">
+        <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-white dark:bg-background">
           <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-semibold tracking-tight">Reservas</h2>
@@ -176,7 +176,7 @@ export function ReservationsInbox({
 
           {/* Bottom action area — Lodgify */}
           {canWrite ? (
-            <footer className="shrink-0 border-t border-border/80 bg-background px-4 pb-4 pt-3">
+            <footer className="shrink-0 border-t border-border/80 bg-white px-4 pb-4 pt-3 dark:bg-background">
               <CreateReservationButton onClick={openCreate} />
             </footer>
           ) : null}

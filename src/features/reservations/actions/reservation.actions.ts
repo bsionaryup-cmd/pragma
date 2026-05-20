@@ -8,6 +8,7 @@ import {
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
 import { requirePermission } from "@/lib/auth";
 import { ReservationConflictError } from "@/services/reservations/reservation-conflicts";
+import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.service";
 import {
   createReservation,
   deleteReservation,
@@ -57,7 +58,15 @@ export async function createReservationAction(data: ReservationWizardValues) {
     revalidatePath("/properties");
     revalidatePath("/");
 
-    return { success: true as const, reservation: toInboxFromCreated(created) };
+    const airbnbCalendarLinked = await isPropertyLinkedToAirbnb(
+      parsed.propertyId,
+    );
+
+    return {
+      success: true as const,
+      reservation: toInboxFromCreated(created),
+      airbnbCalendarLinked,
+    };
   } catch (error) {
     if (error instanceof ReservationConflictError) {
       return { success: false as const, error: error.message };

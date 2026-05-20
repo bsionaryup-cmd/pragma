@@ -42,22 +42,38 @@ export function getReservationVisualState(
   return "confirmed";
 }
 
-export function getReservationBarClasses(state: ReservationVisualState): string {
-  const base =
-    "absolute top-1.5 z-10 flex h-[calc(100%-10px)] min-w-[28px] cursor-pointer items-center gap-1 overflow-hidden rounded-full border border-border/80 bg-white px-2 text-[11px] font-medium leading-tight text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-md";
+const pillBase =
+  "absolute top-2 z-10 flex h-[calc(100%-14px)] min-w-[32px] cursor-pointer items-center gap-2 overflow-hidden rounded-xl border border-white/10 bg-[#1B1F23] px-2.5 text-[11px] font-medium leading-tight text-[#F8F9FA] shadow-[0_2px_8px_rgba(0,0,0,0.35)] transition-all duration-200 hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(0,0,0,0.45)]";
 
+export function getReservationBarClasses(state: ReservationVisualState): string {
   switch (state) {
     case "in_stay":
-      return `${base} border-l-[3px] border-l-[#008489]`;
+      return `${pillBase} border-l-[3px] border-l-[#14B8A6]`;
     case "checkout_today":
-      return `${base} border-l-[3px] border-l-amber-500`;
+      return `${pillBase} border-l-[3px] border-l-[#F5A524]`;
     case "checked_out":
-      return `${base} border-l-[3px] border-l-muted-foreground/40 bg-muted/50 text-muted-foreground`;
+      return `${pillBase} border-l-[3px] border-l-[#4B5563] bg-[#15181c] text-[#9CA3AF] opacity-80`;
     case "blocked":
-      return `${base} border-l-[3px] border-l-zinc-500 bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200`;
+      return `${pillBase} border-l-[3px] border-l-[#6B7280] bg-[#15181c] text-[#9CA3AF]`;
     case "confirmed":
     default:
-      return `${base} border-l-[3px] border-l-[#ff5a5f]`;
+      return `${pillBase} border-l-[3px] border-l-[#0E9F8D]`;
+  }
+}
+
+export function getStatusDotClass(state: ReservationVisualState): string {
+  switch (state) {
+    case "in_stay":
+      return "bg-[#14B8A6]";
+    case "checkout_today":
+      return "bg-[#F5A524]";
+    case "checked_out":
+      return "bg-[#6B7280]";
+    case "blocked":
+      return "bg-[#9CA3AF]";
+    case "confirmed":
+    default:
+      return "bg-[#0E9F8D]";
   }
 }
 
@@ -87,6 +103,6 @@ export function getPlatformAccent(platform: BookingPlatform): string {
     case "BOOKING":
       return "text-[#003580]";
     default:
-      return "text-muted-foreground";
+      return "text-[#9CA3AF]";
   }
 }

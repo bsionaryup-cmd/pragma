@@ -4,7 +4,8 @@ import {
   CalendarDays,
   ClipboardList,
   MessageCircle,
-  Shield,
+  RefreshCw,
+  Settings2,
   Zap,
 } from "lucide-react";
 import { FadeIn, Stagger, StaggerItem } from "@/components/landing/motion";
@@ -12,66 +13,67 @@ import { SectionHeading } from "@/components/landing/section-heading";
 
 const features = [
   {
-    icon: ClipboardList,
-    title: "Reservas centralizadas",
+    icon: CalendarDays,
+    title: "Calendario inteligente",
     description:
-      "Todas tus reservas de Airbnb y canales directos en una sola vista, con estados y filtros claros.",
+      "Disponibilidad multi-propiedad con bloqueos, estancias y sincronización en tiempo real.",
   },
   {
     icon: MessageCircle,
-    title: "Comunicación unificada",
+    title: "Bandeja unificada",
     description:
-      "Responde huéspedes sin cambiar de pestaña. Historial, contexto y reserva al lado.",
+      "Mensajes de huéspedes con contexto de reserva. Sin cambiar de pestaña.",
   },
   {
-    icon: CalendarDays,
-    title: "Calendario multi-propiedad",
+    icon: RefreshCw,
+    title: "Integraciones",
     description:
-      "Disponibilidad visual por unidad. Bloqueos, estancias y sincronización en tiempo real.",
+      "Airbnb, iCal y canales conectados para mantener tu operación alineada.",
+  },
+  {
+    icon: Settings2,
+    title: "Gestión operativa",
+    description:
+      "Panel de control, tareas y visibilidad para equipos que escalan.",
+  },
+  {
+    icon: ClipboardList,
+    title: "Reservas",
+    description:
+      "Estados claros, filtros y flujo de trabajo desde confirmación a checkout.",
   },
   {
     icon: Zap,
-    title: "Automatización inteligente",
+    title: "Sincronización",
     description:
-      "Importación Airbnb, iCal y reglas que reducen trabajo manual en operaciones diarias.",
-  },
-  {
-    icon: Shield,
-    title: "Roles y permisos",
-    description:
-      "Administra quién ve qué. Equipos de operaciones con acceso granular y seguro.",
-  },
-  {
-    icon: CalendarDays,
-    title: "Hecho para Colombia",
-    description:
-      "Moneda COP, zona horaria Bogotá y flujos pensados para renta corta local.",
+      "Importación automática y reglas que reducen errores operativos manuales.",
   },
 ];
 
 export function LandingFeatures() {
   return (
-    <section id="features" className="border-t border-white/5 py-24 md:py-32">
-      <div className="mx-auto max-w-6xl px-6">
+    <section id="features" className="border-t border-[#E9ECEF] bg-[#F7F8FA] py-24 md:py-32">
+      <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <SectionHeading
             eyebrow="Funciones"
-            title="Todo lo que tu equipo necesita, nada que no"
-            description="Una plataforma cohesiva para propietarios y operadores que gestionan decenas de unidades sin perder el control."
+            title="Todo lo que tu equipo necesita para operar con precisión"
+            description="Una plataforma cohesiva para propietarios y operadores de renta corta en Colombia."
+            align="center"
           />
         </FadeIn>
 
-        <Stagger className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Stagger className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => (
             <StaggerItem key={feature.title}>
-              <article className="group h-full rounded-2xl border border-white/5 bg-zinc-900/40 p-6 transition-colors hover:border-white/10 hover:bg-zinc-900/60">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-zinc-300 transition-colors group-hover:border-violet-500/30 group-hover:text-violet-300">
-                  <feature.icon className="h-5 w-5" strokeWidth={1.5} />
+              <article className="group h-full rounded-2xl border border-[#E9ECEF] bg-white p-8 shadow-pragma-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-pragma-card">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#E6F7F5] text-[#0E9F8D] transition-colors group-hover:bg-[#0E9F8D] group-hover:text-white">
+                  <feature.icon className="h-6 w-6" strokeWidth={1.5} />
                 </div>
-                <h3 className="mt-5 text-base font-medium text-zinc-50">
+                <h3 className="mt-6 text-lg font-semibold text-[#111111]">
                   {feature.title}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                <p className="mt-3 text-sm leading-relaxed text-[#6B7280]">
                   {feature.description}
                 </p>
               </article>
@@ -82,4 +84,3 @@ export function LandingFeatures() {
     </section>
   );
 }
-

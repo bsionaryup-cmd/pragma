@@ -1,4 +1,3 @@
-import { Topbar } from "@/components/layout/topbar";
 import { ReservationsInbox } from "@/features/reservations/components/reservations-inbox";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForInbox } from "@/services/properties/property.service";
@@ -34,26 +33,23 @@ export default async function ReservationsPage({
       : null;
 
   return (
-    <>
-      <Topbar title="Reservas" />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <ReservationsInbox
-          initialReservations={reservations}
-          properties={properties}
-          canWrite={canWrite}
-          openCreateOnMount={params.create === "true" && canWrite}
-          initialSelectedId={validReservationId}
-          initialCreateValues={
-            params.create === "true" && canWrite
-              ? {
-                  propertyId: params.propertyId,
-                  checkIn: params.checkIn,
-                  checkOut: params.checkOut,
-                }
-              : undefined
-          }
-        />
-      </div>
-    </>
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <ReservationsInbox
+        initialReservations={reservations}
+        properties={properties}
+        canWrite={canWrite}
+        openCreateOnMount={params.create === "true" && canWrite}
+        initialSelectedId={validReservationId}
+        initialCreateValues={
+          params.create === "true" && canWrite
+            ? {
+                propertyId: params.propertyId,
+                checkIn: params.checkIn,
+                checkOut: params.checkOut,
+              }
+            : undefined
+        }
+      />
+    </div>
   );
 }

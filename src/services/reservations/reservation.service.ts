@@ -3,7 +3,7 @@ import type { ReservationInboxItem } from "@/features/reservations/types/reserva
 import { PropertyStatus } from "@prisma/client";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
+import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 
@@ -133,13 +133,19 @@ export async function createReservation(data: ReservationWizardValues) {
     },
   });
 
-  if (data.platform === "DIRECT" || data.platform === "BOOKING") {
-    await ensurePropertyIcalExportToken(data.propertyId);
-  }
+  await touchPropertyIcalExport(data.propertyId);
 
   return created;
 }
 
 export async function deleteReservation(id: string) {
-  return db.reservation.delete({ where: { id } });
+  const existing = await db.reservation.findUnique({
+    where: { id },
+    select: { propertyId: true },
+  });
+  const deleted = await db.reservation.delete({ where: { id } });
+  if (existing) {
+    await touchPropertyIcalExport(existing.propertyId);
+  }
+  return deleted;
 }

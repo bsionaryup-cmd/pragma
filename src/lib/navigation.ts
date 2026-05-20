@@ -7,6 +7,7 @@ export type NavIconName =
   | "clipboard-list"
   | "message-circle"
   | "calendar-days"
+  | "building-2"
   | "ribbon"
   | "settings";
 
@@ -45,12 +46,39 @@ const mainNavItems: NavItem[] = [
     permission: "calendar:read",
   },
   {
+    title: "Propiedades",
+    href: "/properties",
+    icon: "building-2",
+    permission: "properties:read",
+  },
+  {
     title: "Integraciones",
     href: "/integrations",
     icon: "ribbon",
     permission: "properties:read",
   },
 ];
+
+/**
+ * Rutas protegidas fuera de la barra principal (p. ej. /properties).
+ * Accesibles por URL directa o enlaces contextuales (banner, ajustes).
+ */
+export const secondaryRouteLinks: Pick<NavItem, "title" | "href" | "permission">[] =
+  [
+    {
+      title: "Usuarios",
+      href: "/users",
+      permission: "users:read",
+    },
+  ];
+
+export function getSecondaryRouteLinksForRole(
+  role: AppUserRole,
+): Pick<NavItem, "title" | "href">[] {
+  return secondaryRouteLinks
+    .filter((item) => hasPermission(role, item.permission))
+    .map(({ title, href }) => ({ title, href }));
+}
 
 const settingsNavItem: NavItem = {
   title: "Ajustes",

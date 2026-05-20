@@ -30,8 +30,8 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
   return (
     <div
       className={cn(
-        "flex items-center gap-3",
-        collapsed ? "justify-center px-0" : "px-1",
+        "flex items-center gap-3 rounded-xl border border-[#E9ECEF] bg-white p-2.5 transition-colors dark:border-sidebar-border dark:bg-sidebar-accent/50",
+        collapsed && "justify-center border-0 bg-transparent p-0",
       )}
     >
       <div className="relative shrink-0">
@@ -39,24 +39,24 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
           <Image
             src={user.imageUrl}
             alt={displayName}
-            width={36}
-            height={36}
-            className="h-9 w-9 rounded-full object-cover"
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
           />
         ) : (
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#9ca3af] text-xs font-semibold text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E6F7F5] text-sm font-semibold text-[#0E9F8D]">
             {initials}
           </div>
         )}
-        <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#f7f7f7] bg-[#3b82f6]" />
+        <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#14B8A6]" />
       </div>
 
       {!collapsed ? (
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-bold uppercase leading-tight tracking-wide text-[#1a1a1a]">
+          <p className="truncate text-sm font-semibold leading-tight text-[#111111] dark:text-foreground">
             {displayName}
           </p>
-          <p className="truncate text-[11px] leading-tight text-[#9ca3af]">
+          <p className="truncate text-xs leading-tight text-[#6B7280]">
             {user.email}
           </p>
         </div>

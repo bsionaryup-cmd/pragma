@@ -7,15 +7,15 @@ const platformStyles: Record<
 > = {
   AIRBNB: {
     label: "Airbnb",
-    className: "bg-[#ff5a5f] text-white",
+    className: "bg-[#ff5a5f] text-primary-foreground",
   },
   BOOKING: {
     label: "B.",
-    className: "bg-[#003580] text-white",
+    className: "bg-[#003580] text-primary-foreground",
   },
   DIRECT: {
     label: "P",
-    className: "bg-[#f5d547] text-[#1a1a1a]",
+    className: "bg-[#f5d547] text-foreground",
   },
 };
 

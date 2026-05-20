@@ -1,4 +1,3 @@
-import { Topbar } from "@/components/layout/topbar";
 import { PropertiesHub } from "@/features/properties/components/properties-hub";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForGrid } from "@/services/properties/property.service";
@@ -24,16 +23,13 @@ export default async function PropertiesPage({
       : null;
 
   return (
-    <>
-      <Topbar title="Propiedades" />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <PropertiesHub
-          initialProperties={properties}
-          canWrite={canWrite}
-          openCreateOnMount={params.create === "true" && canWrite}
-          initialPropertyId={validPropertyId}
-        />
-      </div>
-    </>
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <PropertiesHub
+        initialProperties={properties}
+        canWrite={canWrite}
+        openCreateOnMount={params.create === "true" && canWrite}
+        initialPropertyId={validPropertyId}
+      />
+    </div>
   );
 }

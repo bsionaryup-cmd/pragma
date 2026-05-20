@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { Bell } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
 import { FirstPropertyBanner } from "@/components/dashboard/first-property-banner";
 import { PanelReservationsTable } from "@/components/dashboard/panel-reservations-table";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { getPanelMotivationalMessage } from "@/lib/dashboard/panel-messages";
 import type {
   PanelCounts,
   PanelReservationRow,
@@ -37,7 +36,6 @@ const downloadLabels: Record<PanelTab, string> = {
 };
 
 export function PanelControlView({
-  firstName,
   counts,
   arrivals,
   departures,
@@ -46,6 +44,7 @@ export function PanelControlView({
   canCreateProperties,
 }: PanelControlViewProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>("arrivals");
+  const headline = getPanelMotivationalMessage();
 
   const rowsByTab: Record<PanelTab, PanelReservationRow[]> = {
     arrivals,
@@ -53,78 +52,65 @@ export function PanelControlView({
     current: currentStays,
   };
 
-  const headline = firstName
-    ? `${firstName}, no te olvides de descansar`
-    : "No te olvides de descansar";
-
   return (
-    <div className="flex min-h-full flex-col bg-white">
-      <header className="relative px-8 pt-8">
-        <h1 className="text-center text-[2rem] font-bold leading-tight tracking-tight text-[#1a1a1a] sm:text-[2.35rem]">
+    <div className="flex min-h-full flex-col bg-white dark:bg-background">
+      <header className="flex items-start justify-between gap-6 px-8 pb-2 pt-7">
+        <h1 className="max-w-3xl text-xl font-bold leading-snug tracking-tight text-[#111111] dark:text-foreground sm:text-[1.65rem]">
           {headline}
-          <span className="ml-2" aria-hidden>
-            🧘
-          </span>
         </h1>
 
-        <div className="absolute right-8 top-8 flex items-center gap-3">
-          <button
-            type="button"
-            className="relative inline-flex items-center gap-2 text-sm font-medium text-[#1a1a1a] hover:underline"
-          >
-            <Bell className="h-5 w-5" />
-            Novedades
-            <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#e53935] px-1 text-[10px] font-bold text-white">
-              0
-            </span>
-          </button>
-          <ThemeToggle />
-          <UserButton
-            appearance={{
-              elements: { avatarBox: "h-9 w-9" },
-            }}
-          />
-        </div>
+        <button
+          type="button"
+          className="relative inline-flex shrink-0 items-center gap-2 pt-1 text-sm font-medium text-[#111111] hover:underline dark:text-foreground"
+        >
+          <Bell className="h-5 w-5" strokeWidth={1.75} />
+          Novedades
+          <span className="absolute -right-2.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#E53935] px-1 text-[10px] font-bold text-white">
+            0
+          </span>
+        </button>
       </header>
 
-      <div className="flex-1 px-8 pb-8 pt-10">
+      <div className="flex-1 px-8 pb-8 pt-4">
         {showEmptyBanner ? (
-          <div className="mb-8">
+          <div className="mb-6">
             <FirstPropertyBanner canCreate={canCreateProperties} />
           </div>
         ) : null}
 
-        <div className="border-b border-[#ebebeb]">
-          <div className="flex gap-8">
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "relative pb-3 text-sm font-medium transition-colors",
-                    isActive
-                      ? "text-[#1a1a1a]"
-                      : "text-[#6b6b6b] hover:text-[#1a1a1a]",
-                  )}
-                >
-                  {tab.label} ({counts[tab.countKey]})
-                  {isActive ? (
-                    <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#1a1a1a]" />
-                  ) : null}
-                </button>
-              );
-            })}
+        <div className="overflow-hidden rounded-xl border border-[#E9ECEF] bg-white shadow-pragma-soft dark:border-border dark:bg-card dark:shadow-none">
+          <div className="border-b border-[#E9ECEF] px-6 dark:border-border">
+            <div className="flex gap-8">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "relative py-4 text-sm font-medium transition-colors",
+                      isActive
+                        ? "text-[#111111] dark:text-foreground"
+                        : "text-[#6B7280] hover:text-[#111111] dark:text-muted-foreground dark:hover:text-foreground",
+                    )}
+                  >
+                    {tab.label} ({counts[tab.countKey]})
+                    {isActive ? (
+                      <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#111111] dark:bg-foreground" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        <PanelReservationsTable
-          tab={activeTab}
-          rows={rowsByTab[activeTab]}
-          downloadLabel={downloadLabels[activeTab]}
-        />
+          <PanelReservationsTable
+            tab={activeTab}
+            rows={rowsByTab[activeTab]}
+            downloadLabel={downloadLabels[activeTab]}
+          />
+        </div>
       </div>
     </div>
   );

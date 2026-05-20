@@ -1,4 +1,3 @@
-import { Topbar } from "@/components/layout/topbar";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,8 +24,6 @@ export default async function UsersPage() {
   const users = await listUsers();
 
   return (
-    <>
-      <Topbar title="Usuarios" />
       <main className="flex-1 overflow-y-auto p-6">
         <PageHeader
           title="Equipo"
@@ -88,6 +85,5 @@ export default async function UsersPage() {
           </Table>
         </div>
       </main>
-    </>
   );
 }

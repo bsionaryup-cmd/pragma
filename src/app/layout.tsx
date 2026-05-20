@@ -32,7 +32,7 @@ function parseThemeCookie(value: string | undefined): Theme {
   if (value === "light" || value === "dark" || value === "system") {
     return value;
   }
-  return "system";
+  return "light";
 }
 
 export default async function RootLayout({
@@ -46,8 +46,8 @@ export default async function RootLayout({
 
   const defaultTheme = parseThemeCookie(themeCookie);
   const defaultResolved: ResolvedTheme =
-    themeCookie === "dark" ||
-    (themeCookie === "system" && resolvedCookie === "dark")
+    defaultTheme === "dark" ||
+    (defaultTheme === "system" && resolvedCookie === "dark")
       ? "dark"
       : "light";
 

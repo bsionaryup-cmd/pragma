@@ -20,15 +20,20 @@ const FETCH_HEADERS = {
   "Cache-Control": "no-cache, no-store",
 };
 
-let syncChain: Promise<unknown> = Promise.resolve();
+let syncInProgress = false;
 
-function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
-  const result = syncChain.then(() => fn());
-  syncChain = result.then(
-    () => undefined,
-    () => undefined,
-  );
-  return result;
+async function withSyncLock<T>(
+  fn: () => Promise<T>,
+  onBusy: () => T,
+): Promise<T> {
+  if (syncInProgress) return onBusy();
+
+  syncInProgress = true;
+  try {
+    return await fn();
+  } finally {
+    syncInProgress = false;
+  }
 }
 
 async function findReservationByIcalUid(
@@ -94,7 +99,18 @@ export async function syncPropertyIcalCalendar(
   propertyId: string,
   ownerId: string,
 ): Promise<PropertyIcalSyncResult> {
-  return withSyncLock(() => syncPropertyIcalCalendarInner(propertyId, ownerId));
+  return withSyncLock(
+    () => syncPropertyIcalCalendarInner(propertyId, ownerId),
+    () => ({
+      propertyId,
+      propertyName: "—",
+      created: 0,
+      updated: 0,
+      cancelled: 0,
+      skipped: 0,
+      error: "Sincronización en curso",
+    }),
+  );
 }
 
 export async function syncPropertyIcalCalendarInner(
@@ -254,7 +270,18 @@ export async function syncPropertyIcalCalendarInner(
 export async function syncAllAirbnbCalendarsForOwner(
   ownerId: string,
 ): Promise<AirbnbSyncSummary> {
-  return withSyncLock(() => syncAllAirbnbCalendarsForOwnerInner(ownerId));
+  return withSyncLock(
+    () => syncAllAirbnbCalendarsForOwnerInner(ownerId),
+    () => ({
+      propertiesSynced: 0,
+      created: 0,
+      updated: 0,
+      cancelled: 0,
+      skipped: 0,
+      results: [],
+      lastSyncedAt: null,
+    }),
+  );
 }
 
 async function syncAllAirbnbCalendarsForOwnerInner(
@@ -276,8 +303,13 @@ async function syncAllAirbnbCalendarsForOwnerInner(
   let cancelled = 0;
   let skipped = 0;
 
-  for (const property of properties) {
-    const result = await syncPropertyIcalCalendarInner(property.id, ownerId);
+  const syncResults = await Promise.all(
+    properties.map((property) =>
+      syncPropertyIcalCalendarInner(property.id, ownerId),
+    ),
+  );
+
+  for (const result of syncResults) {
     results.push(result);
     created += result.created;
     updated += result.updated;

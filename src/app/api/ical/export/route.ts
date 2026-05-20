@@ -20,7 +20,9 @@ export async function GET(request: Request) {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'inline; filename="pragma-export.ics"',
-      "Cache-Control": "private, max-age=60, must-revalidate",
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
     },
   });
 }

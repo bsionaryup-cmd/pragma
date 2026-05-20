@@ -41,7 +41,7 @@ export function PropertyCover({
         className,
       )}
     >
-      <Building2 className="h-10 w-10 text-white/90 drop-shadow-sm" />
+      <Building2 className="h-10 w-10 text-primary-foreground/90 drop-shadow-sm" />
     </div>
   );
 }

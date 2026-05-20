@@ -21,6 +21,10 @@ const useClerkProxy =
   process.env.NODE_ENV === "production" &&
   Boolean(process.env.NEXT_PUBLIC_CLERK_PROXY_URL);
 
+const clerkMiddlewareOptions = useClerkProxy
+  ? { frontendApiProxy: { enabled: true as const } }
+  : {};
+
 export default clerkMiddleware(
   async (auth, request) => {
     if (isPublicRoute(request)) {
@@ -49,9 +53,7 @@ export default clerkMiddleware(
       return NextResponse.redirect(url);
     }
   },
-  {
-    frontendApiProxy: useClerkProxy ? { enabled: true } : undefined,
-  },
+  clerkMiddlewareOptions,
 );
 
 export const config = {

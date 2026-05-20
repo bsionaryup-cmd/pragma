@@ -235,7 +235,7 @@ export function AirbnbImportDrawer({
                     href={preview.listingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:underline"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-danger hover:underline"
                   >
                     Ver en Airbnb
                     <ExternalLink className="h-3 w-3" />
@@ -251,7 +251,7 @@ export function AirbnbImportDrawer({
             type="button"
             disabled={!canImport}
             onClick={handleImport}
-            className="h-11 w-full rounded-full bg-[#FF385C] text-white hover:bg-[#E31C5F]"
+            className="h-11 w-full rounded-full bg-[#FF385C] text-primary-foreground hover:bg-[#E31C5F]"
           >
             {importing ? (
               <>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Topbar } from "@/components/layout/topbar";
 import { PageHeader } from "@/components/layout/page-header";
 import {
   Table,
@@ -22,8 +21,6 @@ export default async function TasksPage() {
   const canWrite = hasPermission(auth.role as AppUserRole, "tasks:write");
 
   return (
-    <>
-      <Topbar title="Tareas" />
       <main className="flex-1 overflow-y-auto p-6">
         <PageHeader
           title="Tareas operativas"
@@ -76,6 +73,5 @@ export default async function TasksPage() {
           </div>
         )}
       </main>
-    </>
   );
 }

@@ -11,7 +11,6 @@ import {
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 import { propertyTypeLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 
 const rowStyle: React.CSSProperties = {
   height: CALENDAR_ROW_HEIGHT,
@@ -31,45 +30,45 @@ type PropertySidebarProps = {
 function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
   return (
     <div
-      className="flex items-center gap-2.5 border-b border-border px-3"
+      className="flex items-center gap-3 border-b border-[#E9ECEF] px-4 transition-colors hover:bg-[#F7F8FA] dark:border-border dark:hover:bg-muted/20"
       style={rowStyle}
     >
-      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-muted">
+      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[#F0F2F5] ring-1 ring-[#E9ECEF]">
         {property.coverImageUrl ? (
           <Image
             src={property.coverImageUrl}
             alt={property.name}
             fill
             className="object-cover"
-            sizes="36px"
+            sizes="40px"
             unoptimized
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Building2 className="h-4 w-4 text-[#9CA3AF]" />
           </div>
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold leading-tight">
+        <p className="truncate text-sm font-semibold leading-tight text-[#111111] dark:text-foreground">
           {property.name}
         </p>
-        <p className="truncate text-[10px] text-muted-foreground">
+        <p className="truncate text-xs text-[#6B7280] dark:text-muted-foreground">
           {property.city}
         </p>
       </div>
-      <div className="flex shrink-0 flex-col items-end justify-center gap-0.5">
+      <div className="flex shrink-0 flex-col items-end justify-center gap-1">
         <span
           className={cn(
-            "h-2 w-2 rounded-full",
+            "h-2 w-2 rounded-full ring-2 ring-white",
             property.status === "ACTIVE"
-              ? "bg-emerald-500"
+              ? "bg-[#0E9F8D]"
               : property.status === "MAINTENANCE"
-                ? "bg-amber-500"
-                : "bg-muted-foreground",
+                ? "bg-[#F5A524]"
+                : "bg-[#9CA3AF]",
           )}
         />
-        <span className="text-[9px] leading-none text-muted-foreground">
+        <span className="text-[9px] leading-none text-[#9CA3AF]">
           {propertyTypeLabels[property.propertyType]}
         </span>
       </div>
@@ -88,11 +87,11 @@ function PropertySidebarComponent({
 }: PropertySidebarProps) {
   return (
     <aside
-      className="flex shrink-0 flex-col border-r border-border bg-background"
+      className="flex shrink-0 flex-col border-r border-[#E9ECEF] bg-white dark:border-border dark:bg-card"
       style={{ width: CALENDAR_SIDEBAR_WIDTH }}
     >
       <div
-        className="flex shrink-0 flex-col justify-center border-b border-border px-2.5"
+        className="flex shrink-0 flex-col justify-center border-b border-[#E9ECEF] px-3 dark:border-border"
         style={{
           height: CALENDAR_DAY_HEADER_HEIGHT,
           minHeight: CALENDAR_DAY_HEADER_HEIGHT,
@@ -100,12 +99,13 @@ function PropertySidebarComponent({
         }}
       >
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+          <input
+            type="search"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Buscar..."
-            className="h-7 pl-7 text-xs"
+            placeholder="Buscar propiedad..."
+            className="h-9 w-full rounded-xl border border-[#E9ECEF] bg-white pl-9 pr-3 text-xs text-[#111111] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-[#0E9F8D] focus:ring-2 focus:ring-[#0E9F8D]/20 dark:border-input dark:bg-background dark:text-foreground"
           />
         </div>
       </div>
@@ -116,7 +116,7 @@ function PropertySidebarComponent({
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {properties.length === 0 ? (
-          <p className="p-4 text-center text-xs text-muted-foreground">
+          <p className="p-6 text-center text-xs text-[#6B7280]">
             Sin propiedades
           </p>
         ) : (

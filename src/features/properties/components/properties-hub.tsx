@@ -70,7 +70,7 @@ export function PropertiesHub({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return properties.filter((p) => {
+    const result = properties.filter((p) => {
       if (statusFilter !== "all" && p.status !== statusFilter) return false;
       if (!q) return true;
       return (
@@ -79,6 +79,9 @@ export function PropertiesHub({
         (p.neighborhood?.toLowerCase().includes(q) ?? false)
       );
     });
+    return result.sort((a, b) =>
+      a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
+    );
   }, [properties, query, statusFilter]);
 
   function loadDetail(id: string) {
@@ -157,7 +160,7 @@ export function PropertiesHub({
   return (
     <>
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="shrink-0 border-b border-border bg-background px-6 py-5">
+        <header className="shrink-0 border-b border-border bg-white px-4 py-4 dark:bg-background">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight">
@@ -174,14 +177,14 @@ export function PropertiesHub({
                   type="button"
                   variant="outline"
                   onClick={() => setAirbnbImportOpen(true)}
-                  className="h-10 rounded-full border-rose-200 px-5 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                  className="h-9 rounded-full border-danger/30 px-4 text-danger hover:bg-danger/10 hover:text-danger"
                 >
                   <Download className="mr-2 h-4 w-4" />
                   Importar desde Airbnb
                 </Button>
                 <Button
                   onClick={openCreate}
-                  className="h-10 rounded-full bg-neutral-900 px-5 text-white hover:bg-neutral-800"
+                  className="h-9 rounded-full bg-primary px-4 text-primary-foreground hover:bg-primary-hover"
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Crear propiedad
@@ -190,14 +193,14 @@ export function PropertiesHub({
             ) : null}
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar por nombre, ciudad o barrio..."
-                className="h-10 pl-9"
+                className="h-9 pl-9"
               />
             </div>
             <div className="flex flex-wrap gap-2">
@@ -207,10 +210,10 @@ export function PropertiesHub({
                   type="button"
                   onClick={() => setStatusFilter(opt.value)}
                   className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
                     statusFilter === opt.value
                       ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted",
+                      : "border-border bg-white text-muted-foreground hover:bg-muted dark:bg-background",
                   )}
                 >
                   {opt.label}
@@ -220,7 +223,7 @@ export function PropertiesHub({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
               <p className="text-sm font-medium">Sin propiedades</p>
@@ -236,7 +239,7 @@ export function PropertiesHub({
               ) : null}
             </div>
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="space-y-2">
               {filtered.map((property) => (
                 <PropertyCard
                   key={property.id}

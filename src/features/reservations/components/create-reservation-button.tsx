@@ -20,10 +20,10 @@ export function CreateReservationButton({
       onClick={onClick}
       className={cn(
         "flex h-[50px] w-full items-center justify-center rounded-full",
-        "bg-neutral-900 px-6 text-sm font-medium text-white",
+        "bg-primary px-6 text-sm font-medium text-primary-foreground",
         "shadow-sm transition-colors duration-200",
-        "hover:bg-neutral-800 active:bg-neutral-950",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400 focus-visible:ring-offset-2",
+        "hover:bg-primary-hover active:bg-primary/90",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         className,
       )}
     >

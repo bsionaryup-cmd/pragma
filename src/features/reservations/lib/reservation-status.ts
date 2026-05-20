@@ -35,17 +35,17 @@ export const displayStatusLabels: Record<ReservationDisplayStatus, string> = {
 export function getStatusBadgeClass(status: ReservationDisplayStatus): string {
   switch (status) {
     case "IN_PROGRESS":
-      return "border-[#008489]/30 bg-[#008489]/10 text-[#008489] dark:text-[#4ecdc4]";
+      return "border-success/30 bg-success/10 text-success";
     case "CHECKOUT_TODAY":
-      return "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400";
+      return "border-warning/40 bg-warning/15 text-warning";
     case "CHECKED_OUT":
       return "border-border bg-muted text-muted-foreground";
     case "CANCELLED":
-      return "border-destructive/30 bg-destructive/10 text-destructive";
+      return "border-danger/30 bg-danger/10 text-danger";
     case "BLOCKED":
-      return "border-zinc-400/40 bg-zinc-200/80 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+      return "border-border bg-muted text-text-subtle";
     case "CONFIRMED":
     default:
-      return "border-[#ff5a5f]/30 bg-[#ff5a5f]/10 text-[#c1354b] dark:text-[#ff7a7f]";
+      return "border-primary/30 bg-primary/10 text-primary";
   }
 }

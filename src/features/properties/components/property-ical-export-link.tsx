@@ -71,7 +71,7 @@ export function PropertyIcalExportLink({
         ) : (
           <CalendarPlus className="mr-2 h-3.5 w-3.5" />
         )}
-        Exportar calendario
+        Exportar iCal
       </Button>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
         Compatible con Airbnb, Google Calendar y Apple Calendar. Incluye reservas

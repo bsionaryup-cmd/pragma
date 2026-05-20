@@ -32,8 +32,8 @@ function Avatar({
       className={cn(
         "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
         variant === "guest"
-          ? "bg-[#edf894] text-[#1a1a1a]"
-          : "bg-[#e8e8e8] text-[#4a4a4a]",
+          ? "bg-primary/20 text-foreground"
+          : "bg-muted text-muted-foreground",
       )}
     >
       {initial}
@@ -43,20 +43,20 @@ function Avatar({
 
 export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
   return (
-    <section className="flex min-w-0 flex-1 flex-col border-r border-[#e8e8e8] bg-white">
-      <header className="flex items-center justify-between border-b border-[#e8e8e8] px-5 py-4">
+    <section className="flex min-w-0 flex-1 flex-col border-r border-border bg-card">
+      <header className="flex items-center justify-between border-b border-border px-5 py-4">
         <div className="flex items-center gap-3">
           <Avatar initial={conversation.guestInitial} variant="guest" />
           <div>
-            <p className="text-sm font-semibold text-[#1a1a1a]">
+            <p className="text-sm font-semibold text-foreground">
               {conversation.guestName}
             </p>
-            <p className="text-xs text-[#6b6b6b]">{conversation.lastMessageAt}</p>
+            <p className="text-xs text-muted-foreground">{conversation.lastMessageAt}</p>
           </div>
         </div>
         <button
           type="button"
-          className="text-[#4a4a4a] hover:text-[#1a1a1a]"
+          className="text-muted-foreground hover:text-foreground"
           aria-label="Correo"
         >
           <Mail className="h-5 w-5" />
@@ -65,7 +65,7 @@ export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
 
       <div className="flex-1 overflow-y-auto px-5 py-6">
         <div className="mb-6 flex justify-center">
-          <span className="rounded-full bg-[#f3f3f3] px-4 py-1.5 text-xs text-[#6b6b6b]">
+          <span className="rounded-full bg-accent px-4 py-1.5 text-xs text-muted-foreground">
             {conversation.dateSeparator}
           </span>
         </div>
@@ -79,12 +79,12 @@ export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
               />
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-baseline gap-2">
-                  <span className="text-sm font-semibold text-[#1a1a1a]">
+                  <span className="text-sm font-semibold text-foreground">
                     {message.senderName}
                   </span>
-                  <span className="text-xs text-[#9a9a9a]">{message.time}</span>
+                  <span className="text-xs text-text-subtle">{message.time}</span>
                 </div>
-                <p className="text-sm leading-relaxed text-[#1a1a1a]">
+                <p className="text-sm leading-relaxed text-foreground">
                   {message.body}
                 </p>
               </div>
@@ -93,31 +93,31 @@ export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
         </div>
       </div>
 
-      <footer className="border-t border-[#e8e8e8] p-4">
-        <div className="mb-2 flex items-center gap-1 text-[#6b6b6b]">
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Negrita">
+      <footer className="border-t border-border p-4">
+        <div className="mb-2 flex items-center gap-1 text-muted-foreground">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Negrita">
             <Bold className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Cursiva">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Cursiva">
             <Italic className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Subrayado">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Subrayado">
             <Underline className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Lista">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Lista">
             <List className="h-4 w-4" />
           </button>
           <button
             type="button"
-            className="rounded p-1.5 hover:bg-[#f3f3f3]"
+            className="rounded p-1.5 hover:bg-accent"
             aria-label="Lista numerada"
           >
             <ListOrdered className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Enlace">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Enlace">
             <Link2 className="h-4 w-4" />
           </button>
-          <button type="button" className="rounded p-1.5 hover:bg-[#f3f3f3]" aria-label="Código">
+          <button type="button" className="rounded p-1.5 hover:bg-accent" aria-label="Código">
             <Code className="h-4 w-4" />
           </button>
         </div>
@@ -125,28 +125,28 @@ export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
         <textarea
           rows={4}
           placeholder=""
-          className="mb-3 w-full resize-none rounded-lg border border-[#e0e0e0] bg-white px-3 py-2 text-sm text-[#1a1a1a] outline-none focus:border-[#c8c8c8]"
+          className="mb-3 w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none focus:border-ring"
         />
 
         <div className="flex items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-4 text-sm text-[#4a4a4a]">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 hover:text-[#1a1a1a]"
+              className="inline-flex items-center gap-1.5 hover:text-foreground"
             >
               <Paperclip className="h-4 w-4" />
               Adjuntar
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 hover:text-[#1a1a1a]"
+              className="inline-flex items-center gap-1.5 hover:text-foreground"
             >
               <Mail className="h-4 w-4" />
               Respuestas rápidas
             </button>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 hover:text-[#1a1a1a]"
+              className="inline-flex items-center gap-1.5 hover:text-foreground"
             >
               <Sparkles className="h-4 w-4" />
               Generar con IA
@@ -154,7 +154,7 @@ export function InboxChatPanel({ conversation }: InboxChatPanelProps) {
           </div>
           <button
             type="button"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8e8e8] text-[#4a4a4a] hover:bg-[#dcdcdc]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary-hover"
             aria-label="Enviar"
           >
             <Send className="h-4 w-4" />

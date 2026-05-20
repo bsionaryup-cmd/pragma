@@ -1,57 +1,11 @@
 /**
  * Detiene servidores Next.js huérfanos del proyecto y elimina el lock de desarrollo.
  */
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { DEV_PORTS, killListenersOnPorts, killPid } from "./dev-port-utils.mjs";
 
 const lockPath = join(process.cwd(), ".next", "dev", "lock");
-const ports = [3000, 3001, 3002, 3003];
-
-function isProcessRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function killPid(pid) {
-  if (!pid || !isProcessRunning(pid)) return false;
-  try {
-    if (process.platform === "win32") {
-      execSync(`taskkill /F /PID ${pid}`, { stdio: "ignore" });
-    } else {
-      process.kill(pid, "SIGTERM");
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function collectPidsFromPorts() {
-  const pids = new Set();
-  if (process.platform !== "win32") return pids;
-
-  for (const port of ports) {
-    try {
-      const out = execSync(`netstat -ano | findstr ":${port}"`, {
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      });
-      for (const line of out.split("\n")) {
-        if (!line.includes("LISTENING")) continue;
-        const pid = Number(line.trim().split(/\s+/).pop());
-        if (pid > 0) pids.add(pid);
-      }
-    } catch {
-      // puerto libre
-    }
-  }
-  return pids;
-}
 
 const killed = [];
 
@@ -70,13 +24,15 @@ if (existsSync(lockPath)) {
   }
 }
 
-for (const pid of collectPidsFromPorts()) {
-  if (killPid(pid)) killed.push(pid);
+for (const pid of killListenersOnPorts(DEV_PORTS)) {
+  killed.push(pid);
 }
 
-if (killed.length === 0) {
-  console.log("No había servidores Next.js que detener en los puertos 3000–3003.");
+const unique = [...new Set(killed)];
+
+if (unique.length === 0) {
+  console.log("No había servidores Next.js que detener en los puertos 3000–3010.");
 } else {
-  console.log(`Procesos detenidos: ${[...new Set(killed)].join(", ")}`);
+  console.log(`Procesos detenidos: ${unique.join(", ")}`);
   console.log("Ejecuta: npm run dev");
 }

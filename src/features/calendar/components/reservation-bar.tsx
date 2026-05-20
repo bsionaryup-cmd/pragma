@@ -6,6 +6,7 @@ import { PlatformIcon } from "@/features/calendar/components/platform-icon";
 import {
   getReservationBarClasses,
   getReservationVisualState,
+  getStatusDotClass,
   getStatusLabel,
 } from "@/features/calendar/lib/reservation-style";
 import type {
@@ -36,6 +37,13 @@ function ReservationBarComponent({ reservation, span }: ReservationBarProps) {
       title={`${reservation.guestName} · ${getStatusLabel(reservation.status)}`}
       onClick={openReservationDetail}
     >
+      <span
+        className={cn(
+          "h-2 w-2 shrink-0 rounded-full",
+          getStatusDotClass(visualState),
+        )}
+        aria-hidden
+      />
       <PlatformIcon platform={reservation.platform} />
       <span className="truncate">{reservation.guestName}</span>
     </button>

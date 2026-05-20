@@ -15,7 +15,7 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
     return (
       <span
         className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#ff5a5f] text-[9px] font-bold text-white",
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#ff5a5f] text-[9px] font-bold text-primary-foreground",
           className,
         )}
         aria-hidden
@@ -29,7 +29,7 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
     return (
       <span
         className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#003580] text-[8px] font-bold text-white",
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#003580] text-[8px] font-bold text-primary-foreground",
           className,
         )}
         aria-hidden
