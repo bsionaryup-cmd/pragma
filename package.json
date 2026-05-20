@@ -16,7 +16,9 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "user:admin": "node scripts/set-admin-role.mjs"
+    "user:admin": "node scripts/set-admin-role.mjs",
+    "validate:ical": "node scripts/validate-ical-export.mjs && node scripts/validate-ical-sync.mjs",
+    "audit:ical": "node scripts/run-ical-sync-audit.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",

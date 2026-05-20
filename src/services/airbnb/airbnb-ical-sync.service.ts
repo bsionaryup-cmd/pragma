@@ -13,6 +13,7 @@ import {
   isPragmaExportedUid,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
+import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
@@ -71,6 +72,9 @@ export type PropertyIcalSyncResult = {
   updated: number;
   cancelled: number;
   skipped: number;
+  echoSkipped: number;
+  eventsParsed: number;
+  fetchMs: number;
   error?: string;
 };
 
@@ -80,8 +84,10 @@ export type AirbnbSyncSummary = {
   updated: number;
   cancelled: number;
   skipped: number;
+  echoSkipped: number;
   results: PropertyIcalSyncResult[];
   lastSyncedAt: string | null;
+  durationMs: number;
 };
 
 function parseGuestName(summary: string, blocked: boolean): string {
@@ -119,19 +125,60 @@ async function fetchIcalFeed(icalUrl: string): Promise<string> {
   return text;
 }
 
-async function fetchIcalFeedWithRetry(icalUrl: string): Promise<string> {
+async function fetchIcalFeedWithRetry(
+  propertyId: string,
+  propertyName: string,
+  icalUrl: string,
+): Promise<{ feed: string; fetchMs: number; attempts: number }> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    const started = Date.now();
     try {
-      return await fetchIcalFeed(icalUrl);
+      const feed = await fetchIcalFeed(icalUrl);
+      const fetchMs = Date.now() - started;
+      icalSyncLog.info("fetch_ok", {
+        propertyId,
+        propertyName,
+        fetchMs,
+        attempt: attempt + 1,
+      });
+      return { feed, fetchMs, attempts: attempt + 1 };
     } catch (error) {
       lastError = error;
+      const message =
+        error instanceof Error ? error.message : "Error al descargar iCal";
+      icalSyncLog.warn("fetch_retry", {
+        propertyId,
+        propertyName,
+        attempt: attempt + 1,
+        message,
+      });
       if (attempt === 0) await sleep(700);
     }
   }
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Error al descargar iCal");
+  const message =
+    lastError instanceof Error ? lastError.message : "Error al descargar iCal";
+  icalSyncLog.error("fetch_failed", { propertyId, propertyName, message });
+  throw lastError instanceof Error ? lastError : new Error(message);
+}
+
+function emptyPropertyResult(
+  propertyId: string,
+  propertyName: string,
+  error?: string,
+): PropertyIcalSyncResult {
+  return {
+    propertyId,
+    propertyName,
+    created: 0,
+    updated: 0,
+    cancelled: 0,
+    skipped: 0,
+    echoSkipped: 0,
+    eventsParsed: 0,
+    fetchMs: 0,
+    error,
+  };
 }
 
 export async function syncPropertyIcalCalendar(
@@ -152,29 +199,52 @@ export async function syncPropertyIcalCalendarInner(
 
   const trimmedIcal = property?.icalUrl?.trim();
   if (!property || !trimmedIcal) {
-    return {
+    icalSyncLog.warn("property_skip_no_ical", {
       propertyId,
       propertyName: property?.name ?? "—",
-      created: 0,
-      updated: 0,
-      cancelled: 0,
-      skipped: 0,
-      error: "Sin enlace iCal configurado",
-    };
+    });
+    return emptyPropertyResult(
+      propertyId,
+      property?.name ?? "—",
+      "Sin enlace iCal configurado",
+    );
   }
+
+  icalSyncLog.info("property_sync_start", {
+    propertyId: property.id,
+    propertyName: property.name,
+    ownerId,
+  });
 
   let created = 0;
   let updated = 0;
   let cancelled = 0;
   let skipped = 0;
+  let echoSkipped = 0;
+  let eventsParsed = 0;
+  let fetchMs = 0;
 
   try {
-    const feed = await fetchIcalFeedWithRetry(trimmedIcal);
-    const events = parseIcsFeed(feed);
+    const fetched = await fetchIcalFeedWithRetry(
+      property.id,
+      property.name,
+      trimmedIcal,
+    );
+    fetchMs = fetched.fetchMs;
+
+    const events = parseIcsFeed(fetched.feed);
+    eventsParsed = events.length;
     const seenUids = new Set<string>();
+
+    icalSyncLog.info("feed_parsed", {
+      propertyId: property.id,
+      propertyName: property.name,
+      eventsParsed,
+    });
 
     for (const event of events) {
       if (isPragmaExportedUid(event.uid)) {
+        echoSkipped += 1;
         skipped += 1;
         continue;
       }
@@ -231,6 +301,12 @@ export async function syncPropertyIcalCalendarInner(
           updated += 1;
         } else {
           skipped += 1;
+          icalSyncLog.info("overlap_skipped", {
+            propertyId: property.id,
+            propertyName: property.name,
+            icalUid: event.uid,
+            overlapId: overlap.id,
+          });
         }
         continue;
       }
@@ -274,15 +350,39 @@ export async function syncPropertyIcalCalendarInner(
       where: { id: property.id },
       data: { lastIcalSyncedAt: new Date() },
     });
-  } catch (error) {
-    return {
+
+    icalSyncLog.info("property_sync_done", {
       propertyId: property.id,
       propertyName: property.name,
       created,
       updated,
       cancelled,
       skipped,
-      error: error instanceof Error ? error.message : "Error de sincronización",
+      echoSkipped,
+      eventsParsed,
+      fetchMs,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Error de sincronización";
+    icalSyncLog.error("property_sync_failed", {
+      propertyId: property.id,
+      propertyName: property.name,
+      message,
+      created,
+      updated,
+      cancelled,
+      skipped,
+    });
+    return {
+      ...emptyPropertyResult(property.id, property.name, message),
+      created,
+      updated,
+      cancelled,
+      skipped,
+      echoSkipped,
+      eventsParsed,
+      fetchMs,
     };
   }
 
@@ -293,6 +393,9 @@ export async function syncPropertyIcalCalendarInner(
     updated,
     cancelled,
     skipped,
+    echoSkipped,
+    eventsParsed,
+    fetchMs,
   };
 }
 
@@ -305,10 +408,18 @@ export async function syncAllAirbnbCalendarsForOwner(
 async function syncAllAirbnbCalendarsForOwnerInner(
   ownerId: string,
 ): Promise<AirbnbSyncSummary> {
+  const startedAt = Date.now();
+
   const properties = await db.property.findMany({
     where: activePropertiesWithIcalFilter(ownerId),
     select: { id: true, name: true },
     orderBy: { name: "asc" },
+  });
+
+  icalSyncLog.info("owner_sync_start", {
+    ownerId,
+    propertyCount: properties.length,
+    propertyNames: properties.map((p) => p.name).join(", "),
   });
 
   const results: PropertyIcalSyncResult[] = [];
@@ -316,15 +427,34 @@ async function syncAllAirbnbCalendarsForOwnerInner(
   let updated = 0;
   let cancelled = 0;
   let skipped = 0;
+  let echoSkipped = 0;
 
   for (let index = 0; index < properties.length; index += 1) {
     const property = properties[index];
+    icalSyncLog.info("owner_sync_property", {
+      ownerId,
+      index: index + 1,
+      total: properties.length,
+      propertyId: property.id,
+      propertyName: property.name,
+    });
+
     const result = await syncPropertyIcalCalendarInner(property.id, ownerId);
     results.push(result);
     created += result.created;
     updated += result.updated;
     cancelled += result.cancelled;
     skipped += result.skipped;
+    echoSkipped += result.echoSkipped;
+
+    if (result.error) {
+      icalSyncLog.warn("owner_sync_property_error", {
+        ownerId,
+        propertyId: property.id,
+        propertyName: property.name,
+        message: result.error,
+      });
+    }
 
     if (index < properties.length - 1) {
       await sleep(INTER_PROPERTY_SYNC_DELAY_MS);
@@ -337,14 +467,31 @@ async function syncAllAirbnbCalendarsForOwnerInner(
     select: { lastIcalSyncedAt: true },
   });
 
+  const durationMs = Date.now() - startedAt;
+  const errors = results.filter((r) => r.error).length;
+
+  icalSyncLog.info("owner_sync_complete", {
+    ownerId,
+    propertiesSynced: properties.length,
+    created,
+    updated,
+    cancelled,
+    skipped,
+    echoSkipped,
+    errors,
+    durationMs,
+  });
+
   return {
     propertiesSynced: properties.length,
     created,
     updated,
     cancelled,
     skipped,
+    echoSkipped,
     results,
     lastSyncedAt: lastRow?.lastIcalSyncedAt?.toISOString() ?? null,
+    durationMs,
   };
 }
 

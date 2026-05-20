@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
   "/api/ical/export",
   "/api/ical/(.*)",
+  "/api/cron/(.*)",
 ]);
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);

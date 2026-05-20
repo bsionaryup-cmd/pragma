@@ -1,3 +1,4 @@
+import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { db } from "@/lib/db";
 import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
 
@@ -25,6 +26,8 @@ export async function touchPropertyIcalExport(propertyId: string): Promise<void>
     where: { id: propertyId },
     data: { updatedAt: new Date() },
   });
+
+  icalSyncLog.info("export_feed_touched", { propertyId });
 }
 
 /**

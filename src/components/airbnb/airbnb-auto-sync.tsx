@@ -7,6 +7,7 @@ import {
   AIRBNB_AUTO_SYNC_INITIAL_MS,
   AIRBNB_AUTO_SYNC_MS,
   dispatchAirbnbSyncComplete,
+  dispatchAirbnbSyncFailed,
 } from "@/lib/airbnb-sync";
 
 type AirbnbAutoSyncProps = {
@@ -28,15 +29,12 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       if (cancelled) return;
       window.clearTimeout(timerId);
       timerId = window.setTimeout(() => {
-        void runSync();
+        void runSync("scheduled");
       }, delayMs);
     }
 
-    async function runSync() {
+    async function runSync(trigger: string) {
       if (syncingRef.current || cancelled) return;
-      if (typeof document !== "undefined" && document.hidden) {
-        return;
-      }
 
       syncingRef.current = true;
       try {
@@ -48,10 +46,18 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
           cancelled: summary.cancelled,
           propertiesSynced: summary.propertiesSynced,
           errors: summary.results.filter((r) => r.error).length,
+          durationMs: summary.durationMs,
         });
         router.refresh();
-      } catch {
-        // Auto-sync no debe romper la navegación ni saturar Server Actions.
+
+        if (process.env.NODE_ENV === "development") {
+          console.info("[ical-sync:auto]", trigger, summary);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Error al sincronizar Airbnb";
+        console.error("[ical-sync:auto] failed", { trigger, message });
+        dispatchAirbnbSyncFailed(message);
       } finally {
         syncingRef.current = false;
       }
@@ -60,7 +66,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
     function runInitialSyncOnce() {
       if (hasRunInitialSync) return;
       hasRunInitialSync = true;
-      void runSync();
+      void runSync("initial");
     }
 
     if (AIRBNB_AUTO_SYNC_INITIAL_MS === 0) {
@@ -70,11 +76,11 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
     }
 
     const onFocus = () => {
-      void runSync();
+      void runSync("focus");
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") {
-        void runSync();
+        void runSync("visible");
       }
     };
 
@@ -82,7 +88,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
     document.addEventListener("visibilitychange", onVisible);
 
     const intervalId = window.setInterval(() => {
-      void runSync();
+      void runSync("interval");
     }, AIRBNB_AUTO_SYNC_MS);
 
     return () => {
