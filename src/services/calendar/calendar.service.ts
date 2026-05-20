@@ -4,6 +4,7 @@ import type {
   CalendarReservationDto,
 } from "@/features/calendar/types/calendar.types";
 import { PropertyStatus } from "@prisma/client";
+import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 
@@ -27,11 +28,11 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
       orderBy: [{ name: "asc" }],
     }),
     db.reservation.findMany({
-      where: {
+      where: withVisibleReservationsFilter({
         status: { notIn: ["CANCELLED"] },
         checkIn: { lte: rangeEnd },
         checkOut: { gt: rangeStart },
-      },
+      }),
       select: {
         id: true,
         propertyId: true,

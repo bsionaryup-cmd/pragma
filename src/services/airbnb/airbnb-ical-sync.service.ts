@@ -10,6 +10,7 @@ import {
 import { dateKeyToPrismaDate } from "@/lib/dates";
 import {
   activePropertiesWithIcalFilter,
+  hasActiveAirbnbIcalImport,
   isPragmaExportedUid,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
@@ -197,18 +198,24 @@ export async function syncPropertyIcalCalendarInner(
     select: { id: true, name: true, icalUrl: true, currency: true },
   });
 
-  const trimmedIcal = property?.icalUrl?.trim();
-  if (!property || !trimmedIcal) {
-    icalSyncLog.warn("property_skip_no_ical", {
-      propertyId,
-      propertyName: property?.name ?? "—",
+  if (!property) {
+    return emptyPropertyResult(propertyId, "—", "Propiedad no encontrada");
+  }
+
+  if (!hasActiveAirbnbIcalImport(property.icalUrl)) {
+    icalSyncLog.warn("property_sync_skipped_not_connected", {
+      propertyId: property.id,
+      propertyName: property.name,
+      icalUrl: property.icalUrl ?? null,
     });
     return emptyPropertyResult(
-      propertyId,
-      property?.name ?? "—",
-      "Sin enlace iCal configurado",
+      property.id,
+      property.name,
+      "Propiedad sin iCal de Airbnb conectado",
     );
   }
+
+  const trimmedIcal = property.icalUrl!.trim();
 
   icalSyncLog.info("property_sync_start", {
     propertyId: property.id,
@@ -410,11 +417,14 @@ async function syncAllAirbnbCalendarsForOwnerInner(
 ): Promise<AirbnbSyncSummary> {
   const startedAt = Date.now();
 
-  const properties = await db.property.findMany({
+  const candidates = await db.property.findMany({
     where: activePropertiesWithIcalFilter(ownerId),
-    select: { id: true, name: true },
+    select: { id: true, name: true, icalUrl: true },
     orderBy: { name: "asc" },
   });
+  const properties = candidates.filter((p) =>
+    hasActiveAirbnbIcalImport(p.icalUrl),
+  );
 
   icalSyncLog.info("owner_sync_start", {
     ownerId,
@@ -496,15 +506,19 @@ async function syncAllAirbnbCalendarsForOwnerInner(
 }
 
 export async function getAirbnbSyncStatusForOwner(ownerId: string) {
-  const properties = await db.property.findMany({
+  const candidates = await db.property.findMany({
     where: activePropertiesWithIcalFilter(ownerId),
     select: {
       id: true,
       name: true,
+      icalUrl: true,
       lastIcalSyncedAt: true,
     },
     orderBy: { name: "asc" },
   });
+  const properties = candidates.filter((p) =>
+    hasActiveAirbnbIcalImport(p.icalUrl),
+  );
 
   const lastSyncedAt = properties.reduce<Date | null>((max, p) => {
     if (!p.lastIcalSyncedAt) return max;

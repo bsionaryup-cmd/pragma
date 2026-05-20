@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { disconnectPropertyAirbnbIcalAction } from "@/features/properties/actions/airbnb-sync.actions";
 import { deletePropertyAction } from "@/features/properties/actions/property.actions";
 import { AirbnbSyncButton } from "@/features/properties/components/airbnb-sync-button";
 import { PropertyIcalExportLink } from "@/features/properties/components/property-ical-export-link";
@@ -80,6 +81,33 @@ export function PropertyDetailPanel({
 }: PropertyDetailPanelProps) {
   const router = useRouter();
   const [deleting, startDelete] = useTransition();
+  const [disconnecting, startDisconnect] = useTransition();
+
+  function handleDisconnectAirbnb() {
+    if (
+      !confirm(
+        "¿Desconectar el calendario Airbnb de esta propiedad? Se quitará el enlace iCal y se archivarán las reservas importadas desde Airbnb. Las reservas Directo/Booking no se tocan.",
+      )
+    ) {
+      return;
+    }
+    startDisconnect(async () => {
+      try {
+        const { result } = await disconnectPropertyAirbnbIcalAction(property.id);
+        const archived =
+          result.cancelledReservations > 0
+            ? ` · ${result.cancelledReservations} importación(es) archivada(s)`
+            : "";
+        toast.success(`Calendario Airbnb desconectado${archived}`);
+        router.refresh();
+        onClose();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "No se pudo desconectar";
+        toast.error(message);
+      }
+    });
+  }
 
   function handleDelete() {
     if (!confirm("¿Eliminar esta propiedad? No se puede deshacer.")) return;
@@ -223,12 +251,28 @@ export function PropertyDetailPanel({
               />
             ) : null}
             {property.icalUrl && canWrite ? (
-              <div className="pt-2">
+              <div className="space-y-2 pt-2">
                 <AirbnbSyncButton
                   propertyId={property.id}
                   variant="detail"
                   className="w-full"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-danger/40 text-danger hover:bg-danger/10"
+                  disabled={disconnecting}
+                  onClick={handleDisconnectAirbnb}
+                >
+                  {disconnecting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Desconectando…
+                    </>
+                  ) : (
+                    "Desconectar calendario Airbnb"
+                  )}
+                </Button>
               </div>
             ) : null}
           </DetailSection>

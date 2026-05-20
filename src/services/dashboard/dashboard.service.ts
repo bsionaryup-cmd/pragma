@@ -1,4 +1,5 @@
 import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { startOfDay } from "@/lib/helpers/date";
 
@@ -24,23 +25,23 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     db.property.count(),
     db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
     db.reservation.count({
-      where: {
+      where: withVisibleReservationsFilter({
         status: {
           in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
         },
-      },
+      }),
     }),
     db.reservation.count({
-      where: {
+      where: withVisibleReservationsFilter({
         checkIn: today,
         status: { not: ReservationStatus.CANCELLED },
-      },
+      }),
     }),
     db.reservation.count({
-      where: {
+      where: withVisibleReservationsFilter({
         checkOut: today,
         status: { not: ReservationStatus.CANCELLED },
-      },
+      }),
     }),
   ]);
 
@@ -129,21 +130,23 @@ export async function getPanelCounts(): Promise<PanelCounts> {
 
   const [arrivals, departures, current] = await Promise.all([
     db.reservation.count({
-      where: {
+      where: withVisibleReservationsFilter({
         checkIn: { gte: today, lte: weekAhead },
         status: ReservationStatus.CONFIRMED,
-      },
+      }),
     }),
     db.reservation.count({
-      where: {
+      where: withVisibleReservationsFilter({
         checkOut: { gte: today, lte: weekAhead },
         status: {
           in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
         },
-      },
+      }),
     }),
     db.reservation.count({
-      where: { status: ReservationStatus.CHECKED_IN },
+      where: withVisibleReservationsFilter({
+        status: ReservationStatus.CHECKED_IN,
+      }),
     }),
   ]);
 
@@ -156,10 +159,10 @@ export async function getUpcomingArrivals(limit = 20) {
   weekAhead.setDate(weekAhead.getDate() + 7);
 
   return db.reservation.findMany({
-    where: {
+    where: withVisibleReservationsFilter({
       checkIn: { gte: today, lte: weekAhead },
       status: ReservationStatus.CONFIRMED,
-    },
+    }),
     include: panelReservationInclude,
     orderBy: { checkIn: "asc" },
     take: limit,
@@ -172,12 +175,12 @@ export async function getUpcomingDepartures(limit = 20) {
   weekAhead.setDate(weekAhead.getDate() + 7);
 
   return db.reservation.findMany({
-    where: {
+    where: withVisibleReservationsFilter({
       checkOut: { gte: today, lte: weekAhead },
       status: {
         in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
       },
-    },
+    }),
     include: panelReservationInclude,
     orderBy: { checkOut: "asc" },
     take: limit,
@@ -186,7 +189,9 @@ export async function getUpcomingDepartures(limit = 20) {
 
 export async function getCurrentStays(limit = 20) {
   return db.reservation.findMany({
-    where: { status: ReservationStatus.CHECKED_IN },
+    where: withVisibleReservationsFilter({
+      status: ReservationStatus.CHECKED_IN,
+    }),
     include: panelReservationInclude,
     orderBy: { checkOut: "asc" },
     take: limit,

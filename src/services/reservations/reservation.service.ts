@@ -1,6 +1,7 @@
 import type { ReservationWizardValues } from "@/features/reservations/schemas/reservation.schema";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
 import { PropertyStatus } from "@prisma/client";
+import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
@@ -64,6 +65,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const rows = await db.reservation.findMany({
+    where: withVisibleReservationsFilter({}),
     include: {
       property: {
         select: { id: true, name: true, address: true, city: true },

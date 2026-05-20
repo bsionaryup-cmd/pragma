@@ -13,6 +13,10 @@ import type {
   PropertyUpcomingReservation,
 } from "@/features/properties/types/property.types";
 import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import {
+  hasActiveAirbnbIcalImport,
+  withVisibleReservationsFilter,
+} from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 
 function getMonthBounds(reference = new Date()) {
@@ -37,6 +41,14 @@ function toUpcomingReservation(r: {
   };
 }
 
+function filterVisibleReservations<T extends { icalUid: string | null }>(
+  icalUrl: string | null,
+  reservations: T[],
+): T[] {
+  if (hasActiveAirbnbIcalImport(icalUrl)) return reservations;
+  return reservations.filter((r) => !r.icalUid);
+}
+
 function mapPropertyRow(
   property: {
     id: string;
@@ -51,6 +63,7 @@ function mapPropertyRow(
     bedrooms: number;
     beds: number;
     bathrooms: { toString(): string };
+    icalUrl: string | null;
     reservations: Array<{
       id: string;
       guestName: string;
@@ -58,13 +71,19 @@ function mapPropertyRow(
       checkOut: Date;
       status: PropertyUpcomingReservation["status"];
       totalAmount?: { toString(): string };
+      icalUid: string | null;
     }>;
   },
   today: Date,
   monthStart: Date,
   monthEnd: Date,
 ): PropertyGridItem {
-  const upcoming = property.reservations
+  const visible = filterVisibleReservations(
+    property.icalUrl,
+    property.reservations,
+  );
+
+  const upcoming = visible
     .filter(
       (r) =>
         r.status !== ReservationStatus.CANCELLED &&
@@ -72,7 +91,7 @@ function mapPropertyRow(
     )
     .sort((a, b) => a.checkIn.getTime() - b.checkIn.getTime());
 
-  const monthReservations = property.reservations.filter(
+  const monthReservations = visible.filter(
     (r) =>
       r.status !== ReservationStatus.CANCELLED &&
       r.checkIn <= monthEnd &&
@@ -127,6 +146,7 @@ export async function listPropertiesForGrid(
           checkOut: true,
           status: true,
           totalAmount: true,
+          icalUid: true,
         },
         orderBy: { checkIn: "asc" },
       },
@@ -158,9 +178,10 @@ export async function getPropertyDetail(
           checkOut: true,
           status: true,
           totalAmount: true,
+          icalUid: true,
         },
         orderBy: { checkIn: "asc" },
-        take: 8,
+        take: 20,
       },
       tasks: {
         where: {
@@ -182,12 +203,12 @@ export async function getPropertyDetail(
   if (!property) return null;
 
   const allMonthReservations = await db.reservation.findMany({
-    where: {
+    where: withVisibleReservationsFilter({
       propertyId: id,
       status: { not: ReservationStatus.CANCELLED },
       checkIn: { lte: monthEnd },
       checkOut: { gt: monthStart },
-    },
+    }),
     select: {
       id: true,
       guestName: true,
@@ -195,6 +216,7 @@ export async function getPropertyDetail(
       checkOut: true,
       status: true,
       totalAmount: true,
+      icalUid: true,
     },
   });
 
@@ -235,7 +257,10 @@ export async function getPropertyDetail(
     airbnbListingUrl: property.airbnbListingUrl,
     icalUrl: property.icalUrl,
     lastIcalSyncedAt: property.lastIcalSyncedAt?.toISOString() ?? null,
-    upcomingReservations: property.reservations.map(toUpcomingReservation),
+    upcomingReservations: filterVisibleReservations(
+      property.icalUrl,
+      property.reservations,
+    ).map(toUpcomingReservation),
     pendingTasks,
     monthRevenue: String(sumMonthRevenue(allMonthReservations, monthStart, monthEnd)),
     createdAt: property.createdAt.toISOString(),
