@@ -174,6 +174,7 @@ export function MultiCalendar({
   }
 
   const openReservationDetail = useCallback(async (reservationId: string) => {
+    // Siempre en calendario: drawer lateral, sin cambiar ruta ni ir a /reservations
     setDrawerMode("detail");
     setSelectedReservation(null);
     setDetailLoading(true);

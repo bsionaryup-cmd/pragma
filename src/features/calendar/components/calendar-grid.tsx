@@ -20,6 +20,7 @@ type CalendarGridProps = {
   canWrite: boolean;
   selection: CalendarDateSelection | null;
   onDayClick: (propertyId: string, dateKey: string) => void;
+  /** Abre detalle en el drawer del calendario (no navega a /reservations). */
   onReservationClick: (reservationId: string) => void;
 };
 

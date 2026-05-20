@@ -28,6 +28,7 @@ function ReservationBarComponent({
   const visualState = getReservationVisualState(reservation);
 
   function openReservationDetail(e: React.MouseEvent) {
+    e.preventDefault();
     e.stopPropagation();
     onSelect(reservation.id);
   }
@@ -35,10 +36,15 @@ function ReservationBarComponent({
   return (
     <button
       type="button"
-      className={cn(getReservationBarClasses(visualState), "text-left")}
+      className={cn(
+        getReservationBarClasses(visualState),
+        "relative z-20 text-left pointer-events-auto",
+      )}
       style={{ left: span.leftPx, width: span.widthPx }}
       title={`${reservation.guestName} · ${getStatusLabel(reservation.status)}`}
       onClick={openReservationDetail}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       <span
         className={cn(

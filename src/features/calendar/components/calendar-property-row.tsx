@@ -96,7 +96,7 @@ function CalendarPropertyRowComponent({
             disabled={!canWrite}
             onClick={() => onDayClick(propertyId, day.date)}
             className={cn(
-              "absolute top-0 border-r border-border/70 transition-colors duration-150",
+              "absolute top-0 z-0 border-r border-border/70 transition-colors duration-150",
               day.isWeekend && "bg-[#15181c]/80",
               day.isToday &&
                 "z-[1] bg-primary/15 shadow-[inset_0_0_0_1px_rgba(20,184,166,0.35)]",
