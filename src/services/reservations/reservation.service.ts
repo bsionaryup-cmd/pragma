@@ -92,6 +92,22 @@ export async function getReservationById(id: string) {
   });
 }
 
+/** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
+export async function getReservationForInbox(
+  id: string,
+): Promise<ReservationInboxItem | null> {
+  const row = await db.reservation.findFirst({
+    where: withVisibleReservationsFilter({ id }),
+    include: {
+      property: {
+        select: { id: true, name: true, address: true, city: true },
+      },
+    },
+  });
+  if (!row) return null;
+  return toInboxItem(row);
+}
+
 export async function createReservation(data: ReservationWizardValues) {
   const property = await db.property.findFirst({
     where: { id: data.propertyId, status: PropertyStatus.ACTIVE },

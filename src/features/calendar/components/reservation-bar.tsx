@@ -1,7 +1,6 @@
 "use client";
 
 import { memo } from "react";
-import { useRouter } from "next/navigation";
 import { PlatformIcon } from "@/features/calendar/components/platform-icon";
 import {
   getReservationBarClasses,
@@ -18,15 +17,19 @@ import { cn } from "@/lib/utils";
 type ReservationBarProps = {
   reservation: CalendarReservationDto;
   span: ReservationSpan;
+  onSelect: (reservationId: string) => void;
 };
 
-function ReservationBarComponent({ reservation, span }: ReservationBarProps) {
-  const router = useRouter();
+function ReservationBarComponent({
+  reservation,
+  span,
+  onSelect,
+}: ReservationBarProps) {
   const visualState = getReservationVisualState(reservation);
 
   function openReservationDetail(e: React.MouseEvent) {
     e.stopPropagation();
-    router.push(`/reservations?reservation=${reservation.id}`);
+    onSelect(reservation.id);
   }
 
   return (

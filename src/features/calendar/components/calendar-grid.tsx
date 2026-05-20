@@ -20,6 +20,7 @@ type CalendarGridProps = {
   canWrite: boolean;
   selection: CalendarDateSelection | null;
   onDayClick: (propertyId: string, dateKey: string) => void;
+  onReservationClick: (reservationId: string) => void;
 };
 
 function CalendarGridComponent({
@@ -33,6 +34,7 @@ function CalendarGridComponent({
   canWrite,
   selection,
   onDayClick,
+  onReservationClick,
 }: CalendarGridProps) {
   return (
     <div
@@ -57,6 +59,7 @@ function CalendarGridComponent({
             canWrite={canWrite}
             selection={selection}
             onDayClick={onDayClick}
+            onReservationClick={onReservationClick}
           />
         ))
       )}

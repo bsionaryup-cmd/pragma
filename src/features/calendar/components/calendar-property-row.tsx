@@ -24,6 +24,7 @@ type CalendarPropertyRowProps = {
   canWrite: boolean;
   selection: CalendarDateSelection | null;
   onDayClick: (propertyId: string, dateKey: string) => void;
+  onReservationClick: (reservationId: string) => void;
 };
 
 function isDayInSelection(
@@ -49,6 +50,7 @@ function CalendarPropertyRowComponent({
   canWrite,
   selection,
   onDayClick,
+  onReservationClick,
 }: CalendarPropertyRowProps) {
   const dayKeys = useMemo(() => days.map((d) => d.date), [days]);
 
@@ -117,6 +119,7 @@ function CalendarPropertyRowComponent({
           key={reservation.id}
           reservation={reservation}
           span={span}
+          onSelect={onReservationClick}
         />
       ))}
     </div>

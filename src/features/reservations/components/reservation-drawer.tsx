@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { ReservationCreateWizard } from "@/features/reservations/components/reservation-create-wizard";
 import { ReservationDetailPanel } from "@/features/reservations/components/reservation-detail-panel";
 import type {
@@ -32,6 +33,7 @@ type ReservationDrawerProps = {
   onClose: () => void;
   onCreated: (reservation: ReservationInboxItem) => void;
   onDeleted: (id: string) => void;
+  detailLoading?: boolean;
 };
 
 export function ReservationDrawer({
@@ -44,6 +46,7 @@ export function ReservationDrawer({
   onClose,
   onCreated,
   onDeleted,
+  detailLoading = false,
 }: ReservationDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -71,7 +74,13 @@ export function ReservationDrawer({
               onCancel={onClose}
             />
           ) : null}
-          {mode === "detail" && reservation ? (
+          {mode === "detail" && detailLoading ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+              <span className="sr-only">Cargando reserva…</span>
+            </div>
+          ) : null}
+          {mode === "detail" && !detailLoading && reservation ? (
             <ReservationDetailPanel
               reservation={reservation}
               canWrite={canWrite}

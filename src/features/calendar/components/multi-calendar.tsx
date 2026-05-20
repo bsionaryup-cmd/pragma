@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
 import { CALENDAR_DAY_WIDTH } from "@/features/calendar/constants";
 import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-header";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
@@ -39,6 +41,9 @@ export function MultiCalendar({
   const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<CalendarDateSelection | null>(null);
   const [drawerMode, setDrawerMode] = useState<ReservationDrawerMode>(null);
+  const [selectedReservation, setSelectedReservation] =
+    useState<ReservationInboxItem | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [createDefaults, setCreateDefaults] = useState<{
     propertyId: string;
     checkIn: string;
@@ -153,11 +158,41 @@ export function MultiCalendar({
 
   function closeDrawer() {
     setDrawerMode(null);
+    setSelectedReservation(null);
+    setDetailLoading(false);
     setCreateDefaults(null);
     setSelection(null);
   }
 
+  const openReservationDetail = useCallback(async (reservationId: string) => {
+    setDrawerMode("detail");
+    setSelectedReservation(null);
+    setDetailLoading(true);
+    setCreateDefaults(null);
+    setSelection(null);
+
+    try {
+      const result = await getReservationInboxItemAction(reservationId);
+      if (!result.success) {
+        toast.error(result.error);
+        closeDrawer();
+        return;
+      }
+      setSelectedReservation(result.reservation);
+    } catch {
+      toast.error("No se pudo cargar la reserva");
+      closeDrawer();
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
   function handleCreated(_reservation: ReservationInboxItem) {
+    closeDrawer();
+    router.refresh();
+  }
+
+  function handleDeleted(_id: string) {
     closeDrawer();
     router.refresh();
   }
@@ -196,6 +231,7 @@ export function MultiCalendar({
             canWrite={canWrite}
             selection={selection}
             onDayClick={handleDayClick}
+            onReservationClick={openReservationDetail}
           />
         </div>
       </div>
@@ -216,15 +252,16 @@ export function MultiCalendar({
       ) : null}
 
       <ReservationDrawer
-        open={drawerMode === "create"}
+        open={drawerMode !== null}
         mode={drawerMode}
-        reservation={null}
+        reservation={drawerMode === "detail" ? selectedReservation : null}
         properties={propertyOptions}
         canWrite={canWrite}
         initialCreateValues={createDefaults ?? undefined}
+        detailLoading={detailLoading}
         onClose={closeDrawer}
         onCreated={handleCreated}
-        onDeleted={() => {}}
+        onDeleted={handleDeleted}
       />
     </div>
   );

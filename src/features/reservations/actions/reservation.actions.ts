@@ -12,6 +12,7 @@ import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.s
 import {
   createReservation,
   deleteReservation,
+  getReservationForInbox,
 } from "@/services/reservations/reservation.service";
 import { prismaDateToKey } from "@/lib/dates";
 
@@ -73,6 +74,15 @@ export async function createReservationAction(data: ReservationWizardValues) {
     }
     throw error;
   }
+}
+
+export async function getReservationInboxItemAction(id: string) {
+  await requirePermission("calendar:read");
+  const reservation = await getReservationForInbox(id);
+  if (!reservation) {
+    return { success: false as const, error: "Reserva no encontrada" };
+  }
+  return { success: true as const, reservation };
 }
 
 export async function deleteReservationAction(id: string) {
