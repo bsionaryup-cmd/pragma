@@ -1,4 +1,5 @@
 import { ReservationStatus } from "@prisma/client";
+import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 
 export class ReservationConflictError extends Error {
@@ -18,7 +19,7 @@ export async function findOverlappingReservation(
   excludeReservationId?: string,
 ) {
   return db.reservation.findFirst({
-    where: {
+    where: withVisibleReservationsFilter({
       propertyId,
       ...(excludeReservationId ? { id: { not: excludeReservationId } } : {}),
       status: {
@@ -26,7 +27,7 @@ export async function findOverlappingReservation(
       },
       checkIn: { lt: checkOut },
       checkOut: { gt: checkIn },
-    },
+    }),
     select: {
       id: true,
       guestName: true,

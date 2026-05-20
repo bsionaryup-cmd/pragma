@@ -1,10 +1,21 @@
-import { PropertyStatus, type Prisma } from "@prisma/client";
+import { BookingPlatform, PropertyStatus, type Prisma } from "@prisma/client";
 
 /** Propiedad con iCal de importación Airbnb activo (no null, no vacío, no solo espacios). */
 export function hasActiveAirbnbIcalImport(
   icalUrl: string | null | undefined,
 ): boolean {
   return Boolean(icalUrl?.trim());
+}
+
+/**
+ * Guard obligatoria en todos los puntos de entrada de sync/import fetch.
+ * Devuelve false si no hay iCal activo (null, "", solo espacios).
+ */
+export function canSyncAirbnbIcalImport(
+  icalUrl: string | null | undefined,
+): boolean {
+  if (!icalUrl) return false;
+  return icalUrl.trim().length > 0;
 }
 
 /** Propiedades activas con iCal de Airbnb configurado (no vacío). */
@@ -18,7 +29,7 @@ export function activePropertiesWithIcalFilter(
   };
 }
 
-/** Propiedad con iCal activo en Prisma (null/vacío excluidos; trim en runtime). */
+/** Propiedad con iCal activo en Prisma (null/vacío excluidos; trim validado en runtime). */
 export function activeIcalUrlOnPropertyFilter(): Prisma.PropertyWhereInput {
   return {
     AND: [{ icalUrl: { not: null } }, { NOT: { icalUrl: "" } }],
@@ -26,15 +37,20 @@ export function activeIcalUrlOnPropertyFilter(): Prisma.PropertyWhereInput {
 }
 
 /**
- * Filtro Prisma: oculta reservas importadas de Airbnb (con icalUid) cuando la
- * propiedad ya no tiene iCal conectado. No afecta Directo/Booking (icalUid null).
+ * Filtro Prisma: sin iCal activo en la propiedad → no mostrar imports Airbnb
+ * (icalUid o platform AIRBNB). Directo/Booking siempre visibles (icalUid null).
  */
 export function notOrphanAirbnbImportFilter(): Prisma.ReservationWhereInput {
   return {
     OR: [
-      { icalUid: null },
       {
         property: activeIcalUrlOnPropertyFilter(),
+      },
+      {
+        AND: [
+          { icalUid: null },
+          { platform: { not: BookingPlatform.AIRBNB } },
+        ],
       },
     ],
   };

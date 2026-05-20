@@ -12,7 +12,12 @@ import type {
   PropertyTaskItem,
   PropertyUpcomingReservation,
 } from "@/features/properties/types/property.types";
-import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import {
+  BookingPlatform,
+  PropertyStatus,
+  ReservationStatus,
+} from "@prisma/client";
+import { isOrphanAirbnbReservation } from "@/services/airbnb/airbnb-ical-orphan.service";
 import {
   hasActiveAirbnbIcalImport,
   withVisibleReservationsFilter,
@@ -41,12 +46,14 @@ function toUpcomingReservation(r: {
   };
 }
 
-function filterVisibleReservations<T extends { icalUid: string | null }>(
+function filterVisibleReservations<
+  T extends { icalUid: string | null; platform: BookingPlatform },
+>(
   icalUrl: string | null,
   reservations: T[],
 ): T[] {
   if (hasActiveAirbnbIcalImport(icalUrl)) return reservations;
-  return reservations.filter((r) => !r.icalUid);
+  return reservations.filter((r) => !isOrphanAirbnbReservation(r));
 }
 
 function mapPropertyRow(
@@ -72,6 +79,7 @@ function mapPropertyRow(
       status: PropertyUpcomingReservation["status"];
       totalAmount?: { toString(): string };
       icalUid: string | null;
+      platform: BookingPlatform;
     }>;
   },
   today: Date,
@@ -147,6 +155,7 @@ export async function listPropertiesForGrid(
           status: true,
           totalAmount: true,
           icalUid: true,
+          platform: true,
         },
         orderBy: { checkIn: "asc" },
       },
@@ -179,6 +188,7 @@ export async function getPropertyDetail(
           status: true,
           totalAmount: true,
           icalUid: true,
+          platform: true,
         },
         orderBy: { checkIn: "asc" },
         take: 20,
@@ -217,6 +227,7 @@ export async function getPropertyDetail(
       status: true,
       totalAmount: true,
       icalUid: true,
+      platform: true,
     },
   });
 

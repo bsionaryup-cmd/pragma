@@ -1,7 +1,7 @@
-import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { db } from "@/lib/db";
+import { archiveOrphanAirbnbImportsForProperty } from "@/services/airbnb/airbnb-ical-orphan.service";
 
 export type DisconnectAirbnbIcalResult = {
   propertyId: string;
@@ -35,15 +35,10 @@ export async function disconnectPropertyAirbnbIcal(
     wasConnected,
   });
 
-  const cancelResult = await db.reservation.updateMany({
-    where: {
-      propertyId: property.id,
-      platform: BookingPlatform.AIRBNB,
-      icalUid: { not: null },
-      status: { not: ReservationStatus.CANCELLED },
-    },
-    data: { status: ReservationStatus.CANCELLED },
-  });
+  const cancelledReservations = await archiveOrphanAirbnbImportsForProperty(
+    property.id,
+    null,
+  );
 
   await db.property.update({
     where: { id: property.id },
@@ -56,13 +51,14 @@ export async function disconnectPropertyAirbnbIcal(
   icalSyncLog.info("property_ical_disconnect_done", {
     propertyId,
     propertyName: property.name,
-    cancelledReservations: cancelResult.count,
+    cancelledReservations,
   });
 
   return {
     propertyId: property.id,
     propertyName: property.name,
-    cancelledReservations: cancelResult.count,
+    cancelledReservations,
     wasConnected,
   };
 }
+

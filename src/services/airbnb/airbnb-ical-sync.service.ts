@@ -10,10 +10,12 @@ import {
 import { dateKeyToPrismaDate } from "@/lib/dates";
 import {
   activePropertiesWithIcalFilter,
+  canSyncAirbnbIcalImport,
   hasActiveAirbnbIcalImport,
   isPragmaExportedUid,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
+import { enforcePropertyAirbnbIcalIsolation } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
@@ -107,7 +109,10 @@ function cacheBustIcalUrl(url: string): string {
 }
 
 async function fetchIcalFeed(icalUrl: string): Promise<string> {
-  const url = cacheBustIcalUrl(normalizeIcalUrl(icalUrl));
+  if (!canSyncAirbnbIcalImport(icalUrl)) {
+    throw new Error("Propiedad sin iCal de Airbnb conectado");
+  }
+  const url = cacheBustIcalUrl(normalizeIcalUrl(icalUrl.trim()));
   const response = await fetch(url, {
     headers: FETCH_HEADERS,
     cache: "no-store",
@@ -131,6 +136,9 @@ async function fetchIcalFeedWithRetry(
   propertyName: string,
   icalUrl: string,
 ): Promise<{ feed: string; fetchMs: number; attempts: number }> {
+  if (!canSyncAirbnbIcalImport(icalUrl)) {
+    throw new Error("Propiedad sin iCal de Airbnb conectado");
+  }
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const started = Date.now();
@@ -202,7 +210,8 @@ export async function syncPropertyIcalCalendarInner(
     return emptyPropertyResult(propertyId, "—", "Propiedad no encontrada");
   }
 
-  if (!hasActiveAirbnbIcalImport(property.icalUrl)) {
+  if (!canSyncAirbnbIcalImport(property.icalUrl)) {
+    await enforcePropertyAirbnbIcalIsolation(property.id, property.icalUrl);
     icalSyncLog.warn("property_sync_skipped_not_connected", {
       propertyId: property.id,
       propertyName: property.name,

@@ -27,6 +27,7 @@ import {
   taskTypeLabels,
 } from "@/lib/labels";
 import { formatCurrency } from "@/lib/helpers";
+import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
 import { cn } from "@/lib/utils";
 
 type PropertyDetailPanelProps = {
@@ -128,6 +129,7 @@ export function PropertyDetailPanel({
     Number(property.monthRevenue),
     property.currency,
   );
+  const hasIcalImport = hasActiveAirbnbIcalImport(property.icalUrl);
 
   return (
     <div className="flex h-full flex-col">
@@ -222,12 +224,19 @@ export function PropertyDetailPanel({
           </DetailSection>
         ) : null}
 
-        {property.airbnbListingUrl || property.icalUrl ? (
+        {property.airbnbListingUrl || hasIcalImport ? (
           <DetailSection title="Airbnb">
-            <p className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs leading-relaxed text-primary">
-              Los bloqueos se reflejarán en Airbnb por sincronización iCal
-              (puede tardar unos minutos).
-            </p>
+            {hasIcalImport ? (
+              <p className="rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-xs leading-relaxed text-primary">
+                Los bloqueos se reflejarán en Airbnb por sincronización iCal
+                (puede tardar unos minutos).
+              </p>
+            ) : (
+              <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                Sin importación iCal activa. Los bloqueos de Airbnb no se
+                sincronizan ni se muestran en PRAGMA.
+              </p>
+            )}
             {property.airbnbListingUrl ? (
               <div className="flex justify-between gap-4 py-2 text-sm">
                 <span className="text-muted-foreground">Anuncio</span>
@@ -241,7 +250,7 @@ export function PropertyDetailPanel({
                 </a>
               </div>
             ) : null}
-            {property.icalUrl ? (
+            {hasIcalImport ? (
               <DetailRow label="iCal" value="Guardado para sincronización" />
             ) : null}
             {property.lastIcalSyncedAt ? (
@@ -250,7 +259,7 @@ export function PropertyDetailPanel({
                 value={new Date(property.lastIcalSyncedAt).toLocaleString("es-CO")}
               />
             ) : null}
-            {property.icalUrl && canWrite ? (
+            {hasIcalImport && canWrite ? (
               <div className="space-y-2 pt-2">
                 <AirbnbSyncButton
                   propertyId={property.id}

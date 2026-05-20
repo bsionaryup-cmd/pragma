@@ -9,6 +9,7 @@ import {
   buildIcalExportUrl,
   ensurePropertyIcalExportToken,
 } from "@/services/airbnb/ical-export.service";
+import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
 import { disconnectPropertyAirbnbIcal } from "@/services/airbnb/airbnb-ical-disconnect.service";
 import {
   getAirbnbSyncStatusForOwner,
@@ -16,6 +17,7 @@ import {
   syncPropertyIcalCalendar,
 } from "@/services/airbnb/airbnb-ical-sync.service";
 import { getPropertyById } from "@/services/properties/property.service";
+import { db } from "@/lib/db";
 
 function revalidateSyncedPaths() {
   revalidatePath("/properties");
@@ -26,6 +28,27 @@ function revalidateSyncedPaths() {
 
 export async function syncAirbnbCalendarsAction() {
   const user = await requirePermission("properties:write");
+  const linked = await db.property.findMany({
+    where: { ownerId: user.dbUserId },
+    select: { icalUrl: true },
+  });
+  const hasAnyLinked = linked.some((p) => hasActiveAirbnbIcalImport(p.icalUrl));
+  if (!hasAnyLinked) {
+    return {
+      success: true as const,
+      summary: {
+        propertiesSynced: 0,
+        created: 0,
+        updated: 0,
+        cancelled: 0,
+        skipped: 0,
+        echoSkipped: 0,
+        results: [],
+        lastSyncedAt: null,
+        durationMs: 0,
+      },
+    };
+  }
   try {
     const summary = await withTimeout(
       syncAllAirbnbCalendarsForOwner(user.dbUserId),
@@ -43,6 +66,14 @@ export async function syncAirbnbCalendarsAction() {
 
 export async function syncPropertyAirbnbAction(propertyId: string) {
   const user = await requirePermission("properties:write");
+  const property = await db.property.findFirst({
+    where: { id: propertyId, ownerId: user.dbUserId },
+    select: { icalUrl: true, name: true },
+  });
+  if (!property) throw new Error("Propiedad no encontrada");
+  if (!hasActiveAirbnbIcalImport(property.icalUrl)) {
+    throw new Error("Esta propiedad no tiene iCal de Airbnb conectado");
+  }
   const result = await syncPropertyIcalCalendar(propertyId, user.dbUserId);
   revalidateSyncedPaths();
   return { success: true as const, result };

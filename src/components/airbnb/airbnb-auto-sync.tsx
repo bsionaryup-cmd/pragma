@@ -2,7 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { syncAirbnbCalendarsAction } from "@/features/properties/actions/airbnb-sync.actions";
+import {
+  getAirbnbSyncStatusAction,
+  syncAirbnbCalendarsAction,
+} from "@/features/properties/actions/airbnb-sync.actions";
 import {
   AIRBNB_AUTO_SYNC_INITIAL_MS,
   AIRBNB_AUTO_SYNC_MS,
@@ -38,6 +41,14 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
       syncingRef.current = true;
       try {
+        const { status } = await getAirbnbSyncStatusAction();
+        if (status.linkedCount === 0) {
+          if (process.env.NODE_ENV === "development") {
+            console.info("[ical-sync:auto] skip — sin propiedades con iCal", trigger);
+          }
+          return;
+        }
+
         const { summary } = await syncAirbnbCalendarsAction();
 
         dispatchAirbnbSyncComplete({

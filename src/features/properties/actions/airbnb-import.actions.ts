@@ -10,6 +10,7 @@ import {
   normalizeAirbnbListingUrl,
   normalizeIcalUrl,
 } from "@/services/airbnb/airbnb-import.service";
+import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
 import { syncPropertyIcalCalendar } from "@/services/airbnb/airbnb-ical-sync.service";
 import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
 import {
@@ -50,6 +51,9 @@ export async function importAirbnbPropertyAction(input: {
 
   const listingUrl = normalizeAirbnbListingUrl(parsed.listingUrl);
   const icalUrl = normalizeIcalUrl(parsed.icalUrl);
+  if (!hasActiveAirbnbIcalImport(icalUrl)) {
+    throw new Error("Enlace iCal de Airbnb inválido o vacío");
+  }
 
   const preview = await fetchAirbnbListingPreview(listingUrl);
 

@@ -1,4 +1,8 @@
 import { NextResponse } from "next/server";
+import {
+  activeIcalUrlOnPropertyFilter,
+  hasActiveAirbnbIcalImport,
+} from "@/lib/airbnb/ical-sync-utils";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { db } from "@/lib/db";
 import { syncAllAirbnbCalendarsForOwner } from "@/services/airbnb/airbnb-ical-sync.service";
@@ -30,16 +34,17 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   icalSyncLog.info("cron_sync_start");
 
-  const owners = await db.property.findMany({
-    where: {
-      AND: [
-        { icalUrl: { not: null } },
-        { NOT: { icalUrl: "" } },
-      ],
-    },
-    select: { ownerId: true },
-    distinct: ["ownerId"],
+  const ownerRows = await db.property.findMany({
+    where: activeIcalUrlOnPropertyFilter(),
+    select: { ownerId: true, icalUrl: true },
   });
+  const owners = [
+    ...new Set(
+      ownerRows
+        .filter((row) => hasActiveAirbnbIcalImport(row.icalUrl))
+        .map((row) => row.ownerId),
+    ),
+  ].map((ownerId) => ({ ownerId }));
 
   const summaries: Array<{
     ownerId: string;
