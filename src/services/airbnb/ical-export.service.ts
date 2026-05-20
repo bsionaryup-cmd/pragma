@@ -113,10 +113,14 @@ function buildEventLines(r: ExportReservationRow, propertyName: string): string[
 
 async function loadExportReservations(
   propertyId: string,
-): Promise<{ propertyName: string; reservations: ExportReservationRow[] } | null> {
+): Promise<{
+  propertyName: string;
+  propertyUpdatedAt: Date;
+  reservations: ExportReservationRow[];
+} | null> {
   const property = await db.property.findUnique({
     where: { id: propertyId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, updatedAt: true },
   });
   if (!property) return null;
 
@@ -142,19 +146,27 @@ async function loadExportReservations(
     orderBy: { checkIn: "asc" },
   });
 
-  return { propertyName: property.name, reservations };
+  return {
+    propertyName: property.name,
+    propertyUpdatedAt: property.updatedAt,
+    reservations,
+  };
 }
 
 export function formatIcalCalendar(
   propertyName: string,
   reservations: ExportReservationRow[],
+  propertyUpdatedAt?: Date,
 ): string {
+  const stamp = toIcalDateTimeStamp(propertyUpdatedAt ?? new Date());
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
     "PRODID:-//PRAGMA PMS//ES",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
+    `DTSTAMP:${stamp}`,
+    `LAST-MODIFIED:${stamp}`,
     "REFRESH-INTERVAL;VALUE=DURATION:PT1M",
     "X-PUBLISHED-TTL:PT1M",
     foldIcalLine(`X-WR-CALNAME:${escapeIcalText(`PRAGMA · ${propertyName}`)}`),
@@ -182,7 +194,11 @@ export async function buildPropertyExportIcal(
   const data = await loadExportReservations(property.id);
   if (!data) return null;
 
-  return formatIcalCalendar(data.propertyName, data.reservations);
+  return formatIcalCalendar(
+    data.propertyName,
+    data.reservations,
+    data.propertyUpdatedAt,
+  );
 }
 
 /** Resuelve por ID de propiedad + token secreto (`/api/ical/{id}.ics?token=`). */
@@ -199,7 +215,11 @@ export async function buildPropertyExportIcalByPropertyId(
   const data = await loadExportReservations(property.id);
   if (!data) return null;
 
-  return formatIcalCalendar(data.propertyName, data.reservations);
+  return formatIcalCalendar(
+    data.propertyName,
+    data.reservations,
+    data.propertyUpdatedAt,
+  );
 }
 
 export function buildIcalExportUrl(

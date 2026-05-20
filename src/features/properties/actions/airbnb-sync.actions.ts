@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import { withTimeout } from "@/lib/async-timeout";
 
-const AIRBNB_SYNC_TIMEOUT_MS = 45_000;
+const AIRBNB_SYNC_TIMEOUT_MS = 120_000;
 import {
   buildIcalExportUrl,
   ensurePropertyIcalExportToken,

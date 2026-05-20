@@ -1,3 +1,5 @@
+import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
+
 export type ParsedIcalEvent = {
   uid: string;
   summary: string;
@@ -20,32 +22,28 @@ function unfoldIcsLines(raw: string): string[] {
 }
 
 function parseIcsDate(value: string, params: string): Date {
-  const dateOnly = params.includes("VALUE=DATE") || /^\d{8}$/.test(value);
+  const trimmed = value.trim();
+  const dateOnly = params.includes("VALUE=DATE") || /^\d{8}$/.test(trimmed);
   if (dateOnly) {
-    const y = Number(value.slice(0, 4));
-    const m = Number(value.slice(4, 6));
-    const d = Number(value.slice(6, 8));
-    return new Date(y, m - 1, d, 12, 0, 0, 0);
+    const key = `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`;
+    return dateKeyToPrismaDate(key);
   }
 
-  const iso = value.replace(
+  const iso = trimmed.replace(
     /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?$/,
     "$1-$2-$3T$4:$5:$6Z",
   );
   const parsed = new Date(iso);
   if (!Number.isNaN(parsed.getTime())) {
-    return new Date(
-      parsed.getUTCFullYear(),
-      parsed.getUTCMonth(),
-      parsed.getUTCDate(),
-      12,
-      0,
-      0,
-      0,
-    );
+    return dateKeyToPrismaDate(prismaDateToKey(parsed));
   }
 
-  return new Date(value);
+  const fallback = new Date(trimmed);
+  if (!Number.isNaN(fallback.getTime())) {
+    return dateKeyToPrismaDate(prismaDateToKey(fallback));
+  }
+
+  return dateKeyToPrismaDate("1970-01-01");
 }
 
 function parseIcsProperty(line: string): {
@@ -118,11 +116,9 @@ export function parseIcsFeed(raw: string): ParsedIcalEvent[] {
   return events;
 }
 
+/** Clave YYYY-MM-DD en UTC (alineada con columnas @db.Date de Prisma). */
 export function formatDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return prismaDateToKey(date);
 }
 
 export function isAirbnbBlockedSummary(summary: string): boolean {

@@ -1,6 +1,5 @@
 import {
   BookingPlatform,
-  PropertyStatus,
   ReservationStatus,
 } from "@prisma/client";
 import {
@@ -9,6 +8,11 @@ import {
   parseIcsFeed,
 } from "@/services/airbnb/ical-parser";
 import { dateKeyToPrismaDate } from "@/lib/dates";
+import {
+  activePropertiesWithIcalFilter,
+  isPragmaExportedUid,
+  sleep,
+} from "@/lib/airbnb/ical-sync-utils";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
@@ -20,19 +24,33 @@ const FETCH_HEADERS = {
   "Cache-Control": "no-cache, no-store",
 };
 
+/** Pausa entre propiedades para evitar rate-limit de Airbnb. */
+const INTER_PROPERTY_SYNC_DELAY_MS = 450;
+
 let syncInProgress = false;
+const syncWaitQueue: Array<() => void> = [];
 
-async function withSyncLock<T>(
-  fn: () => Promise<T>,
-  onBusy: () => T,
-): Promise<T> {
-  if (syncInProgress) return onBusy();
+function releaseNextSyncWaiter() {
+  const next = syncWaitQueue.shift();
+  if (next) next();
+}
 
+async function acquireSyncLock() {
+  while (syncInProgress) {
+    await new Promise<void>((resolve) => {
+      syncWaitQueue.push(resolve);
+    });
+  }
   syncInProgress = true;
+}
+
+async function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireSyncLock();
   try {
     return await fn();
   } finally {
     syncInProgress = false;
+    releaseNextSyncWaiter();
   }
 }
 
@@ -75,8 +93,14 @@ function parseGuestName(summary: string, blocked: boolean): string {
   return cleaned || "Huésped Airbnb";
 }
 
+function cacheBustIcalUrl(url: string): string {
+  const parsed = new URL(url);
+  parsed.searchParams.set("_pragma_ts", String(Date.now()));
+  return parsed.toString();
+}
+
 async function fetchIcalFeed(icalUrl: string): Promise<string> {
-  const url = normalizeIcalUrl(icalUrl);
+  const url = cacheBustIcalUrl(normalizeIcalUrl(icalUrl));
   const response = await fetch(url, {
     headers: FETCH_HEADERS,
     cache: "no-store",
@@ -95,22 +119,26 @@ async function fetchIcalFeed(icalUrl: string): Promise<string> {
   return text;
 }
 
+async function fetchIcalFeedWithRetry(icalUrl: string): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await fetchIcalFeed(icalUrl);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) await sleep(700);
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Error al descargar iCal");
+}
+
 export async function syncPropertyIcalCalendar(
   propertyId: string,
   ownerId: string,
 ): Promise<PropertyIcalSyncResult> {
-  return withSyncLock(
-    () => syncPropertyIcalCalendarInner(propertyId, ownerId),
-    () => ({
-      propertyId,
-      propertyName: "—",
-      created: 0,
-      updated: 0,
-      cancelled: 0,
-      skipped: 0,
-      error: "Sincronización en curso",
-    }),
-  );
+  return withSyncLock(() => syncPropertyIcalCalendarInner(propertyId, ownerId));
 }
 
 export async function syncPropertyIcalCalendarInner(
@@ -122,7 +150,8 @@ export async function syncPropertyIcalCalendarInner(
     select: { id: true, name: true, icalUrl: true, currency: true },
   });
 
-  if (!property?.icalUrl) {
+  const trimmedIcal = property?.icalUrl?.trim();
+  if (!property || !trimmedIcal) {
     return {
       propertyId,
       propertyName: property?.name ?? "—",
@@ -140,11 +169,16 @@ export async function syncPropertyIcalCalendarInner(
   let skipped = 0;
 
   try {
-    const feed = await fetchIcalFeed(property.icalUrl);
+    const feed = await fetchIcalFeedWithRetry(trimmedIcal);
     const events = parseIcsFeed(feed);
     const seenUids = new Set<string>();
 
     for (const event of events) {
+      if (isPragmaExportedUid(event.uid)) {
+        skipped += 1;
+        continue;
+      }
+
       seenUids.add(event.uid);
       const blocked = isAirbnbBlockedSummary(event.summary);
       const checkIn = dateKeyToPrismaDate(formatDateKey(event.dtstart));
@@ -195,11 +229,6 @@ export async function syncPropertyIcalCalendarInner(
             data: payload,
           });
           updated += 1;
-        } else if (
-          overlap.platform === BookingPlatform.AIRBNB &&
-          overlap.icalUid
-        ) {
-          skipped += 1;
         } else {
           skipped += 1;
         }
@@ -270,30 +299,15 @@ export async function syncPropertyIcalCalendarInner(
 export async function syncAllAirbnbCalendarsForOwner(
   ownerId: string,
 ): Promise<AirbnbSyncSummary> {
-  return withSyncLock(
-    () => syncAllAirbnbCalendarsForOwnerInner(ownerId),
-    () => ({
-      propertiesSynced: 0,
-      created: 0,
-      updated: 0,
-      cancelled: 0,
-      skipped: 0,
-      results: [],
-      lastSyncedAt: null,
-    }),
-  );
+  return withSyncLock(() => syncAllAirbnbCalendarsForOwnerInner(ownerId));
 }
 
 async function syncAllAirbnbCalendarsForOwnerInner(
   ownerId: string,
 ): Promise<AirbnbSyncSummary> {
   const properties = await db.property.findMany({
-    where: {
-      ownerId,
-      status: PropertyStatus.ACTIVE,
-      icalUrl: { not: null },
-    },
-    select: { id: true },
+    where: activePropertiesWithIcalFilter(ownerId),
+    select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
 
@@ -303,18 +317,18 @@ async function syncAllAirbnbCalendarsForOwnerInner(
   let cancelled = 0;
   let skipped = 0;
 
-  const syncResults = await Promise.all(
-    properties.map((property) =>
-      syncPropertyIcalCalendarInner(property.id, ownerId),
-    ),
-  );
-
-  for (const result of syncResults) {
+  for (let index = 0; index < properties.length; index += 1) {
+    const property = properties[index];
+    const result = await syncPropertyIcalCalendarInner(property.id, ownerId);
     results.push(result);
     created += result.created;
     updated += result.updated;
     cancelled += result.cancelled;
     skipped += result.skipped;
+
+    if (index < properties.length - 1) {
+      await sleep(INTER_PROPERTY_SYNC_DELAY_MS);
+    }
   }
 
   const lastRow = await db.property.findFirst({
@@ -336,11 +350,7 @@ async function syncAllAirbnbCalendarsForOwnerInner(
 
 export async function getAirbnbSyncStatusForOwner(ownerId: string) {
   const properties = await db.property.findMany({
-    where: {
-      ownerId,
-      status: PropertyStatus.ACTIVE,
-      icalUrl: { not: null },
-    },
+    where: activePropertiesWithIcalFilter(ownerId),
     select: {
       id: true,
       name: true,

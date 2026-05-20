@@ -10,6 +10,7 @@ import {
   normalizeAirbnbListingUrl,
   normalizeIcalUrl,
 } from "@/services/airbnb/airbnb-import.service";
+import { syncPropertyIcalCalendar } from "@/services/airbnb/airbnb-ical-sync.service";
 import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
 import {
   createPropertyFromAirbnbImport,
@@ -75,6 +76,13 @@ export async function importAirbnbPropertyAction(input: {
   revalidatePropertyPaths();
 
   await ensurePropertyIcalExportToken(created.id);
+
+  const initialSync = await syncPropertyIcalCalendar(created.id, user.dbUserId);
+  if (initialSync.error) {
+    console.warn(
+      `[airbnb-import] Sync inicial falló para ${created.id}: ${initialSync.error}`,
+    );
+  }
 
   const grid = await listPropertiesForGrid(user.dbUserId);
   const property = grid.find((p) => p.id === created.id);

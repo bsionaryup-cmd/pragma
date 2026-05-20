@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { syncAirbnbCalendarsAction } from "@/features/properties/actions/airbnb-sync.actions";
 import {
   AIRBNB_AUTO_SYNC_INITIAL_MS,
+  AIRBNB_AUTO_SYNC_MS,
   dispatchAirbnbSyncComplete,
 } from "@/lib/airbnb-sync";
 
@@ -80,9 +81,14 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
 
+    const intervalId = window.setInterval(() => {
+      void runSync();
+    }, AIRBNB_AUTO_SYNC_MS);
+
     return () => {
       cancelled = true;
       window.clearTimeout(timerId);
+      window.clearInterval(intervalId);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
