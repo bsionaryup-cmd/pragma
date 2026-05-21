@@ -15,6 +15,7 @@ import {
   getReservationForInbox,
 } from "@/services/reservations/reservation.service";
 import { prismaDateToKey } from "@/lib/dates";
+import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
 
 function toInboxFromCreated(
   r: Awaited<ReturnType<typeof createReservation>>,
@@ -55,6 +56,7 @@ export async function createReservationAction(data: ReservationWizardValues) {
 
   try {
     const created = await createReservation(parsed);
+    schedulePriceLabsRefresh("reservation");
 
     revalidatePath("/reservations");
     revalidatePath("/calendar");
@@ -90,6 +92,7 @@ export async function getReservationInboxItemAction(id: string) {
 export async function deleteReservationAction(id: string) {
   await requirePermission("reservations:delete");
   await deleteReservation(id);
+  schedulePriceLabsRefresh("reservation");
   revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/");

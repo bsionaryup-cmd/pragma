@@ -1,21 +1,12 @@
 import {
-  getPriceLabsIntegrationName,
-  getPriceLabsIntegrationToken,
-  getPriceLabsUserTokenFromEnv,
+  getPriceLabsApiKey,
   isPriceLabsLiveApiEnabled,
 } from "@/lib/integrations/pricelabs-config";
 
 export type PriceLabsAuthHeaders = {
-  "X-INTEGRATION-TOKEN": string;
-  "X-INTEGRATION-NAME": string;
-  user_token: string;
+  "X-API-Key": string;
   "Content-Type": "application/json";
-};
-
-export type PriceLabsAuthConfig = {
-  integrationToken: string;
-  integrationName: string;
-  userToken: string;
+  Accept: "application/json";
 };
 
 export class PriceLabsConfigError extends Error {
@@ -25,48 +16,18 @@ export class PriceLabsConfigError extends Error {
   }
 }
 
-export function validatePriceLabsEnv(): PriceLabsAuthConfig {
-  const integrationToken = getPriceLabsIntegrationToken();
-  const userToken = getPriceLabsUserTokenFromEnv();
-
-  if (!integrationToken) {
+export function buildPriceLabsHeaders(apiKey?: string): PriceLabsAuthHeaders {
+  const key = apiKey ?? getPriceLabsApiKey();
+  if (!key) {
     throw new PriceLabsConfigError(
-      "Falta PRICELABS_TOKEN en variables de entorno",
+      "Falta PRICELABS_API_KEY en variables de entorno del servidor",
     );
   }
-  if (!userToken) {
-    throw new PriceLabsConfigError(
-      "Falta PRICELABS_USER_TOKEN en variables de entorno",
-    );
-  }
-
   return {
-    integrationToken,
-    integrationName: getPriceLabsIntegrationName(),
-    userToken,
-  };
-}
-
-export function buildPriceLabsHeaders(
-  config: PriceLabsAuthConfig,
-): PriceLabsAuthHeaders {
-  return {
-    "X-INTEGRATION-TOKEN": config.integrationToken,
-    "X-INTEGRATION-NAME": config.integrationName,
-    user_token: config.userToken,
+    "X-API-Key": key,
     "Content-Type": "application/json",
+    Accept: "application/json",
   };
-}
-
-export function resolvePriceLabsAuth(input?: {
-  userTokenOverride?: string | null;
-}): PriceLabsAuthConfig {
-  const base = validatePriceLabsEnv();
-  const override = input?.userTokenOverride?.trim();
-  if (override) {
-    return { ...base, userToken: override };
-  }
-  return base;
 }
 
 export function assertPriceLabsLiveOrThrow(): void {
@@ -77,11 +38,6 @@ export function assertPriceLabsLiveOrThrow(): void {
   }
 }
 
-export function isPriceLabsConfigured(): boolean {
-  try {
-    validatePriceLabsEnv();
-    return true;
-  } catch {
-    return false;
-  }
+export function isPriceLabsConfiguredFromEnv(): boolean {
+  return Boolean(getPriceLabsApiKey());
 }

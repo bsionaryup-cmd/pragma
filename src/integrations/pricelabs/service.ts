@@ -1,49 +1,53 @@
 import { PriceLabsIntegrationStatus, PropertyPriceLabsSyncStatus } from "@prisma/client";
+import { assertPriceLabsLiveOrThrow, PriceLabsConfigError } from "@/integrations/pricelabs/auth";
+import { fetchPriceLabsListings } from "@/integrations/pricelabs/listings";
+import { fetchPriceLabsNeighborhoodData } from "@/integrations/pricelabs/neighborhood";
+import { fetchPriceLabsOverrides } from "@/integrations/pricelabs/overrides";
 import {
-  assertPriceLabsLiveOrThrow,
-  isPriceLabsConfigured,
-  PriceLabsConfigError,
-  resolvePriceLabsAuth,
-} from "@/integrations/pricelabs/auth";
-import { pushPriceLabsListings } from "@/integrations/pricelabs/listings";
+  buildPricingDateRange,
+  matchListingsToProperties,
+} from "@/integrations/pricelabs/mapper";
 import {
-  extractPriceRecommendations,
-  fetchPriceLabsPrices,
+  fetchPriceLabsListingPrices,
+  isSkippedListingPriceRow,
 } from "@/integrations/pricelabs/pricing";
-import { mapPropertiesToPriceLabsListings } from "@/integrations/pricelabs/mapper";
-import {
-  fetchPriceLabsStatus,
-  normalizeStatusHealth,
-} from "@/integrations/pricelabs/status";
+import { checkPriceLabsReachability } from "@/integrations/pricelabs/status";
 import type {
+  PriceLabsDailyPrice,
   PriceLabsPricesSummary,
   PriceLabsSyncSummary,
+  StoredPriceLabsMeta,
 } from "@/integrations/pricelabs/types";
 import { isPriceLabsLiveApiEnabled } from "@/lib/integrations/pricelabs-config";
 import {
-  ensurePriceLabsIntegration,
-  getPriceLabsIntegration,
-  getPropertyForPriceLabs,
+  getPriceLabsCredentialSnapshot,
+  isPriceLabsConfiguredAsync,
+} from "@/services/integrations/pricelabs/pricelabs-credentials";
+import {
+  appendPriceLabsSyncLog,
+  listPriceLabsSyncLogs,
+} from "@/services/integrations/pricelabs/pricelabs-audit";
+import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import {
+  getPriceLabsIntegrationSafe,
   listActivePropertiesForPriceLabs,
   markPropertyPriceLabsError,
-  resolveStoredUserToken,
-  savePriceLabsUserToken,
+  markPriceLabsIntegrationReady,
+  saveNeighborhoodSnapshot,
   updatePriceLabsIntegrationState,
   upsertPropertyPriceLabsSync,
 } from "@/services/integrations/pricelabs/pricelabs-persistence";
+import { isPriceLabsSyncInProgress } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
+import { isPriceLabsSchemaReady } from "@/services/integrations/pricelabs/pricelabs-schema";
 
-function parseOptionalNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const n = Number.parseFloat(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
-
-async function resolveUserTokenOverride(): Promise<string | null> {
-  const row = await getPriceLabsIntegration();
-  return resolveStoredUserToken(row?.userTokenEncrypted);
+function pickSummaryFromDays(days: PriceLabsDailyPrice[]) {
+  const first = days.find((d) => d.recommended_price != null || d.price != null);
+  const recommended =
+    first?.recommended_price ?? first?.price ?? null;
+  const base = first?.uncustomized_price ?? first?.user_price ?? null;
+  const delta =
+    recommended != null && base != null ? recommended - base : null;
+  return { recommended, base, delta, days };
 }
 
 export type PriceLabsConnectionCheck = {
@@ -52,6 +56,7 @@ export type PriceLabsConnectionCheck = {
   healthy?: boolean;
   liveApiEnabled: boolean;
   configured: boolean;
+  listingCount?: number;
 };
 
 export type PriceLabsOverviewDto = {
@@ -61,12 +66,32 @@ export type PriceLabsOverviewDto = {
     lastHealthCheckAt: string | null;
     lastListingsSyncAt: string | null;
     lastPricesSyncAt: string | null;
-    hasStoredUserToken: boolean;
+  };
+  database: {
+    ready: boolean;
+    setupRequired: boolean;
+    hint: string | null;
   };
   config: {
     liveApiEnabled: boolean;
     configured: boolean;
+    apiKeyFromEnv: boolean;
   };
+  revenue: {
+    underpricedCount: number;
+    overpricedCount: number;
+    neutralCount: number;
+    avgDelta: string | null;
+  };
+  auditLog: Array<{
+    id: string;
+    action: string;
+    result: string;
+    message: string | null;
+    source: string;
+    createdAt: string;
+  }>;
+  syncing: boolean;
   properties: Array<{
     id: string;
     name: string;
@@ -97,48 +122,35 @@ const statusLabels: Record<PriceLabsIntegrationStatus, string> = {
   DEGRADED: "Degradado",
 };
 
-export async function connectPriceLabs(input: {
+export async function markPriceLabsSetupFromPanel(input: {
   configuredById: string;
-  userToken?: string;
 }): Promise<{ ok: boolean; message: string }> {
-  if (!isPriceLabsConfigured()) {
+  if (!(await isPriceLabsConfiguredAsync())) {
     return {
       ok: false,
-      message:
-        "Configura PRICELABS_TOKEN y PRICELABS_USER_TOKEN en el entorno del servidor",
+      message: "Define PRICELABS_API_KEY en variables de entorno del servidor",
     };
   }
-
-  if (input.userToken?.trim()) {
-    await savePriceLabsUserToken({
-      configuredById: input.configuredById,
-      userToken: input.userToken,
+  const result = await markPriceLabsIntegrationReady(input);
+  if (result.ok) {
+    await updatePriceLabsIntegrationState({
+      status: isPriceLabsLiveApiEnabled()
+        ? PriceLabsIntegrationStatus.PENDING_SETUP
+        : PriceLabsIntegrationStatus.CONNECTED,
+      lastError: null,
     });
-  } else {
-    await ensurePriceLabsIntegration();
   }
-
-  await updatePriceLabsIntegrationState({
-    status: isPriceLabsLiveApiEnabled()
-      ? PriceLabsIntegrationStatus.PENDING_SETUP
-      : PriceLabsIntegrationStatus.CONNECTED,
-    lastError: null,
-  });
-
-  return {
-    ok: true,
-    message: "PriceLabs marcado como conectado (credenciales en servidor)",
-  };
+  return result;
 }
 
 export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
   const liveApiEnabled = isPriceLabsLiveApiEnabled();
-  const configured = isPriceLabsConfigured();
+  const configured = await isPriceLabsConfiguredAsync();
 
   if (!configured) {
     return {
       ok: false,
-      message: "Faltan variables PRICELABS_TOKEN o PRICELABS_USER_TOKEN",
+      message: "Configura PRICELABS_API_KEY en el servidor",
       liveApiEnabled,
       configured,
     };
@@ -152,8 +164,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
     });
     return {
       ok: true,
-      message:
-        "Credenciales detectadas (modo preparación — PRICELABS_API_ENABLED≠true)",
+      message: "API key detectada (dry-run — PRICELABS_API_ENABLED≠true)",
       healthy: true,
       liveApiEnabled,
       configured,
@@ -162,14 +173,18 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
 
   try {
     assertPriceLabsLiveOrThrow();
-    const userTokenOverride = await resolveUserTokenOverride();
-    const result = await fetchPriceLabsStatus({ userTokenOverride });
-
+    const result = await checkPriceLabsReachability();
     if (!result.ok) {
       await updatePriceLabsIntegrationState({
         status: PriceLabsIntegrationStatus.SYNC_ERROR,
         lastHealthCheckAt: new Date(),
         lastError: result.message,
+      });
+      await appendPriceLabsSyncLog({
+        action: "test_connection",
+        result: "failure",
+        message: result.message,
+        source: "manual",
       });
       return {
         ok: false,
@@ -179,21 +194,23 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
       };
     }
 
-    const health = normalizeStatusHealth(result.data);
     await updatePriceLabsIntegrationState({
-      status: health.healthy
-        ? PriceLabsIntegrationStatus.CONNECTED
-        : PriceLabsIntegrationStatus.DEGRADED,
+      status: PriceLabsIntegrationStatus.CONNECTED,
       lastHealthCheckAt: new Date(),
-      lastError: health.healthy ? null : result.data.message ?? "Estado degradado",
+      lastError: null,
+    });
+    await appendPriceLabsSyncLog({
+      action: "test_connection",
+      result: "success",
+      message: `${result.data.listingCount} listings en PriceLabs`,
+      source: "manual",
     });
 
     return {
-      ok: health.healthy,
-      message: health.healthy
-        ? "Conexión PriceLabs verificada"
-        : (result.data.message ?? "Integración degradada"),
-      healthy: health.healthy,
+      ok: true,
+      message: `Conexión verificada (${result.data.listingCount} listings)`,
+      healthy: result.data.healthy,
+      listingCount: result.data.listingCount,
       liveApiEnabled,
       configured,
     };
@@ -216,7 +233,6 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
 export async function syncListings(): Promise<
   PriceLabsSyncSummary & { ok: boolean; message: string }
 > {
-  const properties = await listActivePropertiesForPriceLabs();
   const empty: PriceLabsSyncSummary = {
     synced: 0,
     failed: 0,
@@ -224,6 +240,7 @@ export async function syncListings(): Promise<
     results: [],
   };
 
+  const properties = await listActivePropertiesForPriceLabs();
   if (properties.length === 0) {
     return { ok: true, message: "No hay propiedades activas", ...empty };
   }
@@ -247,7 +264,7 @@ export async function syncListings(): Promise<
     });
     return {
       ok: true,
-      message: `Listings preparados en modo dry-run (${properties.length})`,
+      message: `Listings simulados (dry-run) para ${properties.length} propiedades`,
       synced: properties.length,
       failed: 0,
       skipped: 0,
@@ -261,7 +278,6 @@ export async function syncListings(): Promise<
 
   try {
     assertPriceLabsLiveOrThrow();
-    resolvePriceLabsAuth({ userTokenOverride: await resolveUserTokenOverride() });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Configuración inválida";
@@ -272,10 +288,7 @@ export async function syncListings(): Promise<
     return { ok: false, message, ...empty };
   }
 
-  const listings = mapPropertiesToPriceLabsListings(properties);
-  const userTokenOverride = await resolveUserTokenOverride();
-  const api = await pushPriceLabsListings({ listings, userTokenOverride });
-
+  const api = await fetchPriceLabsListings();
   if (!api.ok) {
     await updatePriceLabsIntegrationState({
       status: PriceLabsIntegrationStatus.SYNC_ERROR,
@@ -285,60 +298,84 @@ export async function syncListings(): Promise<
     return { ok: false, message: api.message, ...empty };
   }
 
+  const existingMap = new Map(
+    properties
+      .filter((p) => p.priceLabs?.listingId)
+      .map((p) => [p.id, p.priceLabs!.listingId!] as const),
+  );
+
+  const matches = matchListingsToProperties({
+    listings: api.data,
+    properties,
+    existingListingByPropertyId: existingMap,
+  });
+
   const summary: PriceLabsSyncSummary = {
     synced: 0,
     failed: 0,
-    skipped: 0,
+    skipped: properties.length - matches.length,
     results: [],
   };
 
-  const apiListings = api.data.listings ?? [];
+  const matchedIds = new Set(matches.map((m) => m.propertyId));
 
-  for (const property of properties) {
-    const listingId = property.id;
-    const apiRow = apiListings.find((r) => r.listing_id === listingId);
-    const rowFailed =
-      apiRow?.status &&
-      !["ok", "success", "synced", "created", "updated"].includes(
-        apiRow.status.toLowerCase(),
-      );
+  for (const match of matches) {
+    const property = properties.find((p) => p.id === match.propertyId);
+    const base =
+      match.listing.base ??
+      match.listing.recommended_base_price ??
+      (property?.baseRate
+        ? Number.parseFloat(property.baseRate.toString())
+        : null);
 
-    if (rowFailed) {
-      summary.failed += 1;
-      const msg = apiRow?.message ?? "Error al sincronizar listing";
-      await markPropertyPriceLabsError(property.id, msg);
-      summary.results.push({
-        propertyId: property.id,
-        listingId,
-        ok: false,
-        message: msg,
-      });
-      continue;
-    }
+    await upsertPropertyPriceLabsSync({
+      propertyId: match.propertyId,
+      listingId: match.listingId,
+      syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+      recommendedRate: match.listing.recommended_base_price ?? null,
+      baseRateAtSync: base,
+      priceDelta:
+        match.listing.recommended_base_price != null && base != null
+          ? match.listing.recommended_base_price - base
+          : null,
+      lastError: null,
+      meta: {
+        listing: match.listing,
+        matchReason: match.matchReason,
+        lastListingRefresh: new Date().toISOString(),
+      } satisfies StoredPriceLabsMeta,
+    });
 
     summary.synced += 1;
-    await upsertPropertyPriceLabsSync({
-      propertyId: property.id,
-      listingId,
-      syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-      baseRateAtSync: property.baseRate
-        ? Number.parseFloat(property.baseRate.toString())
-        : null,
-      lastError: null,
-      meta: { apiStatus: apiRow?.status ?? "synced" },
+    summary.results.push({
+      propertyId: match.propertyId,
+      listingId: match.listingId,
+      ok: true,
     });
-    summary.results.push({ propertyId: property.id, listingId, ok: true });
+  }
+
+  for (const property of properties) {
+    if (matchedIds.has(property.id)) continue;
+    summary.failed += 1;
+    const msg = "Sin listing coincidente en PriceLabs";
+    await markPropertyPriceLabsError(property.id, msg);
+    summary.results.push({
+      propertyId: property.id,
+      listingId: property.id,
+      ok: false,
+      message: msg,
+    });
   }
 
   await updatePriceLabsIntegrationState({
     status:
       summary.failed > 0
-        ? PriceLabsIntegrationStatus.SYNC_ERROR
+        ? PriceLabsIntegrationStatus.DEGRADED
         : PriceLabsIntegrationStatus.CONNECTED,
     lastListingsSyncAt: new Date(),
     lastError:
       summary.failed > 0
-        ? `${summary.failed} propiedad(es) con error en listings`
+        ? `${summary.failed} propiedad(es) sin match en PriceLabs`
         : null,
   });
 
@@ -346,8 +383,8 @@ export async function syncListings(): Promise<
     ok: summary.failed === 0,
     message:
       summary.failed === 0
-        ? `Listings sincronizados (${summary.synced})`
-        : `Sync parcial: ${summary.synced} ok, ${summary.failed} error`,
+        ? `Listings vinculados (${summary.synced})`
+        : `Sync parcial: ${summary.synced} ok, ${summary.failed} sin match`,
     ...summary,
   };
 }
@@ -355,60 +392,22 @@ export async function syncListings(): Promise<
 export async function syncSingleListing(
   propertyId: string,
 ): Promise<{ ok: boolean; message: string; listingId?: string }> {
-  const property = await getPropertyForPriceLabs(propertyId);
+  const property = await listActivePropertiesForPriceLabs().then((rows) =>
+    rows.find((p) => p.id === propertyId),
+  );
   if (!property) {
     return { ok: false, message: "Propiedad no encontrada o inactiva" };
   }
 
-  if (!isPriceLabsLiveApiEnabled()) {
-    await upsertPropertyPriceLabsSync({
-      propertyId: property.id,
-      listingId: property.id,
-      syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-      baseRateAtSync: property.baseRate
-        ? Number.parseFloat(property.baseRate.toString())
-        : null,
-      meta: { mode: "dry-run" },
-    });
-    return {
-      ok: true,
-      message: "Listing preparado (dry-run)",
-      listingId: property.id,
-    };
+  const batch = await syncListings();
+  const row = batch.results.find((r) => r.propertyId === propertyId);
+  if (!row?.ok) {
+    return { ok: false, message: row?.message ?? batch.message };
   }
-
-  try {
-    assertPriceLabsLiveOrThrow();
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Configuración inválida";
-    await markPropertyPriceLabsError(propertyId, message);
-    return { ok: false, message };
-  }
-
-  const listings = mapPropertiesToPriceLabsListings([property]);
-  const userTokenOverride = await resolveUserTokenOverride();
-  const api = await pushPriceLabsListings({ listings, userTokenOverride });
-
-  if (!api.ok) {
-    await markPropertyPriceLabsError(propertyId, api.message);
-    return { ok: false, message: api.message };
-  }
-
-  await upsertPropertyPriceLabsSync({
-    propertyId: property.id,
-    listingId: property.id,
-    syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-    baseRateAtSync: property.baseRate
-      ? Number.parseFloat(property.baseRate.toString())
-      : null,
-    lastError: null,
-  });
-
   return {
     ok: true,
     message: "Listing sincronizado",
-    listingId: property.id,
+    listingId: row.listingId,
   };
 }
 
@@ -416,27 +415,23 @@ export async function fetchDynamicPrices(): Promise<
   PriceLabsPricesSummary & { ok: boolean; message: string }
 > {
   const properties = await listActivePropertiesForPriceLabs();
-  const listingIds = properties
-    .map((p) => p.priceLabs?.listingId ?? p.id)
-    .filter(Boolean) as string[];
-
   const empty: PriceLabsPricesSummary = {
     updated: 0,
     failed: 0,
+    skipped: 0,
     results: [],
   };
 
-  if (listingIds.length === 0) {
-    return {
-      ok: false,
-      message: "No hay listings para consultar precios",
-      ...empty,
-    };
+  const withListing = properties.filter(
+    (p) => p.priceLabs?.listingId ?? p.id,
+  );
+  if (withListing.length === 0) {
+    return { ok: false, message: "No hay listings vinculados", ...empty };
   }
 
   if (!isPriceLabsLiveApiEnabled()) {
     const today = new Date().toISOString().slice(0, 10);
-    for (const property of properties) {
+    for (const property of withListing) {
       const base = property.baseRate
         ? Number.parseFloat(property.baseRate.toString())
         : null;
@@ -445,28 +440,24 @@ export async function fetchDynamicPrices(): Promise<
         base != null && recommended != null ? recommended - base : null;
       await upsertPropertyPriceLabsSync({
         propertyId: property.id,
-        listingId: property.id,
+        listingId: property.priceLabs?.listingId ?? property.id,
         recommendedRate: recommended,
         baseRateAtSync: base,
         priceDelta: delta,
-        weekendUpliftPct: 0.12,
         syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
         meta: { mode: "dry-run", asOf: today },
       });
+      empty.updated += 1;
       empty.results.push({
         propertyId: property.id,
         listingId: property.id,
         ok: true,
         recommendedRate: recommended,
         priceDelta: delta,
-        weekendUpliftPct: 0.12,
+        weekendUpliftPct: null,
       });
-      empty.updated += 1;
     }
-    await updatePriceLabsIntegrationState({
-      lastPricesSyncAt: new Date(),
-      lastError: null,
-    });
+    await updatePriceLabsIntegrationState({ lastPricesSyncAt: new Date() });
     return {
       ok: true,
       message: `Precios simulados (dry-run) para ${empty.updated} propiedades`,
@@ -486,77 +477,104 @@ export async function fetchDynamicPrices(): Promise<
     return { ok: false, message, ...empty };
   }
 
-  const userTokenOverride = await resolveUserTokenOverride();
-  const api = await fetchPriceLabsPrices({
-    listingIds,
-    userTokenOverride,
-  });
-
-  if (!api.ok) {
-    await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.SYNC_ERROR,
-      lastPricesSyncAt: new Date(),
-      lastError: api.message,
-    });
-    return { ok: false, message: api.message, ...empty };
-  }
-
-  const recommendations = extractPriceRecommendations(api.data);
-  const byListing = new Map(
-    recommendations.map((r) => [r.listing_id, r] as const),
+  const { dateFrom, dateTo } = buildPricingDateRange(90);
+  const listingIds = withListing.map(
+    (p) => p.priceLabs?.listingId ?? p.id,
   );
 
-  for (const property of properties) {
-    const listingId = property.priceLabs?.listingId ?? property.id;
-    const rec = byListing.get(listingId);
-    if (!rec) {
-      empty.failed += 1;
-      const msg = "Sin recomendación de precio para este listing";
-      await markPropertyPriceLabsError(property.id, msg);
+  const BATCH = 10;
+  for (let i = 0; i < listingIds.length; i += BATCH) {
+    const chunk = listingIds.slice(i, i + BATCH);
+    const api = await fetchPriceLabsListingPrices({
+      listings: chunk.map((id) => ({ id, dateFrom, dateTo })),
+    });
+
+    if (!api.ok) {
+      await updatePriceLabsIntegrationState({
+        status: PriceLabsIntegrationStatus.SYNC_ERROR,
+        lastPricesSyncAt: new Date(),
+        lastError: api.message,
+      });
+      return { ok: false, message: api.message, ...empty };
+    }
+
+    for (const property of withListing) {
+      const listingId = property.priceLabs?.listingId ?? property.id;
+      if (!chunk.includes(listingId)) continue;
+
+      const row = api.data.find(
+        (r) => (r.listing_id ?? r.id) === listingId,
+      );
+      if (!row) {
+        empty.failed += 1;
+        continue;
+      }
+
+      if (isSkippedListingPriceRow(row)) {
+        empty.skipped += 1;
+        empty.results.push({
+          propertyId: property.id,
+          listingId,
+          ok: true,
+          recommendedRate: null,
+          priceDelta: null,
+          weekendUpliftPct: null,
+          message: row.error ?? "Listing sin datos",
+        });
+        continue;
+      }
+
+      const days = row.data ?? row.prices ?? row.days ?? [];
+      const summary = pickSummaryFromDays(days);
+
+      let overrides: StoredPriceLabsMeta["overrides"];
+      const ov = await fetchPriceLabsOverrides(listingId);
+      if (ov.ok) overrides = ov.data;
+
+      const priorMeta =
+        property.priceLabs?.meta &&
+        typeof property.priceLabs.meta === "object" &&
+        !Array.isArray(property.priceLabs.meta)
+          ? (property.priceLabs.meta as StoredPriceLabsMeta)
+          : {};
+
+      await upsertPropertyPriceLabsSync({
+        propertyId: property.id,
+        listingId,
+        recommendedRate: summary.recommended,
+        baseRateAtSync:
+          summary.base ??
+          (property.baseRate
+            ? Number.parseFloat(property.baseRate.toString())
+            : null),
+        priceDelta: summary.delta,
+        syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+        lastError: null,
+        meta: {
+          ...priorMeta,
+          dailyPrices: summary.days,
+          overrides,
+          lastPricesSync: new Date().toISOString(),
+        },
+      });
+
+      empty.updated += 1;
       empty.results.push({
         propertyId: property.id,
         listingId,
-        ok: false,
-        recommendedRate: null,
-        priceDelta: null,
+        ok: true,
+        recommendedRate: summary.recommended,
+        priceDelta: summary.delta,
         weekendUpliftPct: null,
-        message: msg,
       });
-      continue;
     }
+  }
 
-    const recommended = parseOptionalNumber(rec.recommended_price);
-    const base =
-      parseOptionalNumber(rec.base_price) ??
-      (property.baseRate
-        ? Number.parseFloat(property.baseRate.toString())
-        : null);
-    const delta =
-      parseOptionalNumber(rec.price_delta) ??
-      (recommended != null && base != null ? recommended - base : null);
-    const weekendUplift = parseOptionalNumber(rec.weekend_uplift_pct);
-
-    await upsertPropertyPriceLabsSync({
-      propertyId: property.id,
-      listingId,
-      recommendedRate: recommended,
-      baseRateAtSync: base,
-      priceDelta: delta,
-      weekendUpliftPct: weekendUplift,
-      syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-      lastError: null,
-      meta: { raw: rec },
-    });
-
-    empty.updated += 1;
-    empty.results.push({
-      propertyId: property.id,
-      listingId,
-      ok: true,
-      recommendedRate: recommended,
-      priceDelta: delta,
-      weekendUpliftPct: weekendUplift,
-    });
+  const neighborhood = await fetchPriceLabsNeighborhoodData();
+  if (neighborhood.ok) {
+    await saveNeighborhoodSnapshot(
+      neighborhood.data as Record<string, unknown>,
+    );
   }
 
   await updatePriceLabsIntegrationState({
@@ -567,7 +585,7 @@ export async function fetchDynamicPrices(): Promise<
     lastPricesSyncAt: new Date(),
     lastError:
       empty.failed > 0
-        ? `${empty.failed} propiedad(es) sin precio recomendado`
+        ? `${empty.failed} propiedad(es) sin precios`
         : null,
   });
 
@@ -575,8 +593,8 @@ export async function fetchDynamicPrices(): Promise<
     ok: empty.failed === 0,
     message:
       empty.failed === 0
-        ? `Precios actualizados (${empty.updated})`
-        : `Sync parcial de precios: ${empty.updated} ok, ${empty.failed} error`,
+        ? `Precios importados (${empty.updated}, ${empty.skipped} omitidos)`
+        : `Sync parcial: ${empty.updated} ok, ${empty.failed} error`,
     ...empty,
   };
 }
@@ -584,33 +602,96 @@ export async function fetchDynamicPrices(): Promise<
 export async function getPriceLabsOverview(
   canManage: boolean,
 ): Promise<PriceLabsOverviewDto> {
-  const row = await ensurePriceLabsIntegration();
+  const schemaReady = await isPriceLabsSchemaReady();
+  const credentials = await getPriceLabsCredentialSnapshot();
+  const row = schemaReady ? await getPriceLabsIntegrationSafe() : null;
   const properties = await listActivePropertiesForPriceLabs();
+
+  const integrationStatus =
+    row?.status ??
+    (credentials.configured
+      ? PriceLabsIntegrationStatus.PENDING_SETUP
+      : PriceLabsIntegrationStatus.NOT_CONNECTED);
 
   const syncedCount = properties.filter(
     (p) => p.priceLabs?.syncStatus === PropertyPriceLabsSyncStatus.SYNCED,
   ).length;
 
-  const healthLabel =
-    row.status === PriceLabsIntegrationStatus.CONNECTED
-      ? "Saludable"
-      : row.status === PriceLabsIntegrationStatus.DEGRADED
-        ? "Degradado"
-        : statusLabels[row.status];
+  let underpricedCount = 0;
+  let overpricedCount = 0;
+  let neutralCount = 0;
+  let deltaSum = 0;
+  let deltaCount = 0;
+
+  for (const p of properties) {
+    const d =
+      p.priceLabs?.priceDelta != null
+        ? Number.parseFloat(p.priceLabs.priceDelta.toString())
+        : null;
+    if (d == null || !Number.isFinite(d)) {
+      neutralCount += 1;
+      continue;
+    }
+    deltaSum += d;
+    deltaCount += 1;
+    if (d < -1) underpricedCount += 1;
+    else if (d > 1) overpricedCount += 1;
+    else neutralCount += 1;
+  }
+
+  const healthLabel = !schemaReady
+    ? "Setup requerido"
+    : !credentials.configured
+      ? "En espera de API key"
+      : integrationStatus === PriceLabsIntegrationStatus.CONNECTED
+        ? "Saludable"
+        : integrationStatus === PriceLabsIntegrationStatus.DEGRADED
+          ? "Degradado"
+          : statusLabels[integrationStatus];
+
+  const statusLabel = !schemaReady
+    ? "Setup requerido"
+    : !credentials.configured
+      ? "En espera de credenciales"
+      : statusLabels[integrationStatus];
+
+  const auditRows = await listPriceLabsSyncLogs(15);
+  const syncing = await isPriceLabsSyncInProgress();
 
   return {
     integration: {
-      status: row.status,
-      lastError: row.lastError,
-      lastHealthCheckAt: row.lastHealthCheckAt?.toISOString() ?? null,
-      lastListingsSyncAt: row.lastListingsSyncAt?.toISOString() ?? null,
-      lastPricesSyncAt: row.lastPricesSyncAt?.toISOString() ?? null,
-      hasStoredUserToken: Boolean(row.userTokenEncrypted),
+      status: integrationStatus,
+      lastError: row?.lastError ?? null,
+      lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null,
+      lastListingsSyncAt: row?.lastListingsSyncAt?.toISOString() ?? null,
+      lastPricesSyncAt: row?.lastPricesSyncAt?.toISOString() ?? null,
+    },
+    database: {
+      ready: schemaReady,
+      setupRequired: !schemaReady,
+      hint: schemaReady ? null : getPriceLabsSchemaSetupHint(),
     },
     config: {
       liveApiEnabled: isPriceLabsLiveApiEnabled(),
-      configured: isPriceLabsConfigured(),
+      configured: credentials.configured,
+      apiKeyFromEnv: credentials.apiKeyFromEnv,
     },
+    revenue: {
+      underpricedCount,
+      overpricedCount,
+      neutralCount,
+      avgDelta:
+        deltaCount > 0 ? String(Math.round(deltaSum / deltaCount)) : null,
+    },
+    auditLog: auditRows.map((log) => ({
+      id: log.id,
+      action: log.action,
+      result: log.result,
+      message: log.message,
+      source: log.source,
+      createdAt: log.createdAt.toISOString(),
+    })),
+    syncing,
     properties: properties.map((p) => ({
       id: p.id,
       name: p.name,
@@ -629,7 +710,7 @@ export async function getPriceLabsOverview(
       propertyCount: properties.length,
       syncedCount,
       healthLabel,
-      statusLabel: statusLabels[row.status],
+      statusLabel,
     },
     canManage,
   };

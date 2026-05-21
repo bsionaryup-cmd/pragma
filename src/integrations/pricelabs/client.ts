@@ -1,39 +1,53 @@
 import {
-  getPriceLabsBaseUrl,
+  getPriceLabsApiBaseUrl,
   getPriceLabsRequestTimeoutMs,
+  PRICELABS_RATE_LIMIT_PER_HOUR,
   PRICELABS_RATE_LIMIT_PER_MINUTE,
 } from "@/lib/integrations/pricelabs-config";
-import {
-  buildPriceLabsHeaders,
-  type PriceLabsAuthConfig,
-  resolvePriceLabsAuth,
-} from "@/integrations/pricelabs/auth";
+import { buildPriceLabsHeaders } from "@/integrations/pricelabs/auth";
+import { isBenignListingError } from "@/integrations/pricelabs/normalize";
 import type { PriceLabsResult } from "@/integrations/pricelabs/types";
 
 const LOG_PREFIX = "[pricelabs]";
 
-type HttpMethod = "GET" | "POST" | "PUT";
+type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 type RequestOptions = {
   method?: HttpMethod;
   body?: unknown;
-  auth?: PriceLabsAuthConfig;
-  userTokenOverride?: string | null;
-  /** Safe to retry on network/5xx */
+  /** Safe to retry on network/5xx/429 */
   retryable?: boolean;
   signal?: AbortSignal;
 };
 
-let lastRequestAt = 0;
+let lastMinuteRequestAt = 0;
+let hourWindowStart = 0;
+let hourRequestCount = 0;
+let circuitOpenUntil = 0;
+let consecutiveFailures = 0;
+
 const minIntervalMs = Math.ceil(60_000 / PRICELABS_RATE_LIMIT_PER_MINUTE);
 
 async function throttle(): Promise<void> {
   const now = Date.now();
-  const wait = lastRequestAt + minIntervalMs - now;
-  if (wait > 0) {
-    await new Promise((r) => setTimeout(r, wait));
+  if (now < circuitOpenUntil) {
+    throw new Error("PriceLabs circuit breaker abierto — reintenta más tarde");
   }
-  lastRequestAt = Date.now();
+
+  if (now - hourWindowStart > 3_600_000) {
+    hourWindowStart = now;
+    hourRequestCount = 0;
+  }
+  if (hourRequestCount >= PRICELABS_RATE_LIMIT_PER_HOUR) {
+    const wait = hourWindowStart + 3_600_000 - now;
+    if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, 60_000)));
+  }
+
+  const waitMin = lastMinuteRequestAt + minIntervalMs - now;
+  if (waitMin > 0) await new Promise((r) => setTimeout(r, waitMin));
+
+  lastMinuteRequestAt = Date.now();
+  hourRequestCount += 1;
 }
 
 function normalizeErrorMessage(payload: unknown, status: number): string {
@@ -44,13 +58,12 @@ function normalizeErrorMessage(payload: unknown, status: number): string {
   const message =
     (typeof record.message === "string" ? record.message : null) ||
     (typeof record.error === "string" ? record.error : null) ||
-    (typeof record.errmsg === "string" ? record.errmsg : null) ||
     (typeof record.detail === "string" ? record.detail : null);
   const code =
     typeof record.code === "string"
       ? record.code
-      : typeof record.errcode === "number"
-        ? String(record.errcode)
+      : typeof record.error_code === "string"
+        ? record.error_code
         : undefined;
   if (message && code) return `${message} (${code})`;
   return message ?? `PriceLabs API error (${status})`;
@@ -60,12 +73,23 @@ function extractCode(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined;
   const record = payload as Record<string, unknown>;
   if (typeof record.code === "string") return record.code;
-  if (typeof record.errcode === "number") return String(record.errcode);
+  if (typeof record.error_code === "string") return record.error_code;
   return undefined;
 }
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
+}
+
+function recordSuccess(): void {
+  consecutiveFailures = 0;
+}
+
+function recordFailure(): void {
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= 5) {
+    circuitOpenUntil = Date.now() + 60_000;
+  }
 }
 
 async function sleep(ms: number) {
@@ -76,29 +100,34 @@ export async function priceLabsRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<PriceLabsResult<T>> {
-  const auth =
-    options.auth ??
-    resolvePriceLabsAuth({ userTokenOverride: options.userTokenOverride });
-
   const method = options.method ?? "GET";
-  const url = `${getPriceLabsBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  const base = getPriceLabsApiBaseUrl();
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const timeoutMs = getPriceLabsRequestTimeoutMs();
-  const maxAttempts = options.retryable ? 3 : 1;
+  const maxAttempts = options.retryable ? 4 : 1;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    await throttle();
+    try {
+      await throttle();
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : "Rate limit",
+        code: "CIRCUIT_OPEN",
+      };
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const signal = options.signal ?? controller.signal;
 
     const started = Date.now();
-    console.info(LOG_PREFIX, method, url, { attempt, maxAttempts });
+    console.info(LOG_PREFIX, method, path, { attempt, maxAttempts });
 
     try {
       const response = await fetch(url, {
         method,
-        headers: buildPriceLabsHeaders(auth),
+        headers: buildPriceLabsHeaders(),
         body:
           options.body !== undefined
             ? JSON.stringify(options.body)
@@ -117,36 +146,38 @@ export async function priceLabsRequest<T>(
         }
       }
 
-      const elapsed = Date.now() - started;
       console.info(LOG_PREFIX, method, path, {
         status: response.status,
-        elapsedMs: elapsed,
+        elapsedMs: Date.now() - started,
       });
 
       if (!response.ok) {
         const message = normalizeErrorMessage(payload, response.status);
+        const code = extractCode(payload);
+        if (isBenignListingError(code, message)) {
+          recordSuccess();
+          return { ok: true, data: payload as T };
+        }
+        recordFailure();
         if (
           options.retryable &&
           isRetryableStatus(response.status) &&
           attempt < maxAttempts
         ) {
-          await sleep(400 * attempt);
+          await sleep(500 * 2 ** (attempt - 1));
           continue;
         }
-        return {
-          ok: false,
-          message,
-          status: response.status,
-          code: extractCode(payload),
-        };
+        return { ok: false, message, status: response.status, code };
       }
 
+      recordSuccess();
       return { ok: true, data: payload as T };
     } catch (error) {
+      recordFailure();
       const message =
         error instanceof Error ? error.message : "Error de red PriceLabs";
       if (options.retryable && attempt < maxAttempts) {
-        await sleep(400 * attempt);
+        await sleep(500 * 2 ** (attempt - 1));
         continue;
       }
       return { ok: false, message };

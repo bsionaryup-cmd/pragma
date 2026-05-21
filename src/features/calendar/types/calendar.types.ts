@@ -5,6 +5,12 @@ import type {
   ReservationStatus,
 } from "@prisma/client";
 
+export type CalendarPropertyPricingDto = {
+  baseRate: string | null;
+  recommendedRate: string | null;
+  priceDelta: string | null;
+};
+
 export type CalendarPropertyDto = {
   id: string;
   name: string;
@@ -13,6 +19,7 @@ export type CalendarPropertyDto = {
   propertyType: PropertyType;
   status: PropertyStatus;
   coverImageUrl: string | null;
+  pricing: CalendarPropertyPricingDto | null;
 };
 
 export type CalendarReservationDto = {

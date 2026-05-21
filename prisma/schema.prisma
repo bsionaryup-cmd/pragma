@@ -467,20 +467,37 @@ enum PriceLabsIntegrationStatus {
 }
 
 model PriceLabsIntegration {
-  id                 String                     @id @default("singleton")
-  status             PriceLabsIntegrationStatus @default(NOT_CONNECTED)
-  userTokenEncrypted String?
-  lastHealthCheckAt  DateTime?
-  lastListingsSyncAt DateTime?
-  lastPricesSyncAt   DateTime?
-  lastError          String?
-  configuredById     String?                    @unique
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
+  id                        String                     @id @default("singleton")
+  status                    PriceLabsIntegrationStatus @default(NOT_CONNECTED)
+  integrationTokenEncrypted String?
+  integrationName           String?
+  userTokenEncrypted        String?
+  syncInProgressAt          DateTime?
+  neighborhoodSnapshot      Json?
+  lastHealthCheckAt         DateTime?
+  lastListingsSyncAt        DateTime?
+  lastPricesSyncAt          DateTime?
+  lastError                 String?
+  configuredById            String?                    @unique
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
 
   configuredBy User? @relation("PriceLabsConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
 
   @@map("pricelabs_integrations")
+}
+
+model PriceLabsSyncLog {
+  id        String   @id @default(cuid())
+  action    String
+  result    String
+  message   String?
+  source    String   @default("system")
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("pricelabs_sync_logs")
 }
 
 enum PropertyPriceLabsSyncStatus {

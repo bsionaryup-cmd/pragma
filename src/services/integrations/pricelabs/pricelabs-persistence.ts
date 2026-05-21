@@ -3,17 +3,51 @@ import {
   Prisma,
   PropertyPriceLabsSyncStatus,
   PropertyStatus,
+  type PriceLabsIntegration,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import {
-  decryptTTLockSecret,
-  encryptTTLockSecret,
-} from "@/services/integrations/ttlock/ttlock-crypto";
-import { wrapPriceLabsSchemaError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+  isPriceLabsSchemaDriftError,
+  wrapPriceLabsSchemaError,
+} from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import {
+  isPriceLabsSchemaReady,
+  isPropertyPriceLabsSchemaReady,
+} from "@/services/integrations/pricelabs/pricelabs-schema";
 
 const SINGLETON_ID = "singleton";
 
-export async function ensurePriceLabsIntegration() {
+export function resolveStoredSecret(
+  encrypted: string | null | undefined,
+): string | null {
+  if (!encrypted) return null;
+  return decryptTTLockSecret(encrypted);
+}
+
+/** @deprecated Use resolveStoredSecret */
+export function resolveStoredUserToken(
+  encrypted: string | null | undefined,
+): string | null {
+  return resolveStoredSecret(encrypted);
+}
+
+export async function getPriceLabsIntegrationSafe(): Promise<PriceLabsIntegration | null> {
+  if (!(await isPriceLabsSchemaReady())) return null;
+  try {
+    return await db.priceLabsIntegration.findUnique({
+      where: { id: SINGLETON_ID },
+    });
+  } catch (error) {
+    if (isPriceLabsSchemaDriftError(error)) return null;
+    throw error;
+  }
+}
+
+export async function ensurePriceLabsIntegration(): Promise<PriceLabsIntegration> {
+  if (!(await isPriceLabsSchemaReady())) {
+    throw wrapPriceLabsSchemaError({ code: "P2021" });
+  }
   try {
     return await db.priceLabsIntegration.upsert({
       where: { id: SINGLETON_ID },
@@ -25,47 +59,74 @@ export async function ensurePriceLabsIntegration() {
   }
 }
 
-export async function getPriceLabsIntegration() {
-  try {
-    return await db.priceLabsIntegration.findUnique({
-      where: { id: SINGLETON_ID },
-    });
-  } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
-  }
+export async function getPriceLabsIntegration(): Promise<PriceLabsIntegration | null> {
+  return getPriceLabsIntegrationSafe();
 }
 
-export async function savePriceLabsUserToken(input: {
+/** Marks integration row when API key lives in env (no secrets in DB). */
+export async function markPriceLabsIntegrationReady(input: {
   configuredById: string;
-  userToken: string;
-}) {
+}): Promise<{ ok: boolean; message: string }> {
+  if (!(await isPriceLabsSchemaReady())) {
+    return {
+      ok: false,
+      message:
+        "Tablas PriceLabs no disponibles. Ejecuta npm run db:migrate y vuelve a intentar.",
+    };
+  }
   try {
-    return await db.priceLabsIntegration.upsert({
+    await db.priceLabsIntegration.upsert({
       where: { id: SINGLETON_ID },
       create: {
         id: SINGLETON_ID,
         configuredById: input.configuredById,
-        userTokenEncrypted: encryptTTLockSecret(input.userToken.trim()),
         status: PriceLabsIntegrationStatus.PENDING_SETUP,
         lastError: null,
       },
       update: {
         configuredById: input.configuredById,
-        userTokenEncrypted: encryptTTLockSecret(input.userToken.trim()),
-        status: PriceLabsIntegrationStatus.PENDING_SETUP,
         lastError: null,
       },
     });
+    return {
+      ok: true,
+      message:
+        "Integración preparada. La API key se lee solo desde PRICELABS_API_KEY.",
+    };
   } catch (error) {
     throw wrapPriceLabsSchemaError(error);
   }
 }
 
-export function resolveStoredUserToken(
-  encrypted: string | null | undefined,
-): string | null {
-  if (!encrypted) return null;
-  return decryptTTLockSecret(encrypted);
+export async function saveNeighborhoodSnapshot(
+  snapshot: Record<string, unknown>,
+): Promise<void> {
+  if (!(await isPriceLabsSchemaReady())) return;
+  try {
+    await ensurePriceLabsIntegration();
+    await db.priceLabsIntegration.update({
+      where: { id: SINGLETON_ID },
+      data: {
+        neighborhoodSnapshot: snapshot as Prisma.InputJsonValue,
+      },
+    });
+  } catch (error) {
+    if (isPriceLabsSchemaDriftError(error)) return;
+    throw wrapPriceLabsSchemaError(error);
+  }
+}
+
+/** @deprecated API key is env-only (PRICELABS_API_KEY) */
+export async function savePriceLabsUserToken(input: {
+  configuredById: string;
+  userToken: string;
+}) {
+  void input.userToken;
+  const result = await markPriceLabsIntegrationReady({
+    configuredById: input.configuredById,
+  });
+  if (!result.ok) throw new Error(result.message);
+  return ensurePriceLabsIntegration();
 }
 
 export async function updatePriceLabsIntegrationState(input: {
@@ -74,7 +135,8 @@ export async function updatePriceLabsIntegrationState(input: {
   lastHealthCheckAt?: Date | null;
   lastListingsSyncAt?: Date | null;
   lastPricesSyncAt?: Date | null;
-}) {
+}): Promise<PriceLabsIntegration | null> {
+  if (!(await isPriceLabsSchemaReady())) return null;
   try {
     await ensurePriceLabsIntegration();
     return await db.priceLabsIntegration.update({
@@ -94,54 +156,80 @@ export async function updatePriceLabsIntegrationState(input: {
       },
     });
   } catch (error) {
+    if (isPriceLabsSchemaDriftError(error)) return null;
     throw wrapPriceLabsSchemaError(error);
   }
 }
 
+const propertyBaseSelect = {
+  id: true,
+  name: true,
+  address: true,
+  city: true,
+  country: true,
+  maxGuests: true,
+  bedrooms: true,
+  bathrooms: true,
+  baseRate: true,
+  currency: true,
+} as const;
+
 export async function listActivePropertiesForPriceLabs() {
+  const includePriceLabs = await isPropertyPriceLabsSchemaReady();
+
   try {
+    if (!includePriceLabs) {
+      const rows = await db.property.findMany({
+        where: { status: PropertyStatus.ACTIVE },
+        orderBy: { name: "asc" },
+        select: propertyBaseSelect,
+      });
+      return rows.map((row) => ({ ...row, priceLabs: null }));
+    }
+
     return await db.property.findMany({
       where: { status: PropertyStatus.ACTIVE },
       orderBy: { name: "asc" },
       select: {
-        id: true,
-        name: true,
-        address: true,
-        city: true,
-        country: true,
-        maxGuests: true,
-        bedrooms: true,
-        bathrooms: true,
-        baseRate: true,
-        currency: true,
+        ...propertyBaseSelect,
         priceLabs: true,
       },
     });
   } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
+    if (isPriceLabsSchemaDriftError(error)) {
+      const rows = await db.property.findMany({
+        where: { status: PropertyStatus.ACTIVE },
+        orderBy: { name: "asc" },
+        select: propertyBaseSelect,
+      });
+      return rows.map((row) => ({ ...row, priceLabs: null }));
+    }
+    throw error;
   }
 }
 
 export async function getPropertyForPriceLabs(propertyId: string) {
+  const includePriceLabs = await isPropertyPriceLabsSchemaReady();
+
   try {
+    if (!includePriceLabs) {
+      const row = await db.property.findFirst({
+        where: { id: propertyId, status: PropertyStatus.ACTIVE },
+        select: propertyBaseSelect,
+      });
+      return row ? { ...row, priceLabs: null } : null;
+    }
+
     return await db.property.findFirst({
       where: { id: propertyId, status: PropertyStatus.ACTIVE },
       select: {
-        id: true,
-        name: true,
-        address: true,
-        city: true,
-        country: true,
-        maxGuests: true,
-        bedrooms: true,
-        bathrooms: true,
-        baseRate: true,
-        currency: true,
+        ...propertyBaseSelect,
         priceLabs: true,
       },
     });
   } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
+    if (isPriceLabsSchemaDriftError(error)) return null;
+    throw error;
   }
 }
 
@@ -156,12 +244,17 @@ export async function upsertPropertyPriceLabsSync(input: {
   lastError?: string | null;
   meta?: Record<string, unknown> | null;
 }) {
+  if (!(await isPropertyPriceLabsSchemaReady())) {
+    return null;
+  }
+
   const metaValue: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined =
     input.meta === null
       ? Prisma.JsonNull
       : input.meta
         ? (input.meta as Prisma.InputJsonValue)
         : undefined;
+
   try {
     return await db.propertyPriceLabs.upsert({
       where: { propertyId: input.propertyId },
@@ -190,6 +283,7 @@ export async function upsertPropertyPriceLabsSync(input: {
       },
     });
   } catch (error) {
+    if (isPriceLabsSchemaDriftError(error)) return null;
     throw wrapPriceLabsSchemaError(error);
   }
 }
@@ -198,6 +292,10 @@ export async function markPropertyPriceLabsError(
   propertyId: string,
   message: string,
 ) {
+  if (!(await isPropertyPriceLabsSchemaReady())) {
+    return null;
+  }
+
   try {
     return await db.propertyPriceLabs.upsert({
       where: { propertyId },
@@ -214,6 +312,7 @@ export async function markPropertyPriceLabsError(
       },
     });
   } catch (error) {
+    if (isPriceLabsSchemaDriftError(error)) return null;
     throw wrapPriceLabsSchemaError(error);
   }
 }

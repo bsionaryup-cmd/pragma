@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
+import { runPriceLabsSyncPipeline } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
+import { runWithPriceLabsSyncLock } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
 import {
   checkConnection,
-  connectPriceLabs,
   fetchDynamicPrices,
+  markPriceLabsSetupFromPanel,
   syncListings,
   syncSingleListing,
 } from "@/services/integrations/pricelabs.service";
@@ -13,14 +15,13 @@ import {
 function revalidatePriceLabs() {
   revalidatePath("/integrations");
   revalidatePath("/integrations/pricelabs");
+  revalidatePath("/calendar");
 }
 
-export async function connectPriceLabsAction(formData: FormData) {
+export async function confirmPriceLabsSetupAction() {
   const user = await requireRole("ADMIN");
-  const userToken = String(formData.get("userToken") ?? "").trim();
-  const result = await connectPriceLabs({
+  const result = await markPriceLabsSetupFromPanel({
     configuredById: user.dbUserId,
-    userToken: userToken || undefined,
   });
   revalidatePriceLabs();
   return result;
@@ -35,14 +36,23 @@ export async function testPriceLabsConnectionAction() {
 
 export async function syncPriceLabsListingsAction() {
   await requireRole("ADMIN");
-  const result = await syncListings();
+  const wrapped = await runWithPriceLabsSyncLock(() => syncListings());
+  if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
-  return result;
+  return wrapped.value;
 }
 
 export async function fetchPriceLabsPricesAction() {
   await requireRole("ADMIN");
-  const result = await fetchDynamicPrices();
+  const wrapped = await runWithPriceLabsSyncLock(() => fetchDynamicPrices());
+  if (!wrapped.ok) return { ok: false, message: wrapped.message };
+  revalidatePriceLabs();
+  return wrapped.value;
+}
+
+export async function runPriceLabsFullSyncAction() {
+  await requireRole("ADMIN");
+  const result = await runPriceLabsSyncPipeline({ source: "manual" });
   revalidatePriceLabs();
   return result;
 }

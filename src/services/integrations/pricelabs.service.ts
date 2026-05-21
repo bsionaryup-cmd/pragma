@@ -1,8 +1,8 @@
 export {
   checkConnection,
-  connectPriceLabs,
   fetchDynamicPrices,
   getPriceLabsOverview,
+  markPriceLabsSetupFromPanel,
   syncListings,
   syncSingleListing,
   type PriceLabsConnectionCheck,

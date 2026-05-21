@@ -56,6 +56,14 @@ function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
         <p className="truncate text-xs text-[#6B7280] dark:text-muted-foreground">
           {property.city}
         </p>
+        {property.pricing?.recommendedRate ? (
+          <p className="truncate text-[10px] font-medium text-[#0E9F8D]">
+            PL $
+            {Number.parseFloat(property.pricing.recommendedRate).toLocaleString(
+              "es-CO",
+            )}
+          </p>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end justify-center gap-1">
         <span

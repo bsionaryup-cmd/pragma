@@ -1,5 +1,5 @@
 const SCHEMA_HINT =
-  "Ejecuta: npm run db:migrate (o npm run db:push en desarrollo).";
+  "Ejecuta: npm run db:migrate (desarrollo) o npm run db:migrate:deploy (producción).";
 
 export function isPriceLabsSchemaDriftError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -14,4 +14,8 @@ export function wrapPriceLabsSchemaError(error: unknown): Error {
     );
   }
   return error instanceof Error ? error : new Error(String(error));
+}
+
+export function getPriceLabsSchemaSetupHint(): string {
+  return SCHEMA_HINT;
 }

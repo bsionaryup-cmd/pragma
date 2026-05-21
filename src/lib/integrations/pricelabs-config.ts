@@ -1,38 +1,33 @@
-/** PriceLabs Integration API — env and feature flags. */
+/** PriceLabs Customer API (Open API) — server-only configuration. */
 
-const DEFAULT_BASE_URL =
-  "https://api.pricelabs.co/v1/integration/api";
+export const PRICELABS_API_BASE = "https://api.pricelabs.co";
 
-const DEFAULT_INTEGRATION_NAME = "PRAGMA";
+/** Official Swagger limits */
+export const PRICELABS_RATE_LIMIT_PER_MINUTE = 60;
+export const PRICELABS_RATE_LIMIT_PER_HOUR = 1000;
 
 const DEFAULT_TIMEOUT_MS = 300_000;
-
-/** PriceLabs documents ~300 requests/minute. */
-export const PRICELABS_RATE_LIMIT_PER_MINUTE = 300;
+const DEFAULT_PMS = "other";
 
 export function isPriceLabsLiveApiEnabled(): boolean {
   return process.env.PRICELABS_API_ENABLED === "true";
 }
 
-export function getPriceLabsBaseUrl(): string {
+export function getPriceLabsApiBaseUrl(): string {
   const raw = process.env.PRICELABS_BASE_URL?.trim();
-  return raw && raw.length > 0 ? raw.replace(/\/$/, "") : DEFAULT_BASE_URL;
+  return raw && raw.length > 0 ? raw.replace(/\/$/, "") : PRICELABS_API_BASE;
 }
 
-export function getPriceLabsIntegrationName(): string {
-  return (
-    process.env.PRICELABS_NAME?.trim() || DEFAULT_INTEGRATION_NAME
-  );
+/** Canonical server secret — header X-API-Key */
+export function getPriceLabsApiKey(): string | null {
+  const key =
+    process.env.PRICELABS_API_KEY?.trim() ||
+    process.env.PRICELABS_TOKEN?.trim();
+  return key && key.length > 0 ? key : null;
 }
 
-export function getPriceLabsIntegrationToken(): string | null {
-  const token = process.env.PRICELABS_TOKEN?.trim();
-  return token && token.length > 0 ? token : null;
-}
-
-export function getPriceLabsUserTokenFromEnv(): string | null {
-  const token = process.env.PRICELABS_USER_TOKEN?.trim();
-  return token && token.length > 0 ? token : null;
+export function getPriceLabsPmsName(): string {
+  return process.env.PRICELABS_PMS_NAME?.trim() || DEFAULT_PMS;
 }
 
 export function getPriceLabsRequestTimeoutMs(): number {
@@ -42,22 +37,6 @@ export function getPriceLabsRequestTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
 }
 
-export type PriceLabsConfigSnapshot = {
-  liveApiEnabled: boolean;
-  baseUrl: string;
-  integrationName: string;
-  hasIntegrationToken: boolean;
-  hasUserToken: boolean;
-  timeoutMs: number;
-};
-
-export function getPriceLabsConfigSnapshot(): PriceLabsConfigSnapshot {
-  return {
-    liveApiEnabled: isPriceLabsLiveApiEnabled(),
-    baseUrl: getPriceLabsBaseUrl(),
-    integrationName: getPriceLabsIntegrationName(),
-    hasIntegrationToken: Boolean(getPriceLabsIntegrationToken()),
-    hasUserToken: Boolean(getPriceLabsUserTokenFromEnv()),
-    timeoutMs: getPriceLabsRequestTimeoutMs(),
-  };
+export function isPriceLabsApiKeyConfigured(): boolean {
+  return Boolean(getPriceLabsApiKey());
 }

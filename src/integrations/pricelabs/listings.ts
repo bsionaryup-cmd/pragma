@@ -1,20 +1,18 @@
 import { priceLabsRequest } from "@/integrations/pricelabs/client";
+import { normalizeListingsResponse } from "@/integrations/pricelabs/normalize";
 import type {
-  PriceLabsListingPayload,
-  PriceLabsListingsRequest,
-  PriceLabsListingsResponse,
+  PriceLabsListingRecord,
   PriceLabsResult,
 } from "@/integrations/pricelabs/types";
 
-export async function pushPriceLabsListings(input: {
-  listings: PriceLabsListingPayload[];
-  userTokenOverride?: string | null;
-}): Promise<PriceLabsResult<PriceLabsListingsResponse>> {
-  const body: PriceLabsListingsRequest = { listings: input.listings };
-  return priceLabsRequest<PriceLabsListingsResponse>("/listings", {
-    method: "POST",
-    body,
-    userTokenOverride: input.userTokenOverride,
-    retryable: false,
+/** GET /v1/listings — pull account listings from PriceLabs. */
+export async function fetchPriceLabsListings(): Promise<
+  PriceLabsResult<PriceLabsListingRecord[]>
+> {
+  const result = await priceLabsRequest<unknown>("/v1/listings", {
+    method: "GET",
+    retryable: true,
   });
+  if (!result.ok) return result;
+  return { ok: true, data: normalizeListingsResponse(result.data) };
 }

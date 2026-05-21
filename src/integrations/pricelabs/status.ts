@@ -1,36 +1,32 @@
-import { priceLabsRequest } from "@/integrations/pricelabs/client";
-import type {
-  PriceLabsResult,
-  PriceLabsStatusResponse,
-} from "@/integrations/pricelabs/types";
+import { fetchPriceLabsListings } from "@/integrations/pricelabs/listings";
+import type { PriceLabsResult } from "@/integrations/pricelabs/types";
 
-export async function fetchPriceLabsStatus(input?: {
-  userTokenOverride?: string | null;
-}): Promise<PriceLabsResult<PriceLabsStatusResponse>> {
-  return priceLabsRequest<PriceLabsStatusResponse>("/status", {
-    method: "GET",
-    userTokenOverride: input?.userTokenOverride,
-    retryable: true,
-  });
-}
+export type PriceLabsHealthCheck = {
+  healthy: boolean;
+  label: string;
+  listingCount: number;
+};
 
-export function normalizeStatusHealth(
-  data: PriceLabsStatusResponse,
-): { healthy: boolean; label: string } {
-  if (typeof data.healthy === "boolean") {
+/** Reachability via GET /v1/listings (official Customer API). */
+export async function checkPriceLabsReachability(): Promise<
+  PriceLabsResult<PriceLabsHealthCheck>
+> {
+  const result = await fetchPriceLabsListings();
+  if (!result.ok) {
     return {
-      healthy: data.healthy,
-      label: data.healthy ? "Saludable" : "Degradado",
+      ok: false,
+      message: result.message,
+      status: result.status,
+      code: result.code,
     };
   }
-  const status = (data.status ?? "").toLowerCase();
-  const healthy =
-    data.success === true ||
-    status === "ok" ||
-    status === "healthy" ||
-    status === "connected";
+  const count = result.data.length;
   return {
-    healthy,
-    label: healthy ? "Saludable" : status || "Desconocido",
+    ok: true,
+    data: {
+      healthy: true,
+      label: count > 0 ? "Saludable" : "Sin listings",
+      listingCount: count,
+    },
   };
 }

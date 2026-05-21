@@ -1,35 +1,36 @@
+import { getPriceLabsPmsName } from "@/lib/integrations/pricelabs-config";
 import { priceLabsRequest } from "@/integrations/pricelabs/client";
+import { normalizeListingPricesResponse } from "@/integrations/pricelabs/normalize";
+import { isBenignListingError } from "@/integrations/pricelabs/normalize";
 import type {
-  PriceLabsGetPricesRequest,
-  PriceLabsGetPricesResponse,
-  PriceLabsPriceRecommendation,
+  PriceLabsListingPricesRequest,
+  PriceLabsListingPricesRow,
   PriceLabsResult,
 } from "@/integrations/pricelabs/types";
 
-export async function fetchPriceLabsPrices(input: {
-  listingIds: string[];
-  startDate?: string;
-  endDate?: string;
-  userTokenOverride?: string | null;
-}): Promise<PriceLabsResult<PriceLabsGetPricesResponse>> {
-  const body: PriceLabsGetPricesRequest = {
-    listing_ids: input.listingIds,
-    ...(input.startDate ? { start_date: input.startDate } : {}),
-    ...(input.endDate ? { end_date: input.endDate } : {}),
+/** POST /v1/listing_prices — dynamic calendar pricing. */
+export async function fetchPriceLabsListingPrices(input: {
+  listings: Array<{ id: string; dateFrom: string; dateTo: string }>;
+}): Promise<PriceLabsResult<PriceLabsListingPricesRow[]>> {
+  const body: PriceLabsListingPricesRequest = {
+    listings: input.listings.map((l) => ({
+      id: l.id,
+      pms: getPriceLabsPmsName(),
+      date_from: l.dateFrom,
+      date_to: l.dateTo,
+      reason: true,
+    })),
   };
 
-  return priceLabsRequest<PriceLabsGetPricesResponse>("/get_prices", {
+  const result = await priceLabsRequest<unknown>("/v1/listing_prices", {
     method: "POST",
     body,
-    userTokenOverride: input.userTokenOverride,
-    retryable: false,
+    retryable: true,
   });
+  if (!result.ok) return result;
+  return { ok: true, data: normalizeListingPricesResponse(result.data) };
 }
 
-export function extractPriceRecommendations(
-  data: PriceLabsGetPricesResponse,
-): PriceLabsPriceRecommendation[] {
-  if (Array.isArray(data.prices)) return data.prices;
-  if (Array.isArray(data.recommendations)) return data.recommendations;
-  return [];
+export function isSkippedListingPriceRow(row: PriceLabsListingPricesRow): boolean {
+  return isBenignListingError(row.code, row.error);
 }
