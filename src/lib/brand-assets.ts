@@ -3,6 +3,7 @@
 export const BRAND_ASSETS = {
   logoFull: "/branding/logo-full.png",
   logoFullLight: "/branding/logo-full-light.png",
+  logoFullDark: "/branding/logo-full-dark.png",
   logoStacked: "/branding/logo-stacked.png",
   logoMark: "/branding/logo-mark.png",
   loader: "/branding/loader.svg",

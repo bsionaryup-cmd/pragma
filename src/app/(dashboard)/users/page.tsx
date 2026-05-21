@@ -1,5 +1,4 @@
 import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -9,6 +8,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { CreateUserDialog } from "@/features/users/components/create-user-dialog";
+import { DeleteUserButton } from "@/features/users/components/delete-user-button";
+import { EditUserDialog } from "@/features/users/components/edit-user-dialog";
 import { UserActiveToggle } from "@/features/users/components/user-active-toggle";
 import { UserRoleSelect } from "@/features/users/components/user-role-select";
 import { requirePermission } from "@/lib/auth";
@@ -32,10 +34,17 @@ export default async function UsersPage() {
   return (
     <ModuleShellFlow className="bg-background">
       <main className="w-full p-6 pb-12">
-        <PageHeader
-          title="Equipo"
-          description={`${users.length} usuarios registrados`}
-        />
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+              Equipo
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {users.length} usuarios registrados
+            </p>
+          </div>
+          <CreateUserDialog />
+        </div>
         <div className="rounded-xl border border-border">
           <Table>
             <TableHeader>
@@ -79,11 +88,25 @@ export default async function UsersPage() {
                       {formatDate(user.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <UserActiveToggle
-                        userId={user.id}
-                        isActive={user.isActive}
-                        disabled={isSelf}
-                      />
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <EditUserDialog
+                          userId={user.id}
+                          email={user.email}
+                          firstName={user.firstName}
+                          lastName={user.lastName}
+                          disabled={!user.isActive}
+                        />
+                        <UserActiveToggle
+                          userId={user.id}
+                          isActive={user.isActive}
+                          disabled={isSelf}
+                        />
+                        <DeleteUserButton
+                          userId={user.id}
+                          email={user.email}
+                          disabled={isSelf}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

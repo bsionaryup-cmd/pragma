@@ -16,11 +16,11 @@ const VARIANT_CONFIG: Record<
   BrandLogoVariant,
   { src: string; width: number; height: number }
 > = {
-  full: { src: BRAND_ASSETS.logoFull, width: 158, height: 40 },
-  fullLight: { src: BRAND_ASSETS.logoFullLight, width: 158, height: 40 },
-  fullDark: { src: BRAND_ASSETS.logoFull, width: 158, height: 40 },
-  stacked: { src: BRAND_ASSETS.logoStacked, width: 100, height: 66 },
-  mark: { src: BRAND_ASSETS.logoMark, width: 36, height: 36 },
+  full: { src: BRAND_ASSETS.logoFull, width: 1331, height: 332 },
+  fullLight: { src: BRAND_ASSETS.logoFullLight, width: 1331, height: 332 },
+  fullDark: { src: BRAND_ASSETS.logoFullDark, width: 1331, height: 332 },
+  stacked: { src: BRAND_ASSETS.logoStacked, width: 1331, height: 332 },
+  mark: { src: BRAND_ASSETS.logoMark, width: 479, height: 332 },
 };
 
 function resolveVariant(
@@ -52,7 +52,7 @@ export function PragmaLogo({
       height={height}
       priority={priority}
       className={cn(
-        "h-auto w-auto max-w-full shrink-0 object-contain object-left",
+        "mx-auto h-auto w-auto max-w-full shrink-0 object-contain object-center",
         isMark ? symbolClassName : fullClassName,
         className,
       )}

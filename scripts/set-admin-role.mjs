@@ -5,6 +5,7 @@
 import { config } from "dotenv";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import { createClerkClient } from "@clerk/backend";
 import pg from "pg";
 
 config();
@@ -14,6 +15,7 @@ const email = process.argv[2];
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const db = new PrismaClient({ adapter: new PrismaPg(pool) });
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 try {
   const users = await db.user.findMany({ orderBy: { createdAt: "asc" } });
@@ -37,10 +39,17 @@ try {
     data: { role: "ADMIN", isActive: true },
   });
 
+  await clerk.users.updateUser(updated.clerkId, {
+    publicMetadata: {
+      role: updated.role,
+      dbUserId: updated.id,
+    },
+  });
+
   console.log("✓ Usuario actualizado a ADMIN:");
   console.log(`  Email: ${updated.email}`);
   console.log(`  ID:    ${updated.id}`);
-  console.log("\nCierra sesión y vuelve a entrar para refrescar permisos en Clerk.");
+  console.log("\nPermisos sincronizados en Clerk. Si la sesión sigue antigua, cierra sesión y vuelve a entrar.");
 } catch (e) {
   console.error(e);
   process.exit(1);

@@ -1,14 +1,14 @@
 import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { RevenueDashboard } from "@/features/revenue/components/revenue-dashboard";
+import { SmartpriceDashboard } from "@/features/revenue/components/smartprice-dashboard";
 import { requirePermission } from "@/lib/auth";
-import { getRevenueDashboard } from "@/services/revenue/revenue-dashboard.service";
+import { getSmartpriceDashboard } from "@/services/revenue/revenue-dashboard.service";
 
-export default async function RevenuePage() {
+export default async function SmartpricePage() {
   await requirePermission("calendar:read");
-  const data = await getRevenueDashboard();
+  const data = await getSmartpriceDashboard();
   return (
     <ModuleShellFlow>
-      <RevenueDashboard data={data} />
+      <SmartpriceDashboard data={data} />
     </ModuleShellFlow>
   );
 }

@@ -243,6 +243,137 @@ export async function setUserActive(userId: string, isActive: boolean) {
   });
 }
 
+async function findClerkUserByEmail(email: string) {
+  const client = await clerkClient();
+  const list = await client.users.getUserList({
+    emailAddress: [email],
+    limit: 5,
+  });
+  const normalized = email.toLowerCase();
+  return (
+    list.data.find((user) =>
+      user.emailAddresses.some(
+        (entry) => entry.emailAddress.toLowerCase() === normalized,
+      ),
+    ) ?? null
+  );
+}
+
+export async function createUserByAdmin(input: {
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  role: UserRole;
+}) {
+  const email = input.email.trim().toLowerCase();
+
+  const existingDb = await db.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
+  if (existingDb?.isActive) {
+    throw new Error("Ya existe un usuario activo con ese email");
+  }
+
+  let clerkUser = await findClerkUserByEmail(email);
+
+  if (!clerkUser) {
+    const client = await clerkClient();
+    clerkUser = await client.users.createUser({
+      emailAddress: [email],
+      firstName: input.firstName?.trim() || undefined,
+      lastName: input.lastName?.trim() || undefined,
+      skipPasswordRequirement: true,
+      publicMetadata: {
+        role: input.role,
+        dbUserId: "pending",
+      },
+    });
+  }
+
+  const payload = mapClerkUserToPayload(clerkUser);
+
+  if (existingDb) {
+    const reactivated = await db.user.update({
+      where: { id: existingDb.id },
+      data: {
+        clerkId: clerkUser.id,
+        email: payload.email,
+        firstName: input.firstName?.trim() || payload.firstName,
+        lastName: input.lastName?.trim() || payload.lastName,
+        imageUrl: payload.imageUrl,
+        role: input.role,
+        isActive: true,
+      },
+    });
+    await syncClerkPublicMetadata(clerkUser.id, {
+      role: reactivated.role,
+      dbUserId: reactivated.id,
+    });
+    return withUserPreferenceDefaults(reactivated);
+  }
+
+  const created = await db.user.create({
+    data: buildUserCreateData(
+      payload,
+      input.role,
+    ),
+  });
+
+  await syncClerkPublicMetadata(clerkUser.id, {
+    role: created.role,
+    dbUserId: created.id,
+  });
+
+  return withUserPreferenceDefaults(created);
+}
+
+export async function updateUserProfile(
+  userId: string,
+  input: { firstName?: string | null; lastName?: string | null },
+) {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error("Usuario no encontrado");
+  }
+
+  const firstName = input.firstName?.trim() || null;
+  const lastName = input.lastName?.trim() || null;
+
+  const client = await clerkClient();
+  await client.users.updateUser(user.clerkId, {
+    firstName: firstName ?? undefined,
+    lastName: lastName ?? undefined,
+  });
+
+  const updated = await db.user.update({
+    where: { id: userId },
+    data: { firstName, lastName },
+  });
+
+  return withUserPreferenceDefaults(updated);
+}
+
+export async function deleteUserByAdmin(userId: string) {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error("Usuario no encontrado");
+  }
+
+  const client = await clerkClient();
+  try {
+    await client.users.deleteUser(user.clerkId);
+  } catch (error) {
+    if (!isClerkAPIResponseError(error) || error.status !== 404) {
+      throw error;
+    }
+  }
+
+  return db.user.update({
+    where: { id: userId },
+    data: { isActive: false },
+  });
+}
+
 /** @deprecated Usar upsertUserFromClerk */
 export async function syncUserFromClerk(payload: ClerkUserPayload) {
   return upsertUserFromClerk(payload, { touchLogin: true });

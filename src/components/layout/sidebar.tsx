@@ -75,26 +75,18 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
     return (
       <PragmaLogo
         variant="mark"
-        symbolClassName="h-9 w-9"
-        className="mx-auto"
+        symbolClassName="h-12 w-12"
       />
     );
   }
 
   return (
-    <div className="min-w-0">
+    <div className="flex w-full min-w-0 flex-col items-center gap-2 text-center">
       <PragmaLogo
         variant="full"
-        tone="light"
-        fullClassName="h-8 w-auto max-w-[8.75rem]"
-        className="dark:hidden"
+        fullClassName="h-16 w-full max-w-full"
       />
-      <PragmaLogo
-        variant="full"
-        tone="dark"
-        fullClassName="hidden h-8 w-auto max-w-[8.75rem] dark:block"
-      />
-      <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
         {t("nav.hostCommandCenter")}
       </p>
     </div>
@@ -117,8 +109,10 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
     >
       <div
         className={cn(
-          "flex h-[4.25rem] shrink-0 items-center border-b border-sidebar-border/80",
-          collapsed ? "justify-center px-2" : "justify-between px-4",
+          "relative shrink-0 border-b border-sidebar-border/80",
+          collapsed
+            ? "flex h-[4.25rem] items-center justify-center px-2"
+            : "px-3 pb-3 pt-4",
         )}
       >
         <BrandMark collapsed={collapsed} />
@@ -128,7 +122,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
             type="button"
             onClick={toggle}
             aria-label="Contraer barra lateral"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-pragma-mid-gray transition-colors hover:bg-pragma-soft-gray hover:text-pragma-black"
+            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-pragma-mid-gray transition-colors hover:bg-pragma-soft-gray hover:text-pragma-black"
           >
             <ChevronsLeft className="h-4 w-4" strokeWidth={2} />
           </button>
