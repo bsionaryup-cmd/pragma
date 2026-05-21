@@ -1,60 +1,93 @@
 import { NextResponse } from "next/server";
+import { isBillingLockedError } from "@/lib/billing/billing-guard";
 import { getAuthContext, hasPermission } from "@/lib/auth";
-import { withTimeout } from "@/lib/async-timeout";
 import type { AppUserRole } from "@/types/auth";
 import {
-  cleanupDisconnectedAirbnbImportsAction,
-  getAirbnbSyncStatusAction,
-  syncAirbnbCalendarsAction,
-} from "@/features/properties/actions/airbnb-sync.actions";
+  handleAirbnbSyncAll,
+  handleAirbnbSyncCleanup,
+  handleAirbnbSyncProperty,
+  handleAirbnbSyncStatus,
+} from "@/services/airbnb/airbnb-auto-sync.handlers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-const SYNC_TIMEOUT_MS = 90_000;
-
-async function requirePropertiesWriteApi() {
+async function requireOwnerContext(permission: "properties:read" | "properties:write") {
   const auth = await getAuthContext();
-  if (!auth || !hasPermission(auth.role as AppUserRole, "properties:write")) {
+  if (!auth || !hasPermission(auth.role as AppUserRole, permission)) {
     return null;
   }
   return auth;
 }
 
 /**
- * Auto-sync estable: evita POST de Server Actions a rutas sin manifiesto (p. ej. /integrations → 404 + timeout).
+ * Auto-sync vía Route Handler (no Server Actions POST a rutas sin manifiesto).
  */
 export async function POST(request: Request) {
-  const auth = await requirePropertiesWriteApi();
-  if (!auth) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const body = (await request.json().catch(() => ({}))) as {
     phase?: string;
+    propertyId?: string;
   };
   const phase = body.phase ?? "sync";
 
   if (phase === "status") {
-    const result = await getAirbnbSyncStatusAction();
-    return NextResponse.json(result);
+    const auth = await requireOwnerContext("properties:read");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      const result = await handleAirbnbSyncStatus(auth.dbUserId);
+      return NextResponse.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error de estado";
+      return NextResponse.json({ success: false, error: message }, { status: 500 });
+    }
   }
 
   if (phase === "cleanup") {
-    const result = await cleanupDisconnectedAirbnbImportsAction();
-    return NextResponse.json(result);
+    const auth = await requireOwnerContext("properties:write");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+      const result = await handleAirbnbSyncCleanup(auth.dbUserId);
+      return NextResponse.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error de limpieza";
+      return NextResponse.json({ success: false, error: message }, { status: 500 });
+    }
+  }
+
+  if (phase === "property") {
+    const auth = await requireOwnerContext("properties:write");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const propertyId = body.propertyId?.trim();
+    if (!propertyId) {
+      return NextResponse.json({ error: "propertyId requerido" }, { status: 400 });
+    }
+    try {
+      const result = await handleAirbnbSyncProperty(auth.dbUserId, propertyId);
+      return NextResponse.json(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error de sync";
+      const status = message.includes("no encontrada") ? 404 : 500;
+      return NextResponse.json({ success: false, error: message }, { status });
+    }
+  }
+
+  const auth = await requireOwnerContext("properties:write");
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const result = await withTimeout(
-      syncAirbnbCalendarsAction(),
-      SYNC_TIMEOUT_MS,
-      "La sincronización Airbnb tardó demasiado en local. Reintenta en unos segundos.",
-    );
+    const result = await handleAirbnbSyncAll(auth.dbUserId);
     return NextResponse.json(result);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Error al sincronizar Airbnb";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Error al sincronizar Airbnb";
+    const status = isBillingLockedError(error) ? 402 : 500;
+    return NextResponse.json({ success: false, error: message }, { status });
   }
 }

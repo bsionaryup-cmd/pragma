@@ -8,6 +8,7 @@ import {
   runAirbnbAutoSyncCleanup,
 } from "@/lib/airbnb/auto-sync-client";
 import {
+  AIRBNB_AUTO_SYNC_COOLDOWN_MS,
   AIRBNB_AUTO_SYNC_INITIAL_MS,
   AIRBNB_AUTO_SYNC_MS,
   dispatchAirbnbSyncComplete,
@@ -22,32 +23,48 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
   const router = useRouter();
   const pathname = usePathname();
   const syncingRef = useRef(false);
+  const lastRunAtRef = useRef(0);
+  const initialDoneRef = useRef(false);
+  const pathnameRef = useRef(pathname);
+  const routerRef = useRef(router);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+    routerRef.current = router;
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!enabled) return;
 
     let cancelled = false;
     let timerId: number | undefined;
-    let hasRunInitialSync = false;
 
-    function schedule(delayMs: number) {
-      if (cancelled) return;
-      window.clearTimeout(timerId);
-      timerId = window.setTimeout(() => {
-        void runSync("scheduled");
-      }, delayMs);
+    function shouldThrottle(trigger: string): boolean {
+      if (trigger === "initial") return false;
+      const elapsed = Date.now() - lastRunAtRef.current;
+      return elapsed < AIRBNB_AUTO_SYNC_COOLDOWN_MS;
     }
 
     async function runSync(trigger: string) {
       if (syncingRef.current || cancelled) return;
+      if (shouldThrottle(trigger)) return;
 
       syncingRef.current = true;
+      lastRunAtRef.current = Date.now();
+
       try {
-        const { status } = await fetchAirbnbSyncStatus();
+        const statusPayload = await fetchAirbnbSyncStatus();
+        if (!statusPayload.success) {
+          throw new Error(statusPayload.error ?? "No se pudo leer estado Airbnb");
+        }
+
+        const { status } = statusPayload;
+        const currentPath = pathnameRef.current ?? "";
+
         if (status.linkedCount === 0) {
           await runAirbnbAutoSyncCleanup();
-          if (!pathname?.startsWith("/calendar")) {
-            router.refresh();
+          if (!currentPath.startsWith("/calendar")) {
+            routerRef.current.refresh();
           }
           if (process.env.NODE_ENV === "development") {
             console.info("[ical-sync:auto] skip — sin iCal; huérfanos archivados", trigger);
@@ -56,10 +73,10 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         }
 
         const summary = await runAirbnbAutoSync();
-
         dispatchAirbnbSyncComplete(summary);
-        if (!pathname?.startsWith("/calendar")) {
-          router.refresh();
+
+        if (!currentPath.startsWith("/calendar")) {
+          routerRef.current.refresh();
         }
 
         if (process.env.NODE_ENV === "development") {
@@ -75,16 +92,21 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       }
     }
 
-    function runInitialSyncOnce() {
-      if (hasRunInitialSync) return;
-      hasRunInitialSync = true;
-      void runSync("initial");
+    function schedule(delayMs: number, trigger: string) {
+      if (cancelled) return;
+      window.clearTimeout(timerId);
+      timerId = window.setTimeout(() => {
+        void runSync(trigger);
+      }, delayMs);
     }
 
-    if (AIRBNB_AUTO_SYNC_INITIAL_MS === 0) {
-      runInitialSyncOnce();
-    } else {
-      schedule(AIRBNB_AUTO_SYNC_INITIAL_MS);
+    if (!initialDoneRef.current) {
+      initialDoneRef.current = true;
+      if (AIRBNB_AUTO_SYNC_INITIAL_MS === 0) {
+        void runSync("initial");
+      } else {
+        schedule(AIRBNB_AUTO_SYNC_INITIAL_MS, "initial");
+      }
     }
 
     const onFocus = () => {
@@ -110,7 +132,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [enabled, pathname, router]);
+  }, [enabled]);
 
   return null;
 }

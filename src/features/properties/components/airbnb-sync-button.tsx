@@ -4,11 +4,11 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import {
-  syncAirbnbCalendarsAction,
-  syncPropertyAirbnbAction,
-} from "@/features/properties/actions/airbnb-sync.actions";
 import { Button } from "@/components/ui/button";
+import {
+  runAirbnbAutoSync,
+  runPropertyAirbnbSync,
+} from "@/lib/airbnb/auto-sync-client";
 import { dispatchAirbnbSyncComplete } from "@/lib/airbnb-sync";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +30,7 @@ export function AirbnbSyncButton({
     startSync(async () => {
       try {
         if (propertyId) {
-          const { result } = await syncPropertyAirbnbAction(propertyId);
+          const result = await runPropertyAirbnbSync(propertyId);
           if (result.error) {
             toast.error(result.error);
             return;
@@ -50,29 +50,21 @@ export function AirbnbSyncButton({
           if (result.skipped > 0) parts.push(`${result.skipped} omitidas`);
           toast.success(`${result.propertyName}: ${parts.join(", ")}`);
         } else {
-          const { summary } = await syncAirbnbCalendarsAction();
+          const summary = await runAirbnbAutoSync();
           if (summary.propertiesSynced === 0) {
             toast.message("No hay propiedades con iCal de Airbnb");
             return;
           }
-          const errors = summary.results.filter((r) => r.error);
-          if (errors.length === summary.results.length) {
-            toast.error(errors[0]?.error ?? "Error al sincronizar");
+          if (summary.errors > 0 && summary.created === 0 && summary.updated === 0) {
+            toast.error("Error al sincronizar Airbnb");
             return;
           }
-          dispatchAirbnbSyncComplete({
-            created: summary.created,
-            updated: summary.updated,
-            cancelled: summary.cancelled,
-            propertiesSynced: summary.propertiesSynced,
-            errors: errors.length,
-          });
+          dispatchAirbnbSyncComplete(summary);
           const parts = [
             `${summary.created} nuevas`,
             `${summary.updated} actualizadas`,
           ];
           if (summary.cancelled > 0) parts.push(`${summary.cancelled} canceladas`);
-          if (summary.skipped > 0) parts.push(`${summary.skipped} omitidas`);
           toast.success(`Sincronizado: ${parts.join(", ")}`);
         }
         router.refresh();

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AirbnbSyncButton } from "@/features/properties/components/airbnb-sync-button";
-import { getAirbnbSyncStatusAction } from "@/features/properties/actions/airbnb-sync.actions";
+import { fetchAirbnbSyncStatus } from "@/lib/airbnb/auto-sync-client";
 import {
   AIRBNB_SYNC_COMPLETE_EVENT,
   type AirbnbSyncCompleteDetail,
@@ -51,11 +51,13 @@ export function AirbnbSyncStatus({
       return;
     }
     try {
-      const { status } = await getAirbnbSyncStatusAction();
-      setLastSyncedAt(status.lastSyncedAt);
-      setLinkedCount(status.linkedCount);
+      const payload = await fetchAirbnbSyncStatus();
+      if (payload.success) {
+        setLastSyncedAt(payload.status.lastSyncedAt);
+        setLinkedCount(payload.status.linkedCount);
+      }
     } catch {
-      // ignore
+      // ignore — auto-sync event will refresh later
     } finally {
       setLoading(false);
     }
