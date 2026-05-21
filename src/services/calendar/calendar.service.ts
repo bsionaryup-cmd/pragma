@@ -6,6 +6,7 @@ import type {
 import { PropertyStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
+import { parseDailyPricesFromMeta } from "@/features/calendar/lib/daily-pricing";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import { db } from "@/lib/db";
@@ -31,6 +32,7 @@ async function loadCalendarProperties() {
             recommendedRate: true,
             priceDelta: true,
             baseRateAtSync: true,
+            meta: true,
           },
         },
       },
@@ -51,6 +53,7 @@ type PriceLabsRow = {
   recommendedRate: { toString(): string } | null;
   priceDelta: { toString(): string } | null;
   baseRateAtSync: { toString(): string } | null;
+  meta: unknown;
 };
 
 function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
@@ -74,6 +77,9 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
             priceDelta: pl?.priceDelta?.toString() ?? null,
           }
         : null,
+    dailyPricesByDate: pl?.meta
+      ? parseDailyPricesFromMeta(pl.meta)
+      : {},
   };
 }
 

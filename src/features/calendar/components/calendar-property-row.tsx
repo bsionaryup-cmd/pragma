@@ -6,16 +6,19 @@ import {
   CALENDAR_ROW_HEIGHT,
 } from "@/features/calendar/constants";
 import { computeReservationSpan } from "@/features/calendar/lib/reservation-span";
+import { CalendarDayPrice } from "@/features/calendar/components/calendar-day-price";
 import { ReservationBar } from "@/features/calendar/components/reservation-bar";
 import type {
   CalendarDateSelection,
   CalendarDayMeta,
+  CalendarDayPricingDto,
   CalendarReservationDto,
 } from "@/features/calendar/types/calendar.types";
 import { cn } from "@/lib/utils";
 
 type CalendarPropertyRowProps = {
   propertyId: string;
+  dailyPricesByDate: Record<string, CalendarDayPricingDto>;
   reservations: CalendarReservationDto[];
   days: CalendarDayMeta[];
   rangeStart: string;
@@ -42,6 +45,7 @@ function isDayInSelection(
 
 function CalendarPropertyRowComponent({
   propertyId,
+  dailyPricesByDate,
   reservations,
   days,
   rangeStart,
@@ -115,6 +119,7 @@ function CalendarPropertyRowComponent({
               aria-hidden
               className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
             />
+            <CalendarDayPrice pricing={dailyPricesByDate[day.date]} />
           </button>
         );
       })}

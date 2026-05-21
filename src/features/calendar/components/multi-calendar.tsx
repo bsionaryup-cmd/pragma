@@ -148,7 +148,12 @@ export function MultiCalendar({
 
   const handleDayClick = useCallback(
     (propertyId: string, dateKey: string) => {
-      if (!canWrite) return;
+      if (!canWrite) {
+        toast.error(
+          "Modo restringido o sin permiso: no puedes crear reservas. Ve a Facturación.",
+        );
+        return;
+      }
 
       if (
         !selection ||

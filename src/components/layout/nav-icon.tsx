@@ -6,6 +6,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   MessageCircle,
+  LineChart,
   Ribbon,
   Settings,
   Wallet,
@@ -20,6 +21,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   "calendar-days": CalendarDays,
   "building-2": Building2,
   ribbon: Ribbon,
+  "line-chart": LineChart,
   wallet: Wallet,
   settings: Settings,
 };

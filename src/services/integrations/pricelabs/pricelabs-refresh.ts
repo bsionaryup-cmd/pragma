@@ -1,3 +1,4 @@
+import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { isPriceLabsConfiguredAsync } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import { runPriceLabsSyncPipeline } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
 import { isPriceLabsSyncInProgress } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
@@ -17,6 +18,8 @@ export function schedulePriceLabsRefresh(
 
   void (async () => {
     try {
+      const billing = await getBillingAccessSnapshot();
+      if (billing.locked) return;
       if (!(await isPriceLabsConfiguredAsync())) return;
       if (await isPriceLabsSyncInProgress()) return;
       await runPriceLabsSyncPipeline({

@@ -6,6 +6,7 @@ import {
   type PropertyFormValues,
 } from "@/features/properties/schemas/property.schema";
 import type { PropertyDetailDto } from "@/features/properties/types/property.types";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import {
   createProperty,
@@ -24,6 +25,7 @@ function revalidatePropertyPaths() {
 
 export async function createPropertyAction(data: PropertyFormValues) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const parsed = propertyFormSchema.parse(data);
   const created = await createProperty(user.dbUserId, parsed);
   revalidatePropertyPaths();
@@ -39,6 +41,7 @@ export async function createPropertyAction(data: PropertyFormValues) {
 
 export async function updatePropertyAction(id: string, data: PropertyFormValues) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const parsed = propertyFormSchema.parse(data);
   const result = await updateProperty(id, user.dbUserId, parsed);
   if (result.count === 0) throw new Error("Propiedad no encontrada");
@@ -52,6 +55,7 @@ export async function updatePropertyAction(id: string, data: PropertyFormValues)
 
 export async function deletePropertyAction(id: string) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const result = await deleteProperty(id, user.dbUserId);
   if (result.count === 0) throw new Error("Propiedad no encontrada");
 

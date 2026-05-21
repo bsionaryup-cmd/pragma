@@ -11,6 +11,17 @@ export type CalendarPropertyPricingDto = {
   priceDelta: string | null;
 };
 
+export type CalendarDayPricingDto = {
+  date: string;
+  nightlyPrice: number | null;
+  recommendedPrice: number | null;
+  basePrice: number | null;
+  minStay: number | null;
+  bookingStatus: string | null;
+  demandColor: string | null;
+  isBooked: boolean;
+};
+
 export type CalendarPropertyDto = {
   id: string;
   name: string;
@@ -20,6 +31,7 @@ export type CalendarPropertyDto = {
   status: PropertyStatus;
   coverImageUrl: string | null;
   pricing: CalendarPropertyPricingDto | null;
+  dailyPricesByDate: Record<string, CalendarDayPricingDto>;
 };
 
 export type CalendarReservationDto = {

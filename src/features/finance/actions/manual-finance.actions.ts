@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ManualPaymentMethod } from "@prisma/client";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -12,6 +13,7 @@ import { dateKeyToPrismaDate } from "@/lib/dates";
 
 export async function createManualExpenseAction(formData: FormData) {
   const auth = await requirePermission("finance:write");
+  await assertBillingUnlocked();
   const amount = Number(formData.get("amount"));
   const category = String(formData.get("category") ?? "").trim();
   const expenseDate = String(formData.get("expenseDate") ?? "").trim();
@@ -52,6 +54,7 @@ export async function createManualExpenseAction(formData: FormData) {
 
 export async function createOtherIncomeAction(formData: FormData) {
   const auth = await requirePermission("finance:write");
+  await assertBillingUnlocked();
   const amount = Number(formData.get("amount"));
   const incomeType = String(formData.get("incomeType") ?? "").trim();
   const incomeDate = String(formData.get("incomeDate") ?? "").trim();

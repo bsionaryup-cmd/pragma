@@ -4,6 +4,7 @@ import {
   fetchDynamicPrices,
   syncListings,
 } from "@/integrations/pricelabs/service";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { isPriceLabsConfiguredAsync } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import { appendPriceLabsSyncLog } from "@/services/integrations/pricelabs/pricelabs-audit";
 import { runWithPriceLabsSyncLock } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
@@ -16,6 +17,17 @@ export async function runPriceLabsSyncPipeline(input?: {
   skipConnectionTest?: boolean;
 }): Promise<{ ok: boolean; message: string }> {
   const source = input?.source ?? "manual";
+
+  if (source !== "cron") {
+    try {
+      await assertBillingUnlocked();
+    } catch {
+      return {
+        ok: false,
+        message: "Cuenta en modo restringido — regulariza el pago en facturación",
+      };
+    }
+  }
 
   if (!(await isPriceLabsConfiguredAsync())) {
     await appendPriceLabsSyncLog({

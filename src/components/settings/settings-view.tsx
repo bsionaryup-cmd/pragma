@@ -91,12 +91,20 @@ export function SettingsView({
           </button>
         ))}
         {canManageUsers ? (
-          <Link
-            href="/users"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-          >
-            Usuarios
-          </Link>
+          <>
+            <Link
+              href="/users"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Usuarios
+            </Link>
+            <Link
+              href="/settings/billing"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Facturación
+            </Link>
+          </>
         ) : null}
       </div>
 

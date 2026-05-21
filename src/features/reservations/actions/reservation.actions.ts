@@ -6,6 +6,7 @@ import {
   type ReservationWizardValues,
 } from "@/features/reservations/schemas/reservation.schema";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { ReservationConflictError } from "@/services/reservations/reservation-conflicts";
 import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.service";
@@ -52,6 +53,7 @@ function toInboxFromCreated(
 
 export async function createReservationAction(data: ReservationWizardValues) {
   await requirePermission("reservations:write");
+  await assertBillingUnlocked();
   const parsed = reservationWizardSchema.parse(data);
 
   try {
@@ -91,6 +93,7 @@ export async function getReservationInboxItemAction(id: string) {
 
 export async function deleteReservationAction(id: string) {
   await requirePermission("reservations:delete");
+  await assertBillingUnlocked();
   await deleteReservation(id);
   schedulePriceLabsRefresh("reservation");
   revalidatePath("/reservations");

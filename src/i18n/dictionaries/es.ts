@@ -26,6 +26,7 @@ export const es = {
     reservations: "Reservas",
     properties: "Propiedades",
     calendar: "Calendario",
+    revenue: "Revenue",
     integrations: "Integraciones",
     messages: "Mensajes",
     finance: "Finanzas",

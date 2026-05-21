@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { withTimeout } from "@/lib/async-timeout";
 
@@ -29,6 +30,7 @@ function revalidateSyncedPaths() {
 
 export async function syncAirbnbCalendarsAction() {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   await enforceOwnerDisconnectedAirbnbImports(user.dbUserId);
 
   const linked = await db.property.findMany({
@@ -69,6 +71,7 @@ export async function syncAirbnbCalendarsAction() {
 
 export async function syncPropertyAirbnbAction(propertyId: string) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const property = await db.property.findFirst({
     where: { id: propertyId, ownerId: user.dbUserId },
     select: { icalUrl: true, name: true },
@@ -84,6 +87,7 @@ export async function syncPropertyAirbnbAction(propertyId: string) {
 
 export async function cleanupDisconnectedAirbnbImportsAction() {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const archived = await enforceOwnerDisconnectedAirbnbImports(user.dbUserId);
   revalidateSyncedPaths();
   return { success: true as const, archived };
@@ -97,6 +101,7 @@ export async function getAirbnbSyncStatusAction() {
 
 export async function disconnectPropertyAirbnbIcalAction(propertyId: string) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const result = await disconnectPropertyAirbnbIcal(propertyId, user.dbUserId);
   revalidateSyncedPaths();
   return { success: true as const, result };

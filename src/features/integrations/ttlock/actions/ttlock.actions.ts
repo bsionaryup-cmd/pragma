@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { TTLockEnvironment, TTLockExpirationStrategy } from "@prisma/client";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requireTTLockAdmin } from "@/lib/auth/ttlock-admin";
 import {
   completeTTLockConnect,
@@ -32,6 +33,7 @@ async function getTTLockRequestContext() {
 
 export async function saveTTLockCredentialsAction(formData: FormData) {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   const rawEnv = String(formData.get("environment") ?? "PRODUCTION");
   const environment = Object.values(TTLockEnvironment).includes(
     rawEnv as TTLockEnvironment,
@@ -53,6 +55,7 @@ export async function saveTTLockCredentialsAction(formData: FormData) {
 
 export async function completeTTLockConnectAction(formData: FormData) {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   const state = String(formData.get("state") ?? "").trim();
 
   try {
@@ -78,6 +81,7 @@ export async function completeTTLockConnectAction(formData: FormData) {
 
 export async function testTTLockConnectionAction() {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   const result = await testTTLockConnection(user.dbUserId, await getTTLockRequestContext());
   revalidateTTLock();
   return result;
@@ -85,18 +89,21 @@ export async function testTTLockConnectionAction() {
 
 export async function disconnectTTLockAction() {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   await disconnectTTLock(user.dbUserId);
   revalidateTTLock();
 }
 
 export async function refreshTTLockTokenAction() {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   await refreshTTLockToken(user.dbUserId, await getTTLockRequestContext());
   revalidateTTLock();
 }
 
 export async function syncTTLockLocksAction() {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   const { syncTTLockLocksPlaceholder } = await import(
     "@/services/integrations/ttlock.service"
   );
@@ -106,6 +113,7 @@ export async function syncTTLockLocksAction() {
 
 export async function savePropertyLockMappingAction(formData: FormData) {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   await savePropertyLockMapping(user.dbUserId, {
     propertyId: String(formData.get("propertyId") ?? ""),
     ttlockLockId: String(formData.get("ttlockLockId") ?? ""),
@@ -117,6 +125,7 @@ export async function savePropertyLockMappingAction(formData: FormData) {
 
 export async function saveTTLockAutomationSettingsAction(formData: FormData) {
   const user = await requireTTLockAdmin();
+  await assertBillingUnlocked();
   const rawStrategy = String(formData.get("expirationStrategy") ?? "CHECKOUT_TIME");
   const expirationStrategy = Object.values(TTLockExpirationStrategy).includes(
     rawStrategy as TTLockExpirationStrategy,

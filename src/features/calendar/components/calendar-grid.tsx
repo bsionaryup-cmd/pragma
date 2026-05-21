@@ -52,6 +52,7 @@ function CalendarGridComponent({
           <CalendarPropertyRow
             key={property.id}
             propertyId={property.id}
+            dailyPricesByDate={property.dailyPricesByDate}
             reservations={reservationsByProperty.get(property.id) ?? []}
             days={days}
             rangeStart={rangeStart}

@@ -27,6 +27,7 @@ export const en = {
     reservations: "Reservations",
     properties: "Properties",
     calendar: "Calendar",
+    revenue: "Revenue",
     integrations: "Integrations",
     messages: "Messages",
     finance: "Finance",

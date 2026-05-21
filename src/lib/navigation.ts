@@ -10,6 +10,7 @@ export type NavIconName =
   | "building-2"
   | "ribbon"
   | "wallet"
+  | "line-chart"
   | "settings";
 
 export type NavItem = {
@@ -44,6 +45,12 @@ const mainNavItems: NavItem[] = [
     labelKey: "nav.calendar",
     href: "/calendar",
     icon: "calendar-days",
+    permission: "calendar:read",
+  },
+  {
+    labelKey: "nav.revenue",
+    href: "/revenue",
+    icon: "line-chart",
     permission: "calendar:read",
   },
   {

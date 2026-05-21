@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, Settings, User } from "lucide-react";
+import { CreditCard, LogOut, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,6 +96,12 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
           <Link href="/settings" className="cursor-pointer">
             <Settings className="mr-2 h-4 w-4" />
             Configuración
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/settings/billing" className="cursor-pointer">
+            <CreditCard className="mr-2 h-4 w-4" />
+            Facturación
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

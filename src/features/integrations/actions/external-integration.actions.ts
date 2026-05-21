@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ExternalIntegrationProvider } from "@prisma/client";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import {
   getExternalIntegration,
@@ -14,6 +15,7 @@ export async function saveExternalIntegrationAction(
   formData: FormData,
 ) {
   const auth = await requirePermission("integrations:manage");
+  await assertBillingUnlocked();
   await saveExternalIntegration({
     provider,
     configuredById: auth.dbUserId,
@@ -31,6 +33,7 @@ export async function testExternalIntegrationAction(
   provider: ExternalIntegrationProvider,
 ) {
   await requirePermission("integrations:manage");
+  await assertBillingUnlocked();
   const result = await testExternalIntegration(provider);
   revalidatePath(`/integrations/${provider.toLowerCase()}`);
   return result;

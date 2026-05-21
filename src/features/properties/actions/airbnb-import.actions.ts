@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { airbnbImportSchema } from "@/features/properties/schemas/airbnb-import.schema";
+import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { resetPrismaClient } from "@/lib/db";
 import {
@@ -47,6 +48,7 @@ export async function importAirbnbPropertyAction(input: {
   icalUrl: string;
 }) {
   const user = await requirePermission("properties:write");
+  await assertBillingUnlocked();
   const parsed = airbnbImportSchema.parse(input);
 
   const listingUrl = normalizeAirbnbListingUrl(parsed.listingUrl);
