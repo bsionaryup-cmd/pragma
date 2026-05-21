@@ -18,12 +18,13 @@ export function ThemedMainContent({
   children,
   initialResolved = "light",
 }: ThemedMainContentProps) {
-  const ref = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, registerContentRoot } = useTheme();
   const resolved = resolvedTheme ?? initialResolved;
 
   useLayoutEffect(() => {
-    const element = ref.current;
+    const element = outerRef.current;
     if (!element) return;
 
     registerContentRoot(element);
@@ -32,20 +33,28 @@ export function ThemedMainContent({
 
   return (
     <div
-      ref={ref}
+      ref={outerRef}
       id="pragma-main-content"
       data-theme={resolved}
       className={cn(
-        "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background text-foreground",
+        "relative flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground",
         resolved === "dark" && "dark",
       )}
     >
+      <div
+        ref={scrollRef}
+        id="pragma-main-scroll"
+        className="pragma-scrollbar flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain"
+        tabIndex={-1}
+      >
+        {children}
+      </div>
+
       <div className="pointer-events-none absolute right-4 bottom-4 z-40">
         <div className="pointer-events-auto">
           <ThemeModeButton />
         </div>
       </div>
-      {children}
     </div>
   );
 }

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { APP_NAME } from "@/lib/constants";
+import { APP_DEMO_CTA, APP_NAME } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
 const links = [
-  { href: "#features", label: "Funciones" },
+  { href: "#solution", label: "Solución" },
   { href: "#product", label: "Producto" },
+  { href: "#integrations", label: "Integraciones" },
   { href: "#benefits", label: "Beneficios" },
 ];
 
@@ -17,23 +18,27 @@ export function LandingNav() {
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.21, 0.47, 0.32, 0.98] }}
-      className="sticky top-0 z-50 border-b border-[#E9ECEF]/80 bg-white/90 backdrop-blur-xl"
+      className="sticky top-0 z-50 border-b border-pragma-border/80 bg-white/90 backdrop-blur-xl"
     >
-      <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-        <Link
-          href="/"
-          className="text-lg font-bold tracking-tight text-[#111111]"
-        >
-          {APP_NAME}
-          <span className="ml-1.5 font-normal text-[#6B7280]">PMS</span>
+      <nav
+        className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6"
+        aria-label="Principal"
+      >
+        <Link href="/" className="flex items-center gap-2">
+          <span className="font-accent text-lg font-bold tracking-tight text-pragma-black">
+            {APP_NAME}
+          </span>
+          <span className="hidden rounded-md bg-pragma-soft-cyan px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-pragma-electric sm:inline">
+            Airbnb OS
+          </span>
         </Link>
 
-        <ul className="hidden items-center gap-10 md:flex">
+        <ul className="hidden items-center gap-8 md:flex">
           {links.map((link) => (
             <li key={link.href}>
               <a
                 href={link.href}
-                className="text-sm font-medium text-[#6B7280] transition-colors hover:text-[#111111]"
+                className="text-sm font-medium text-pragma-mid-gray transition-colors hover:text-pragma-black"
               >
                 {link.label}
               </a>
@@ -45,17 +50,13 @@ export function LandingNav() {
           <Button
             variant="ghost"
             size="sm"
-            className="hidden text-[#6B7280] hover:bg-[#F7F8FA] hover:text-[#111111] sm:inline-flex"
+            className="hidden text-pragma-mid-gray hover:bg-pragma-soft-gray hover:text-pragma-black sm:inline-flex"
             asChild
           >
             <Link href="/sign-in">Iniciar sesión</Link>
           </Button>
-          <Button
-            size="sm"
-            className="rounded-lg bg-[#0E9F8D] text-white hover:bg-[#0B7A6E]"
-            asChild
-          >
-            <Link href="/sign-up">Comenzar gratis</Link>
+          <Button variant="brand" size="sm" asChild>
+            <Link href="/sign-up">{APP_DEMO_CTA}</Link>
           </Button>
         </div>
       </nav>

@@ -1,3 +1,4 @@
+import { ModuleShellFill } from "@/components/layout/module-shell";
 import {
   CALENDAR_ROW_HEIGHT,
   CALENDAR_SIDEBAR_WIDTH,
@@ -6,7 +7,7 @@ import {
 
 export default function CalendarLoading() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <ModuleShellFill>
         <div
           className="animate-pulse border-b border-border bg-muted/40"
           style={{ height: CALENDAR_TOOLBAR_HEIGHT }}
@@ -26,6 +27,6 @@ export default function CalendarLoading() {
             ))}
           </div>
         </div>
-      </div>
+    </ModuleShellFill>
   );
 }

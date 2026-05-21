@@ -1,36 +1,55 @@
 @import "tailwindcss";
 
-/* PRAGMA premium SaaS — light shell default; .dark for full dark app */
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   PRAGMA — light enterprise (default :root)
+   PRAGMA Brand Book — design tokens
    ============================================================ */
 :root {
-  --pragma-primary: #0e9f8d;
-  --pragma-primary-hover: #0b7a6e;
-  --pragma-accent: #14b8a6;
+  --pragma-cyan: #14e4c8;
+  --pragma-aqua: #10c8f8;
+  --pragma-electric: #0b6bff;
+  --pragma-black: #0a0a0a;
   --pragma-white: #ffffff;
-  --pragma-soft-bg: #f7f8fa;
-  --pragma-border-light: #e9ecef;
-  --pragma-text: #111111;
-  --pragma-text-secondary: #6b7280;
-  --pragma-teal-soft: #e6f7f5;
-  --pragma-teal-muted: #ccf0eb;
+  --pragma-navy: #081626;
+  --pragma-mid-blue: #2f7bff;
+  --pragma-soft-cyan: #d8fffa;
+  --pragma-light-blue: #eaf4ff;
+  --pragma-soft-gray: #f4f6f8;
+  --pragma-mid-gray: #6b7280;
+  --pragma-border: #d9dee5;
+
+  --pragma-gradient: linear-gradient(
+    135deg,
+    #14e4c8 0%,
+    #10c8f8 45%,
+    #0b6bff 100%
+  );
+  --pragma-gradient-subtle: linear-gradient(
+    180deg,
+    #eaf4ff 0%,
+    #ffffff 55%,
+    #f4f6f8 100%
+  );
+
+  --pragma-primary: var(--pragma-electric);
+  --pragma-primary-hover: var(--pragma-mid-blue);
+  --pragma-accent: var(--pragma-cyan);
+  --pragma-selected: var(--pragma-cyan);
+  --pragma-card-active: var(--pragma-soft-cyan);
 
   --pragma-background: var(--pragma-white);
   --pragma-surface: var(--pragma-white);
   --pragma-sidebar: var(--pragma-white);
   --pragma-card: var(--pragma-white);
-  --pragma-surface-alt: #f0f2f5;
-  --pragma-border: var(--pragma-border-light);
-  --pragma-text-muted: var(--pragma-text-secondary);
+  --pragma-surface-alt: var(--pragma-soft-gray);
+  --pragma-text: var(--pragma-black);
+  --pragma-text-secondary: var(--pragma-mid-gray);
   --pragma-text-subtle: #9ca3af;
-  --pragma-success: #0e9f8d;
-  --pragma-warning: #f5a524;
-  --pragma-danger: #ef4444;
-  --pragma-info: #14b8a6;
-  --pragma-gradient: linear-gradient(135deg, #0e9f8d 0%, #14b8a6 100%);
+  --pragma-success: #0d9488;
+  --pragma-warning: #f59e0b;
+  --pragma-danger: #dc2626;
+  --pragma-info: var(--pragma-aqua);
 
   --background: var(--pragma-background);
   --foreground: var(--pragma-text);
@@ -43,46 +62,48 @@
   --primary-hover: var(--pragma-primary-hover);
   --secondary: var(--pragma-surface-alt);
   --secondary-foreground: var(--pragma-text);
-  --muted: var(--pragma-surface-alt);
-  --muted-foreground: var(--pragma-text-muted);
-  --accent: var(--pragma-teal-soft);
-  --accent-foreground: var(--pragma-primary-hover);
+  --muted: var(--pragma-light-blue);
+  --muted-foreground: var(--pragma-text-secondary);
+  --accent: var(--pragma-soft-cyan);
+  --accent-foreground: #065f46;
   --destructive: var(--pragma-danger);
   --border: var(--pragma-border);
   --input: var(--pragma-border);
-  --ring: var(--pragma-primary);
+  --ring: var(--pragma-cyan);
   --sidebar: var(--pragma-sidebar);
   --sidebar-foreground: var(--pragma-text);
   --sidebar-border: var(--pragma-border);
-  --sidebar-accent: var(--pragma-teal-soft);
+  --sidebar-accent: var(--pragma-soft-cyan);
   --surface: var(--pragma-surface);
   --surface-alt: var(--pragma-surface-alt);
-  --text-muted: var(--pragma-text-muted);
+  --text-muted: var(--pragma-text-secondary);
   --text-subtle: var(--pragma-text-subtle);
   --success: var(--pragma-success);
   --warning: var(--pragma-warning);
   --danger: var(--pragma-danger);
   --info: var(--pragma-info);
-  --overlay: color-mix(in srgb, var(--pragma-text) 25%, transparent);
-  --shadow-soft: 0 1px 2px rgba(17, 17, 17, 0.04), 0 4px 16px rgba(17, 17, 17, 0.06);
-  --shadow-card: 0 1px 3px rgba(17, 17, 17, 0.05), 0 8px 24px rgba(17, 17, 17, 0.07);
-  --radius: 0.75rem;
+  --overlay: color-mix(in srgb, var(--pragma-navy) 35%, transparent);
+  --shadow-soft: 0 1px 2px rgba(8, 22, 38, 0.04), 0 8px 24px rgba(8, 22, 38, 0.06);
+  --shadow-card: 0 1px 2px rgba(8, 22, 38, 0.05), 0 12px 40px rgba(11, 107, 255, 0.08);
+  --shadow-glow: 0 0 0 1px rgba(20, 228, 200, 0.15),
+    0 24px 64px rgba(11, 107, 255, 0.12);
+  --radius: 0.875rem;
   color-scheme: light;
 }
 
-/* Full dark app mode (optional) */
 .dark {
-  --pragma-background: #0b0b0b;
-  --pragma-surface: #111315;
-  --pragma-sidebar: #111315;
-  --pragma-card: #1b1f23;
-  --pragma-surface-alt: #1b1f23;
-  --pragma-border: #2a2d33;
-  --pragma-text: #f8f9fa;
-  --pragma-text-muted: #a7adb8;
-  --pragma-text-subtle: #6b7280;
-  --pragma-teal-soft: rgba(14, 159, 141, 0.12);
-  --pragma-teal-muted: rgba(14, 159, 141, 0.2);
+  --pragma-background: var(--pragma-navy);
+  --pragma-surface: #0f1f33;
+  --pragma-sidebar: #0c1828;
+  --pragma-card: #102238;
+  --pragma-surface-alt: #152a45;
+  --pragma-border: #1e3a5f;
+  --pragma-text: #f8fafc;
+  --pragma-text-secondary: #94a3b8;
+  --pragma-text-subtle: #64748b;
+  --pragma-soft-cyan: rgba(20, 228, 200, 0.12);
+  --pragma-light-blue: rgba(11, 107, 255, 0.15);
+  --pragma-card-active: rgba(20, 228, 200, 0.1);
 
   --background: var(--pragma-background);
   --foreground: var(--pragma-text);
@@ -91,40 +112,40 @@
   --popover: var(--pragma-surface-alt);
   --popover-foreground: var(--pragma-text);
   --secondary: var(--pragma-surface);
-  --muted: var(--pragma-surface);
-  --muted-foreground: var(--pragma-text-muted);
+  --muted: var(--pragma-surface-alt);
+  --muted-foreground: var(--pragma-text-secondary);
   --accent: var(--pragma-surface-alt);
-  --accent-foreground: var(--pragma-text);
+  --accent-foreground: var(--pragma-cyan);
   --border: var(--pragma-border);
   --input: var(--pragma-border);
   --sidebar: var(--pragma-sidebar);
   --sidebar-accent: var(--pragma-surface-alt);
   --surface: var(--pragma-surface);
   --surface-alt: var(--pragma-surface-alt);
-  --overlay: color-mix(in srgb, var(--pragma-background) 75%, transparent);
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.25);
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.35);
+  --overlay: color-mix(in srgb, var(--pragma-navy) 80%, transparent);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-glow: 0 0 0 1px rgba(20, 228, 200, 0.2),
+    0 24px 48px rgba(11, 107, 255, 0.2);
   color-scheme: dark;
 }
 
-/* Calendar operational workspace — always dark */
 .calendar-workspace {
-  --background: #111315;
-  --foreground: #f8f9fa;
-  --card: #1b1f23;
-  --card-foreground: #f8f9fa;
-  --muted: #1b1f23;
-  --muted-foreground: #9ca3af;
-  --border: #2a2f36;
-  --accent: #1e2429;
-  --accent-foreground: #f8f9fa;
-  --primary: #14b8a6;
-  --primary-foreground: #ffffff;
-  --primary-hover: #0e9f8d;
-  --text-subtle: #6b7280;
-  --input: #2a2f36;
-  --ring: #14b8a6;
-
+  --background: var(--pragma-navy);
+  --foreground: #f8fafc;
+  --card: #102238;
+  --card-foreground: #f8fafc;
+  --muted: #152a45;
+  --muted-foreground: #94a3b8;
+  --border: #1e3a5f;
+  --accent: #152a45;
+  --accent-foreground: #f8fafc;
+  --primary: var(--pragma-cyan);
+  --primary-foreground: var(--pragma-black);
+  --primary-hover: var(--pragma-aqua);
+  --text-subtle: #64748b;
+  --input: #1e3a5f;
+  --ring: var(--pragma-cyan);
   background-color: var(--background);
   color: var(--foreground);
   color-scheme: dark;
@@ -163,13 +184,20 @@
   --color-danger: var(--danger);
   --color-info: var(--info);
   --color-overlay: var(--overlay);
+  --color-pragma-cyan: var(--pragma-cyan);
+  --color-pragma-aqua: var(--pragma-aqua);
+  --color-pragma-electric: var(--pragma-electric);
+  --color-pragma-navy: var(--pragma-navy);
+  --color-pragma-soft-cyan: var(--pragma-soft-cyan);
+  --color-pragma-light-blue: var(--pragma-light-blue);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-sora);
+  --font-accent: var(--font-manrope);
 }
 
 @layer base {
@@ -182,13 +210,25 @@
   }
 
   body {
-    @apply min-h-full bg-background text-foreground;
+    @apply min-h-full bg-background font-sans text-foreground;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
   .bg-pragma-gradient {
     background-image: var(--pragma-gradient);
+  }
+
+  .bg-pragma-gradient-subtle {
+    background-image: var(--pragma-gradient-subtle);
   }
 
   .text-pragma-gradient {
@@ -198,11 +238,64 @@
     color: transparent;
   }
 
+  .font-heading {
+    font-family: var(--font-heading), var(--font-sans), system-ui, sans-serif;
+  }
+
+  .font-accent {
+    font-family: var(--font-accent), var(--font-sans), system-ui, sans-serif;
+  }
+
   .shadow-pragma-soft {
     box-shadow: var(--shadow-soft);
   }
 
   .shadow-pragma-card {
     box-shadow: var(--shadow-card);
+  }
+
+  .shadow-pragma-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .ring-pragma-selected {
+    box-shadow: 0 0 0 2px var(--pragma-cyan);
+  }
+
+  .pragma-scrollbar {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--pragma-mid-gray) 40%, transparent)
+      transparent;
+  }
+
+  .pragma-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .pragma-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pragma-scrollbar::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--pragma-border) 85%, var(--pragma-mid-gray));
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .pragma-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in srgb, var(--pragma-mid-gray) 65%, var(--pragma-border));
+  }
+
+  .pragma-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pragma-scrollbar {
+    scroll-behavior: smooth;
   }
 }

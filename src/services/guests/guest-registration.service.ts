@@ -9,6 +9,7 @@ import type { GuestRegistrationValues } from "@/features/guests/schemas/guest-re
 import { getPublicAppUrl } from "@/lib/app-url";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 
 export type GuestRegistrationReservation = {
   id: string;
@@ -343,4 +344,24 @@ export async function submitGuestRegistration(
       },
     });
   });
+
+  const accessContext = await db.reservation.findUnique({
+    where: { id: reservation.id },
+    select: {
+      id: true,
+      propertyId: true,
+      checkIn: true,
+      checkOut: true,
+      property: { select: { ownerId: true } },
+    },
+  });
+
+  if (accessContext?.property) {
+    await onGuestRegistrationCompletedForTTLock({
+      reservationId: accessContext.id,
+      propertyId: accessContext.propertyId,
+      ownerId: accessContext.property.ownerId,
+      guestRegistrationCompleted: true,
+    });
+  }
 }

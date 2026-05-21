@@ -223,7 +223,7 @@ export function PropertiesHub({
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
               <p className="text-sm font-medium">Sin propiedades</p>

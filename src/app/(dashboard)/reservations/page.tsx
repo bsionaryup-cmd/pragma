@@ -1,3 +1,4 @@
+import { ModuleShellFill } from "@/components/layout/module-shell";
 import { ReservationsInbox } from "@/features/reservations/components/reservations-inbox";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForInbox } from "@/services/properties/property.service";
@@ -33,7 +34,7 @@ export default async function ReservationsPage({
       : null;
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
+    <ModuleShellFill>
       <ReservationsInbox
         initialReservations={reservations}
         properties={properties}
@@ -50,6 +51,6 @@ export default async function ReservationsPage({
             : undefined
         }
       />
-    </div>
+    </ModuleShellFill>
   );
 }

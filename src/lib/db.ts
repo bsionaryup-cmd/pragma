@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260517210000_pool_singleton";
+const PRISMA_SCHEMA_VERSION = "20260520194500_ttlock_oauth_v1";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;

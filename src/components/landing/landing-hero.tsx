@@ -2,69 +2,75 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
-import { LandingCalendarMockup } from "@/components/landing/landing-calendar-mockup";
-import { APP_DESCRIPTION } from "@/lib/constants";
+import { ArrowRight, Play } from "lucide-react";
+import { LandingDashboardMockup } from "@/components/landing/landing-dashboard-mockup";
+import { APP_DEMO_CTA, APP_SECONDARY_CTA } from "@/lib/constants";
+import { BRAND } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 
 const ease = [0.21, 0.47, 0.32, 0.98] as const;
 
 export function LandingHero() {
   return (
-    <section className="relative mx-auto max-w-7xl px-6 pt-20 pb-24 md:pt-28 md:pb-32">
-      <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-20">
+    <section className="relative mx-auto max-w-7xl px-6 pt-16 pb-20 md:pt-24 md:pb-28">
+      <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-16">
         <div>
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease }}
-            className="mb-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#0E9F8D]"
+            className="font-accent mb-5 inline-flex items-center gap-2 rounded-full border border-pragma-border bg-pragma-light-blue px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-pragma-electric"
           >
-            PMS enterprise · Colombia
+            <span className="h-1.5 w-1.5 rounded-full bg-pragma-cyan" />
+            Airbnb Host Command Center
           </motion.p>
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.06, ease }}
-            className="text-4xl font-bold leading-[1.1] tracking-tight text-[#111111] md:text-5xl lg:text-[3.25rem]"
+            className="font-heading text-4xl font-bold leading-[1.08] tracking-tight text-pragma-black md:text-5xl lg:text-[3.35rem]"
           >
-            Opera tus propiedades con claridad absoluta.
+            Controla tu Airbnb desde un solo lugar.
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.12, ease }}
-            className="mt-6 max-w-lg text-lg leading-relaxed text-[#6B7280]"
+            className="mt-6 max-w-xl text-lg leading-relaxed text-pragma-mid-gray"
           >
-            {APP_DESCRIPTION}. Reservas, bandeja de entrada, calendario e
-            integraciones en un solo lugar.
+            PRAGMA centraliza reservas, automatiza tareas repetitivas y ayuda a
+            anfitriones de Airbnb a operar propiedades de forma remota,
+            inteligente y escalable.
+          </motion.p>
+
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.16, ease }}
+            className="mt-3 text-sm text-pragma-mid-gray/90"
+          >
+            {BRAND.tagline}
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.18, ease }}
+            transition={{ duration: 0.55, delay: 0.2, ease }}
             className="mt-10 flex flex-wrap items-center gap-4"
           >
-            <Button
-              size="lg"
-              className="h-12 rounded-xl bg-[#0E9F8D] px-7 text-base font-medium text-white shadow-pragma-soft hover:bg-[#0B7A6E]"
-              asChild
-            >
+            <Button variant="brand" size="lg" className="h-12 px-7 text-base" asChild>
               <Link href="/sign-up">
-                Comenzar gratis
-                <ArrowRight className="ml-1 h-4 w-4" />
+                {APP_DEMO_CTA}
+                <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-12 rounded-xl border-[#111111]/15 bg-white px-7 text-base font-medium text-[#111111] hover:bg-[#F7F8FA]"
-              asChild
-            >
-              <Link href="/sign-in">Ver demo</Link>
+            <Button variant="brandOutline" size="lg" className="h-12 px-7 text-base" asChild>
+              <a href="#product">
+                <Play className="h-4 w-4" />
+                {APP_SECONDARY_CTA}
+              </a>
             </Button>
           </motion.div>
         </div>
@@ -72,10 +78,14 @@ export function LandingHero() {
         <motion.div
           initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7, delay: 0.2, ease }}
-          className="relative lg:pl-4"
+          transition={{ duration: 0.7, delay: 0.22, ease }}
+          className="relative lg:pl-2"
         >
-          <LandingCalendarMockup />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -inset-8 rounded-[2rem] bg-pragma-gradient opacity-[0.12] blur-3xl"
+          />
+          <LandingDashboardMockup />
         </motion.div>
       </div>
     </section>

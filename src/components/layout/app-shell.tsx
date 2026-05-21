@@ -29,7 +29,7 @@ export async function AppShell({
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F7F8FA]">
+    <div className="flex h-dvh max-h-dvh overflow-hidden bg-pragma-soft-gray">
       <Sidebar items={navItems} settingsItem={settingsItem} user={user} />
       <ThemedMainContent initialResolved={initialResolved}>
         {children}

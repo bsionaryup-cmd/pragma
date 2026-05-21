@@ -1,39 +1,32 @@
-import { PanelControlView } from "@/components/dashboard/panel-control-view";
+import type { Metadata } from "next";
+import { CommandCenterView } from "@/components/dashboard/command-center-view";
 import { hasPermission, requireDbUser } from "@/lib/auth";
 import type { AppUserRole } from "@/types/auth";
-import {
-  getCurrentStays,
-  getDashboardStats,
-  getPanelCounts,
-  getUpcomingArrivals,
-  getUpcomingDepartures,
-  toPanelReservationRow,
-} from "@/services/dashboard/dashboard.service";
+import { getServerLocale } from "@/i18n/locale.server";
+import { dashboardMetadata } from "@/lib/seo";
+import { getCommandCenterData } from "@/services/dashboard/command-center.service";
+import { db } from "@/lib/db";
+
+export const metadata: Metadata = dashboardMetadata;
 
 export default async function PanelControlPage() {
   const user = await requireDbUser();
+  const locale = await getServerLocale();
   const canCreateProperties = hasPermission(
     user.role as AppUserRole,
     "properties:write",
   );
 
-  const [stats, counts, arrivals, departures, currentStays] = await Promise.all([
-    getDashboardStats(),
-    getPanelCounts(),
-    getUpcomingArrivals(),
-    getUpcomingDepartures(),
-    getCurrentStays(),
+  const [data, propertyCount] = await Promise.all([
+    getCommandCenterData(locale),
+    db.property.count(),
   ]);
 
   return (
-    <PanelControlView
+    <CommandCenterView
       firstName={user.firstName}
-      stats={stats}
-      counts={counts}
-      arrivals={arrivals.map(toPanelReservationRow)}
-      departures={departures.map(toPanelReservationRow)}
-      currentStays={currentStays.map(toPanelReservationRow)}
-      showEmptyBanner={stats.totalProperties === 0}
+      data={data}
+      showEmptyBanner={propertyCount === 0}
       canCreateProperties={canCreateProperties}
     />
   );

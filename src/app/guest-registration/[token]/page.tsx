@@ -19,7 +19,7 @@ export default async function GuestRegistrationPage({
       <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
         <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA PMS
+            PRAGMA
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">
             Registro completado
@@ -37,7 +37,7 @@ export default async function GuestRegistrationPage({
       <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
         <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA PMS
+            PRAGMA
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight">
             Link no disponible
@@ -58,7 +58,7 @@ export default async function GuestRegistrationPage({
       <div className="mx-auto max-w-3xl">
         <header className="mb-6 rounded-3xl border border-border bg-card p-6 shadow-pragma-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA PMS
+            PRAGMA
           </p>
           <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
             Registro de huéspedes

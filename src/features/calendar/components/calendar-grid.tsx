@@ -41,7 +41,7 @@ function CalendarGridComponent({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="min-h-0 flex-1 overflow-auto"
+      className="pragma-scrollbar min-h-0 flex-1 overflow-auto"
     >
       {properties.length === 0 ? (
         <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">

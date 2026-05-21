@@ -1,29 +1,32 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Manrope, Sora } from "next/font/google";
 import { cookies } from "next/headers";
 import { AppProviders } from "@/components/providers/app-providers";
 import { ClerkRootProvider } from "@/components/providers/clerk-root-provider";
-import { APP_DESCRIPTION, APP_NAME, THEME_STORAGE_KEY } from "@/lib/constants";
+import { THEME_STORAGE_KEY } from "@/lib/constants";
+import { defaultMetadata } from "@/lib/seo";
 import { resolveThemeFromCookies } from "@/lib/theme";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const sora = Sora({
+  variable: "--font-sora",
   subsets: ["latin"],
+  display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: APP_NAME,
-    template: `%s | ${APP_NAME}`,
-  },
-  description: APP_DESCRIPTION,
-};
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+export const metadata: Metadata = defaultMetadata;
 
 export default async function RootLayout({
   children,
@@ -40,7 +43,7 @@ export default async function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full`}
+      className={`${inter.variable} ${sora.variable} ${manrope.variable} h-full`}
     >
       <body className="min-h-full font-sans antialiased">
         <ClerkRootProvider>

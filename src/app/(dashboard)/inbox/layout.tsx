@@ -1,3 +1,4 @@
+import { ModuleShellFill } from "@/components/layout/module-shell";
 import { requirePermission } from "@/lib/auth";
 
 export default async function InboxLayout({
@@ -7,5 +8,5 @@ export default async function InboxLayout({
 }) {
   await requirePermission("reservations:read");
 
-  return <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>;
+  return <ModuleShellFill>{children}</ModuleShellFill>;
 }

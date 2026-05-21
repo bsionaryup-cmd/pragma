@@ -1,6 +1,9 @@
 import { AirbnbAutoSync } from "@/components/airbnb/airbnb-auto-sync";
 import { AppShell } from "@/components/layout/app-shell";
+import { I18nProvider } from "@/components/providers/i18n-provider";
 import { hasPermission, requireDbUser } from "@/lib/auth";
+import { getDictionary } from "@/i18n/get-dictionary";
+import { getServerLocale } from "@/i18n/locale.server";
 import {
   getMainNavigationForRole,
   getSettingsNavItem,
@@ -14,23 +17,27 @@ export default async function DashboardLayout({
 }) {
   const user = await requireDbUser();
   const role = user.role as AppUserRole;
+  const locale = await getServerLocale();
+  const dictionary = await getDictionary(locale);
   const navItems = getMainNavigationForRole(role);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb = hasPermission(role, "properties:write");
 
   return (
-    <AppShell
-      navItems={navItems}
-      settingsItem={settingsItem}
-      user={{
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        imageUrl: user.imageUrl,
-      }}
-    >
-      <AirbnbAutoSync enabled={canSyncAirbnb} />
-      {children}
-    </AppShell>
+    <I18nProvider locale={locale} dictionary={dictionary}>
+      <AppShell
+        navItems={navItems}
+        settingsItem={settingsItem}
+        user={{
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          imageUrl: user.imageUrl,
+        }}
+      >
+        <AirbnbAutoSync enabled={canSyncAirbnb} />
+        {children}
+      </AppShell>
+    </I18nProvider>
   );
 }

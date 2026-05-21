@@ -1,3 +1,4 @@
+import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { TaskForm } from "@/features/tasks/components/task-form";
 import { requirePermission } from "@/lib/auth";
@@ -8,9 +9,11 @@ export default async function NewTaskPage() {
   const properties = await listPropertiesForSelect();
 
   return (
-      <main className="flex-1 overflow-y-auto p-6">
+    <ModuleShellFlow className="bg-background">
+      <main className="w-full p-6 pb-12">
         <PageHeader title="Crear tarea operativa" />
         <TaskForm properties={properties} />
       </main>
+    </ModuleShellFlow>
   );
 }

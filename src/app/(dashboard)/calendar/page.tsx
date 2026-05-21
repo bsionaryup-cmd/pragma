@@ -1,3 +1,4 @@
+import { ModuleShellFill } from "@/components/layout/module-shell";
 import { MultiCalendar } from "@/features/calendar/components/multi-calendar";
 import { resolveCalendarAnchor } from "@/features/calendar/lib/calendar-dates";
 import { hasPermission, requirePermission } from "@/lib/auth";
@@ -32,7 +33,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <ModuleShellFill>
       <MultiCalendar
         data={data}
         canWrite={canWrite}
@@ -40,6 +41,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         propertyOptions={propertyOptions}
         initialReservationId={initialReservationId}
       />
-    </div>
+    </ModuleShellFill>
   );
 }

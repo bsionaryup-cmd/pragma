@@ -1,3 +1,4 @@
+import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -24,7 +25,8 @@ export default async function UsersPage() {
   const users = await listUsers();
 
   return (
-      <main className="flex-1 overflow-y-auto p-6">
+    <ModuleShellFlow className="bg-background">
+      <main className="w-full p-6 pb-12">
         <PageHeader
           title="Equipo"
           description={`${users.length} usuarios registrados`}
@@ -85,5 +87,6 @@ export default async function UsersPage() {
           </Table>
         </div>
       </main>
+    </ModuleShellFlow>
   );
 }

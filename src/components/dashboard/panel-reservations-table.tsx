@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { Clock, Download } from "lucide-react";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
+import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -27,10 +29,6 @@ function guestTotal(row: PanelReservationRow) {
   return row.adults + row.children + row.infants;
 }
 
-function guestCountLabel(total: number) {
-  return total === 1 ? "1 huésped" : `${total} huéspedes`;
-}
-
 function dateLabel(row: PanelReservationRow, tab: PanelTab) {
   const date = tab === "departures" ? row.checkOut : row.checkIn;
   return formatPanelDate(date);
@@ -47,26 +45,32 @@ export function PanelReservationsTable({
   rows,
   downloadLabel,
 }: PanelReservationsTableProps) {
+  const { t } = useI18n();
+
   const dateColumn =
-    tab === "departures" ? "Salida" : tab === "current" ? "Estancia" : "Fecha";
+    tab === "departures"
+      ? t("table.departure")
+      : tab === "current"
+        ? t("table.stay")
+        : t("table.date");
 
   return (
     <div>
-      <div className="overflow-x-auto px-4 sm:px-6">
+      <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
         <Table className="min-w-[760px]">
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead className="h-11 ps-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Alojamiento
+                {t("table.property")}
               </TableHead>
               <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {dateColumn}
               </TableHead>
               <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Canal
+                {t("table.channel")}
               </TableHead>
               <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Huéspedes
+                {t("table.guests")}
               </TableHead>
               <TableHead className="h-11 pe-0 text-end" />
             </TableRow>
@@ -74,33 +78,27 @@ export function PanelReservationsTable({
           <TableBody>
             {rows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={5}
-                  className="py-16 text-center text-sm text-muted-foreground"
-                >
-                  <div className="mx-auto flex max-w-sm flex-col items-center">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                      <Clock className="h-5 w-5" strokeWidth={1.75} />
-                    </span>
-                    <p className="mt-3 font-medium text-foreground">
-                      Sin registros para mostrar
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Cuando haya actividad, aparecerá aquí con prioridad
-                      operativa.
-                    </p>
-                  </div>
+                <TableCell colSpan={5} className="p-0">
+                  <EmptyState
+                    icon={Clock}
+                    title={t("common.noRecords")}
+                    description={t("common.noRecordsDetail")}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
               rows.map((row) => {
                 const time = timeLabel(row, tab);
                 const totalGuests = guestTotal(row);
+                const guestLabel =
+                  totalGuests === 1
+                    ? `1 ${t("common.guest")}`
+                    : `${totalGuests} ${t("common.guests")}`;
 
                 return (
                   <TableRow
                     key={row.id}
-                    className="border-border transition-colors hover:bg-muted/45"
+                    className="border-border transition-colors hover:bg-muted/40"
                   >
                     <TableCell className="py-3.5 ps-0">
                       <div className="flex items-center gap-3">
@@ -124,7 +122,7 @@ export function PanelReservationsTable({
                             {row.property.name}
                           </p>
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {row.property.neighborhood || "Sin barrio asignado"}
+                            {row.property.neighborhood || t("table.noNeighborhood")}
                           </p>
                         </div>
                       </div>
@@ -139,7 +137,7 @@ export function PanelReservationsTable({
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            Hasta {formatPanelDate(row.checkOut)}
+                            {t("table.until", { date: formatPanelDate(row.checkOut) })}
                           </span>
                         )}
                       </div>
@@ -151,18 +149,16 @@ export function PanelReservationsTable({
                       <p className="max-w-[220px] truncate text-sm font-medium text-foreground">
                         {row.guestName}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {guestCountLabel(totalGuests)}
-                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{guestLabel}</p>
                     </TableCell>
                     <TableCell className="py-3.5 pe-0 text-end">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="rounded-full border-border bg-card px-4 text-xs font-semibold text-foreground shadow-none hover:bg-accent"
+                        className="rounded-full border-border bg-card px-4 text-xs font-semibold shadow-none hover:bg-accent"
                       >
-                        Contacto
+                        {t("common.contact")}
                       </Button>
                     </TableCell>
                   </TableRow>

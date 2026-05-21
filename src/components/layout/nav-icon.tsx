@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Ribbon,
   Settings,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { NavIconName } from "@/lib/navigation";
@@ -19,6 +20,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   "calendar-days": CalendarDays,
   "building-2": Building2,
   ribbon: Ribbon,
+  wallet: Wallet,
   settings: Settings,
 };
 

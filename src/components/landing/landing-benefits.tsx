@@ -1,103 +1,79 @@
 "use client";
 
 import {
-  BarChart3,
-  Layers,
-  ShieldCheck,
-  TrendingUp,
+  Eye,
+  Gauge,
+  MapPin,
+  Sparkles,
   Workflow,
+  Zap,
 } from "lucide-react";
-import { FadeIn } from "@/components/landing/motion";
-import { LandingCalendarMockup } from "@/components/landing/landing-calendar-mockup";
+import { FadeIn, Stagger, StaggerItem } from "@/components/landing/motion";
+import { SectionHeading } from "@/components/landing/section-heading";
 
 const benefits = [
   {
-    icon: ShieldCheck,
-    title: "Menos errores operativos",
-    description:
-      "Un solo lugar para reservas, mensajes y calendario reduce duplicados y olvidos.",
+    icon: Zap,
+    title: "Menos tareas manuales",
+    description: "Automatiza sync, alertas y flujos operativos del día a día.",
   },
   {
-    icon: Layers,
-    title: "Centralización total",
-    description:
-      "Airbnb, directo e integraciones conectados sin saltar entre herramientas.",
+    icon: MapPin,
+    title: "Más control remoto",
+    description: "Gestiona propiedades, accesos y reservas desde cualquier lugar.",
   },
   {
-    icon: TrendingUp,
-    title: "Escalabilidad real",
-    description:
-      "Crece de 5 a 50 unidades sin perder visibilidad ni control del equipo.",
+    icon: Gauge,
+    title: "Mejor productividad",
+    description: "Un Command Center que prioriza lo urgente para tu equipo.",
   },
   {
-    icon: BarChart3,
-    title: "Mejor control",
-    description:
-      "Métricas de ocupación y operación diaria para decisiones informadas.",
+    icon: Sparkles,
+    title: "Escala sin caos",
+    description: "Multi-property sin perder visibilidad ni calidad de servicio.",
   },
   {
     icon: Workflow,
-    title: "Flujo de trabajo claro",
-    description:
-      "Desde el primer mensaje hasta el checkout, cada paso tiene su lugar.",
+    title: "Operación centralizada",
+    description: "Reservas, calendario, mensajes e integraciones en un solo lugar.",
+  },
+  {
+    icon: Eye,
+    title: "Mejor visibilidad",
+    description: "KPIs, ocupación y health score operativo en tiempo real.",
   },
 ];
 
 export function LandingBenefits() {
   return (
-    <section id="benefits" className="border-t border-[#E9ECEF] bg-white py-24 md:py-32">
+    <section id="benefits" className="border-t border-pragma-border bg-pragma-soft-gray py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
-          <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-[#0E9F8D]">
-            Beneficios
-          </p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-center text-3xl font-bold tracking-tight text-[#111111] md:text-4xl">
-            Diseñado para equipos que no pueden permitirse el caos
-          </h2>
+          <SectionHeading
+            eyebrow="Beneficios"
+            title="Opera Airbnb con claridad, velocidad y control total."
+            description="PRAGMA está pensado para anfitriones que quieren crecer sin multiplicar el estrés operativo."
+            align="center"
+          />
         </FadeIn>
 
-        <div className="mt-20 space-y-24">
-          {benefits.map((benefit, index) => {
-            const reversed = index % 2 === 1;
-            const Icon = benefit.icon;
-
-            return (
-              <FadeIn key={benefit.title} delay={index * 0.05}>
-                <div
-                  className={`grid items-center gap-12 lg:grid-cols-2 lg:gap-20 ${
-                    reversed ? "lg:[&>*:first-child]:order-2" : ""
-                  }`}
-                >
-                  <div className={reversed ? "lg:order-2" : ""}>
-                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-[#E6F7F5] text-[#0E9F8D]">
-                      <Icon className="h-6 w-6" strokeWidth={1.5} />
-                    </div>
-                    <h3 className="text-2xl font-semibold text-[#111111]">
-                      {benefit.title}
-                    </h3>
-                    <p className="mt-4 text-base leading-relaxed text-[#6B7280]">
-                      {benefit.description}
-                    </p>
-                  </div>
-
-                  <div
-                    className={`overflow-hidden rounded-2xl border border-[#E9ECEF] bg-[#F7F8FA] p-6 shadow-pragma-soft ${
-                      reversed ? "lg:order-1" : ""
-                    }`}
-                  >
-                    {index === 0 ? (
-                      <LandingCalendarMockup />
-                    ) : (
-                      <div className="flex aspect-[4/3] items-center justify-center rounded-xl bg-white">
-                        <Icon className="h-16 w-16 text-[#0E9F8D]/20" strokeWidth={1} />
-                      </div>
-                    )}
-                  </div>
+        <Stagger className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {benefits.map((benefit) => (
+            <StaggerItem key={benefit.title}>
+              <article className="h-full rounded-2xl border border-pragma-border bg-white p-6 shadow-pragma-soft">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pragma-soft-cyan text-pragma-electric">
+                  <benefit.icon className="h-5 w-5" strokeWidth={1.75} />
                 </div>
-              </FadeIn>
-            );
-          })}
-        </div>
+                <h3 className="mt-5 font-heading text-lg font-semibold text-pragma-black">
+                  {benefit.title}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-pragma-mid-gray">
+                  {benefit.description}
+                </p>
+              </article>
+            </StaggerItem>
+          ))}
+        </Stagger>
       </div>
     </section>
   );

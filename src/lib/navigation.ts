@@ -1,7 +1,7 @@
 import { hasPermission, type Permission } from "@/lib/auth/permissions";
+import type { TranslationKey } from "@/i18n/translate";
 import type { AppUserRole } from "@/types/auth";
 
-/** Identificador serializable (Server → Client). */
 export type NavIconName =
   | "layout-dashboard"
   | "clipboard-list"
@@ -9,64 +9,68 @@ export type NavIconName =
   | "calendar-days"
   | "building-2"
   | "ribbon"
+  | "wallet"
   | "settings";
 
 export type NavItem = {
-  title: string;
+  /** Clave i18n bajo `nav.*` */
+  labelKey: TranslationKey;
   href: string;
   icon: NavIconName;
   permission: Permission;
-  /** Badge opcional (p. ej. "Nuevo" en Ajustes). */
   badge?: string;
 };
 
 const mainNavItems: NavItem[] = [
   {
-    title: "Panel de control",
+    labelKey: "nav.overview",
     href: "/panel",
     icon: "layout-dashboard",
     permission: "dashboard:read",
   },
   {
-    title: "Reservas y Huéspedes",
+    labelKey: "nav.reservations",
     href: "/reservations",
     icon: "clipboard-list",
     permission: "reservations:read",
   },
   {
-    title: "Bandeja de entrada",
-    href: "/inbox",
-    icon: "message-circle",
-    permission: "reservations:read",
-  },
-  {
-    title: "Calendario",
-    href: "/calendar",
-    icon: "calendar-days",
-    permission: "calendar:read",
-  },
-  {
-    title: "Propiedades",
+    labelKey: "nav.properties",
     href: "/properties",
     icon: "building-2",
     permission: "properties:read",
   },
   {
-    title: "Integraciones",
+    labelKey: "nav.calendar",
+    href: "/calendar",
+    icon: "calendar-days",
+    permission: "calendar:read",
+  },
+  {
+    labelKey: "nav.integrations",
     href: "/integrations",
     icon: "ribbon",
     permission: "properties:read",
   },
+  {
+    labelKey: "nav.messages",
+    href: "/inbox",
+    icon: "message-circle",
+    permission: "reservations:read",
+  },
 ];
 
-/**
- * Rutas protegidas fuera de la barra principal (p. ej. /properties).
- * Accesibles por URL directa o enlaces contextuales (banner, ajustes).
- */
-export const secondaryRouteLinks: Pick<NavItem, "title" | "href" | "permission">[] =
+const financeNavItem: NavItem = {
+  labelKey: "nav.finance",
+  href: "/finance",
+  icon: "wallet",
+  permission: "finance:read",
+};
+
+export const secondaryRouteLinks: Pick<NavItem, "labelKey" | "href" | "permission">[] =
   [
     {
-      title: "Usuarios",
+      labelKey: "nav.users",
       href: "/users",
       permission: "users:read",
     },
@@ -74,22 +78,27 @@ export const secondaryRouteLinks: Pick<NavItem, "title" | "href" | "permission">
 
 export function getSecondaryRouteLinksForRole(
   role: AppUserRole,
-): Pick<NavItem, "title" | "href">[] {
+): Pick<NavItem, "labelKey" | "href">[] {
   return secondaryRouteLinks
     .filter((item) => hasPermission(role, item.permission))
-    .map(({ title, href }) => ({ title, href }));
+    .map(({ labelKey, href }) => ({ labelKey, href }));
 }
 
 const settingsNavItem: NavItem = {
-  title: "Ajustes",
+  labelKey: "nav.settings",
   href: "/settings",
   icon: "settings",
   permission: "dashboard:read",
-  badge: "Nuevo",
 };
 
 export function getMainNavigationForRole(role: AppUserRole): NavItem[] {
-  return mainNavItems.filter((item) => hasPermission(role, item.permission));
+  const items = mainNavItems.filter((item) =>
+    hasPermission(role, item.permission),
+  );
+  if (hasPermission(role, "finance:read")) {
+    items.push(financeNavItem);
+  }
+  return items;
 }
 
 export function getSettingsNavItem(role: AppUserRole): NavItem | null {

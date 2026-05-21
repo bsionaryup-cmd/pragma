@@ -10,6 +10,7 @@ import {
   type ReservationCreateInitialValues,
   type ReservationDrawerMode,
 } from "@/features/reservations/components/reservation-drawer";
+import { useI18n } from "@/components/providers/i18n-provider";
 import type {
   PropertyOption,
   ReservationInboxItem,
@@ -32,6 +33,7 @@ export function ReservationsInbox({
   initialSelectedId = null,
   initialCreateValues,
 }: ReservationsInboxProps) {
+  const { t } = useI18n();
   const router = useRouter();
   const [pendingReservations, setPendingReservations] = useState<
     ReservationInboxItem[]
@@ -101,11 +103,11 @@ export function ReservationsInbox({
         <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-white dark:bg-background">
           <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold tracking-tight">
-                Reservas y Huéspedes
+              <h2 className="font-heading text-base font-semibold tracking-tight">
+                {t("reservations.moduleTitle")}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {reservations.length} en total
+                {t("reservations.total", { count: reservations.length })}
               </p>
             </div>
             <button
@@ -150,7 +152,7 @@ export function ReservationsInbox({
 
           {/* Listado con scroll — el footer queda fuera */}
           <div
-            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain"
             style={canWrite ? { paddingBottom: 4 } : undefined}
           >
             {filtered.length === 0 ? (
