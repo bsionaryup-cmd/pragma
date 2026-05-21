@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, CircleDollarSign, Receipt, TrendingUp, Wallet } from "lucide-react";
+import { Receipt, TrendingUp, Wallet } from "lucide-react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { KpiCard } from "@/components/ui/kpi-card";
@@ -15,10 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPanelDate } from "@/lib/helpers/date";
+import { ManualFinanceForms } from "@/components/finance/manual-finance-forms";
 import type { FinanceOverview } from "@/services/finance/finance.service";
 
 type FinanceViewProps = {
   data: FinanceOverview;
+  canWrite?: boolean;
 };
 
 function ComparisonRow({
@@ -47,7 +49,7 @@ function ComparisonRow({
   );
 }
 
-export function FinanceView({ data }: FinanceViewProps) {
+export function FinanceView({ data, canWrite = false }: FinanceViewProps) {
   const { t } = useI18n();
   const { kpis, comparison, profitability, topProperties } = data;
 
@@ -60,7 +62,7 @@ export function FinanceView({ data }: FinanceViewProps) {
           description={t("finance.description")}
         />
 
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <KpiCard
             label={t("finance.kpi.revenue")}
             value={kpis.revenueFormatted}
@@ -75,16 +77,6 @@ export function FinanceView({ data }: FinanceViewProps) {
             label={t("finance.kpi.netProfit")}
             value={kpis.netProfitFormatted}
             icon={Wallet}
-          />
-          <KpiCard
-            label={t("finance.kpi.pendingIncome")}
-            value={kpis.pendingIncomeFormatted}
-            icon={CircleDollarSign}
-          />
-          <KpiCard
-            label={t("finance.kpi.outstanding")}
-            value={kpis.outstandingFormatted}
-            icon={Building2}
           />
         </section>
 
@@ -263,6 +255,12 @@ export function FinanceView({ data }: FinanceViewProps) {
             </Table>
           </div>
         </SectionCard>
+
+        {canWrite ? (
+          <div className="mt-8">
+            <ManualFinanceForms />
+          </div>
+        ) : null}
       </div>
     </ModuleShellFlow>
   );

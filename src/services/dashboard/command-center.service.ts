@@ -23,14 +23,24 @@ export type CommandCenterKpis = {
   occupancyCurrent: number;
   occupancyMonthly: number;
   occupancyTrend: number;
-  guestsCurrent: number;
-  guestsCapacity: number;
-  activeReservations: number;
   monthlyRevenue: number;
   monthlyRevenueFormatted: string;
   revenueTrend: number;
+  monthlyExpenses: number;
+  monthlyExpensesFormatted: string;
+  expenseTrend: number;
+  netFlow: number;
+  netFlowFormatted: string;
+  netFlowTrend: number;
   criticalAlerts: number;
   automationActive: boolean;
+};
+
+export type CommandCenterTrendPoint = {
+  label: string;
+  revenue: number;
+  expenses: number;
+  net: number;
 };
 
 export type OperationalSummary = {
@@ -59,6 +69,7 @@ export type ActivityItem = {
 
 export type CommandCenterData = {
   kpis: CommandCenterKpis;
+  trendPoints: CommandCenterTrendPoint[];
   operational: OperationalSummary;
   alerts: DashboardAlert[];
   activity: ActivityItem[];
@@ -197,7 +208,10 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         checkIn: { lte: end },
         checkOut: { gte: start },
       }),
-      select: { totalAmount: true },
+      select: {
+        totalAmount: true,
+        property: { select: { cleaningFee: true } },
+      },
     }),
     db.reservation.findMany({
       where: withVisibleReservationsFilter({
@@ -207,7 +221,10 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         checkIn: { lte: prevEnd },
         checkOut: { gte: prevStart },
       }),
-      select: { totalAmount: true },
+      select: {
+        totalAmount: true,
+        property: { select: { cleaningFee: true } },
+      },
     }),
     db.reservation.findMany({
       orderBy: { createdAt: "desc" },
@@ -276,7 +293,41 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     prevMonthlyRevenue > 0
       ? Math.round(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100)
       : 0;
+
+  const monthlyExpenses = monthReservations.reduce(
+    (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
+    0,
+  );
+  const prevMonthlyExpenses = prevMonthReservations.reduce(
+    (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
+    0,
+  );
+  const expenseTrend =
+    prevMonthlyExpenses > 0
+      ? Math.round(((monthlyExpenses - prevMonthlyExpenses) / prevMonthlyExpenses) * 100)
+      : 0;
+  const netFlow = monthlyRevenue - monthlyExpenses;
+  const prevNetFlow = prevMonthlyRevenue - prevMonthlyExpenses;
+  const netFlowTrend =
+    prevNetFlow !== 0
+      ? Math.round(((netFlow - prevNetFlow) / Math.abs(prevNetFlow)) * 100)
+      : 0;
   const occupancyTrend = occupancyMonthly - occupancyMonthlyPrev;
+
+  const trendPoints: CommandCenterTrendPoint[] = [
+    {
+      label: "Mes ant.",
+      revenue: prevMonthlyRevenue,
+      expenses: prevMonthlyExpenses,
+      net: prevNetFlow,
+    },
+    {
+      label: "Actual",
+      revenue: monthlyRevenue,
+      expenses: monthlyExpenses,
+      net: netFlow,
+    },
+  ];
 
   const alerts: DashboardAlert[] = [];
   if (pendingCleaning > 0) {
@@ -322,15 +373,19 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       occupancyCurrent,
       occupancyMonthly,
       occupancyTrend,
-      guestsCurrent,
-      guestsCapacity: guestsCapacity || guestsCurrent || 0,
-      activeReservations: activeReservationCount,
       monthlyRevenue,
       monthlyRevenueFormatted: formatMoney(monthlyRevenue, undefined, locale),
       revenueTrend,
+      monthlyExpenses,
+      monthlyExpensesFormatted: formatMoney(monthlyExpenses, undefined, locale),
+      expenseTrend,
+      netFlow,
+      netFlowFormatted: formatMoney(netFlow, undefined, locale),
+      netFlowTrend,
       criticalAlerts: alerts.filter((a) => a.severity === "critical").length,
       automationActive: ttlockConnected > 0,
     },
+    trendPoints,
     operational: {
       upcomingCheckIns: counts.arrivals,
       upcomingCheckOuts: counts.departures,

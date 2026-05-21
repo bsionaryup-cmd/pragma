@@ -1,4 +1,5 @@
 import { SignIn } from "@clerk/nextjs";
+import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
 
 type SignInPageProps = {
   searchParams: Promise<{ session_reset?: string; clerk_unavailable?: string }>;
@@ -10,15 +11,30 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     params.session_reset === "1" || params.clerk_unavailable === "1";
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-4">
-      {showRecoveryHint ? (
-        <p className="max-w-sm text-center text-sm text-muted-foreground">
-          La sesión anterior no pudo renovarse. Inicia sesión de nuevo. Si el
-          error continúa, desactiva bloqueadores en este sitio o usa otro
-          navegador.
-        </p>
-      ) : null}
-      <SignIn forceRedirectUrl="/panel" signUpForceRedirectUrl="/panel" />
-    </div>
+    <PragmaAuthLayout
+      hint={
+        showRecoveryHint ? (
+          <p className="mb-4 max-w-sm text-center text-sm text-muted-foreground">
+            La sesión anterior no pudo renovarse. Inicia sesión de nuevo.
+          </p>
+        ) : null
+      }
+    >
+      <SignIn
+        forceRedirectUrl="/panel"
+        signUpForceRedirectUrl="/panel"
+        appearance={{
+          elements: {
+            rootBox: "w-full",
+            card: "shadow-none border-0 p-0 bg-transparent",
+            headerTitle: "font-heading text-xl",
+            formButtonPrimary:
+              "bg-pragma-electric hover:bg-pragma-electric/90 text-sm font-semibold",
+            formFieldInput: "rounded-xl",
+            footerActionLink: "text-pragma-electric",
+          },
+        }}
+      />
+    </PragmaAuthLayout>
   );
 }

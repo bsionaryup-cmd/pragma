@@ -6,12 +6,14 @@ export type Permission =
   | "properties:write"
   | "reservations:read"
   | "reservations:write"
+  | "reservations:delete"
   | "tasks:read"
   | "tasks:write"
   | "calendar:read"
   | "users:read"
   | "users:write"
   | "finance:read"
+  | "finance:write"
   | "integrations:read"
   | "integrations:manage";
 
@@ -22,19 +24,20 @@ const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
     "properties:write",
     "reservations:read",
     "reservations:write",
+    "reservations:delete",
     "tasks:read",
     "tasks:write",
     "calendar:read",
     "users:read",
     "users:write",
     "finance:read",
+    "finance:write",
     "integrations:read",
     "integrations:manage",
   ],
-  OPERATIONS: [
+  RECEPTIONIST: [
     "dashboard:read",
     "properties:read",
-    "properties:write",
     "reservations:read",
     "reservations:write",
     "tasks:read",
@@ -49,7 +52,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/properties": "properties:read",
   "/reservations": "reservations:read",
   "/inbox": "reservations:read",
-  "/integrations": "properties:read",
+  "/integrations": "integrations:read",
+  "/integrations/sire": "integrations:manage",
+  "/integrations/traa": "integrations:manage",
   "/integrations/ttlock": "integrations:read",
   "/integrations/ttlock/connect": "integrations:manage",
   "/settings": "dashboard:read",
@@ -78,4 +83,8 @@ export function getRequiredPermissionForPath(pathname: string): Permission | nul
     );
 
   return match?.[1] ?? null;
+}
+
+export function roleLabel(role: AppUserRole): string {
+  return role === "ADMIN" ? "Administrador" : "Recepcionista";
 }

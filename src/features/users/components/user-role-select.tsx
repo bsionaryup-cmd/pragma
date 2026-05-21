@@ -13,8 +13,8 @@ import { updateUserRoleAction } from "@/features/users/actions/user.actions";
 import { UserRole } from "@prisma/client";
 
 const roleLabels: Record<UserRole, string> = {
-  ADMIN: "Admin",
-  OPERATIONS: "Operaciones",
+  ADMIN: "Administrador",
+  RECEPTIONIST: "Recepcionista",
 };
 
 export function UserRoleSelect({

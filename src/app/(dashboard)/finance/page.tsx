@@ -19,5 +19,7 @@ export default async function FinancePage() {
   const locale = await getServerLocale();
   const data = await getFinanceOverview(locale);
 
-  return <FinanceView data={data} />;
+  const canWrite = hasPermission(user.role, "finance:write");
+
+  return <FinanceView data={data} canWrite={canWrite} />;
 }

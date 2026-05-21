@@ -130,19 +130,39 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
     ]);
 
-  const revenue = currentReservations.reduce(
-    (sum, r) => sum + Number(r.totalAmount),
+  const [manualExpenses, manualIncomes] = await Promise.all([
+    db.manualExpense.findMany({
+      where: { expenseDate: { gte: start, lte: end } },
+      select: { id: true, amount: true, category: true, expenseDate: true },
+    }),
+    db.otherIncome.findMany({
+      where: { incomeDate: { gte: start, lte: end } },
+      select: { amount: true, incomeType: true, incomeDate: true },
+    }),
+  ]);
+
+  const manualExpenseTotal = manualExpenses.reduce(
+    (sum, row) => sum + Number(row.amount),
     0,
   );
+  const manualIncomeTotal = manualIncomes.reduce(
+    (sum, row) => sum + Number(row.amount),
+    0,
+  );
+
+  const revenue =
+    currentReservations.reduce((sum, r) => sum + Number(r.totalAmount), 0) +
+    manualIncomeTotal;
   const prevRevenue = previousReservations.reduce(
     (sum, r) => sum + Number(r.totalAmount),
     0,
   );
 
-  const expenses = currentReservations.reduce((sum, r) => {
-    const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
-    return sum + fee;
-  }, 0);
+  const expenses =
+    currentReservations.reduce((sum, r) => {
+      const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
+      return sum + fee;
+    }, 0) + manualExpenseTotal;
   const prevExpenses = previousReservations.reduce((sum, r) => {
     const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
     return sum + fee;
@@ -150,21 +170,6 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
 
   const netProfit = revenue - expenses;
   const prevProfit = prevRevenue - prevExpenses;
-
-  const pendingReservations = await db.reservation.count({
-    where: withVisibleReservationsFilter({
-      status: ReservationStatus.CONFIRMED,
-      checkIn: { gt: end },
-    }),
-  });
-
-  const pendingIncome = await db.reservation.aggregate({
-    where: withVisibleReservationsFilter({
-      status: ReservationStatus.CONFIRMED,
-      checkIn: { gt: end },
-    }),
-    _sum: { totalAmount: true },
-  });
 
   const revenueFlow: RevenueFlowRow[] = currentReservations
     .slice(0, 12)
@@ -178,18 +183,33 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       status: "confirmed" as const,
     }));
 
-  const expenseFlow: ExpenseFlowRow[] = currentReservations
-    .filter((r) => r.property.cleaningFee)
-    .slice(0, 12)
-    .map((r) => ({
-      id: `exp-${r.id}`,
-      category: "Limpieza",
-      amount: Number(r.property.cleaningFee),
-      amountFormatted: formatMoney(Number(r.property.cleaningFee), undefined, locale),
-      date: r.checkIn.toISOString(),
-      propertyName: r.property.name,
-      responsible: "Operaciones",
-    }));
+  const expenseFlow: ExpenseFlowRow[] = [
+    ...currentReservations
+      .filter((r) => r.property.cleaningFee)
+      .slice(0, 8)
+      .map((r) => ({
+        id: `exp-${r.id}`,
+        category: "Limpieza",
+        amount: Number(r.property.cleaningFee),
+        amountFormatted: formatMoney(
+          Number(r.property.cleaningFee),
+          undefined,
+          locale,
+        ),
+        date: r.checkIn.toISOString(),
+        propertyName: r.property.name,
+        responsible: "Reserva",
+      })),
+    ...manualExpenses.slice(0, 8).map((row) => ({
+      id: row.id,
+      category: row.category,
+      amount: Number(row.amount),
+      amountFormatted: formatMoney(Number(row.amount), undefined, locale),
+      date: row.expenseDate.toISOString(),
+      propertyName: "Manual",
+      responsible: "Finanzas",
+    })),
+  ];
 
   const byProperty = new Map<
     string,
@@ -229,9 +249,7 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   const margin = revenue > 0 ? clampPercent((netProfit / revenue) * 100) : 0;
   const roi = expenses > 0 ? clampPercent((netProfit / expenses) * 100) : 0;
 
-  const forecast = Math.round(revenue * 1.08 + pendingReservations * 0);
-
-  const pendingSum = Number(pendingIncome._sum.totalAmount ?? 0);
+  const forecast = Math.round(revenue * 1.08);
 
   return {
     kpis: {
@@ -241,8 +259,8 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       expensesFormatted: formatMoney(expenses, undefined, locale),
       netProfit,
       netProfitFormatted: formatMoney(netProfit, undefined, locale),
-      pendingIncome: pendingSum,
-      pendingIncomeFormatted: formatMoney(pendingSum, undefined, locale),
+      pendingIncome: 0,
+      pendingIncomeFormatted: formatMoney(0, undefined, locale),
       outstanding: 0,
       outstandingFormatted: formatMoney(0, undefined, locale),
     },

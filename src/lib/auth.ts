@@ -1,4 +1,5 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
+import { headers } from "next/headers";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { cache } from "react";
 import { redirect } from "next/navigation";
@@ -10,6 +11,7 @@ import {
   syncClerkPublicMetadata,
   upsertUserFromClerk,
 } from "@/services/users/user.service";
+import { recordLoginActivity } from "@/services/users/login-activity.service";
 import type { AppUserRole, AuthContext, SessionUser } from "@/types/auth";
 import {
   hasPermission,
@@ -107,6 +109,17 @@ export const requireDbUser = cache(async (): Promise<User> => {
     }
 
     if (shouldTouchLastLogin(dbUser.lastLoginAt)) {
+      const headerStore = await headers();
+      const forwarded = headerStore.get("x-forwarded-for");
+      const ip =
+        forwarded?.split(",")[0]?.trim() ||
+        headerStore.get("x-real-ip") ||
+        null;
+      await recordLoginActivity({
+        userId: dbUser.id,
+        ipAddress: ip,
+        userAgent: headerStore.get("user-agent"),
+      });
       return db.user.update({
         where: { id: dbUser.id },
         data: { lastLoginAt: new Date() },

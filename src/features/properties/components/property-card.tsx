@@ -27,7 +27,7 @@ export function PropertyCard({
       type="button"
       onClick={onSelect}
       className={cn(
-        "group flex w-full items-center gap-3 rounded-xl border border-[#E9ECEF] bg-white px-3 py-2.5 text-left shadow-pragma-soft transition-colors duration-150",
+        "group flex w-full items-center gap-4 rounded-xl border border-[#E9ECEF] bg-white px-4 py-3.5 text-left shadow-pragma-soft transition-colors duration-150",
         "hover:border-[#0E9F8D]/30 hover:bg-[#FAFBFC]",
         isSelected && "ring-2 ring-[#0E9F8D]/30",
       )}
@@ -36,7 +36,7 @@ export function PropertyCard({
         id={property.id}
         name={property.name}
         coverImageUrl={property.coverImageUrl}
-        className="h-20 w-28 shrink-0 rounded-lg"
+        className="h-[4.5rem] w-[5.5rem] shrink-0 rounded-lg"
       />
 
       <div className="min-w-0 flex-1">

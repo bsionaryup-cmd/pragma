@@ -13,7 +13,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 
 async function resolveRoleForNewUser(): Promise<UserRole> {
   const count = await db.user.count();
-  return count === 0 ? "ADMIN" : "OPERATIONS";
+  return count === 0 ? "ADMIN" : "RECEPTIONIST";
 }
 
 function mapWebhookToPayload(data: ClerkWebhookUserData): ClerkUserPayload {

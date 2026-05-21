@@ -50,7 +50,7 @@ const mainNavItems: NavItem[] = [
     labelKey: "nav.integrations",
     href: "/integrations",
     icon: "ribbon",
-    permission: "properties:read",
+    permission: "integrations:read",
   },
   {
     labelKey: "nav.messages",
@@ -76,6 +76,13 @@ export const secondaryRouteLinks: Pick<NavItem, "labelKey" | "href" | "permissio
     },
   ];
 
+const usersNavItem: NavItem = {
+  labelKey: "nav.users",
+  href: "/users",
+  icon: "clipboard-list",
+  permission: "users:read",
+};
+
 export function getSecondaryRouteLinksForRole(
   role: AppUserRole,
 ): Pick<NavItem, "labelKey" | "href">[] {
@@ -97,6 +104,9 @@ export function getMainNavigationForRole(role: AppUserRole): NavItem[] {
   );
   if (hasPermission(role, "finance:read")) {
     items.push(financeNavItem);
+  }
+  if (hasPermission(role, "users:read")) {
+    items.push(usersNavItem);
   }
   return items;
 }

@@ -21,6 +21,7 @@ export default async function ReservationsPage({
   const auth = await requirePermission("reservations:read");
   const params = await searchParams;
   const canWrite = hasPermission(auth.role as AppUserRole, "reservations:write");
+  const canDelete = hasPermission(auth.role as AppUserRole, "reservations:delete");
 
   const [reservations, properties] = await Promise.all([
     listReservationsForInbox(),
@@ -39,6 +40,7 @@ export default async function ReservationsPage({
         initialReservations={reservations}
         properties={properties}
         canWrite={canWrite}
+        canDelete={canDelete}
         openCreateOnMount={params.create === "true" && canWrite}
         initialSelectedId={validReservationId}
         initialCreateValues={

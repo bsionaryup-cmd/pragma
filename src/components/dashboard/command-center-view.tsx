@@ -8,14 +8,16 @@ import {
   Bell,
   CalendarCheck,
   CalendarX,
-  ClipboardList,
   KeyRound,
   Percent,
+  Receipt,
   Sparkles,
   SprayCan,
   TrendingUp,
+  Wallet,
   Zap,
 } from "lucide-react";
+import { DashboardTrendChart } from "@/components/dashboard/dashboard-trend-chart";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { FirstPropertyBanner } from "@/components/dashboard/first-property-banner";
 import { PanelReservationsTable } from "@/components/dashboard/panel-reservations-table";
@@ -25,6 +27,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatPanelDate } from "@/lib/helpers/date";
+import { formatMoney } from "@/lib/format-currency";
 import type { CommandCenterData } from "@/services/dashboard/command-center.service";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +72,8 @@ export function CommandCenterView({
 
   const occupancyTrend = trendLabel(kpis.occupancyTrend, t);
   const revenueTrend = trendLabel(kpis.revenueTrend, t);
+  const expenseTrend = trendLabel(kpis.expenseTrend, t);
+  const netTrend = trendLabel(kpis.netFlowTrend, t);
 
   const tabs: { id: PanelTab; labelKey: "checkIns" | "checkOuts" | "active"; countKey: keyof typeof data.counts }[] = [
     { id: "arrivals", labelKey: "checkIns", countKey: "arrivals" },
@@ -133,34 +138,14 @@ export function CommandCenterView({
           }
         />
 
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label={t("dashboard.kpi.occupancy")}
-            value={`${kpis.occupancyCurrent}%`}
-            detail={t("dashboard.kpiDetail.occupancyCurrent", {
-              value: kpis.occupancyCurrent,
-              month: kpis.occupancyMonthly,
-            })}
+            value={`${kpis.occupancyMonthly}%`}
+            detail={`Actual ${kpis.occupancyCurrent}% · mes ${kpis.occupancyMonthly}%`}
             icon={Percent}
             trend={occupancyTrend.trend}
             trendLabel={occupancyTrend.label}
-          />
-          <KpiCard
-            label={t("dashboard.kpi.guestsHosted")}
-            value={`${kpis.guestsCurrent}/${kpis.guestsCapacity}`}
-            detail={t("dashboard.kpiDetail.guestsRatio", {
-              current: kpis.guestsCurrent,
-              capacity: kpis.guestsCapacity,
-            })}
-            icon={BedDouble}
-          />
-          <KpiCard
-            label={t("dashboard.kpi.activeReservations")}
-            value={String(kpis.activeReservations)}
-            detail={t("dashboard.kpiDetail.reservations", {
-              count: kpis.activeReservations,
-            })}
-            icon={ClipboardList}
           />
           <KpiCard
             label={t("dashboard.kpi.monthlyRevenue")}
@@ -173,24 +158,50 @@ export function CommandCenterView({
             trendLabel={revenueTrend.label}
           />
           <KpiCard
-            label={t("dashboard.kpi.criticalAlerts")}
-            value={String(alerts.length)}
-            detail={
-              alerts.length > 0
-                ? t("dashboard.kpiDetail.alerts", { count: alerts.length })
-                : t("dashboard.alerts.none")
-            }
-            icon={AlertTriangle}
+            label="Egresos del mes"
+            value={kpis.monthlyExpensesFormatted}
+            detail="Limpieza y gastos operativos base"
+            icon={Receipt}
+            trend={expenseTrend.trend}
+            trendLabel={expenseTrend.label}
           />
           <KpiCard
-            label={t("dashboard.kpi.automation")}
-            value={kpis.automationActive ? t("common.live") : t("common.soon")}
-            detail={
-              kpis.automationActive
-                ? t("dashboard.kpiDetail.automationOn")
-                : t("dashboard.kpiDetail.automationOff")
-            }
-            icon={Zap}
+            label="Flujo neto"
+            value={kpis.netFlowFormatted}
+            detail="Ingresos − egresos (mes actual)"
+            icon={Wallet}
+            trend={netTrend.trend}
+            trendLabel={netTrend.label}
+          />
+        </section>
+
+        <section className="mb-6 grid gap-4 lg:grid-cols-3">
+          <DashboardTrendChart
+            title="Ingresos"
+            accentClass="bg-pragma-electric"
+            bars={data.trendPoints.map((p) => ({
+              label: p.label,
+              value: p.revenue,
+              formatted: formatMoney(p.revenue),
+            }))}
+          />
+          <DashboardTrendChart
+            title="Egresos"
+            accentClass="bg-pragma-mid-gray"
+            bars={data.trendPoints.map((p) => ({
+              label: p.label,
+              value: p.expenses,
+              formatted: formatMoney(p.expenses),
+            }))}
+          />
+          <DashboardTrendChart
+            title="Flujo neto"
+            accentClass="bg-primary"
+            bars={data.trendPoints.map((p) => ({
+              label: p.label,
+              value: Math.max(0, p.net),
+              formatted: formatMoney(p.net),
+            }))}
           />
         </section>
 

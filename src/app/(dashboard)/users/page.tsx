@@ -14,15 +14,20 @@ import { UserRoleSelect } from "@/features/users/components/user-role-select";
 import { requirePermission } from "@/lib/auth";
 import { formatDate } from "@/lib/helpers/date";
 import { listUsers } from "@/services/users/user.service";
+import { listRecentLoginActivities } from "@/services/users/login-activity.service";
+import { roleLabel } from "@/lib/auth/permissions";
 
 const roleBadgeVariant = {
   ADMIN: "default" as const,
-  OPERATIONS: "secondary" as const,
+  RECEPTIONIST: "secondary" as const,
 };
 
 export default async function UsersPage() {
   const current = await requirePermission("users:read");
-  const users = await listUsers();
+  const [users, loginActivity] = await Promise.all([
+    listUsers(),
+    listRecentLoginActivities(40),
+  ]);
 
   return (
     <ModuleShellFlow className="bg-background">
@@ -86,6 +91,56 @@ export default async function UsersPage() {
             </TableBody>
           </Table>
         </div>
+
+        <section className="mt-10 space-y-3">
+          <h2 className="text-lg font-semibold">Actividad de inicio de sesión</h2>
+          <p className="text-sm text-muted-foreground">
+            Últimos accesos, más recientes primero.
+          </p>
+          <div className="rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Dispositivo</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Fecha</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loginActivity.map((entry) => {
+                  const name =
+                    [entry.user.firstName, entry.user.lastName]
+                      .filter(Boolean)
+                      .join(" ") || entry.user.email;
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        <p className="font-medium">{name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {roleLabel(entry.user.role)}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {entry.deviceLabel ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {entry.ipAddress ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{entry.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(entry.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
       </main>
     </ModuleShellFlow>
   );

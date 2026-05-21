@@ -6,7 +6,6 @@ import {
   type ResolvedTheme,
   useTheme,
 } from "@/components/providers/theme-provider";
-import { ThemeModeButton } from "@/components/layout/theme-mode-button";
 import { cn } from "@/lib/utils";
 
 type ThemedMainContentProps = {
@@ -50,11 +49,6 @@ export function ThemedMainContent({
         {children}
       </div>
 
-      <div className="pointer-events-none absolute right-4 bottom-4 z-40">
-        <div className="pointer-events-auto">
-          <ThemeModeButton />
-        </div>
-      </div>
     </div>
   );
 }

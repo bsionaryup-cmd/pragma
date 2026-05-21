@@ -134,7 +134,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
         select: { id: true, name: true, address: true, city: true },
       },
     },
-    orderBy: [{ checkIn: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ createdAt: "desc" }, { checkIn: "desc" }],
   });
 
   const ids = rows.map((row) => row.id);

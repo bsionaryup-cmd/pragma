@@ -19,15 +19,22 @@ model User {
   firstName   String?
   lastName    String?
   imageUrl    String?
-  role        UserRole  @default(OPERATIONS)
+  role        UserRole  @default(RECEPTIONIST)
   isActive    Boolean   @default(true)
+  locale      String    @default("es")
+  theme       String    @default("system")
+  timezone    String    @default("America/Bogota")
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  properties    Property[]
-  assignedTasks Task[] @relation("TaskAssignee")
-  ttlockIntegrations TTLockIntegration[]
+  properties           Property[]
+  assignedTasks        Task[]                 @relation("TaskAssignee")
+  ttlockIntegrations   TTLockIntegration[]
+  loginActivities      LoginActivity[]
+  manualExpenses       ManualExpense[]        @relation("ManualExpenseCreator")
+  otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
+  externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
 
   @@index([role, isActive])
   @@map("users")
@@ -35,7 +42,27 @@ model User {
 
 enum UserRole {
   ADMIN
-  OPERATIONS
+  RECEPTIONIST
+}
+
+model LoginActivity {
+  id          String              @id @default(cuid())
+  userId      String
+  ipAddress   String?
+  userAgent   String?
+  deviceLabel String?
+  status      LoginActivityStatus @default(SUCCESS)
+  createdAt   DateTime            @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("login_activities")
+}
+
+enum LoginActivityStatus {
+  SUCCESS
+  FAILED
 }
 
 // ─── Property ─────────────────────────────────────────────────
@@ -55,7 +82,7 @@ model Property {
   beds               Int            @default(1)
   bathrooms          Decimal        @db.Decimal(3, 1)
   checkInTime        String?        @default("15:00")
-  checkOutTime       String?        @default("11:00")
+  checkOutTime       String?        @default("13:00")
   accessCode         String?
   accessInstructions String?
   wifiName           String?
@@ -117,6 +144,8 @@ model Reservation {
   checkOut                     DateTime          @db.Date
   platform                     BookingPlatform
   status                       ReservationStatus @default(CONFIRMED)
+  paymentStatus                PaymentStatus     @default(PAID)
+  reservationCode              String?
   totalAmount                  Decimal           @db.Decimal(12, 2)
   currency                     String            @default("COP")
   internalNotes                String?
@@ -369,6 +398,94 @@ enum ReservationStatus {
   CHECKED_OUT
   CANCELLED
   BLOCKED
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+// ─── Finance (manual records) ─────────────────────────────────
+
+enum ManualPaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+  OTHER
+}
+
+model ManualExpense {
+  id            String              @id @default(cuid())
+  createdById   String
+  category      String
+  amount        Decimal             @db.Decimal(12, 2)
+  currency      String              @default("COP")
+  paymentMethod ManualPaymentMethod
+  expenseDate   DateTime            @db.Date
+  description   String?
+  attachmentUrl String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  createdBy User @relation("ManualExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([expenseDate])
+  @@index([createdById])
+  @@map("manual_expenses")
+}
+
+model OtherIncome {
+  id          String   @id @default(cuid())
+  createdById String
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("COP")
+  incomeType  String
+  incomeDate  DateTime @db.Date
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User @relation("OtherIncomeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([incomeDate])
+  @@index([createdById])
+  @@map("other_incomes")
+}
+
+// ─── Government integrations (SIRE / TRAA) ────────────────────
+
+enum ExternalIntegrationProvider {
+  SIRE
+  TRAA
+}
+
+enum ExternalIntegrationStatus {
+  NOT_CONNECTED
+  PENDING_SETUP
+  CONNECTED
+  ERROR
+}
+
+model ExternalIntegration {
+  id                    String                      @id @default(cuid())
+  provider              ExternalIntegrationProvider @unique
+  apiKeyEncrypted       String?
+  tokenEncrypted        String?
+  clientId              String?
+  clientSecretEncrypted String?
+  callbackUrl           String?
+  status                ExternalIntegrationStatus @default(NOT_CONNECTED)
+  lastError             String?
+  lastTestedAt          DateTime?
+  configuredById        String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  configuredBy User? @relation("ExternalIntegrationConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+
+  @@map("external_integrations")
 }
 
 // ─── Task ─────────────────────────────────────────────────────

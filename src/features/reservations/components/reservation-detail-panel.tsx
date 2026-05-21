@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 type ReservationDetailPanelProps = {
   reservation: ReservationDetailItem;
   canWrite: boolean;
+  canDelete?: boolean;
   onDeleted: (id: string) => void;
   onClose: () => void;
   /** false en calendario: no refrescar la página al eliminar */
@@ -98,6 +99,7 @@ function formatDateTime(iso: string | null | undefined): string {
 export function ReservationDetailPanel({
   reservation,
   canWrite,
+  canDelete = false,
   onDeleted,
   onClose,
   refreshAfterDelete = true,
@@ -198,6 +200,26 @@ export function ReservationDetailPanel({
           <DetailRow label="País" value={reservation.guestCountry} />
           <DetailRow label="Idioma" value={reservation.guestLanguage} />
         </DetailSection>
+
+        {registeredGuests.length > 0 ? (
+          <DetailSection title="Registro completado">
+            <div className="grid gap-2 sm:grid-cols-2">
+              {registeredGuests.map((guest) => (
+                <div
+                  key={guest.id}
+                  className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-2.5"
+                >
+                  <p className="text-sm font-semibold text-foreground">
+                    {guest.firstName} {guest.lastName}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {guest.documentType} · {guest.documentNumber}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </DetailSection>
+        ) : null}
 
         <DetailSection title="Reserva">
           <DetailRow label="Propiedad" value={reservation.property.name} />
@@ -377,7 +399,7 @@ export function ReservationDetailPanel({
         ) : null}
       </div>
 
-      {canWrite ? (
+      {canDelete ? (
         <div className="shrink-0 border-t border-border p-4">
           <Button
             variant="destructive"

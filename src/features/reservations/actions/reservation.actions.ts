@@ -88,7 +88,7 @@ export async function getReservationInboxItemAction(id: string) {
 }
 
 export async function deleteReservationAction(id: string) {
-  await requirePermission("reservations:write");
+  await requirePermission("reservations:delete");
   await deleteReservation(id);
   revalidatePath("/reservations");
   revalidatePath("/calendar");

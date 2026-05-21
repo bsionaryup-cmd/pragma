@@ -1,4 +1,6 @@
-const DEFAULT_TIMEZONE = "America/Bogota";
+import { PRAGMA_TIMEZONE } from "@/lib/timezone";
+
+const DEFAULT_TIMEZONE = PRAGMA_TIMEZONE;
 
 export function formatDate(
   date: Date | string,

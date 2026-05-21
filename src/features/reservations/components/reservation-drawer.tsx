@@ -30,6 +30,7 @@ type ReservationDrawerProps = {
   reservation: ReservationDetailItem | null;
   properties: PropertyOption[];
   canWrite: boolean;
+  canDelete?: boolean;
   initialCreateValues?: ReservationCreateInitialValues;
   onClose: () => void;
   onCreated: (reservation: ReservationInboxItem) => void;
@@ -44,6 +45,7 @@ export function ReservationDrawer({
   reservation,
   properties,
   canWrite,
+  canDelete = false,
   initialCreateValues,
   onClose,
   onCreated,
@@ -87,6 +89,7 @@ export function ReservationDrawer({
             <ReservationDetailPanel
               reservation={reservation}
               canWrite={canWrite}
+              canDelete={canDelete}
               onDeleted={onDeleted}
               onClose={onClose}
               refreshAfterDelete={refreshAfterDelete}

@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
-import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { NavIcon } from "@/components/layout/nav-icon";
-import {
-  SidebarUserProfile,
-  type SidebarUser,
-} from "@/components/layout/sidebar-user-profile";
+import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu";
+import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { APP_NAME } from "@/lib/constants";
@@ -165,8 +162,6 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
           collapsed ? "px-2" : "px-3",
         )}
       >
-        <LanguageSwitcher collapsed={collapsed} />
-
         {settingsItem ? (
           <SidebarNavLink
             item={settingsItem}
@@ -176,7 +171,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
           />
         ) : null}
 
-        <SidebarUserProfile user={user} collapsed={collapsed} />
+        <SidebarUserMenu user={user} collapsed={collapsed} />
       </div>
     </aside>
   );
