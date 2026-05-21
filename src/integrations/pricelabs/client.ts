@@ -42,10 +42,10 @@ function normalizeErrorMessage(payload: unknown, status: number): string {
   }
   const record = payload as Record<string, unknown>;
   const message =
-    (typeof record.message === "string" && record.message) ||
-    (typeof record.error === "string" && record.error) ||
-    (typeof record.errmsg === "string" && record.errmsg) ||
-    (typeof record.detail === "string" && record.detail);
+    (typeof record.message === "string" ? record.message : null) ||
+    (typeof record.error === "string" ? record.error : null) ||
+    (typeof record.errmsg === "string" ? record.errmsg : null) ||
+    (typeof record.detail === "string" ? record.detail : null);
   const code =
     typeof record.code === "string"
       ? record.code
