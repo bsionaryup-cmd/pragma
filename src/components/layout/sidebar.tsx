@@ -8,7 +8,7 @@ import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
 import { useI18n } from "@/components/providers/i18n-provider";
-import { APP_NAME } from "@/lib/constants";
+import { PragmaLogo } from "@/components/brand/pragma-logo";
 import type { NavItem } from "@/lib/navigation";
 import { isNavPathActive } from "@/lib/navigation-active";
 import { cn } from "@/lib/utils";
@@ -73,18 +73,28 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
 
   if (collapsed) {
     return (
-      <span className="font-accent flex h-9 w-9 items-center justify-center rounded-xl bg-pragma-gradient text-sm font-bold text-white">
-        {APP_NAME.charAt(0)}
-      </span>
+      <PragmaLogo
+        variant="symbol"
+        symbolClassName="h-9 w-9"
+        className="mx-auto"
+      />
     );
   }
 
   return (
-    <div>
-      <p className="font-accent text-lg font-bold tracking-tight text-pragma-black dark:text-foreground">
-        {APP_NAME}
-      </p>
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray">
+    <div className="min-w-0">
+      <PragmaLogo
+        variant="full"
+        fullClassName="max-h-9 max-w-[140px]"
+        className="dark:hidden"
+      />
+      <div className="hidden items-center gap-2.5 dark:flex">
+        <PragmaLogo variant="symbol" symbolClassName="h-8 w-8 shrink-0" />
+        <span className="font-accent text-sm font-bold tracking-[0.14em] text-foreground">
+          PRAGMA
+        </span>
+      </div>
+      <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
         {t("nav.hostCommandCenter")}
       </p>
     </div>

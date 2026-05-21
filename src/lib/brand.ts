@@ -1,13 +1,15 @@
 /** PRAGMA Brand Book — tokens y copy base */
 
 export const BRAND = {
+  name: "PRAGMA",
+  productName: "PRAGMA PMS",
   colors: {
-    cyan: "#14E4C8",
-    aqua: "#10C8F8",
-    electricBlue: "#0B6BFF",
-    black: "#0A0A0A",
+    cyan: "#00F5A0",
+    aqua: "#00D9FF",
+    electricBlue: "#0066FF",
+    black: "#050A18",
     white: "#FFFFFF",
-    darkNavy: "#081626",
+    darkNavy: "#050A18",
     midBlue: "#2F7BFF",
     softCyan: "#D8FFFA",
     lightBlue: "#EAF4FF",
@@ -15,10 +17,10 @@ export const BRAND = {
     midGray: "#6B7280",
     borderGray: "#D9DEE5",
   },
-  gradient: "linear-gradient(135deg, #14E4C8 0%, #10C8F8 45%, #0B6BFF 100%)",
-  tagline: "El copiloto inteligente para anfitriones de Airbnb.",
+  gradient: "linear-gradient(135deg, #00F5A0 0%, #00D9FF 45%, #0066FF 100%)",
+  tagline: "Smart Property Management System",
   positioning:
-    "Plataforma SaaS Airbnb-first para gestionar propiedades, automatizar operaciones y escalar sin fricción.",
+    "Gestión de propiedades, reservas, finanzas e integraciones en un solo Command Center.",
 } as const;
 
 export const SEO_KEYWORDS = [

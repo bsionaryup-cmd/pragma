@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { APP_NAME } from "@/lib/constants";
+import type { Metadata, Viewport } from "next";
+import { BRAND_ASSETS } from "@/lib/brand-assets";
 import { BRAND, SEO_KEYWORDS } from "@/lib/brand";
 
 const siteUrl =
@@ -13,34 +13,45 @@ export function getSiteUrl(): string {
 export const defaultMetadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: `${APP_NAME} — Software para anfitriones de Airbnb`,
-    template: `%s | ${APP_NAME}`,
+    default: BRAND.productName,
+    template: `%s | ${BRAND.productName}`,
   },
-  description: BRAND.positioning,
+  description: BRAND.tagline,
+  applicationName: BRAND.productName,
   keywords: [...SEO_KEYWORDS],
-  authors: [{ name: APP_NAME }],
-  creator: APP_NAME,
+  authors: [{ name: BRAND.name }],
+  creator: BRAND.name,
+  icons: {
+    icon: [
+      { url: BRAND_ASSETS.favicon16, type: "image/png", sizes: "16x16" },
+      { url: BRAND_ASSETS.favicon32, type: "image/png", sizes: "32x32" },
+      { url: BRAND_ASSETS.symbolSvg, type: "image/svg+xml" },
+    ],
+    apple: [{ url: BRAND_ASSETS.appleTouch, sizes: "180x180", type: "image/png" }],
+    shortcut: BRAND_ASSETS.favicon32,
+  },
+  manifest: "/manifest.webmanifest",
   openGraph: {
     type: "website",
     locale: "es_CO",
     url: siteUrl,
-    siteName: APP_NAME,
-    title: `${APP_NAME} — Controla tu Airbnb desde un solo lugar`,
+    siteName: BRAND.productName,
+    title: BRAND.productName,
     description: BRAND.tagline,
     images: [
       {
-        url: `${siteUrl}/og-pragma.png`,
+        url: BRAND_ASSETS.og,
         width: 1200,
         height: 630,
-        alt: `${APP_NAME} — Airbnb Host Command Center`,
+        alt: BRAND.productName,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} — Airbnb Host Command Center`,
+    title: BRAND.productName,
     description: BRAND.tagline,
-    images: [`${siteUrl}/og-pragma.png`],
+    images: [BRAND_ASSETS.og],
   },
   alternates: {
     canonical: siteUrl,
@@ -52,19 +63,26 @@ export const defaultMetadata: Metadata = {
 };
 
 export const landingMetadata: Metadata = {
-  title: "Software para Airbnb — Gestión y automatización para anfitriones",
-  description:
-    "PRAGMA centraliza reservas, smart access, pricing y operaciones. El copiloto inteligente para anfitriones de Airbnb que escalan sin caos.",
+  title: `${BRAND.name} — Property Management Software`,
+  description: BRAND.positioning,
   openGraph: {
-    title: "Controla tu Airbnb desde un solo lugar | PRAGMA",
+    title: BRAND.productName,
     description: BRAND.tagline,
     url: siteUrl,
+    images: [BRAND_ASSETS.og],
   },
   alternates: { canonical: siteUrl },
 };
 
+export const defaultViewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: BRAND.colors.white },
+    { media: "(prefers-color-scheme: dark)", color: BRAND.colors.darkNavy },
+  ],
+};
+
 export const dashboardMetadata: Metadata = {
   title: "Command Center",
-  description: "Airbnb Host Command Center — operación, reservas y automatización.",
+  description: "PRAGMA Command Center — operación, reservas y automatización.",
   robots: { index: false, follow: false },
 };

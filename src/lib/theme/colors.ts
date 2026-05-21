@@ -1,34 +1,34 @@
-/**
- * PRAGMA premium SaaS palette — mirrors globals.css
- */
+import { BRAND } from "@/lib/brand";
+
+/** PRAGMA premium SaaS palette — mirrors globals.css */
 export const pragmaColors = {
-  primary: "#0E9F8D",
-  primaryHover: "#0B7A6E",
-  accent: "#14B8A6",
-  white: "#FFFFFF",
-  softBackground: "#F7F8FA",
-  borderLight: "#E9ECEF",
-  text: "#111111",
-  textSecondary: "#6B7280",
-  tealSoft: "#E6F7F5",
-  success: "#0E9F8D",
-  warning: "#F5A524",
-  danger: "#EF4444",
-  gradient: "linear-gradient(135deg, #0E9F8D 0%, #14B8A6 100%)",
+  primary: BRAND.colors.electricBlue,
+  primaryHover: BRAND.colors.midBlue,
+  accent: BRAND.colors.cyan,
+  white: BRAND.colors.white,
+  softBackground: BRAND.colors.softGray,
+  borderLight: BRAND.colors.borderGray,
+  text: BRAND.colors.black,
+  textSecondary: BRAND.colors.midGray,
+  tealSoft: BRAND.colors.softCyan,
+  success: "#0d9488",
+  warning: "#f59e0b",
+  danger: "#dc2626",
+  gradient: BRAND.gradient,
 } as const;
 
 export const pragmaColorsDark = {
-  background: "#0B0B0B",
-  surface: "#111315",
-  card: "#1B1F23",
-  text: "#F8F9FA",
-  textMuted: "#A7ADB8",
-  border: "#2A2F36",
+  background: BRAND.colors.darkNavy,
+  surface: "#0f1f33",
+  card: "#102238",
+  text: "#f8fafc",
+  textMuted: "#94a3b8",
+  border: "#1e3a5f",
 } as const;
 
 export const pragmaCalendarWorkspace = {
-  background: "#111315",
-  surface: "#1B1F23",
-  border: "#2A2F36",
-  text: "#F8F9FA",
+  background: BRAND.colors.darkNavy,
+  surface: "#102238",
+  border: "#1e3a5f",
+  text: "#f8fafc",
 } as const;

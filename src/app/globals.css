@@ -6,12 +6,12 @@
    PRAGMA Brand Book — design tokens
    ============================================================ */
 :root {
-  --pragma-cyan: #14e4c8;
-  --pragma-aqua: #10c8f8;
-  --pragma-electric: #0b6bff;
-  --pragma-black: #0a0a0a;
+  --pragma-cyan: #00f5a0;
+  --pragma-aqua: #00d9ff;
+  --pragma-electric: #0066ff;
+  --pragma-black: #050a18;
   --pragma-white: #ffffff;
-  --pragma-navy: #081626;
+  --pragma-navy: #050a18;
   --pragma-mid-blue: #2f7bff;
   --pragma-soft-cyan: #d8fffa;
   --pragma-light-blue: #eaf4ff;
@@ -21,9 +21,9 @@
 
   --pragma-gradient: linear-gradient(
     135deg,
-    #14e4c8 0%,
-    #10c8f8 45%,
-    #0b6bff 100%
+    #00f5a0 0%,
+    #00d9ff 45%,
+    #0066ff 100%
   );
   --pragma-gradient-subtle: linear-gradient(
     180deg,
