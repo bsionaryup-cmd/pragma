@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { ManualPaymentMethod } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  assertFinanceDelegates,
+  isFinanceSchemaDriftError,
+} from "@/services/finance/finance-prisma-guard";
 import { dateKeyToPrismaDate } from "@/lib/dates";
 
 export async function createManualExpenseAction(formData: FormData) {
@@ -20,7 +24,10 @@ export async function createManualExpenseAction(formData: FormData) {
     throw new Error("Completa categoría, monto y fecha");
   }
 
-  await db.manualExpense.create({
+  assertFinanceDelegates();
+
+  try {
+    await db.manualExpense.create({
     data: {
       createdById: auth.dbUserId,
       category,
@@ -30,7 +37,15 @@ export async function createManualExpenseAction(formData: FormData) {
       description: description || null,
       attachmentUrl: String(formData.get("attachmentUrl") ?? "").trim() || null,
     },
-  });
+    });
+  } catch (error) {
+    if (isFinanceSchemaDriftError(error)) {
+      throw new Error(
+        "Tabla de egresos no disponible. Ejecuta db:migrate:deploy.",
+      );
+    }
+    throw error;
+  }
 
   revalidatePath("/finance");
 }
@@ -46,7 +61,10 @@ export async function createOtherIncomeAction(formData: FormData) {
     throw new Error("Completa tipo, monto y fecha");
   }
 
-  await db.otherIncome.create({
+  assertFinanceDelegates();
+
+  try {
+    await db.otherIncome.create({
     data: {
       createdById: auth.dbUserId,
       amount,
@@ -54,7 +72,15 @@ export async function createOtherIncomeAction(formData: FormData) {
       incomeDate: dateKeyToPrismaDate(incomeDate),
       description: description || null,
     },
-  });
+    });
+  } catch (error) {
+    if (isFinanceSchemaDriftError(error)) {
+      throw new Error(
+        "Tabla de ingresos no disponible. Ejecuta db:migrate:deploy.",
+      );
+    }
+    throw error;
+  }
 
   revalidatePath("/finance");
 }

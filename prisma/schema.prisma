@@ -35,6 +35,7 @@ model User {
   manualExpenses       ManualExpense[]        @relation("ManualExpenseCreator")
   otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
   externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
+  priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
 
   @@index([role, isActive])
   @@map("users")
@@ -105,6 +106,7 @@ model Property {
   reservations Reservation[]
   tasks        Task[]
   propertyLock PropertyLock?
+  priceLabs      PropertyPriceLabs?
 
   @@index([ownerId, status])
   @@index([airbnbRoomId])
@@ -452,6 +454,58 @@ model OtherIncome {
   @@index([incomeDate])
   @@index([createdById])
   @@map("other_incomes")
+}
+
+// ─── PriceLabs dynamic pricing ─────────────────────────────────
+
+enum PriceLabsIntegrationStatus {
+  NOT_CONNECTED
+  PENDING_SETUP
+  CONNECTED
+  SYNC_ERROR
+  DEGRADED
+}
+
+model PriceLabsIntegration {
+  id                 String                     @id @default("singleton")
+  status             PriceLabsIntegrationStatus @default(NOT_CONNECTED)
+  userTokenEncrypted String?
+  lastHealthCheckAt  DateTime?
+  lastListingsSyncAt DateTime?
+  lastPricesSyncAt   DateTime?
+  lastError          String?
+  configuredById     String?                    @unique
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  configuredBy User? @relation("PriceLabsConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+
+  @@map("pricelabs_integrations")
+}
+
+enum PropertyPriceLabsSyncStatus {
+  PENDING
+  SYNCED
+  ERROR
+}
+
+model PropertyPriceLabs {
+  propertyId        String                      @id
+  listingId         String?
+  recommendedRate   Decimal?                    @db.Decimal(12, 2)
+  baseRateAtSync    Decimal?                    @db.Decimal(12, 2)
+  priceDelta        Decimal?                    @db.Decimal(12, 2)
+  weekendUpliftPct  Decimal?                    @db.Decimal(8, 4)
+  syncStatus        PropertyPriceLabsSyncStatus @default(PENDING)
+  lastSyncedAt      DateTime?
+  lastError         String?
+  meta              Json?
+  updatedAt         DateTime                    @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@map("property_pricelabs")
 }
 
 // ─── Government integrations (SIRE / TRAA) ────────────────────

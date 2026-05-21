@@ -12,7 +12,7 @@ export const MOCK_INBOX_CONVERSATIONS: InboxConversation[] = [
     dateRange: "22 may - 25 may",
     status: "open",
     statusLabel: "Abierta",
-    propertyImageUrl: "",
+    propertyImageUrl: null,
     bookingCode: "PRG-20481",
     platform: "AIRBNB",
     propertyName: "Apartamento Laureles · PRAGMA",

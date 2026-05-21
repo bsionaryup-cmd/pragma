@@ -101,7 +101,7 @@ export function ReservationsInbox({
   return (
     <>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-white dark:bg-background">
-        {/* Inbox Lodgify — panel izquierdo fijo */}
+        {/* Panel lista de reservas */}
         <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-white dark:bg-background">
           <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
@@ -180,7 +180,7 @@ export function ReservationsInbox({
             )}
           </div>
 
-          {/* Bottom action area — Lodgify */}
+          {/* Acciones inferiores */}
           {canWrite ? (
             <footer className="shrink-0 border-t border-border/80 bg-white px-4 pb-4 pt-3 dark:bg-background">
               <CreateReservationButton onClick={openCreate} />

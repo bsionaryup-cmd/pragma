@@ -8,7 +8,7 @@ type CreateReservationButtonProps = {
 };
 
 /**
- * CTA inferior del inbox — réplica visual Lodgify (pill negro, texto blanco).
+ * CTA inferior del inbox — pill primario de marca.
  */
 export function CreateReservationButton({
   onClick,

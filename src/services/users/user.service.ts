@@ -6,6 +6,10 @@ import {
   shouldSyncClerkPublicMetadata,
 } from "@/lib/clerk-metadata-sync";
 import { db } from "@/lib/db";
+import {
+  rethrowUnlessUserSchemaDrift,
+  withUserPreferenceDefaults,
+} from "@/services/users/user-prisma-guard";
 import { clerkUserPayloadSchema } from "@/lib/validations/user";
 import type { ClerkUserPayload } from "@/types/auth";
 import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
@@ -85,6 +89,9 @@ function buildUserCreateData(
     lastName: payload.lastName,
     imageUrl: payload.imageUrl,
     role,
+    locale: "es",
+    theme: "system",
+    timezone: "America/Bogota",
     lastLoginAt: options?.touchLogin ? new Date() : null,
   };
 }
@@ -118,20 +125,30 @@ export async function upsertUserFromClerk(
 ): Promise<User> {
   const validated = clerkUserPayloadSchema.parse(payload);
 
-  const existing = await db.user.findUnique({
-    where: { clerkId: validated.id },
-  });
+  let existing: User | null;
+  try {
+    existing = await db.user.findUnique({
+      where: { clerkId: validated.id },
+    });
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
 
   if (existing) {
     const updateData = buildUserUpdateData(validated, options);
 
-    const updated =
-      Object.keys(updateData).length > 0
-        ? await db.user.update({
-            where: { clerkId: validated.id },
-            data: updateData,
-          })
-        : existing;
+    let updated: User;
+    try {
+      updated =
+        Object.keys(updateData).length > 0
+          ? await db.user.update({
+              where: { clerkId: validated.id },
+              data: updateData,
+            })
+          : existing;
+    } catch (error) {
+      rethrowUnlessUserSchemaDrift(error);
+    }
 
     if (options?.syncClerkMetadata) {
       await syncClerkPublicMetadata(validated.id, {
@@ -139,20 +156,25 @@ export async function upsertUserFromClerk(
         dbUserId: updated.id,
       });
     }
-    return updated;
+    return withUserPreferenceDefaults(updated);
   }
 
   const role = await resolveRoleForNewUser();
-  const created = await db.user.create({
-    data: buildUserCreateData(validated, role, options),
-  });
+  let created: User;
+  try {
+    created = await db.user.create({
+      data: buildUserCreateData(validated, role, options),
+    });
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
 
   await syncClerkPublicMetadata(validated.id, {
     role: created.role,
     dbUserId: created.id,
   });
 
-  return created;
+  return withUserPreferenceDefaults(created);
 }
 
 export async function handleUserCreatedWebhook(data: ClerkWebhookUserData) {
@@ -179,11 +201,21 @@ export async function handleUserDeletedWebhook(clerkId: string) {
 }
 
 export async function getUserByClerkId(clerkId: string) {
-  return db.user.findUnique({ where: { clerkId } });
+  try {
+    const user = await db.user.findUnique({ where: { clerkId } });
+    return user ? withUserPreferenceDefaults(user) : null;
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
 }
 
 export async function getUserById(id: string) {
-  return db.user.findUnique({ where: { id } });
+  try {
+    const user = await db.user.findUnique({ where: { id } });
+    return user ? withUserPreferenceDefaults(user) : null;
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
 }
 
 export async function listUsers() {

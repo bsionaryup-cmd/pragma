@@ -2,7 +2,7 @@ export const THEME_STORAGE_KEY = "theme";
 
 export const APP_NAME = "PRAGMA";
 export const APP_DESCRIPTION =
-  "El copiloto inteligente para anfitriones de Airbnb. Centraliza reservas, automatiza tareas y opera propiedades de forma remota, inteligente y escalable.";
+  "Smart Property Management System — reservas, finanzas e integraciones en un Command Center.";
 export const APP_DEMO_CTA = "Solicitar demo";
 export const APP_SECONDARY_CTA = "Ver cómo funciona";
 

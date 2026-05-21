@@ -1,3 +1,4 @@
+import { GuestBrandMark } from "@/components/brand/guest-brand-mark";
 import { GuestRegistrationForm } from "@/features/guests/components/guest-registration-form";
 import { getGuestRegistrationLookupResult } from "@/services/guests/guest-registration.service";
 
@@ -18,10 +19,8 @@ export default async function GuestRegistrationPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
         <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+          <GuestBrandMark />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
             Registro completado
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -36,10 +35,8 @@ export default async function GuestRegistrationPage({
     return (
       <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
         <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight">
+          <GuestBrandMark />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
             Link no disponible
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -57,10 +54,8 @@ export default async function GuestRegistrationPage({
     <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:py-10">
       <div className="mx-auto max-w-3xl">
         <header className="mb-6 rounded-3xl border border-border bg-card p-6 shadow-pragma-soft">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            PRAGMA
-          </p>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
+          <GuestBrandMark />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
             Registro de huéspedes
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">

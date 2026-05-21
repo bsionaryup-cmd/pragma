@@ -1,4 +1,4 @@
-/** Mensajes motivacionales cortos para el panel (estilo Lodgify). */
+/** Mensajes motivacionales cortos para el Command Center. */
 const PANEL_MOTIVATIONAL_MESSAGES = [
   "¡Qué gran día para gestionar tu negocio!",
   "Hoy es un buen día para ofrecer experiencias memorables.",

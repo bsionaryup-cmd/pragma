@@ -12,6 +12,7 @@ import {
   upsertUserFromClerk,
 } from "@/services/users/user.service";
 import { recordLoginActivity } from "@/services/users/login-activity.service";
+import { isUserSchemaDriftError } from "@/services/users/user-prisma-guard";
 import type { AppUserRole, AuthContext, SessionUser } from "@/types/auth";
 import {
   hasPermission,
@@ -115,11 +116,17 @@ export const requireDbUser = cache(async (): Promise<User> => {
         forwarded?.split(",")[0]?.trim() ||
         headerStore.get("x-real-ip") ||
         null;
-      await recordLoginActivity({
-        userId: dbUser.id,
-        ipAddress: ip,
-        userAgent: headerStore.get("user-agent"),
-      });
+      try {
+        await recordLoginActivity({
+          userId: dbUser.id,
+          ipAddress: ip,
+          userAgent: headerStore.get("user-agent"),
+        });
+      } catch (error) {
+        if (!isUserSchemaDriftError(error)) {
+          console.warn("[auth] login activity skipped:", error);
+        }
+      }
       return db.user.update({
         where: { id: dbUser.id },
         data: { lastLoginAt: new Date() },

@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { ListFilter, Search } from "lucide-react";
+import { InboxAvatar } from "@/components/inbox/inbox-avatar";
 import { InboxStatusBadge } from "@/components/inbox/inbox-status-badge";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
 import type { InboxConversation } from "@/types/inbox";
@@ -59,15 +59,13 @@ export function InboxConversationList({
                   isSelected ? "bg-accent" : "bg-card hover:bg-accent",
                 )}
               >
-                <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                  <Image
-                    src={conversation.propertyImageUrl}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="48px"
-                  />
-                </div>
+                <InboxAvatar
+                  imageUrl={conversation.propertyImageUrl}
+                  name={conversation.guestName}
+                  initials={conversation.guestInitial}
+                  className="h-12 w-12"
+                  sizes="48px"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="truncate text-sm font-semibold text-foreground">

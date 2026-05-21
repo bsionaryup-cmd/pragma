@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { AppProviders } from "@/components/providers/app-providers";
 import { ClerkRootProvider } from "@/components/providers/clerk-root-provider";
 import { THEME_STORAGE_KEY } from "@/lib/constants";
-import { defaultMetadata } from "@/lib/seo";
+import { defaultMetadata, defaultViewport } from "@/lib/seo";
 import { resolveThemeFromCookies } from "@/lib/theme";
 import "./globals.css";
 
@@ -27,6 +27,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = defaultMetadata;
+export const viewport = defaultViewport;
 
 export default async function RootLayout({
   children,

@@ -9,7 +9,7 @@ import type {
   ReservationSpan,
 } from "@/features/calendar/types/calendar.types";
 
-/** Mitad de celda: check-in/check-out ocurren a mediodía (estilo Lodgify). */
+/** Mitad de celda: check-in/check-out a mediodía. */
 const HALF_DAY = CALENDAR_DAY_WIDTH / 2;
 
 /**

@@ -2,6 +2,10 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
+import {
+  listManualExpensesInRange,
+  listOtherIncomesInRange,
+} from "@/services/finance/finance-prisma-guard";
 import type { Locale } from "@/i18n/types";
 
 export type FinanceKpis = {
@@ -131,14 +135,8 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
     ]);
 
   const [manualExpenses, manualIncomes] = await Promise.all([
-    db.manualExpense.findMany({
-      where: { expenseDate: { gte: start, lte: end } },
-      select: { id: true, amount: true, category: true, expenseDate: true },
-    }),
-    db.otherIncome.findMany({
-      where: { incomeDate: { gte: start, lte: end } },
-      select: { amount: true, incomeType: true, incomeDate: true },
-    }),
+    listManualExpensesInRange(start, end),
+    listOtherIncomesInRange(start, end),
   ]);
 
   const manualExpenseTotal = manualExpenses.reduce(

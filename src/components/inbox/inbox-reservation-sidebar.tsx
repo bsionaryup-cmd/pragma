@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { Copy, Pencil, User } from "lucide-react";
+import { InboxAvatar } from "@/components/inbox/inbox-avatar";
 import { InboxStatusBadge } from "@/components/inbox/inbox-status-badge";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
 import type { InboxConversation } from "@/types/inbox";
@@ -59,15 +59,12 @@ export function InboxReservationSidebar({
           </div>
 
           <div className="mt-4 flex gap-3 border-t border-border pt-4">
-            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
-              <Image
-                src={conversation.propertyImageUrl}
-                alt=""
-                fill
-                className="object-cover"
-                sizes="56px"
-              />
-            </div>
+            <InboxAvatar
+              imageUrl={conversation.propertyImageUrl}
+              name={conversation.propertyName}
+              className="h-14 w-14"
+              sizes="56px"
+            />
             <div className="min-w-0">
               <p className="text-sm font-semibold leading-snug text-foreground">
                 {conversation.propertyName}

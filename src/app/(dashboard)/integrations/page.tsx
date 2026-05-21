@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, KeyRound, Shield } from "lucide-react";
+import { FileText, KeyRound, LineChart, Shield } from "lucide-react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { requirePermission } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -36,6 +36,19 @@ export default async function IntegrationsPage() {
             <h2 className="mt-5 text-lg font-semibold">TTLock Smart Access</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               OAuth EU, cerraduras y códigos por reserva.
+            </p>
+          </Link>
+
+          <Link
+            href="/integrations/pricelabs"
+            className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
+              <LineChart className="h-6 w-6" />
+            </span>
+            <h2 className="mt-5 text-lg font-semibold">PriceLabs</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Listings, precios dinámicos e inteligencia de tarifas.
             </p>
           </Link>
 

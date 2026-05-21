@@ -11,7 +11,7 @@ import {
 } from "@/lib/inbox/mock-data";
 
 export function InboxPageView() {
-  const [selectedId, setSelectedId] = useState<string | null>("conv-carlos");
+  const [selectedId, setSelectedId] = useState<string | null>("conv-pragma-demo");
 
   const selectedConversation = useMemo(
     () => MOCK_INBOX_CONVERSATIONS.find((c) => c.id === selectedId) ?? null,

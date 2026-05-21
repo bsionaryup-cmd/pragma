@@ -18,7 +18,7 @@ export type InboxConversation = {
   dateRange: string;
   status: InboxConversationStatus;
   statusLabel: string;
-  propertyImageUrl: string;
+  propertyImageUrl: string | null;
   bookingCode: string;
   platform: "AIRBNB";
   propertyName: string;

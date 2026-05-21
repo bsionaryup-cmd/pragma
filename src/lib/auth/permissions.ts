@@ -57,6 +57,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/integrations/traa": "integrations:manage",
   "/integrations/ttlock": "integrations:read",
   "/integrations/ttlock/connect": "integrations:manage",
+  "/integrations/pricelabs": "integrations:read",
   "/settings": "dashboard:read",
   "/tasks": "tasks:read",
   "/calendar": "calendar:read",
