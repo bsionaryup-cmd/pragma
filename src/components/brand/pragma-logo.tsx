@@ -4,49 +4,56 @@ import { cn } from "@/lib/utils";
 
 type PragmaLogoProps = {
   variant?: BrandLogoVariant;
+  /** Prefer light-background logo on light surfaces. */
+  tone?: "light" | "dark";
   className?: string;
   symbolClassName?: string;
   fullClassName?: string;
   priority?: boolean;
 };
 
-const VARIANT_SRC: Record<BrandLogoVariant, string> = {
-  full: BRAND_ASSETS.logoFull,
-  fullLight: BRAND_ASSETS.logoFull,
-  fullDark: BRAND_ASSETS.logoFull,
-  symbol: BRAND_ASSETS.symbol,
-  symbolDark: BRAND_ASSETS.symbolDark,
+const VARIANT_CONFIG: Record<
+  BrandLogoVariant,
+  { src: string; width: number; height: number }
+> = {
+  full: { src: BRAND_ASSETS.logoFull, width: 158, height: 40 },
+  fullLight: { src: BRAND_ASSETS.logoFullLight, width: 158, height: 40 },
+  fullDark: { src: BRAND_ASSETS.logoFull, width: 158, height: 40 },
+  stacked: { src: BRAND_ASSETS.logoStacked, width: 100, height: 66 },
+  mark: { src: BRAND_ASSETS.logoMark, width: 36, height: 36 },
 };
 
-const VARIANT_SIZE: Record<BrandLogoVariant, { width: number; height: number }> = {
-  full: { width: 220, height: 78 },
-  fullLight: { width: 220, height: 78 },
-  fullDark: { width: 220, height: 78 },
-  symbol: { width: 40, height: 40 },
-  symbolDark: { width: 40, height: 40 },
-};
+function resolveVariant(
+  variant: BrandLogoVariant,
+  tone: "light" | "dark",
+): BrandLogoVariant {
+  if (variant === "full" && tone === "light") return "fullLight";
+  if (variant === "full" && tone === "dark") return "fullDark";
+  return variant;
+}
 
 export function PragmaLogo({
   variant = "full",
+  tone = "light",
   className,
   symbolClassName,
   fullClassName,
   priority = false,
 }: PragmaLogoProps) {
-  const src = VARIANT_SRC[variant];
-  const size = VARIANT_SIZE[variant];
-  const isFull = variant.startsWith("full");
+  const resolved = resolveVariant(variant, tone);
+  const { src, width, height } = VARIANT_CONFIG[resolved];
+  const isMark = resolved === "mark";
 
   return (
     <Image
       src={src}
       alt="PRAGMA"
-      width={size.width}
-      height={size.height}
+      width={width}
+      height={height}
       priority={priority}
       className={cn(
-        "h-auto w-auto object-contain",
-        isFull ? fullClassName : symbolClassName,
+        "h-auto w-auto max-w-full shrink-0 object-contain object-left",
+        isMark ? symbolClassName : fullClassName,
         className,
       )}
     />

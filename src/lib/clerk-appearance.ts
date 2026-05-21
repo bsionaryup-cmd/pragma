@@ -23,7 +23,9 @@ export const pragmaClerkAppearance = {
     formFieldLabel: "text-sm font-medium text-foreground",
     formFieldInput:
       "rounded-xl border-border bg-card text-foreground focus:ring-2 focus:ring-pragma-cyan/40",
-    formFieldInputShowPasswordButton: "text-pragma-electric",
+    formFieldInputShowPasswordButton:
+      "text-pragma-electric hover:text-pragma-mid-blue",
+    passwordFieldInput: "rounded-xl border-border",
     formButtonPrimary:
       "rounded-xl bg-pragma-electric hover:bg-pragma-electric/90 text-sm font-semibold shadow-pragma-soft",
     footerActionLink: "text-pragma-electric font-medium hover:text-pragma-mid-blue",

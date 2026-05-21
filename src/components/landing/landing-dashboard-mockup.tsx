@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarCheck, KeyRound, Sparkles, TrendingUp } from "lucide-react";
+import { PragmaLogo } from "@/components/brand/pragma-logo";
 
 const kpis = [
   { label: "Check-ins hoy", value: "3", icon: CalendarCheck },
@@ -14,9 +15,7 @@ export function LandingDashboardMockup() {
     <div className="relative overflow-hidden rounded-2xl border border-pragma-border bg-white shadow-pragma-glow">
       <div className="flex items-center justify-between border-b border-pragma-border bg-pragma-soft-gray px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="font-accent text-sm font-bold tracking-tight text-pragma-black">
-            PRAGMA
-          </span>
+          <PragmaLogo variant="mark" symbolClassName="h-7 w-7" />
           <span className="rounded-md bg-pragma-soft-cyan px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-pragma-electric">
             Command Center
           </span>

@@ -48,7 +48,7 @@ function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
       role="alert"
       className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center"
     >
-      <PragmaLogo variant="symbol" symbolClassName="h-10 w-10 opacity-90" />
+      <PragmaLogo variant="mark" symbolClassName="h-10 w-10 opacity-90" />
       <h2 className="text-lg font-semibold text-foreground">
         No se pudo conectar con la autenticación
       </h2>

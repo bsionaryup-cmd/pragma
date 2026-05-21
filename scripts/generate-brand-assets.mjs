@@ -1,6 +1,6 @@
 /**
- * Generates PRAGMA brand derivatives from source PNGs (exact logo fidelity).
- * Run: node scripts/generate-brand-assets.mjs
+ * Generates PRAGMA brand assets under public/branding/ from official sources.
+ * Run: npm run brand:assets
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const brandDir = path.join(root, "public", "brand");
+const brandingDir = path.join(root, "public", "branding");
+const manifestIconsDir = path.join(brandingDir, "manifest-icons");
 const assetsDir = path.join(
   root,
   "..",
@@ -18,31 +19,31 @@ const assetsDir = path.join(
   "assets",
 );
 
-const SOURCE = {
-  logoFull:
+const SOURCE_FILES = {
+  logoHorizontal:
+    "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_21_may_2026__04_17_58_a.m.-e2582609-6d6f-4091-9255-a38471e37194.png",
+  logoStacked:
     "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_20_may_2026__08_18_15_p.m.-887dac3d-8d26-4d03-bd98-45f8a85ad30f.png",
   symbol:
     "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_20_may_2026__08_20_29_p.m.-675572c7-e8df-42b2-9637-bae761f6090b.png",
-  symbolMono:
-    "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_20_may_2026__08_24_06_p.m.-629110ad-cd09-44f3-aba8-7bb36e786560.png",
 };
 
-async function readSource(name) {
-  const fromAssets = path.join(assetsDir, SOURCE[name]);
+async function readSource(key) {
+  const fromAssets = path.join(assetsDir, SOURCE_FILES[key]);
   try {
     return await fs.readFile(fromAssets);
   } catch {
-    const fallback = path.join(brandDir, {
-      logoFull: "pragma-logo-full.png",
+    const legacy = path.join(root, "public", "brand", {
+      logoHorizontal: "pragma-logo-full.png",
+      logoStacked: "pragma-logo-full.png",
       symbol: "pragma-symbol.png",
-      symbolMono: "pragma-symbol-dark.png",
-    }[name]);
-    return fs.readFile(fallback);
+    }[key]);
+    return fs.readFile(legacy);
   }
 }
 
 /** Remove near-black background; keep gradient symbol pixels. */
-async function symbolWithAlpha(input) {
+async function stripDarkBackground(input) {
   const { data, info } = await sharp(input)
     .ensureAlpha()
     .raw()
@@ -65,73 +66,112 @@ async function symbolWithAlpha(input) {
 
   return sharp(pixels, {
     raw: { width: info.width, height: info.height, channels: 4 },
-  }).png();
+  });
 }
 
 async function writePng(pipeline, dest) {
-  await pipeline.png().toFile(dest);
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  await pipeline.png({ compressionLevel: 9 }).toFile(dest);
   console.log("wrote", path.relative(root, dest));
 }
 
-async function writeSvgImage(href, viewW, viewH, dest) {
-  const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewW} ${viewH}" role="img" aria-label="PRAGMA">
-  <image href="${href}" width="${viewW}" height="${viewH}" preserveAspectRatio="xMidYMid meet"/>
-</svg>`;
-  await fs.writeFile(dest, svg);
-  console.log("wrote", path.relative(root, dest));
+async function trimLogo(buf) {
+  return sharp(buf).trim({ threshold: 12 }).png().toBuffer();
 }
 
 async function main() {
-  await fs.mkdir(brandDir, { recursive: true });
+  await fs.mkdir(manifestIconsDir, { recursive: true });
 
-  const logoFullBuf = await readSource("logoFull");
+  const logoHorizontalBuf = await readSource("logoHorizontal");
+  const logoStackedBuf = await readSource("logoStacked");
   const symbolBuf = await readSource("symbol");
-  const symbolMonoBuf = await readSource("symbolMono");
 
-  await writePng(sharp(logoFullBuf), path.join(brandDir, "pragma-logo-full.png"));
-  await writePng(sharp(symbolBuf), path.join(brandDir, "pragma-symbol.png"));
-  await writePng(sharp(symbolMonoBuf), path.join(brandDir, "pragma-symbol-dark.png"));
+  const markAlphaBuf = await stripDarkBackground(symbolBuf).then((img) =>
+    img.trim({ threshold: 12 }).png().toBuffer(),
+  );
+  const markAlpha = sharp(markAlphaBuf);
 
-  const symbolAlpha = await symbolWithAlpha(symbolBuf);
-  await writePng(symbolAlpha, path.join(brandDir, "pragma-symbol-alpha.png"));
+  const logoFullTrimmed = await trimLogo(logoHorizontalBuf);
+  const logoStackedTrimmed = await trimLogo(logoStackedBuf);
 
-  const sizes = [
-    ["pragma-favicon-16.png", 16],
-    ["pragma-favicon-32.png", 32],
-    ["pragma-pwa-icon.png", 512],
-    ["pragma-apple-touch.png", 180],
+  await writePng(sharp(logoFullTrimmed), path.join(brandingDir, "logo-full.png"));
+  await writePng(
+    sharp(logoFullTrimmed).flatten({ background: { r: 244, g: 246, b: 248 } }),
+    path.join(brandingDir, "logo-full-light.png"),
+  );
+  await writePng(sharp(logoStackedTrimmed), path.join(brandingDir, "logo-stacked.png"));
+  await writePng(markAlpha, path.join(brandingDir, "logo-mark.png"));
+
+  const iconSizes = [
+    ["icon-16.png", 16],
+    ["icon-32.png", 32],
+    ["icon-48.png", 48],
+    ["icon-72.png", 72],
+    ["icon-96.png", 96],
+    ["icon-128.png", 128],
+    ["icon-192.png", 192],
+    ["icon-512.png", 512],
   ];
-  for (const [name, size] of sizes) {
+
+  for (const [name, size] of iconSizes) {
     await writePng(
-      symbolAlpha.clone().resize(size, size, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }),
-      path.join(brandDir, name),
+      markAlpha
+        .clone()
+        .resize(size, size, {
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 },
+        }),
+      path.join(manifestIconsDir, name),
     );
   }
 
   await writePng(
-    sharp(logoFullBuf).resize(1200, 630, {
+    markAlpha.clone().resize(180, 180, {
       fit: "contain",
-      background: { r: 248, g: 250, b: 252, alpha: 1 },
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
     }),
-    path.join(brandDir, "pragma-og-image.png"),
+    path.join(brandingDir, "apple-touch-icon.png"),
   );
-
-  await writeSvgImage("/brand/pragma-logo-full.png", 400, 140, path.join(brandDir, "pragma-logo-full.svg"));
-  await writeSvgImage("/brand/pragma-logo-full.png", 400, 140, path.join(brandDir, "pragma-logo-light.svg"));
-  await writeSvgImage("/brand/pragma-logo-full.png", 400, 140, path.join(brandDir, "pragma-logo-dark.svg"));
-  await writeSvgImage("/brand/pragma-symbol-alpha.png", 64, 64, path.join(brandDir, "pragma-symbol.svg"));
 
   await fs.copyFile(
-    path.join(brandDir, "pragma-favicon-32.png"),
-    path.join(brandDir, "pragma-favicon.ico"),
+    path.join(manifestIconsDir, "icon-32.png"),
+    path.join(brandingDir, "favicon.ico"),
   );
-  await fs.copyFile(path.join(brandDir, "pragma-apple-touch.png"), path.join(root, "src", "app", "apple-icon.png"));
-  await fs.copyFile(path.join(brandDir, "pragma-pwa-icon.png"), path.join(root, "src", "app", "icon.png"));
 
-  await fs.unlink(path.join(brandDir, "_test.png")).catch(() => {});
+  await writePng(
+    sharp(logoFullTrimmed).resize(1200, 630, {
+      fit: "contain",
+      background: { r: 5, g: 10, b: 24, alpha: 1 },
+    }),
+    path.join(brandingDir, "og-image.png"),
+  );
 
-  console.log("Brand assets ready.");
+  await writePng(
+    markAlpha
+      .clone()
+      .resize(32, 32, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }),
+    path.join(brandingDir, "loader.png"),
+  );
+
+  const loaderSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Cargando">
+  <g>
+    <animateTransform attributeName="transform" type="rotate" from="0 32 32" to="360 32 32" dur="1.1s" repeatCount="indefinite"/>
+    <image href="/branding/logo-mark.png" x="6" y="6" width="52" height="52" preserveAspectRatio="xMidYMid meet"/>
+  </g>
+</svg>`;
+  await fs.writeFile(path.join(brandingDir, "loader.svg"), loaderSvg);
+
+  await fs.copyFile(
+    path.join(manifestIconsDir, "icon-512.png"),
+    path.join(root, "src", "app", "icon.png"),
+  );
+  await fs.copyFile(
+    path.join(brandingDir, "apple-touch-icon.png"),
+    path.join(root, "src", "app", "apple-icon.png"),
+  );
+
+  console.log("Branding assets ready under public/branding/");
 }
 
 main().catch((err) => {

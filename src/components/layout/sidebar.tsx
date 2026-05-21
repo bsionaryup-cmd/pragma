@@ -74,7 +74,7 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
   if (collapsed) {
     return (
       <PragmaLogo
-        variant="symbol"
+        variant="mark"
         symbolClassName="h-9 w-9"
         className="mx-auto"
       />
@@ -85,15 +85,15 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
     <div className="min-w-0">
       <PragmaLogo
         variant="full"
-        fullClassName="max-h-9 max-w-[140px]"
+        tone="light"
+        fullClassName="h-8 w-auto max-w-[8.75rem]"
         className="dark:hidden"
       />
-      <div className="hidden items-center gap-2.5 dark:flex">
-        <PragmaLogo variant="symbol" symbolClassName="h-8 w-8 shrink-0" />
-        <span className="font-accent text-sm font-bold tracking-[0.14em] text-foreground">
-          PRAGMA
-        </span>
-      </div>
+      <PragmaLogo
+        variant="full"
+        tone="dark"
+        fullClassName="hidden h-8 w-auto max-w-[8.75rem] dark:block"
+      />
       <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
         {t("nav.hostCommandCenter")}
       </p>

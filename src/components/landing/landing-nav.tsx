@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { APP_DEMO_CTA, APP_NAME } from "@/lib/constants";
+import { PragmaLogo } from "@/components/brand/pragma-logo";
+import { APP_DEMO_CTA } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
 const links = [
@@ -18,19 +19,23 @@ export function LandingNav() {
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: [0.21, 0.47, 0.32, 0.98] }}
-      className="sticky top-0 z-50 border-b border-pragma-border/80 bg-white/90 backdrop-blur-xl"
+      className="sticky top-0 z-50 border-b border-pragma-border/80 bg-white/95 backdrop-blur-xl"
     >
       <nav
-        className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6"
+        className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-6 px-6"
         aria-label="Principal"
       >
-        <Link href="/" className="flex items-center gap-2">
-          <span className="font-accent text-lg font-bold tracking-tight text-pragma-black">
-            {APP_NAME}
-          </span>
-          <span className="hidden rounded-md bg-pragma-soft-cyan px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-pragma-electric sm:inline">
-            Airbnb OS
-          </span>
+        <Link
+          href="/"
+          className="flex min-w-0 items-center py-1"
+          aria-label="PRAGMA — inicio"
+        >
+          <PragmaLogo
+            variant="full"
+            tone="light"
+            priority
+            fullClassName="h-8 w-auto max-w-[min(100%,11rem)] sm:h-9"
+          />
         </Link>
 
         <ul className="hidden items-center gap-8 md:flex">
@@ -46,7 +51,7 @@ export function LandingNav() {
           ))}
         </ul>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <Button
             variant="ghost"
             size="sm"

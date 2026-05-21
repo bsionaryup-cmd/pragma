@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { APP_NAME } from "@/lib/constants";
+import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { BRAND } from "@/lib/brand";
 
 const footerLinks = [
@@ -14,16 +14,20 @@ export function LandingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-pragma-border bg-white py-16">
+    <footer className="border-t border-pragma-border bg-white py-14">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
-          <div className="max-w-sm">
-            <p className="font-accent text-sm font-bold text-pragma-black">{APP_NAME}</p>
-            <p className="mt-2 text-sm leading-relaxed text-pragma-mid-gray">
-              {BRAND.tagline} Software para gestión y automatización de Airbnb.
+          <div className="max-w-sm space-y-4">
+            <PragmaLogo
+              variant="full"
+              tone="light"
+              fullClassName="h-8 w-auto max-w-[11rem]"
+            />
+            <p className="text-sm leading-relaxed text-pragma-mid-gray">
+              {BRAND.positioning}
             </p>
-            <p className="mt-4 text-xs text-pragma-mid-gray">
-              © {year} {APP_NAME}. Todos los derechos reservados.
+            <p className="text-xs leading-relaxed text-pragma-mid-gray/90">
+              © {year} {BRAND.productName}. Todos los derechos reservados.
             </p>
           </div>
 

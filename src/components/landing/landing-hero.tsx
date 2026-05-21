@@ -12,16 +12,16 @@ const ease = [0.21, 0.47, 0.32, 0.98] as const;
 
 export function LandingHero() {
   return (
-    <section className="relative mx-auto max-w-7xl px-6 pt-16 pb-20 md:pt-24 md:pb-28">
-      <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-16">
-        <div>
+    <section className="relative mx-auto max-w-7xl px-6 pt-14 pb-20 md:pt-20 md:pb-28">
+      <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="max-w-xl lg:max-w-none">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, ease }}
-            className="font-accent mb-5 inline-flex items-center gap-2 rounded-full border border-pragma-border bg-pragma-light-blue px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-pragma-electric"
+            className="font-accent mb-6 inline-flex items-center gap-2 rounded-full border border-pragma-border bg-pragma-light-blue px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-pragma-electric"
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-pragma-cyan" />
+            <span className="h-1.5 w-1.5 rounded-full bg-pragma-cyan" aria-hidden />
             Airbnb Host Command Center
           </motion.p>
 
@@ -29,7 +29,7 @@ export function LandingHero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.06, ease }}
-            className="font-heading text-4xl font-bold leading-[1.08] tracking-tight text-pragma-black md:text-5xl lg:text-[3.35rem]"
+            className="font-heading text-[2rem] font-bold leading-[1.12] tracking-tight text-pragma-black sm:text-4xl lg:text-[2.75rem] lg:leading-[1.08]"
           >
             Controla tu Airbnb desde un solo lugar.
           </motion.h1>
@@ -38,7 +38,7 @@ export function LandingHero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.12, ease }}
-            className="mt-6 max-w-xl text-lg leading-relaxed text-pragma-mid-gray"
+            className="mt-5 text-base leading-relaxed text-pragma-mid-gray sm:text-lg sm:leading-8"
           >
             PRAGMA centraliza reservas, automatiza tareas repetitivas y ayuda a
             anfitriones de Airbnb a operar propiedades de forma remota,
@@ -49,7 +49,7 @@ export function LandingHero() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.16, ease }}
-            className="mt-3 text-sm text-pragma-mid-gray/90"
+            className="mt-2 text-sm font-medium text-pragma-electric/90"
           >
             {BRAND.tagline}
           </motion.p>
@@ -58,17 +58,22 @@ export function LandingHero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.2, ease }}
-            className="mt-10 flex flex-wrap items-center gap-4"
+            className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4"
           >
-            <Button variant="brand" size="lg" className="h-12 px-7 text-base" asChild>
+            <Button variant="brand" size="lg" className="h-11 px-6 text-[15px]" asChild>
               <Link href="/sign-up">
                 {APP_DEMO_CTA}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
               </Link>
             </Button>
-            <Button variant="brandOutline" size="lg" className="h-12 px-7 text-base" asChild>
+            <Button
+              variant="brandOutline"
+              size="lg"
+              className="h-11 px-6 text-[15px]"
+              asChild
+            >
               <a href="#product">
-                <Play className="h-4 w-4" />
+                <Play className="h-4 w-4" strokeWidth={2} />
                 {APP_SECONDARY_CTA}
               </a>
             </Button>
@@ -83,7 +88,7 @@ export function LandingHero() {
         >
           <div
             aria-hidden
-            className="pointer-events-none absolute -inset-8 rounded-[2rem] bg-pragma-gradient opacity-[0.12] blur-3xl"
+            className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-pragma-gradient opacity-[0.1] blur-3xl md:-inset-8"
           />
           <LandingDashboardMockup />
         </motion.div>

@@ -7,7 +7,7 @@ const siteUrl =
 
 /** Cabecera HTML reutilizable para correos del sistema. */
 export function pragmaEmailHeaderHtml(): string {
-  const logoUrl = `${siteUrl}${BRAND_ASSETS.logoFull}`;
+  const logoUrl = `${siteUrl}${BRAND_ASSETS.logoFullLight}`;
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">
       <tr>

@@ -117,7 +117,7 @@ export function CommandCenterView({
 
   return (
     <ModuleShellFlow className="bg-background">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col px-4 py-5 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-1 px-4 py-6 pb-12 sm:px-6 lg:px-8">
         <PageHeader
           eyebrow={t("dashboard.eyebrow")}
           title={t("common.commandCenter")}

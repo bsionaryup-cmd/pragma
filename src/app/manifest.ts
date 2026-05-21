@@ -13,19 +13,19 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: BRAND.colors.darkNavy,
     icons: [
       {
-        src: BRAND_ASSETS.pwa,
+        src: BRAND_ASSETS.manifestIcons.icon512,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: BRAND_ASSETS.appleTouch,
-        sizes: "180x180",
+        src: BRAND_ASSETS.manifestIcons.icon192,
+        sizes: "192x192",
         type: "image/png",
       },
       {
-        src: BRAND_ASSETS.favicon32,
-        sizes: "32x32",
+        src: BRAND_ASSETS.appleTouch,
+        sizes: "180x180",
         type: "image/png",
       },
     ],

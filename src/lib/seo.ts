@@ -13,8 +13,8 @@ export function getSiteUrl(): string {
 export const defaultMetadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: BRAND.productName,
-    template: `%s | ${BRAND.productName}`,
+    default: BRAND.name,
+    template: `%s | ${BRAND.name}`,
   },
   description: BRAND.tagline,
   applicationName: BRAND.productName,
@@ -25,10 +25,12 @@ export const defaultMetadata: Metadata = {
     icon: [
       { url: BRAND_ASSETS.favicon16, type: "image/png", sizes: "16x16" },
       { url: BRAND_ASSETS.favicon32, type: "image/png", sizes: "32x32" },
-      { url: BRAND_ASSETS.symbolSvg, type: "image/svg+xml" },
+      { url: BRAND_ASSETS.favicon, sizes: "32x32" },
     ],
-    apple: [{ url: BRAND_ASSETS.appleTouch, sizes: "180x180", type: "image/png" }],
-    shortcut: BRAND_ASSETS.favicon32,
+    apple: [
+      { url: BRAND_ASSETS.appleTouch, sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: BRAND_ASSETS.favicon,
   },
   manifest: "/manifest.webmanifest",
   openGraph: {
@@ -63,7 +65,7 @@ export const defaultMetadata: Metadata = {
 };
 
 export const landingMetadata: Metadata = {
-  title: `${BRAND.name} — Property Management Software`,
+  title: `${BRAND.name} — Smart Property Management`,
   description: BRAND.positioning,
   openGraph: {
     title: BRAND.productName,
@@ -83,6 +85,6 @@ export const defaultViewport: Viewport = {
 
 export const dashboardMetadata: Metadata = {
   title: "Command Center",
-  description: "PRAGMA Command Center — operación, reservas y automatización.",
+  description: `${BRAND.productName} — operación, reservas y automatización.`,
   robots: { index: false, follow: false },
 };
