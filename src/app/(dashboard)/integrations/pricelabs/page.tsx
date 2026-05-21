@@ -8,18 +8,24 @@ export default async function PriceLabsIntegrationPage() {
   const user = await requirePermission("integrations:read");
   const canManage = user.role === "ADMIN";
 
+  let overview: Awaited<ReturnType<typeof getPriceLabsOverview>> | null = null;
+  let loadError: string | null = null;
+
   try {
-    const overview = await getPriceLabsOverview(canManage);
-    return <PriceLabsPanel overview={overview} />;
+    overview = await getPriceLabsOverview(canManage);
   } catch (error) {
-    const message = isPriceLabsSchemaDriftError(error)
+    loadError = isPriceLabsSchemaDriftError(error)
       ? error instanceof Error
         ? error.message
         : "Esquema PriceLabs desincronizado"
       : error instanceof Error
         ? error.message
         : "No se pudo cargar la integración PriceLabs";
-
-    return <PriceLabsLoadError message={message} />;
   }
+
+  if (loadError) {
+    return <PriceLabsLoadError message={loadError} />;
+  }
+
+  return <PriceLabsPanel overview={overview!} />;
 }

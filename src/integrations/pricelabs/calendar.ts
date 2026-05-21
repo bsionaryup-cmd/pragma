@@ -10,8 +10,9 @@ export type PriceLabsCalendarSyncInput = {
 };
 
 export async function syncPriceLabsCalendar(
-  _input: PriceLabsCalendarSyncInput,
+  input: PriceLabsCalendarSyncInput,
 ): Promise<{ ok: false; message: string }> {
+  void input;
   return {
     ok: false,
     message: "PriceLabs calendar sync no implementado (MVP)",

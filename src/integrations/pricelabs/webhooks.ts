@@ -7,8 +7,7 @@ export type PriceLabsWebhookEvent = {
   payload: unknown;
 };
 
-export function parsePriceLabsWebhook(
-  _body: unknown,
-): PriceLabsWebhookEvent | null {
+export function parsePriceLabsWebhook(body: unknown): PriceLabsWebhookEvent | null {
+  void body;
   return null;
 }

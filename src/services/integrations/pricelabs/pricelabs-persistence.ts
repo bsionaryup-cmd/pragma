@@ -1,5 +1,6 @@
 import {
   PriceLabsIntegrationStatus,
+  Prisma,
   PropertyPriceLabsSyncStatus,
   PropertyStatus,
 } from "@prisma/client";
@@ -155,6 +156,12 @@ export async function upsertPropertyPriceLabsSync(input: {
   lastError?: string | null;
   meta?: Record<string, unknown> | null;
 }) {
+  const metaValue: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined =
+    input.meta === null
+      ? Prisma.JsonNull
+      : input.meta
+        ? (input.meta as Prisma.InputJsonValue)
+        : undefined;
   try {
     return await db.propertyPriceLabs.upsert({
       where: { propertyId: input.propertyId },
@@ -168,7 +175,7 @@ export async function upsertPropertyPriceLabsSync(input: {
         syncStatus: input.syncStatus,
         lastSyncedAt: new Date(),
         lastError: input.lastError ?? null,
-        meta: input.meta ?? undefined,
+        meta: metaValue,
       },
       update: {
         listingId: input.listingId,
@@ -179,7 +186,7 @@ export async function upsertPropertyPriceLabsSync(input: {
         syncStatus: input.syncStatus,
         lastSyncedAt: new Date(),
         lastError: input.lastError ?? null,
-        meta: input.meta ?? undefined,
+        meta: metaValue,
       },
     });
   } catch (error) {

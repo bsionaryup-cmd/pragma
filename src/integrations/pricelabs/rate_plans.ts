@@ -7,8 +7,9 @@ export type PriceLabsRatePlanSyncInput = {
 };
 
 export async function syncPriceLabsRatePlans(
-  _input: PriceLabsRatePlanSyncInput,
+  input: PriceLabsRatePlanSyncInput,
 ): Promise<{ ok: false; message: string }> {
+  void input;
   return {
     ok: false,
     message: "PriceLabs rate plans sync no implementado (MVP)",

@@ -24,28 +24,33 @@ export default async function TTLockIntegrationPage({
 
   const params = await searchParams;
 
+  let overview: Awaited<ReturnType<typeof getTTLockOverview>> | null = null;
+  let loadError: string | null = null;
+
   try {
-    const overview = await getTTLockOverview(user.dbUserId, {
+    overview = await getTTLockOverview(user.dbUserId, {
       request,
       canManage,
     });
-
-    return (
-      <TTLockPanel
-        overview={overview}
-        flashError={params.error ?? null}
-        flashConnected={params.connected === "1"}
-      />
-    );
   } catch (error) {
-    const message = isTTLockSchemaDriftError(error)
+    loadError = isTTLockSchemaDriftError(error)
       ? error instanceof Error
         ? error.message
         : "Esquema TTLock desincronizado"
       : error instanceof Error
         ? error.message
         : "No se pudo cargar la integración TTLock";
-
-    return <TTLockLoadError message={message} />;
   }
+
+  if (loadError) {
+    return <TTLockLoadError message={loadError} />;
+  }
+
+  return (
+    <TTLockPanel
+      overview={overview!}
+      flashError={params.error ?? null}
+      flashConnected={params.connected === "1"}
+    />
+  );
 }

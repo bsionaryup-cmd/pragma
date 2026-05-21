@@ -7,8 +7,9 @@ export type PriceLabsReservationSyncInput = {
 };
 
 export async function syncPriceLabsReservations(
-  _input: PriceLabsReservationSyncInput,
+  input: PriceLabsReservationSyncInput,
 ): Promise<{ ok: false; message: string }> {
+  void input;
   return {
     ok: false,
     message: "PriceLabs reservations sync no implementado (MVP)",
