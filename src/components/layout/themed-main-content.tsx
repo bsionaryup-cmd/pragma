@@ -2,25 +2,17 @@
 
 import { useLayoutEffect, useRef } from "react";
 
-import {
-  type ResolvedTheme,
-  useTheme,
-} from "@/components/providers/theme-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 import { cn } from "@/lib/utils";
 
 type ThemedMainContentProps = {
   children: React.ReactNode;
-  initialResolved?: ResolvedTheme;
 };
 
-export function ThemedMainContent({
-  children,
-  initialResolved = "light",
-}: ThemedMainContentProps) {
+export function ThemedMainContent({ children }: ThemedMainContentProps) {
   const outerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, registerContentRoot } = useTheme();
-  const resolved = resolvedTheme ?? initialResolved;
 
   useLayoutEffect(() => {
     const element = outerRef.current;
@@ -34,10 +26,10 @@ export function ThemedMainContent({
     <div
       ref={outerRef}
       id="pragma-main-content"
-      data-theme={resolved}
+      data-theme={resolvedTheme}
       className={cn(
         "relative flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground",
-        resolved === "dark" && "dark",
+        resolvedTheme === "dark" && "dark",
       )}
     >
       <div
@@ -48,7 +40,6 @@ export function ThemedMainContent({
       >
         {children}
       </div>
-
     </div>
   );
 }

@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -31,7 +32,6 @@ type ThemeContextValue = {
   resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
   themes: Theme[];
-  systemTheme: ResolvedTheme;
   registerContentRoot: (element: HTMLElement | null) => void;
 };
 
@@ -44,8 +44,44 @@ function getSystemTheme(): ResolvedTheme {
     : "light";
 }
 
-function resolveTheme(theme: Theme): ResolvedTheme {
-  return theme === "system" ? getSystemTheme() : theme;
+function resolveTheme(theme: Theme, systemFallback: ResolvedTheme): ResolvedTheme {
+  if (theme === "system") {
+    return typeof window === "undefined" ? systemFallback : getSystemTheme();
+  }
+  return theme;
+}
+
+function readThemeFromDocumentCookie(): Theme | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${THEME_STORAGE_KEY}=([^;]*)`),
+  );
+  const value = match?.[1];
+  if (value === "light" || value === "dark" || value === "system") {
+    return value;
+  }
+  return null;
+}
+
+/** Client-only: localStorage → cookie → SSR fallback (never called during SSR render). */
+function readStoredTheme(fallback: Theme): Theme {
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (raw === "light" || raw === "dark" || raw === "system") return raw;
+  } catch {
+    // ignore
+  }
+  return readThemeFromDocumentCookie() ?? fallback;
+}
+
+function persistTheme(theme: Theme, resolved: ResolvedTheme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    document.cookie = `${THEME_STORAGE_KEY}=${theme};path=/;max-age=31536000;SameSite=Lax`;
+    document.cookie = `pragma-theme-resolved=${resolved};path=/;max-age=31536000;SameSite=Lax`;
+  } catch {
+    // ignore
+  }
 }
 
 function applyThemeToContentRoot(
@@ -61,50 +97,30 @@ function applyThemeToContentRoot(
   element.style.colorScheme = resolved;
 }
 
-function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
-  try {
-    const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    if (raw === "light" || raw === "dark" || raw === "system") return raw;
-  } catch {
-    // ignore
-  }
-  return "dark";
-}
-
-function persistTheme(theme: Theme, resolved: ResolvedTheme) {
-  try {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
-    document.cookie = `${THEME_STORAGE_KEY}=${theme};path=/;max-age=31536000;SameSite=Lax`;
-    document.cookie = `pragma-theme-resolved=${resolved};path=/;max-age=31536000;SameSite=Lax`;
-  } catch {
-    // ignore
-  }
-}
-
-function createInitialThemeState(
-  defaultTheme: Theme,
-  defaultResolved: ResolvedTheme,
-): ThemeState {
-  if (typeof window === "undefined") {
-    return { theme: defaultTheme, resolved: defaultResolved };
-  }
-
-  const theme = readStoredTheme();
-  const resolved = resolveTheme(theme);
-  persistTheme(theme, resolved);
-  return { theme, resolved };
-}
-
 export function ThemeProvider({
   children,
   defaultTheme = "light",
   defaultResolved = "light",
 }: ThemeProviderProps) {
   const contentRootRef = useRef<HTMLElement | null>(null);
-  const [state, setState] = useState<ThemeState>(() =>
-    createInitialThemeState(defaultTheme, defaultResolved),
-  );
+  const [state, setState] = useState<ThemeState>(() => ({
+    theme: defaultTheme,
+    resolved: defaultResolved,
+  }));
+
+  // After hydration: reconcile localStorage/cookie drift (SSR uses cookie snapshot only).
+  useEffect(() => {
+    const stored = readStoredTheme(defaultTheme);
+    const resolved = resolveTheme(stored, defaultResolved);
+
+    queueMicrotask(() => {
+      setState((prev) => {
+        if (prev.theme === stored && prev.resolved === resolved) return prev;
+        persistTheme(stored, resolved);
+        return { theme: stored, resolved };
+      });
+    });
+  }, [defaultTheme, defaultResolved]);
 
   const registerContentRoot = useCallback(
     (element: HTMLElement | null) => {
@@ -134,7 +150,7 @@ export function ThemeProvider({
   }, []);
 
   const setTheme = useCallback((next: Theme) => {
-    const resolved = resolveTheme(next);
+    const resolved = resolveTheme(next, getSystemTheme());
     setState({ theme: next, resolved });
     persistTheme(next, resolved);
   }, []);
@@ -145,7 +161,6 @@ export function ThemeProvider({
       resolvedTheme: state.resolved,
       setTheme,
       themes: ["light", "dark", "system"],
-      systemTheme: getSystemTheme(),
       registerContentRoot,
     }),
     [state.theme, state.resolved, setTheme, registerContentRoot],
