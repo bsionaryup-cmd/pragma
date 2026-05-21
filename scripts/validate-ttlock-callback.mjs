@@ -5,27 +5,38 @@
 const CANONICAL =
   "https://pragma-pms.vercel.app/api/integrations/ttlock/callback";
 
-async function main() {
-  const res = await fetch(CANONICAL, { signal: AbortSignal.timeout(15_000) });
-  const text = await res.text();
+async function probe(method) {
+  const init = { method, signal: AbortSignal.timeout(15_000) };
+  if (method === "POST") {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify({ ping: true });
+  }
+  const res = await fetch(CANONICAL, init);
+  const text = method === "HEAD" ? "" : await res.text();
   let body;
-  try {
-    body = JSON.parse(text);
-  } catch {
-    body = { raw: text.slice(0, 200) };
+  if (text) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { raw: text.slice(0, 200) };
+    }
   }
+  return { method, status: res.status, body };
+}
 
-  if (!res.ok) {
-    console.error(`FAIL HTTP ${res.status}`, body);
-    process.exit(1);
+async function main() {
+  for (const method of ["GET", "POST", "HEAD", "OPTIONS"]) {
+    const { status, body } = await probe(method);
+    if (status === 405 || status >= 500) {
+      console.error(`FAIL ${method} HTTP ${status}`, body);
+      process.exit(1);
+    }
+    if (method !== "HEAD" && method !== "OPTIONS" && !body?.ok) {
+      console.error(`FAIL ${method} body`, body);
+      process.exit(1);
+    }
+    console.log(`OK ${method}`, status, body ?? "(no body)");
   }
-
-  if (!body?.ok) {
-    console.error("FAIL body", body);
-    process.exit(1);
-  }
-
-  console.log("OK", body);
 }
 
 main().catch((err) => {
