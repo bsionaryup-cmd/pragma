@@ -10,7 +10,10 @@ export type Permission =
   | "tasks:write"
   | "calendar:read"
   | "users:read"
-  | "users:write";
+  | "users:write"
+  | "finance:read"
+  | "integrations:read"
+  | "integrations:manage";
 
 const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
   ADMIN: [
@@ -24,6 +27,9 @@ const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
     "calendar:read",
     "users:read",
     "users:write",
+    "finance:read",
+    "integrations:read",
+    "integrations:manage",
   ],
   OPERATIONS: [
     "dashboard:read",
@@ -44,10 +50,13 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/reservations": "reservations:read",
   "/inbox": "reservations:read",
   "/integrations": "properties:read",
+  "/integrations/ttlock": "integrations:read",
+  "/integrations/ttlock/connect": "integrations:manage",
   "/settings": "dashboard:read",
   "/tasks": "tasks:read",
   "/calendar": "calendar:read",
   "/users": "users:read",
+  "/finance": "finance:read",
 };
 
 export function hasPermission(

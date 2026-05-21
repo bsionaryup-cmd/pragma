@@ -27,6 +27,7 @@ model User {
 
   properties    Property[]
   assignedTasks Task[] @relation("TaskAssignee")
+  ttlockIntegrations TTLockIntegration[]
 
   @@index([role, isActive])
   @@map("users")
@@ -76,6 +77,7 @@ model Property {
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   reservations Reservation[]
   tasks        Task[]
+  propertyLock PropertyLock?
 
   @@index([ownerId, status])
   @@index([airbnbRoomId])
@@ -127,6 +129,8 @@ model Reservation {
   property                Property                 @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   guests                  ReservationGuest[]
   guestRegistrationTokens GuestRegistrationToken[]
+  accessCredentials       AccessCredential[]
+  accessEvents            AccessEvent[]
   tasks                   Task[]
 
   @@unique([propertyId, icalUid])
@@ -183,6 +187,173 @@ enum GuestRegistrationStatus {
   COMPLETED
   EXPIRED
   REVOKED
+}
+
+model TTLockIntegration {
+  id                    String                  @id @default(cuid())
+  userId                String
+  clientId              String?
+  clientSecretEncrypted String?
+  username              String?
+  passwordHash          String?
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  uid                   String?
+  expiresAt             DateTime?
+  environment           TTLockEnvironment       @default(PRODUCTION)
+  redirectUri           String?
+  lastError             String?
+  status                TTLockIntegrationStatus @default(PENDING_SETUP)
+  lastSyncedAt          DateTime?
+  lastTokenRefreshAt    DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  propertyLocks      PropertyLock[]
+  automationSettings TTLockAutomationSettings?
+  accessEvents       AccessEvent[]
+
+  @@unique([userId])
+  @@index([status])
+  @@map("ttlock_integrations")
+}
+
+model PropertyLock {
+  id            String         @id @default(cuid())
+  integrationId String
+  propertyId    String         @unique
+  ttlockLockId  String?
+  alias         String?
+  timezone      String?
+  lockStatus    TTLockLockStatus @default(UNMAPPED)
+  onlineState   TTLockOnlineState @default(UNKNOWN)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  integration       TTLockIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  property          Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  accessCredentials AccessCredential[]
+
+  @@index([integrationId])
+  @@index([ttlockLockId])
+  @@map("property_locks")
+}
+
+model TTLockAutomationSettings {
+  id                                   String                   @id @default(cuid())
+  integrationId                        String                   @unique
+  generateAfterGuestRegistration        Boolean                  @default(false)
+  revokeAfterCheckout                  Boolean                  @default(true)
+  requireManualApproval                Boolean                  @default(true)
+  autoSendCode                         Boolean                  @default(false)
+  allowRegeneration                    Boolean                  @default(true)
+  expirationStrategy                   TTLockExpirationStrategy @default(CHECKOUT_TIME)
+  createdAt                            DateTime                 @default(now())
+  updatedAt                            DateTime                 @updatedAt
+
+  integration TTLockIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@map("ttlock_automation_settings")
+}
+
+model AccessCredential {
+  id             String                       @id @default(cuid())
+  reservationId  String
+  propertyLockId String?
+  ttlockCodeId   String?
+  codeEncrypted  String?
+  validFrom      DateTime?
+  validTo        DateTime?
+  status         AccessCredentialStatus       @default(PENDING)
+  deliveryStatus AccessCredentialDeliveryStatus @default(NOT_SENT)
+  createdAt      DateTime                     @default(now())
+  updatedAt      DateTime                     @updatedAt
+
+  reservation  Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  propertyLock PropertyLock? @relation(fields: [propertyLockId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId])
+  @@index([propertyLockId])
+  @@index([status])
+  @@map("access_credentials")
+}
+
+model AccessEvent {
+  id            String          @id @default(cuid())
+  reservationId String?
+  integrationId String?
+  eventType     AccessEventType
+  payload       Json?
+  createdAt     DateTime        @default(now())
+
+  reservation Reservation?      @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  integration TTLockIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId])
+  @@index([integrationId])
+  @@index([eventType])
+  @@map("access_events")
+}
+
+enum TTLockIntegrationStatus {
+  NOT_CONNECTED
+  CONNECTING
+  PENDING_SETUP
+  CONNECTED
+  INVALID_CREDENTIALS
+  TOKEN_EXPIRED
+  SYNC_ERROR
+  READY
+}
+
+enum TTLockEnvironment {
+  PRODUCTION
+  SANDBOX
+}
+
+enum TTLockLockStatus {
+  UNMAPPED
+  MAPPED
+  SYNCED
+  SYNC_ERROR
+}
+
+enum TTLockOnlineState {
+  UNKNOWN
+  ONLINE
+  OFFLINE
+}
+
+enum TTLockExpirationStrategy {
+  CHECKOUT_TIME
+  CHECKOUT_PLUS_BUFFER
+  MANUAL
+}
+
+enum AccessCredentialStatus {
+  PENDING
+  GENERATED
+  SENT
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum AccessCredentialDeliveryStatus {
+  NOT_SENT
+  PENDING
+  SENT
+  FAILED
+}
+
+enum AccessEventType {
+  TOKEN_REFRESHED
+  LOCK_SYNCED
+  LOCK_SYNC_FAILED
+  CODE_GENERATION_READY
+  CODE_GENERATED
+  CODE_REVOKED
 }
 
 enum BookingPlatform {
