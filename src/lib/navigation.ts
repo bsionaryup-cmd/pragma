@@ -36,12 +36,6 @@ const mainNavItems: NavItem[] = [
     permission: "reservations:read",
   },
   {
-    labelKey: "nav.properties",
-    href: "/properties",
-    icon: "building-2",
-    permission: "properties:read",
-  },
-  {
     labelKey: "nav.calendar",
     href: "/calendar",
     icon: "calendar-days",
@@ -52,12 +46,6 @@ const mainNavItems: NavItem[] = [
     href: "/revenue",
     icon: "line-chart",
     permission: "calendar:read",
-  },
-  {
-    labelKey: "nav.integrations",
-    href: "/integrations",
-    icon: "ribbon",
-    permission: "integrations:read",
   },
   {
     labelKey: "nav.messages",
@@ -75,20 +63,7 @@ const financeNavItem: NavItem = {
 };
 
 export const secondaryRouteLinks: Pick<NavItem, "labelKey" | "href" | "permission">[] =
-  [
-    {
-      labelKey: "nav.users",
-      href: "/users",
-      permission: "users:read",
-    },
-  ];
-
-const usersNavItem: NavItem = {
-  labelKey: "nav.users",
-  href: "/users",
-  icon: "clipboard-list",
-  permission: "users:read",
-};
+  [];
 
 export function getSecondaryRouteLinksForRole(
   role: AppUserRole,
@@ -111,9 +86,6 @@ export function getMainNavigationForRole(role: AppUserRole): NavItem[] {
   );
   if (hasPermission(role, "finance:read")) {
     items.push(financeNavItem);
-  }
-  if (hasPermission(role, "users:read")) {
-    items.push(usersNavItem);
   }
   return items;
 }

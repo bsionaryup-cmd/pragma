@@ -33,7 +33,7 @@ function CalendarToolbarComponent({
 
   return (
     <div
-      className="flex shrink-0 items-center justify-between gap-4 border-b border-[#E9ECEF] bg-white px-5 shadow-pragma-soft dark:border-border dark:bg-card dark:shadow-none"
+      className="flex shrink-0 items-center justify-between gap-4 border-b border-[#E9ECEF] bg-white px-5 shadow-pragma-soft"
       style={{ height: CALENDAR_TOOLBAR_HEIGHT }}
     >
       <div className="flex items-center gap-1.5">
@@ -81,7 +81,7 @@ function CalendarToolbarComponent({
         </Button>
       </div>
 
-      <h2 className="text-sm font-semibold tracking-tight text-[#111111] dark:text-foreground">
+      <h2 className="text-sm font-semibold tracking-tight text-[#111111]">
         {label}
       </h2>
 
@@ -89,7 +89,7 @@ function CalendarToolbarComponent({
         {canSyncAirbnb ? (
           <AirbnbSyncStatus canSync compact className="justify-end" />
         ) : (
-          <p className="text-[11px] text-[#6B7280] tabular-nums dark:text-muted-foreground">
+          <p className="text-[11px] text-[#6B7280] tabular-nums">
             {today}
           </p>
         )}

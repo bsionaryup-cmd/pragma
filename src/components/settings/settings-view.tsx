@@ -15,6 +15,8 @@ import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 import { saveUserPreferencesAction } from "@/features/settings/actions/settings.actions";
 
 type SettingsViewProps = {
+  canAccessProperties: boolean;
+  canAccessIntegrations: boolean;
   canManageUsers: boolean;
   email: string;
   displayName: string;
@@ -31,6 +33,8 @@ const tabs = [
 type TabId = (typeof tabs)[number]["id"];
 
 export function SettingsView({
+  canAccessProperties,
+  canAccessIntegrations,
   canManageUsers,
   email,
   displayName,
@@ -90,13 +94,29 @@ export function SettingsView({
             {tab.label}
           </button>
         ))}
+        {canAccessProperties ? (
+          <Link
+            href="/properties"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+          >
+            {t("nav.properties")}
+          </Link>
+        ) : null}
+        {canAccessIntegrations ? (
+          <Link
+            href="/integrations"
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+          >
+            {t("nav.integrations")}
+          </Link>
+        ) : null}
         {canManageUsers ? (
           <>
             <Link
               href="/users"
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
-              Usuarios
+              {t("nav.users")}
             </Link>
             <Link
               href="/settings/billing"

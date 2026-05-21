@@ -26,7 +26,7 @@ export const es = {
     reservations: "Reservas",
     properties: "Propiedades",
     calendar: "Calendario",
-    revenue: "Revenue",
+    revenue: "Smart Price",
     integrations: "Integraciones",
     messages: "Mensajes",
     finance: "Finanzas",
@@ -191,6 +191,59 @@ export const es = {
   },
   properties: {
     title: "Propiedades",
+  },
+  smartprice: {
+    eyebrow: "Smart Price",
+    title: "Centro de inteligencia de precios",
+    description:
+      "Responde en segundos: ¿cuánto vender?, ¿qué está fuera de rango? y ¿qué revisar ahora?",
+    verdict: {
+      attention: "{{count}} propiedades requieren revisión",
+      balanced: "Precios alineados — sin alertas urgentes",
+      noData: "Conecta PriceLabs para recomendaciones de precio",
+    },
+    stats: {
+      underpriced: "Subprecio",
+      overpriced: "Sobre precio",
+      inRange: "En rango seguro",
+      sync: "Propiedades sync",
+    },
+    insight: {
+      title: "Rango seguro",
+      neutral: "{{count}} en rango óptimo",
+      avgDelta: "Delta promedio vs recomendado",
+      lastSync: "Último sync de precios",
+    },
+    attention: {
+      title: "Requiere atención ahora",
+      empty: "Nada urgente. Revisa el calendario para afinar fechas.",
+      viewProperty: "Ver propiedad",
+    },
+    reasons: {
+      underpriced: "Subprecio",
+      overpriced: "Sobre precio",
+      sync_error: "Error de sync",
+      pending_sync: "Sin sync",
+    },
+    pricelabs: {
+      title: "Motor PriceLabs",
+      status: "Estado",
+      connected: "Conectado",
+      configured: "Configurado",
+      missing: "Sin API key",
+      open: "Abrir PriceLabs",
+    },
+    context: {
+      title: "Contexto operativo",
+      occupancy: "Ocupación",
+      adr: "Ticket medio",
+      empty: "Sin datos operativos del mes.",
+    },
+    actions: {
+      calendar: "Calendario",
+    },
+    billingLocked:
+      "Modo restringido: puedes consultar métricas; sincronización y edición de precios están pausadas hasta regularizar el pago.",
   },
   integrations: {
     title: "Integraciones",

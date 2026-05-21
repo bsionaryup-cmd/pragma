@@ -30,7 +30,7 @@ type PropertySidebarProps = {
 function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
   return (
     <div
-      className="flex items-center gap-3 border-b border-[#E9ECEF] px-4 transition-colors hover:bg-[#F7F8FA] dark:border-border dark:hover:bg-muted/20"
+      className="flex items-center gap-3 border-b border-[#E9ECEF] px-4 transition-colors hover:bg-[#F7F8FA]"
       style={rowStyle}
     >
       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[#F0F2F5] ring-1 ring-[#E9ECEF]">
@@ -50,10 +50,10 @@ function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight text-[#111111] dark:text-foreground">
+        <p className="truncate text-sm font-semibold leading-tight text-[#111111]">
           {property.name}
         </p>
-        <p className="truncate text-xs text-[#6B7280] dark:text-muted-foreground">
+        <p className="truncate text-xs text-[#6B7280]">
           {property.city}
         </p>
         {property.pricing?.recommendedRate ? (
@@ -95,11 +95,11 @@ function PropertySidebarComponent({
 }: PropertySidebarProps) {
   return (
     <aside
-      className="flex shrink-0 flex-col border-r border-[#E9ECEF] bg-white dark:border-border dark:bg-card"
+      className="flex shrink-0 flex-col border-r border-[#E9ECEF] bg-white"
       style={{ width: CALENDAR_SIDEBAR_WIDTH }}
     >
       <div
-        className="flex shrink-0 flex-col justify-center border-b border-[#E9ECEF] px-3 dark:border-border"
+        className="flex shrink-0 flex-col justify-center border-b border-[#E9ECEF] px-3"
         style={{
           height: CALENDAR_DAY_HEADER_HEIGHT,
           minHeight: CALENDAR_DAY_HEADER_HEIGHT,
@@ -113,7 +113,7 @@ function PropertySidebarComponent({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Buscar propiedad..."
-            className="h-9 w-full rounded-xl border border-[#E9ECEF] bg-white pl-9 pr-3 text-xs text-[#111111] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-[#0E9F8D] focus:ring-2 focus:ring-[#0E9F8D]/20 dark:border-input dark:bg-background dark:text-foreground"
+            className="h-9 w-full rounded-xl border border-[#E9ECEF] bg-white pl-9 pr-3 text-xs text-[#111111] outline-none transition-colors placeholder:text-[#9CA3AF] focus:border-[#0E9F8D] focus:ring-2 focus:ring-[#0E9F8D]/20"
           />
         </div>
       </div>

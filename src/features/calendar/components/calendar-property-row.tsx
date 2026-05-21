@@ -79,8 +79,8 @@ function CalendarPropertyRowComponent({
   return (
     <div
       className={cn(
-        "relative box-border border-b border-border/90",
-        rowIndex % 2 === 1 && "bg-[#15181c]/50",
+        "relative box-border border-b border-[#E9ECEF] bg-white",
+        rowIndex % 2 === 1 && "bg-[#FAFBFC]",
       )}
       style={{
         width: gridWidth,
@@ -100,12 +100,12 @@ function CalendarPropertyRowComponent({
             disabled={!canWrite}
             onClick={() => onDayClick(propertyId, day.date)}
             className={cn(
-              "absolute top-0 z-0 border-r border-border/70 transition-colors duration-150",
-              day.isWeekend && "bg-[#15181c]/80",
+              "absolute top-0 z-0 border-r border-[#E9ECEF] bg-white transition-colors duration-150",
+              day.isWeekend && "bg-[#F3F5F7]",
               day.isToday &&
-                "z-[1] bg-primary/15 shadow-[inset_0_0_0_1px_rgba(20,184,166,0.35)]",
-              selected && "bg-primary/25 ring-1 ring-inset ring-primary/60",
-              canWrite && "cursor-crosshair hover:bg-primary/10",
+                "z-[1] bg-[#E6F7F4] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.35)]",
+              selected && "bg-[#D1F0EA] ring-1 ring-inset ring-[#0E9F8D]/50",
+              canWrite && "cursor-crosshair hover:bg-[#EAF8F5]",
               !canWrite && "cursor-default",
             )}
             style={{
@@ -117,7 +117,7 @@ function CalendarPropertyRowComponent({
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%-0.5px),rgba(255,255,255,0.06)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(217,222,229,0.55)_calc(50%-0.5px),rgba(217,222,229,0.55)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
             />
             <CalendarDayPrice pricing={dailyPricesByDate[day.date]} />
           </button>

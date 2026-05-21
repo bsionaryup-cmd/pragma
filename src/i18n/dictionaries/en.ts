@@ -27,7 +27,7 @@ export const en = {
     reservations: "Reservations",
     properties: "Properties",
     calendar: "Calendar",
-    revenue: "Revenue",
+    revenue: "Smart Price",
     integrations: "Integrations",
     messages: "Messages",
     finance: "Finance",
@@ -192,6 +192,59 @@ export const en = {
   },
   properties: {
     title: "Properties",
+  },
+  smartprice: {
+    eyebrow: "Smart Price",
+    title: "Pricing intelligence center",
+    description:
+      "Answer in seconds: what to charge, what's out of range, and what needs attention now.",
+    verdict: {
+      attention: "{{count}} properties need review",
+      balanced: "Pricing aligned — no urgent alerts",
+      noData: "Connect PriceLabs for pricing recommendations",
+    },
+    stats: {
+      underpriced: "Underpriced",
+      overpriced: "Overpriced",
+      inRange: "Safe range",
+      sync: "Properties synced",
+    },
+    insight: {
+      title: "Safe range",
+      neutral: "{{count}} in optimal range",
+      avgDelta: "Average delta vs recommended",
+      lastSync: "Last price sync",
+    },
+    attention: {
+      title: "Needs attention now",
+      empty: "Nothing urgent. Check the calendar to fine-tune dates.",
+      viewProperty: "View property",
+    },
+    reasons: {
+      underpriced: "Underpriced",
+      overpriced: "Overpriced",
+      sync_error: "Sync error",
+      pending_sync: "Not synced",
+    },
+    pricelabs: {
+      title: "PriceLabs engine",
+      status: "Status",
+      connected: "Connected",
+      configured: "Configured",
+      missing: "No API key",
+      open: "Open PriceLabs",
+    },
+    context: {
+      title: "Operational context",
+      occupancy: "Occupancy",
+      adr: "Average ticket",
+      empty: "No operational data for this month.",
+    },
+    actions: {
+      calendar: "Calendar",
+    },
+    billingLocked:
+      "Restricted mode: you can view metrics; sync and price editing are paused until payment is regularized.",
   },
   integrations: {
     title: "Integrations",

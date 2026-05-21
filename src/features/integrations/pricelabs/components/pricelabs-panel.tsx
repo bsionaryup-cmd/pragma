@@ -115,7 +115,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
         <header className="flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-[#6B7280]">
-              Integraciones · Revenue
+              Integraciones · Smart Price
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#111827]">
               PriceLabs
@@ -160,7 +160,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <LineChart className="h-4 w-4" />
-                Revenue snapshot
+                Smart Price snapshot
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-2 text-sm">

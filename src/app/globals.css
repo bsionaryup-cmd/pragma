@@ -131,24 +131,24 @@
 }
 
 .calendar-workspace {
-  --background: var(--pragma-navy);
-  --foreground: #f8fafc;
-  --card: #102238;
-  --card-foreground: #f8fafc;
-  --muted: #152a45;
-  --muted-foreground: #94a3b8;
-  --border: #1e3a5f;
-  --accent: #152a45;
-  --accent-foreground: #f8fafc;
-  --primary: var(--pragma-cyan);
-  --primary-foreground: var(--pragma-black);
-  --primary-hover: var(--pragma-aqua);
-  --text-subtle: #64748b;
-  --input: #1e3a5f;
+  --background: var(--pragma-soft-gray);
+  --foreground: var(--pragma-text);
+  --card: var(--pragma-white);
+  --card-foreground: var(--pragma-text);
+  --muted: var(--pragma-light-blue);
+  --muted-foreground: var(--pragma-text-secondary);
+  --border: var(--pragma-border);
+  --accent: var(--pragma-soft-cyan);
+  --accent-foreground: #065f46;
+  --primary: #0e9f8d;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0c8a7a;
+  --text-subtle: var(--pragma-text-subtle);
+  --input: var(--pragma-border);
   --ring: var(--pragma-cyan);
   background-color: var(--background);
   color: var(--foreground);
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @theme inline {

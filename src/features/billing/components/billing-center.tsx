@@ -82,7 +82,7 @@ export function BillingCenter({
           <p className="font-medium">Modo restringido</p>
           <p className="mt-1">
             Puedes iniciar sesión, ver facturas y actualizar tu método de pago. Las
-            reservas nuevas, integraciones y el motor de revenue están pausados hasta
+            reservas nuevas, integraciones y Smart Price están pausados hasta
             regularizar el pago.
           </p>
         </div>

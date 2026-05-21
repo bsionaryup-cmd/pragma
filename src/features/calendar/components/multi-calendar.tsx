@@ -245,7 +245,7 @@ export function MultiCalendar({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-background">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#FAFBFC]">
       <CalendarToolbar viewport={viewport} canSyncAirbnb={canSyncAirbnb} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -258,7 +258,7 @@ export function MultiCalendar({
         />
 
         <div className="calendar-workspace flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="sticky top-0 z-20 shrink-0 border-b border-border bg-background">
+          <div className="sticky top-0 z-20 shrink-0 border-b border-[#E9ECEF] bg-white">
             <CalendarDayHeader
               days={viewport.days}
               gridWidth={viewport.gridWidth}
@@ -284,7 +284,7 @@ export function MultiCalendar({
       </div>
 
       {canWrite ? (
-        <div className="shrink-0 border-t border-[#E9ECEF] bg-white px-4 py-2 text-[11px] text-[#6B7280] dark:border-border dark:bg-card dark:text-muted-foreground">
+        <div className="shrink-0 border-t border-[#E9ECEF] bg-white px-4 py-2 text-[11px] text-[#6B7280]">
           {selection?.checkOut === null ? (
             <span>
               1.er clic: entrada ({selection.checkIn}). Elige la fecha de salida

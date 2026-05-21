@@ -30,7 +30,7 @@ export function CalendarDayPrice({ pricing }: CalendarDayPriceProps) {
       <span
         className={cn(
           "max-w-full truncate text-[9px] font-semibold leading-none tabular-nums",
-          pricing.isBooked ? "text-muted-foreground" : "text-[#5eead4]",
+          pricing.isBooked ? "text-[#9CA3AF]" : "text-[#0E9F8D]",
         )}
       >
         {formatCompactPrice(display)}

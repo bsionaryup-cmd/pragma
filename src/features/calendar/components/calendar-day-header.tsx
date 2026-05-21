@@ -25,7 +25,7 @@ function CalendarDayHeaderComponent({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-border bg-background [&::-webkit-scrollbar]:hidden"
+      className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[#E9ECEF] bg-white [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: "none" }}
     >
       <div
@@ -36,10 +36,10 @@ function CalendarDayHeaderComponent({
           <div
             key={day.date}
             className={cn(
-              "flex shrink-0 flex-col items-center justify-center border-r border-border/80 text-center",
-              day.isWeekend && "bg-muted/30",
-              !day.isCurrentMonth && "text-muted-foreground/60",
-              day.isToday && "bg-primary/10",
+              "flex shrink-0 flex-col items-center justify-center border-r border-[#E9ECEF] text-center",
+              day.isWeekend && "bg-[#F3F5F7]",
+              !day.isCurrentMonth && "text-[#9CA3AF]",
+              day.isToday && "bg-[#E6F7F4]",
             )}
             style={{ width: CALENDAR_DAY_WIDTH }}
           >
@@ -47,18 +47,18 @@ function CalendarDayHeaderComponent({
               className={cn(
                 "text-[10px] lowercase tracking-wide",
                 day.isToday
-                  ? "font-semibold text-foreground"
-                  : "text-muted-foreground",
+                  ? "font-semibold text-[#111111]"
+                  : "text-[#6B7280]",
               )}
             >
               {day.weekdayShort}
             </span>
             {day.isToday ? (
-              <span className="mt-0.5 flex h-7 min-w-7 items-center justify-center rounded-lg bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
+              <span className="mt-0.5 flex h-7 min-w-7 items-center justify-center rounded-lg bg-[#0E9F8D] px-1.5 text-[11px] font-semibold tabular-nums text-white">
                 {day.label}
               </span>
             ) : (
-              <span className="mt-0.5 text-xs tabular-nums text-foreground/90">
+              <span className="mt-0.5 text-xs tabular-nums text-[#374151]">
                 {day.label}
               </span>
             )}
