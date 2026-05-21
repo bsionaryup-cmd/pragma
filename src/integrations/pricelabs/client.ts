@@ -5,6 +5,7 @@ import {
   PRICELABS_RATE_LIMIT_PER_MINUTE,
 } from "@/lib/integrations/pricelabs-config";
 import { buildPriceLabsHeaders } from "@/integrations/pricelabs/auth";
+import { resolvePriceLabsApiKey } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import { isBenignListingError } from "@/integrations/pricelabs/normalize";
 import type { PriceLabsResult } from "@/integrations/pricelabs/types";
 
@@ -106,6 +107,15 @@ export async function priceLabsRequest<T>(
   const timeoutMs = getPriceLabsRequestTimeoutMs();
   const maxAttempts = options.retryable ? 4 : 1;
 
+  const apiKey = await resolvePriceLabsApiKey();
+  if (!apiKey) {
+    return {
+      ok: false,
+      message: "Configura la API key de PriceLabs (panel o PRICELABS_API_KEY)",
+      code: "MISSING_API_KEY",
+    };
+  }
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await throttle();
@@ -127,7 +137,7 @@ export async function priceLabsRequest<T>(
     try {
       const response = await fetch(url, {
         method,
-        headers: buildPriceLabsHeaders(),
+        headers: buildPriceLabsHeaders(apiKey),
         body:
           options.body !== undefined
             ? JSON.stringify(options.body)

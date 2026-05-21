@@ -18,12 +18,17 @@ export function getPriceLabsApiBaseUrl(): string {
   return raw && raw.length > 0 ? raw.replace(/\/$/, "") : PRICELABS_API_BASE;
 }
 
-/** Canonical server secret — header X-API-Key */
-export function getPriceLabsApiKey(): string | null {
+/** Env-only API key (Vercel / .env). Prefer resolvePriceLabsApiKey() for runtime. */
+export function getPriceLabsApiKeyFromEnv(): string | null {
   const key =
     process.env.PRICELABS_API_KEY?.trim() ||
     process.env.PRICELABS_TOKEN?.trim();
   return key && key.length > 0 ? key : null;
+}
+
+/** @deprecated Use getPriceLabsApiKeyFromEnv or resolvePriceLabsApiKey */
+export function getPriceLabsApiKey(): string | null {
+  return getPriceLabsApiKeyFromEnv();
 }
 
 export function getPriceLabsPmsName(): string {
@@ -38,5 +43,5 @@ export function getPriceLabsRequestTimeoutMs(): number {
 }
 
 export function isPriceLabsApiKeyConfigured(): boolean {
-  return Boolean(getPriceLabsApiKey());
+  return Boolean(getPriceLabsApiKeyFromEnv());
 }

@@ -22,7 +22,7 @@ import {
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/helpers";
-import { platformLabels } from "@/lib/labels";
+import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { cn } from "@/lib/utils";
 
 type ReservationDetailPanelProps = {
@@ -230,7 +230,10 @@ export function ReservationDetailPanel({
             value={`${formatStayRange(reservation.checkIn, reservation.checkOut)} · ${nights} ${nights === 1 ? "noche" : "noches"}`}
           />
           <DetailRow label="Estado" value={displayStatusLabels[displayStatus]} />
-          <DetailRow label="Plataforma" value={platformLabels[reservation.platform]} />
+          <div className="flex items-center justify-between gap-4 py-2 text-sm">
+            <span className="text-muted-foreground">Origen</span>
+            <ReservationSourceBadge platform={reservation.platform} size="md" />
+          </div>
           <DetailRow
             label="Total"
             value={formatCurrency(

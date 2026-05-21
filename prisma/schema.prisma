@@ -597,3 +597,67 @@ enum TaskStatus {
   COMPLETED
   CANCELLED
 }
+
+// ─── Billing (SaaS subscription — Colombia / Wompi-ready) ───
+
+enum BillingSubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  LOCKED
+}
+
+enum BillingPlanCode {
+  STARTER
+  PRO
+}
+
+enum BillingInvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  FAILED
+  VOID
+}
+
+model BillingAccount {
+  id                    String                    @id @default("singleton")
+  status                BillingSubscriptionStatus @default(TRIAL)
+  plan                  BillingPlanCode           @default(STARTER)
+  trialEndsAt           DateTime?
+  currentPeriodEnd      DateTime?
+  gracePeriodEndsAt     DateTime?
+  billingLockedAt       DateTime?
+  wompiCustomerRef      String?
+  defaultPaymentTokenRef String?
+  metadata              Json?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  invoices BillingInvoice[]
+
+  @@map("billing_accounts")
+}
+
+model BillingInvoice {
+  id                 String               @id @default(cuid())
+  billingAccountId   String               @default("singleton")
+  amount             Decimal              @db.Decimal(12, 2)
+  currency           String               @default("COP")
+  status             BillingInvoiceStatus @default(OPEN)
+  description        String?
+  dueAt              DateTime
+  paidAt             DateTime?
+  externalRef        String?              @unique
+  wompiTransactionId String?
+  failureReason      String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  account BillingAccount @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+
+  @@index([billingAccountId, status])
+  @@index([dueAt])
+  @@map("billing_invoices")
+}

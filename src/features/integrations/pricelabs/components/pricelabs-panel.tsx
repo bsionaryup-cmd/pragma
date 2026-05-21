@@ -3,11 +3,9 @@
 import { useState, useTransition } from "react";
 import {
   Activity,
-  AlertCircle,
   CheckCircle2,
   LineChart,
   RefreshCw,
-  Shield,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,8 +15,10 @@ import {
   fetchPriceLabsPricesAction,
   runPriceLabsFullSyncAction,
   syncPriceLabsListingsAction,
+  syncPriceLabsOverridesAction,
   testPriceLabsConnectionAction,
 } from "@/features/integrations/pricelabs/actions/pricelabs.actions";
+import { PriceLabsApiKeyCard } from "@/features/integrations/pricelabs/components/pricelabs-api-key-card";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -79,8 +79,17 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
 export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
   const [pending, startTransition] = useTransition();
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const { integration, database, config, properties, metrics, revenue, auditLog, canManage, syncing } =
-    overview;
+  const {
+    integration,
+    database,
+    config,
+    properties,
+    metrics,
+    revenue,
+    auditLog,
+    canManage,
+    syncing,
+  } = overview;
 
   const canSync =
     database.ready && config.configured && !syncing && !database.setupRequired;
@@ -127,6 +136,8 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
         ) : null}
 
         <div className="grid gap-4 lg:grid-cols-3">
+          <PriceLabsApiKeyCard overview={overview} canManage={canManage} />
+
           <Card className="border-[#E5E7EB] bg-white shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -138,35 +149,9 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
               <Row label="Estado" value={metrics.healthLabel} />
               <Row label="Modo" value={config.liveApiEnabled ? "Live" : "Dry-run"} />
               <Row label="Health check" value={formatDate(integration.lastHealthCheckAt)} />
+              <Row label="Listings sync" value={formatDate(integration.lastListingsSyncAt)} />
               {integration.lastError ? (
                 <p className="text-xs text-red-600">{integration.lastError}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card className="border-[#E5E7EB] bg-white shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-4 w-4" />
-                Credenciales
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <CredRow ok={config.apiKeyFromEnv} label="PRICELABS_API_KEY" />
-              <p className="text-xs text-[#9CA3AF]">
-                Header servidor: <code className="rounded bg-[#F3F4F6] px-1">X-API-Key</code>
-                . Nunca se expone al navegador.
-              </p>
-              {canManage && config.apiKeyFromEnv ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending || !database.ready}
-                  onClick={() => run(confirmPriceLabsSetupAction)}
-                >
-                  Registrar integración
-                </Button>
               ) : null}
             </CardContent>
           </Card>
@@ -225,6 +210,26 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
               >
                 Importar precios
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={pending || !canSync}
+                onClick={() => run(syncPriceLabsOverridesAction)}
+              >
+                Pull overrides
+              </Button>
+              {canManage && config.configured && database.ready ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => run(confirmPriceLabsSetupAction)}
+                >
+                  Registrar integración
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
@@ -328,22 +333,6 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-2">
       <span className="text-[#6B7280]">{label}</span>
       <span className="font-medium">{value}</span>
-    </div>
-  );
-}
-
-function CredRow({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-[#6B7280]">{label}</span>
-      <span className="flex items-center gap-1 font-medium">
-        {ok ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-        ) : (
-          <AlertCircle className="h-4 w-4 text-amber-500" />
-        )}
-        {ok ? "Configurada" : "Pendiente"}
-      </span>
     </div>
   );
 }

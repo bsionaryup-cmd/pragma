@@ -28,12 +28,15 @@ import {
   listPriceLabsSyncLogs,
 } from "@/services/integrations/pricelabs/pricelabs-audit";
 import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import type { PriceLabsCredentialStatus } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import {
   getPriceLabsIntegrationSafe,
   listActivePropertiesForPriceLabs,
   markPropertyPriceLabsError,
   markPriceLabsIntegrationReady,
+  revokePriceLabsApiKey,
   saveNeighborhoodSnapshot,
+  savePriceLabsApiKeyEncrypted,
   updatePriceLabsIntegrationState,
   upsertPropertyPriceLabsSync,
 } from "@/services/integrations/pricelabs/pricelabs-persistence";
@@ -75,7 +78,12 @@ export type PriceLabsOverviewDto = {
   config: {
     liveApiEnabled: boolean;
     configured: boolean;
-    apiKeyFromEnv: boolean;
+  };
+  credentials: {
+    status: import("@/services/integrations/pricelabs/pricelabs-credentials").PriceLabsCredentialStatus;
+    keyHint: string | null;
+    hasStoredKey: boolean;
+    hasEnvKey: boolean;
   };
   revenue: {
     underpricedCount: number;
@@ -122,13 +130,125 @@ const statusLabels: Record<PriceLabsIntegrationStatus, string> = {
   DEGRADED: "Degradado",
 };
 
+export async function savePriceLabsApiKeyFromPanel(input: {
+  configuredById: string;
+  apiKey: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const saved = await savePriceLabsApiKeyEncrypted({
+    configuredById: input.configuredById,
+    apiKey: input.apiKey,
+  });
+  if (!saved.ok) return saved;
+
+  await updatePriceLabsIntegrationState({
+    status: PriceLabsIntegrationStatus.PENDING_SETUP,
+    lastError: null,
+  });
+  await appendPriceLabsSyncLog({
+    action: "save_api_key",
+    result: "success",
+    message: "API key almacenada (cifrada)",
+    source: "manual",
+  });
+  return saved;
+}
+
+export async function revokePriceLabsApiKeyFromPanel(): Promise<{
+  ok: boolean;
+  message: string;
+}> {
+  const result = await revokePriceLabsApiKey();
+  if (result.ok) {
+    await appendPriceLabsSyncLog({
+      action: "revoke_api_key",
+      result: "success",
+      message: result.message,
+      source: "manual",
+    });
+  }
+  return result;
+}
+
+export async function syncPriceLabsOverrides(): Promise<{
+  ok: boolean;
+  message: string;
+  updated: number;
+  failed: number;
+}> {
+  if (!(await isPriceLabsConfiguredAsync())) {
+    return {
+      ok: false,
+      message: "Configura la API key de PriceLabs",
+      updated: 0,
+      failed: 0,
+    };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof PriceLabsConfigError ? e.message : "API deshabilitada",
+      updated: 0,
+      failed: 0,
+    };
+  }
+
+  const properties = await listActivePropertiesForPriceLabs();
+  let updated = 0;
+  let failed = 0;
+
+  for (const property of properties) {
+    const listingId = property.priceLabs?.listingId;
+    if (!listingId) continue;
+
+    const ov = await fetchPriceLabsOverrides(listingId);
+    if (!ov.ok) {
+      failed += 1;
+      continue;
+    }
+
+    const existingMeta =
+      (property.priceLabs?.meta as StoredPriceLabsMeta | null) ?? {};
+    await upsertPropertyPriceLabsSync({
+      propertyId: property.id,
+      listingId,
+      syncStatus: property.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.SYNCED,
+      meta: {
+        ...existingMeta,
+        overrides: ov.data,
+        lastOverridesSync: new Date().toISOString(),
+      },
+    });
+    updated += 1;
+  }
+
+  await appendPriceLabsSyncLog({
+    action: "sync_overrides",
+    result: failed === 0 ? "success" : "failure",
+    message: `${updated} ok, ${failed} error`,
+    source: "manual",
+  });
+
+  return {
+    ok: failed === 0,
+    message:
+      failed === 0
+        ? `Overrides importados (${updated})`
+        : `Sync parcial overrides: ${updated} ok, ${failed} error`,
+    updated,
+    failed,
+  };
+}
+
 export async function markPriceLabsSetupFromPanel(input: {
   configuredById: string;
 }): Promise<{ ok: boolean; message: string }> {
   if (!(await isPriceLabsConfiguredAsync())) {
     return {
       ok: false,
-      message: "Define PRICELABS_API_KEY en variables de entorno del servidor",
+      message: "Guarda la API key de PriceLabs o define PRICELABS_API_KEY en el servidor",
     };
   }
   const result = await markPriceLabsIntegrationReady(input);
@@ -674,7 +794,12 @@ export async function getPriceLabsOverview(
     config: {
       liveApiEnabled: isPriceLabsLiveApiEnabled(),
       configured: credentials.configured,
-      apiKeyFromEnv: credentials.apiKeyFromEnv,
+    },
+    credentials: {
+      status: credentials.status as PriceLabsCredentialStatus,
+      keyHint: credentials.keyHint,
+      hasStoredKey: credentials.hasStoredKey,
+      hasEnvKey: credentials.hasEnvKey,
     },
     revenue: {
       underpricedCount,

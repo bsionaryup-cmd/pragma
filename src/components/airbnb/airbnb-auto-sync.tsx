@@ -3,10 +3,10 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
-  cleanupDisconnectedAirbnbImportsAction,
-  getAirbnbSyncStatusAction,
-  syncAirbnbCalendarsAction,
-} from "@/features/properties/actions/airbnb-sync.actions";
+  fetchAirbnbSyncStatus,
+  runAirbnbAutoSync,
+  runAirbnbAutoSyncCleanup,
+} from "@/lib/airbnb/auto-sync-client";
 import {
   AIRBNB_AUTO_SYNC_INITIAL_MS,
   AIRBNB_AUTO_SYNC_MS,
@@ -43,9 +43,9 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
       syncingRef.current = true;
       try {
-        const { status } = await getAirbnbSyncStatusAction();
+        const { status } = await fetchAirbnbSyncStatus();
         if (status.linkedCount === 0) {
-          await cleanupDisconnectedAirbnbImportsAction();
+          await runAirbnbAutoSyncCleanup();
           if (!pathname?.startsWith("/calendar")) {
             router.refresh();
           }
@@ -55,17 +55,9 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
           return;
         }
 
-        const { summary } = await syncAirbnbCalendarsAction();
+        const summary = await runAirbnbAutoSync();
 
-        dispatchAirbnbSyncComplete({
-          created: summary.created,
-          updated: summary.updated,
-          cancelled: summary.cancelled,
-          propertiesSynced: summary.propertiesSynced,
-          errors: summary.results.filter((r) => r.error).length,
-          durationMs: summary.durationMs,
-        });
-        // En calendario no refrescar RSC: preserva scroll y drawer abierto
+        dispatchAirbnbSyncComplete(summary);
         if (!pathname?.startsWith("/calendar")) {
           router.refresh();
         }

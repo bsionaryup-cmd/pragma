@@ -271,7 +271,45 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
   };
 }
 
+/** Lectura ligera para banner/layout — sin reconciliar ciclo de facturación en cada request. */
 export async function getBillingAccessSnapshot(): Promise<BillingAccessSnapshot> {
-  const overview = await getBillingOverview();
-  return overview.access;
+  try {
+    const account = await getBillingAccountSafe();
+    if (!account) {
+      return {
+        locked: false,
+        status: BillingSubscriptionStatus.TRIAL,
+        trialEndsAt: null,
+        gracePeriodEndsAt: null,
+        reason: null,
+      };
+    }
+
+    const locked = resolveBillingLocked({
+      status: account.status,
+      gracePeriodEndsAt: account.gracePeriodEndsAt,
+      billingLockedAt: account.billingLockedAt,
+    });
+
+    return {
+      locked,
+      status: account.status,
+      trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
+      gracePeriodEndsAt: account.gracePeriodEndsAt?.toISOString() ?? null,
+      reason: locked
+        ? "Suscripción vencida o pago pendiente. Actualiza tu método de pago para continuar."
+        : null,
+    };
+  } catch (error) {
+    if (isBillingSchemaMissing(error)) {
+      return {
+        locked: false,
+        status: BillingSubscriptionStatus.TRIAL,
+        trialEndsAt: null,
+        gracePeriodEndsAt: null,
+        reason: null,
+      };
+    }
+    throw error;
+  }
 }

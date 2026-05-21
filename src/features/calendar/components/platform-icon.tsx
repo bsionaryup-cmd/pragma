@@ -1,9 +1,7 @@
 "use client";
 
-import { User } from "lucide-react";
 import type { BookingPlatform } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { getPlatformAccent } from "@/features/calendar/lib/reservation-style";
 
 type PlatformIconProps = {
   platform: BookingPlatform;
@@ -15,10 +13,11 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
     return (
       <span
         className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#ff5a5f] text-[9px] font-bold text-primary-foreground",
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#FF5A5F] text-[9px] font-bold text-white",
           className,
         )}
-        aria-hidden
+        aria-label="Airbnb"
+        title="Airbnb"
       >
         A
       </span>
@@ -29,10 +28,11 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
     return (
       <span
         className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#003580] text-[8px] font-bold text-primary-foreground",
+          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#003580] text-[8px] font-bold text-white",
           className,
         )}
-        aria-hidden
+        aria-label="Booking.com"
+        title="Booking.com"
       >
         B
       </span>
@@ -40,9 +40,15 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
   }
 
   return (
-    <User
-      className={cn("h-3.5 w-3.5 shrink-0", getPlatformAccent(platform), className)}
-      aria-hidden
-    />
+    <span
+      className={cn(
+        "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-md bg-[#0E9F8D] text-[9px] font-bold text-white ring-1 ring-[#0E9F8D]/30",
+        className,
+      )}
+      aria-label="PRAGMA Direct"
+      title="PRAGMA Direct"
+    >
+      P
+    </span>
   );
 }

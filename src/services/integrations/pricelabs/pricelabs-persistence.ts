@@ -6,7 +6,10 @@ import {
   type PriceLabsIntegration,
 } from "@prisma/client";
 import { db } from "@/lib/db";
-import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import {
+  decryptTTLockSecret,
+  encryptTTLockSecret,
+} from "@/services/integrations/ttlock/ttlock-crypto";
 import {
   isPriceLabsSchemaDriftError,
   wrapPriceLabsSchemaError,
@@ -63,7 +66,83 @@ export async function getPriceLabsIntegration(): Promise<PriceLabsIntegration | 
   return getPriceLabsIntegrationSafe();
 }
 
-/** Marks integration row when API key lives in env (no secrets in DB). */
+const MIN_API_KEY_LENGTH = 8;
+
+export async function savePriceLabsApiKeyEncrypted(input: {
+  configuredById: string;
+  apiKey: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const trimmed = input.apiKey.trim();
+  if (trimmed.length < MIN_API_KEY_LENGTH) {
+    return {
+      ok: false,
+      message: "La API key debe tener al menos 8 caracteres",
+    };
+  }
+
+  const encrypted = encryptTTLockSecret(trimmed);
+  if (!encrypted) {
+    return {
+      ok: false,
+      message:
+        "No se pudo cifrar la API key. Verifica TTLOCK_ENCRYPTION_KEY en el servidor.",
+    };
+  }
+
+  if (!(await isPriceLabsSchemaReady())) {
+    return {
+      ok: false,
+      message:
+        "Tablas PriceLabs no disponibles. Ejecuta npm run db:migrate y vuelve a intentar.",
+    };
+  }
+
+  try {
+    await db.priceLabsIntegration.upsert({
+      where: { id: SINGLETON_ID },
+      create: {
+        id: SINGLETON_ID,
+        integrationTokenEncrypted: encrypted,
+        configuredById: input.configuredById,
+        status: PriceLabsIntegrationStatus.PENDING_SETUP,
+        lastError: null,
+      },
+      update: {
+        integrationTokenEncrypted: encrypted,
+        configuredById: input.configuredById,
+        lastError: null,
+      },
+    });
+    return { ok: true, message: "API key guardada de forma segura en el servidor" };
+  } catch (error) {
+    throw wrapPriceLabsSchemaError(error);
+  }
+}
+
+export async function revokePriceLabsApiKey(): Promise<{ ok: boolean; message: string }> {
+  if (!(await isPriceLabsSchemaReady())) {
+    return { ok: false, message: "Tablas PriceLabs no disponibles" };
+  }
+  try {
+    const row = await getPriceLabsIntegrationSafe();
+    if (!row?.integrationTokenEncrypted) {
+      return { ok: true, message: "No había API key almacenada en base de datos" };
+    }
+    await db.priceLabsIntegration.update({
+      where: { id: SINGLETON_ID },
+      data: {
+        integrationTokenEncrypted: null,
+        status: PriceLabsIntegrationStatus.NOT_CONNECTED,
+        lastError: null,
+      },
+    });
+    return { ok: true, message: "API key revocada del servidor" };
+  } catch (error) {
+    throw wrapPriceLabsSchemaError(error);
+  }
+}
+
+/** Marks integration row when credentials exist (env and/or DB). */
 export async function markPriceLabsIntegrationReady(input: {
   configuredById: string;
 }): Promise<{ ok: boolean; message: string }> {
@@ -90,8 +169,7 @@ export async function markPriceLabsIntegrationReady(input: {
     });
     return {
       ok: true,
-      message:
-        "Integración preparada. La API key se lee solo desde PRICELABS_API_KEY.",
+      message: "Integración preparada para sincronización",
     };
   } catch (error) {
     throw wrapPriceLabsSchemaError(error);

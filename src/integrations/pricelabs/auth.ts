@@ -1,5 +1,5 @@
 import {
-  getPriceLabsApiKey,
+  getPriceLabsApiKeyFromEnv,
   isPriceLabsLiveApiEnabled,
 } from "@/lib/integrations/pricelabs-config";
 
@@ -16,12 +16,10 @@ export class PriceLabsConfigError extends Error {
   }
 }
 
-export function buildPriceLabsHeaders(apiKey?: string): PriceLabsAuthHeaders {
-  const key = apiKey ?? getPriceLabsApiKey();
+export function buildPriceLabsHeaders(apiKey: string): PriceLabsAuthHeaders {
+  const key = apiKey.trim();
   if (!key) {
-    throw new PriceLabsConfigError(
-      "Falta PRICELABS_API_KEY en variables de entorno del servidor",
-    );
+    throw new PriceLabsConfigError("API key PriceLabs vacía");
   }
   return {
     "X-API-Key": key,
@@ -39,5 +37,5 @@ export function assertPriceLabsLiveOrThrow(): void {
 }
 
 export function isPriceLabsConfiguredFromEnv(): boolean {
-  return Boolean(getPriceLabsApiKey());
+  return Boolean(getPriceLabsApiKeyFromEnv());
 }

@@ -1,4 +1,5 @@
 import { AirbnbAutoSync } from "@/components/airbnb/airbnb-auto-sync";
+import { BillingLockBanner } from "@/components/billing/billing-lock-banner";
 import { AppShell } from "@/components/layout/app-shell";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { hasPermission, requireDbUser } from "@/lib/auth";
@@ -35,6 +36,7 @@ export default async function DashboardLayout({
           imageUrl: user.imageUrl,
         }}
       >
+        <BillingLockBanner />
         <AirbnbAutoSync enabled={canSyncAirbnb} />
         {children}
       </AppShell>

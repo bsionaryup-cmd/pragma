@@ -12,8 +12,8 @@ import {
   resolveDisplayStatus,
 } from "@/features/reservations/lib/reservation-status";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
+import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { formatCurrency } from "@/lib/helpers";
-import { platformLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 type ReservationCardProps = {
@@ -76,11 +76,12 @@ function ReservationCardComponent({
           {guests} huésped{guests === 1 ? "" : "es"}
         </p>
 
-        <p className="truncate text-[11px] text-muted-foreground">
-          {platformLabels[reservation.platform]}
-          <span className="mx-1">·</span>
-          {reservation.property.name}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <ReservationSourceBadge platform={reservation.platform} />
+          <span className="truncate text-[11px] text-muted-foreground">
+            {reservation.property.name}
+          </span>
+        </div>
       </div>
     </button>
   );
