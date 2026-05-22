@@ -22,11 +22,7 @@ export const defaultMetadata: Metadata = {
   authors: [{ name: BRAND.name }],
   creator: BRAND.name,
   icons: {
-    icon: [
-      { url: BRAND_ASSETS.favicon16, type: "image/png", sizes: "16x16" },
-      { url: BRAND_ASSETS.favicon32, type: "image/png", sizes: "32x32" },
-      { url: BRAND_ASSETS.favicon, sizes: "32x32" },
-    ],
+    icon: [{ url: BRAND_ASSETS.favicon, type: "image/x-icon" }],
     apple: [
       { url: BRAND_ASSETS.appleTouch, sizes: "180x180", type: "image/png" },
     ],

@@ -24,21 +24,31 @@ const SOURCE_FILES = {
     "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_21_may_2026__04_17_58_a.m.-e2582609-6d6f-4091-9255-a38471e37194.png",
   logoStacked:
     "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_20_may_2026__08_18_15_p.m.-887dac3d-8d26-4d03-bd98-45f8a85ad30f.png",
+  /** Canonical P mark — May 2026 brand update */
   symbol:
-    "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_20_may_2026__08_20_29_p.m.-675572c7-e8df-42b2-9637-bae761f6090b.png",
+    "c__Users_R160_AppData_Roaming_Cursor_User_workspaceStorage_ebe224db981f797734175ce9f72a1fe8_images_ChatGPT_Image_22_may_2026__07_01_42_a.m.-ca49c1ed-57bf-4d6d-8041-7032d3dace45.png",
 };
+
+async function readMarkSource() {
+  const localSource = path.join(brandingDir, "logo-p-mark-source.png");
+  try {
+    return await fs.readFile(localSource);
+  } catch {
+    return readSource("symbol");
+  }
+}
 
 async function readSource(key) {
   const fromAssets = path.join(assetsDir, SOURCE_FILES[key]);
+  const brandingFallback = {
+    logoHorizontal: path.join(brandingDir, "logo-full.png"),
+    logoStacked: path.join(brandingDir, "logo-stacked.png"),
+    symbol: path.join(brandingDir, "logo-p-mark-source.png"),
+  };
   try {
     return await fs.readFile(fromAssets);
   } catch {
-    const legacy = path.join(root, "public", "brand", {
-      logoHorizontal: "pragma-logo-full.png",
-      logoStacked: "pragma-logo-full.png",
-      symbol: "pragma-symbol.png",
-    }[key]);
-    return fs.readFile(legacy);
+    return fs.readFile(brandingFallback[key]);
   }
 }
 
@@ -79,17 +89,123 @@ async function trimLogo(buf) {
   return sharp(buf).trim({ threshold: 12 }).png().toBuffer();
 }
 
+/** Slightly bolder strokes so the P reads at 16–32px. */
+async function fattenMarkForFavicon(input) {
+  const meta = await sharp(input).metadata();
+  const pad = 2;
+  const mark = await sharp(input).png().toBuffer();
+  const spread = 1;
+  const composites = [];
+
+  for (let dy = -spread; dy <= spread; dy++) {
+    for (let dx = -spread; dx <= spread; dx++) {
+      composites.push({
+        input: mark,
+        left: pad + dx,
+        top: pad + dy,
+      });
+    }
+  }
+
+  return sharp({
+    create: {
+      width: meta.width + pad * 2,
+      height: meta.height + pad * 2,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
+  })
+    .composite(composites)
+    .trim({ threshold: 1 })
+    .png()
+    .toBuffer();
+}
+
+/** Same gradient hues — boosted for tab visibility on white background. */
+async function enhanceFaviconVibrancy(input) {
+  return sharp(input)
+    .modulate({ brightness: 1.22, saturation: 1.52 })
+    .linear(1.12, -16)
+    .png()
+    .toBuffer();
+}
+
+function faviconPaddingRatio(size) {
+  if (size <= 16) return 0.03;
+  if (size <= 32) return 0.05;
+  return 0.07;
+}
+
 async function main() {
   await fs.mkdir(manifestIconsDir, { recursive: true });
 
   const logoHorizontalBuf = await readSource("logoHorizontal");
   const logoStackedBuf = await readSource("logoStacked");
-  const symbolBuf = await readSource("symbol");
+  const symbolBuf = await readMarkSource();
 
-  const markAlphaBuf = await stripDarkBackground(symbolBuf).then((img) =>
-    img.trim({ threshold: 12 }).png().toBuffer(),
-  );
+  const markAlphaBuf = await stripDarkBackground(symbolBuf)
+    .then((img) => img.trim({ threshold: 12 }).png().toBuffer());
   const markAlpha = sharp(markAlphaBuf);
+
+  const pMarkAlphaBuf = await fattenMarkForFavicon(markAlphaBuf).then((buf) =>
+    enhanceFaviconVibrancy(buf),
+  );
+  const pMarkAlpha = sharp(pMarkAlphaBuf);
+
+  async function renderPMarkIcon(size, { transparent = false } = {}) {
+    const paddingRatio = faviconPaddingRatio(size);
+    const inner = Math.max(1, Math.round(size * (1 - paddingRatio * 2)));
+    const innerBuf = await pMarkAlpha
+      .clone()
+      .resize(inner, inner, {
+        fit: "contain",
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+
+    const canvasBackground = transparent
+      ? { r: 0, g: 0, b: 0, alpha: 0 }
+      : { r: 255, g: 255, b: 255, alpha: 1 };
+
+    return sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: canvasBackground,
+      },
+    }).composite([{ input: innerBuf, gravity: "center" }]);
+  }
+
+  function createIcoFromPngs(entries) {
+    const count = entries.length;
+    const header = Buffer.alloc(6);
+    header.writeUInt16LE(0, 0);
+    header.writeUInt16LE(1, 2);
+    header.writeUInt16LE(count, 4);
+
+    let offset = 6 + 16 * count;
+    const dirs = [];
+    const images = [];
+
+    for (const { size, png } of entries) {
+      const dir = Buffer.alloc(16);
+      dir.writeUInt8(size >= 256 ? 0 : size, 0);
+      dir.writeUInt8(size >= 256 ? 0 : size, 1);
+      dir.writeUInt8(0, 2);
+      dir.writeUInt8(0, 3);
+      dir.writeUInt16LE(1, 4);
+      dir.writeUInt16LE(32, 6);
+      dir.writeUInt32LE(png.length, 8);
+      dir.writeUInt32LE(offset, 12);
+      dirs.push(dir);
+      images.push(png);
+      offset += png.length;
+    }
+
+    return Buffer.concat([header, ...dirs, ...images]);
+  }
 
   const logoFullTrimmed = await trimLogo(logoHorizontalBuf);
   const logoStackedTrimmed = await trimLogo(logoStackedBuf);
@@ -101,6 +217,7 @@ async function main() {
   );
   await writePng(sharp(logoStackedTrimmed), path.join(brandingDir, "logo-stacked.png"));
   await writePng(markAlpha, path.join(brandingDir, "logo-mark.png"));
+  await writePng(markAlpha, path.join(brandingDir, "logo-p-mark.png"));
 
   const iconSizes = [
     ["icon-16.png", 16],
@@ -115,28 +232,28 @@ async function main() {
 
   for (const [name, size] of iconSizes) {
     await writePng(
-      markAlpha
-        .clone()
-        .resize(size, size, {
-          fit: "contain",
-          background: { r: 0, g: 0, b: 0, alpha: 0 },
-        }),
+      await renderPMarkIcon(size),
       path.join(manifestIconsDir, name),
     );
   }
 
   await writePng(
-    markAlpha.clone().resize(180, 180, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    }),
+    await renderPMarkIcon(180),
     path.join(brandingDir, "apple-touch-icon.png"),
   );
 
-  await fs.copyFile(
-    path.join(manifestIconsDir, "icon-32.png"),
+  const png16 = await (await renderPMarkIcon(16, { transparent: true })).png().toBuffer();
+  const png32 = await (await renderPMarkIcon(32, { transparent: true })).png().toBuffer();
+  const png48 = await (await renderPMarkIcon(48, { transparent: true })).png().toBuffer();
+  await fs.writeFile(
     path.join(brandingDir, "favicon.ico"),
+    createIcoFromPngs([
+      { size: 16, png: png16 },
+      { size: 32, png: png32 },
+      { size: 48, png: png48 },
+    ]),
   );
+  console.log("wrote", path.relative(root, path.join(brandingDir, "favicon.ico")));
 
   await writePng(
     sharp(logoFullTrimmed).resize(1200, 630, {
@@ -162,8 +279,8 @@ async function main() {
 </svg>`;
   await fs.writeFile(path.join(brandingDir, "loader.svg"), loaderSvg);
 
-  await fs.copyFile(
-    path.join(manifestIconsDir, "icon-512.png"),
+  await writePng(
+    await renderPMarkIcon(32, { transparent: true }),
     path.join(root, "src", "app", "icon.png"),
   );
   await fs.copyFile(
