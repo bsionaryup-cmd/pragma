@@ -19,14 +19,28 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
+        src: BRAND_ASSETS.manifestIcons.icon512Maskable,
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+      {
         src: BRAND_ASSETS.manifestIcons.icon192,
         sizes: "192x192",
         type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: BRAND_ASSETS.manifestIcons.icon192Maskable,
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "maskable",
       },
       {
         src: BRAND_ASSETS.appleTouch,
         sizes: "180x180",
         type: "image/png",
+        purpose: "any",
       },
     ],
   };

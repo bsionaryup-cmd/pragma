@@ -19,6 +19,8 @@ export const BRAND_ASSETS = {
   manifestIcons: {
     icon192: "/branding/manifest-icons/icon-192.png",
     icon512: "/branding/manifest-icons/icon-512.png",
+    icon192Maskable: "/branding/manifest-icons/icon-192-maskable.png",
+    icon512Maskable: "/branding/manifest-icons/icon-512-maskable.png",
   },
 } as const;
 
