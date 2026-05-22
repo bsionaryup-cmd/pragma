@@ -3,21 +3,19 @@ import { db } from "@/lib/db";
 import { currentDbUser, requireDbUser } from "@/lib/auth";
 import { BILLING_ACCOUNT_SINGLETON } from "@/modules/billing/domain/constants";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
+import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 
 export async function resolveBillingAccountIdForUserId(
   userId: string,
 ): Promise<string | null> {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { organizationId: true },
-  });
+  const organizationId = await getEffectiveOrganizationIdForUser(userId);
 
-  if (!user?.organizationId) {
+  if (!organizationId) {
     return BILLING_ACCOUNT_SINGLETON;
   }
 
   const account = await db.billingAccount.findUnique({
-    where: { organizationId: user.organizationId },
+    where: { organizationId },
     select: { id: true },
   });
 
@@ -37,8 +35,9 @@ export const getCurrentBillingAccountId = cache(async (): Promise<string> => {
   const user = await currentDbUser();
   if (!user) return BILLING_ACCOUNT_SINGLETON;
 
-  if (user.organizationId) {
-    const account = await ensureOrganizationBillingAccount(user.organizationId);
+  const organizationId = await getEffectiveOrganizationIdForUser(user.id);
+  if (organizationId) {
+    const account = await ensureOrganizationBillingAccount(organizationId);
     return account.id;
   }
 
@@ -49,8 +48,9 @@ export const getCurrentBillingAccountId = cache(async (): Promise<string> => {
 export const requireBillingAccountId = cache(async (): Promise<string> => {
   const user = await requireDbUser();
 
-  if (user.organizationId) {
-    const account = await ensureOrganizationBillingAccount(user.organizationId);
+  const organizationId = await getEffectiveOrganizationIdForUser(user.id);
+  if (organizationId) {
+    const account = await ensureOrganizationBillingAccount(organizationId);
     return account.id;
   }
 

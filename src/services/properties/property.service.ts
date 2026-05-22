@@ -23,17 +23,15 @@ import {
   withVisibleReservationsFilter,
 } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
+import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 
 async function resolvePropertyScope(userId: string, propertyId?: string) {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { organizationId: true },
-  });
+  const organizationId = await getEffectiveOrganizationIdForUser(userId);
 
-  if (user?.organizationId) {
+  if (organizationId) {
     return propertyId
-      ? { id: propertyId, organizationId: user.organizationId }
-      : { organizationId: user.organizationId };
+      ? { id: propertyId, organizationId }
+      : { organizationId };
   }
 
   return propertyId
@@ -357,15 +355,12 @@ function normalizeFormData(data: PropertyFormValues) {
 }
 
 export async function createProperty(ownerId: string, data: PropertyFormValues) {
-  const user = await db.user.findUnique({
-    where: { id: ownerId },
-    select: { organizationId: true },
-  });
+  const organizationId = await getEffectiveOrganizationIdForUser(ownerId);
 
   const created = await db.property.create({
     data: {
       ownerId,
-      organizationId: user?.organizationId ?? null,
+      organizationId: organizationId ?? null,
       ...normalizeFormData(data),
     },
   });

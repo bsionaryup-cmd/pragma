@@ -6,8 +6,17 @@ import {
   hasRouteAccess,
   isProtectedDashboardPath,
 } from "@/lib/auth/permissions";
+import {
+  OWNER_DASHBOARD_PATH,
+  PLATFORM_OWNER_API_PREFIX,
+} from "@/lib/platform/constants";
 
 import type { AppUserRole } from "@/types/auth";
+
+const isOwnerRoute = createRouteMatcher([
+  `${OWNER_DASHBOARD_PATH}(.*)`,
+  `${PLATFORM_OWNER_API_PREFIX}(.*)`,
+]);
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -65,6 +74,12 @@ export default clerkMiddleware(
     }
 
     const pathname = request.nextUrl.pathname;
+
+    if (isOwnerRoute(request)) {
+      // Platform owner RBAC is enforced in route handlers via DB role + email.
+      return;
+    }
+
     if (!isProtectedDashboardPath(pathname)) {
       return;
     }

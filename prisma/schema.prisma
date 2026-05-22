@@ -11,15 +11,23 @@ datasource db {
 
 // ─── Organization (multi-tenant workspace) ─────────────────
 
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 model Organization {
-  id        String   @id @default(cuid())
+  id        String             @id @default(cuid())
   name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    OrganizationStatus @default(ACTIVE)
+  suspendedAt DateTime?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   users          User[]
   billingAccount BillingAccount?
   properties     Property[]
+  impersonationSessions PlatformImpersonationSession[]
 
   @@map("organizations")
 }
@@ -47,6 +55,7 @@ model User {
   phone             String?
   propertyCount     Int?
   organizationId    String?
+  platformRole      PlatformRole @default(NONE)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -60,10 +69,18 @@ model User {
   externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
   priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
   wompiIntegration     WompiIntegration?        @relation("WompiConfigurator")
+  platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
+  platformAuditLogs      PlatformAuditLog[]
 
   @@index([role, isActive])
   @@index([organizationId])
+  @@index([platformRole])
   @@map("users")
+}
+
+enum PlatformRole {
+  NONE
+  SUPER_ADMIN_OWNER
 }
 
 enum UserRole {
@@ -930,4 +947,57 @@ model PaymentAuditLog {
   @@index([tenantId, entityType, entityId])
   @@index([createdAt])
   @@map("payment_audit_logs")
+}
+
+// ─── Platform owner (Super Admin) ───────────────────────────
+
+enum PlatformImpersonationStatus {
+  ACTIVE
+  ENDED
+  EXPIRED
+}
+
+model PlatformImpersonationSession {
+  id                   String                      @id @default(cuid())
+  platformUserId       String
+  targetOrganizationId String
+  status               PlatformImpersonationStatus @default(ACTIVE)
+  startedAt            DateTime                    @default(now())
+  endedAt              DateTime?
+  expiresAt            DateTime
+  ipAddress            String?
+  userAgent            String?
+  deviceLabel          String?
+  endReason            String?
+
+  platformUser       User         @relation("PlatformImpersonator", fields: [platformUserId], references: [id], onDelete: Cascade)
+  targetOrganization Organization @relation(fields: [targetOrganizationId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId, status])
+  @@index([targetOrganizationId, status])
+  @@index([expiresAt])
+  @@map("platform_impersonation_sessions")
+}
+
+model PlatformAuditLog {
+  id               String   @id @default(cuid())
+  ownerEmail       String
+  platformUserId   String
+  action           String
+  targetTenantId   String?
+  targetUserId     String?
+  ipAddress        String?
+  userAgent        String?
+  deviceLabel      String?
+  previousState    Json?
+  newState         Json?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  platformUser User @relation(fields: [platformUserId], references: [id], onDelete: Cascade)
+
+  @@index([platformUserId, createdAt(sort: Desc)])
+  @@index([targetTenantId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("platform_audit_logs")
 }

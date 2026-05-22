@@ -20,6 +20,9 @@ import {
   type Permission,
 } from "@/lib/auth/permissions";
 import { readPublicMetadata } from "@/lib/auth/session-claims";
+import { buildTenantContext } from "@/lib/platform/tenant-context";
+import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
+import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 
 export type { Permission } from "@/lib/auth/permissions";
 export { hasPermission, getPermissionsForRole } from "@/lib/auth/permissions";
@@ -113,6 +116,7 @@ export const requireDbUser = cache(async (): Promise<User> => {
         null;
       const userAgent = headerStore.get("user-agent");
       const userIdForLogin = dbUser.id;
+      const activeUser = dbUser;
 
       after(async () => {
         try {
@@ -121,6 +125,13 @@ export const requireDbUser = cache(async (): Promise<User> => {
             ipAddress: ip,
             userAgent,
           });
+          if (isSuperAdminOwner(activeUser)) {
+            await writePlatformAuditLog({
+              platformUserId: activeUser.id,
+              ownerEmail: activeUser.email,
+              action: "owner_login",
+            });
+          }
         } catch (error) {
           if (!isUserSchemaDriftError(error)) {
             console.warn("[auth] login activity skipped:", error);
@@ -171,42 +182,57 @@ export const requireDbUser = cache(async (): Promise<User> => {
   return dbUser;
 });
 
+async function resolveEffectiveAuthContext(user: User): Promise<AuthContext> {
+  const ctx = await buildTenantContext(user);
+  const base = toAuthContext(user);
+  return {
+    ...base,
+    role: ctx.effectiveRole,
+  };
+}
+
 export const requireRole = cache(async (
   allowed: AppUserRole | AppUserRole[],
 ): Promise<AuthContext> => {
   const user = await requireDbUser();
+  const authContext = await resolveEffectiveAuthContext(user);
   const roles = Array.isArray(allowed) ? allowed : [allowed];
 
-  if (!roles.includes(user.role as AppUserRole)) {
+  if (!roles.includes(authContext.role)) {
     redirect("/unauthorized");
   }
 
-  return toAuthContext(user);
+  return authContext;
 });
 
 export const requirePermission = cache(async (
   permission: Permission,
 ): Promise<AuthContext> => {
   const user = await requireDbUser();
+  const authContext = await resolveEffectiveAuthContext(user);
 
-  if (!hasPermission(user.role as AppUserRole, permission)) {
+  if (!hasPermission(authContext.role, permission)) {
     redirect("/unauthorized");
   }
 
-  return toAuthContext(user);
+  return authContext;
 });
 
 export const requireAnyPermission = cache(async (
   ...permissions: Permission[]
 ): Promise<AuthContext> => {
   const user = await requireDbUser();
-  const role = user.role as AppUserRole;
+  const authContext = await resolveEffectiveAuthContext(user);
 
-  if (!permissions.some((permission) => hasPermission(role, permission))) {
+  if (
+    !permissions.some((permission) =>
+      hasPermission(authContext.role, permission),
+    )
+  ) {
     redirect("/unauthorized");
   }
 
-  return toAuthContext(user);
+  return authContext;
 });
 
 export async function getAuthContext(): Promise<AuthContext | null> {

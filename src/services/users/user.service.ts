@@ -19,6 +19,7 @@ import type { ClerkUserPayload } from "@/types/auth";
 import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
 import { clerkClient } from "@clerk/nextjs/server";
 import { createOrganizationWithTrial } from "@/services/organizations/organization.service";
+import { resolvePlatformRoleForEmail } from "@/lib/platform/resolve-platform-role";
 
 async function resolveSelfSignupContext(payload: ClerkUserPayload): Promise<{
   role: UserRole;
@@ -77,6 +78,7 @@ function buildUserUpdateData(
 
   if (payload.email) {
     data.email = payload.email;
+    data.platformRole = resolvePlatformRoleForEmail(payload.email);
   }
   if (payload.firstName !== undefined) {
     data.firstName = payload.firstName;
@@ -106,6 +108,7 @@ function buildUserCreateData(
   return {
     clerkId: payload.id,
     email: payload.email,
+    platformRole: resolvePlatformRoleForEmail(payload.email),
     firstName: payload.firstName,
     lastName: payload.lastName,
     imageUrl: payload.imageUrl,
