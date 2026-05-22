@@ -34,6 +34,8 @@ export function PragmaAuthLayout({ children, hint }: PragmaAuthLayoutProps) {
         <div className="mb-10 flex w-full max-w-md justify-center lg:hidden">
           <PragmaLogo
             variant="full"
+            tone="light"
+            priority
             fullClassName="h-24 w-full max-w-[min(100%,26rem)] sm:h-28"
           />
         </div>

@@ -1,5 +1,9 @@
 /** Apariencia Clerk alineada con PRAGMA (email + contraseña). */
 export const pragmaClerkAppearance = {
+  layout: {
+    // El logo de marca lo renderiza PragmaAuthLayout — evita flash del logo del dashboard Clerk
+    logoImageUrl: "",
+  },
   variables: {
     colorPrimary: "#0066FF",
     colorText: "#050A18",
@@ -14,6 +18,8 @@ export const pragmaClerkAppearance = {
     rootBox: "w-full",
     card: "shadow-none border-0 p-0 bg-transparent",
     cardBox: "shadow-none",
+    logoBox: "hidden",
+    logoImage: "hidden",
     headerTitle: "font-heading text-xl text-foreground",
     headerSubtitle: "text-sm text-muted-foreground",
     socialButtonsBlockButton:

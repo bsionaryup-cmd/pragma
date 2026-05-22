@@ -28,7 +28,8 @@ function resolveVariant(
   tone: "light" | "dark",
 ): BrandLogoVariant {
   if (variant === "full" && tone === "light") return "fullLight";
-  if (variant === "full" && tone === "dark") return "fullDark";
+  // logo-full.png (marca actual, fondo transparente) — logo-full-dark.png quedó obsoleto
+  if (variant === "full" && tone === "dark") return "full";
   return variant;
 }
 
