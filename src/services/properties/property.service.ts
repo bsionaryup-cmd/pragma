@@ -24,6 +24,23 @@ import {
 } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 
+async function resolvePropertyScope(userId: string, propertyId?: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { organizationId: true },
+  });
+
+  if (user?.organizationId) {
+    return propertyId
+      ? { id: propertyId, organizationId: user.organizationId }
+      : { organizationId: user.organizationId };
+  }
+
+  return propertyId
+    ? { id: propertyId, ownerId: userId }
+    : { ownerId: userId };
+}
+
 function getMonthBounds(reference = new Date()) {
   const monthStart = new Date(reference.getFullYear(), reference.getMonth(), 1);
   const monthEnd = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
@@ -130,13 +147,14 @@ function mapPropertyRow(
 }
 
 export async function listPropertiesForGrid(
-  ownerId: string,
+  userId: string,
 ): Promise<PropertyGridItem[]> {
   const today = startOfDay(new Date());
   const { monthStart, monthEnd } = getMonthBounds();
+  const scope = await resolvePropertyScope(userId);
 
   const properties = await db.property.findMany({
-    where: { ownerId },
+    where: scope,
     orderBy: { name: "asc" },
     include: {
       reservations: {
@@ -167,13 +185,14 @@ export async function listPropertiesForGrid(
 
 export async function getPropertyDetail(
   id: string,
-  ownerId: string,
+  userId: string,
 ): Promise<PropertyDetailDto | null> {
   const today = startOfDay(new Date());
   const { monthStart, monthEnd } = getMonthBounds();
+  const scope = await resolvePropertyScope(userId, id);
 
   const property = await db.property.findFirst({
-    where: { id, ownerId },
+    where: scope,
     include: {
       reservations: {
         where: {
@@ -279,25 +298,28 @@ export async function getPropertyDetail(
 }
 
 /** Para selects en reservas/tareas — solo activas y reservables */
-export async function listPropertiesForSelect() {
+export async function listPropertiesForSelect(userId: string) {
+  const scope = await resolvePropertyScope(userId);
   return db.property.findMany({
-    where: { status: PropertyStatus.ACTIVE },
+    where: { ...scope, status: PropertyStatus.ACTIVE },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
 }
 
-export async function listPropertiesForInbox() {
+export async function listPropertiesForInbox(userId: string) {
+  const scope = await resolvePropertyScope(userId);
   return db.property.findMany({
-    where: { status: PropertyStatus.ACTIVE },
+    where: { ...scope, status: PropertyStatus.ACTIVE },
     select: { id: true, name: true, address: true, city: true },
     orderBy: { name: "asc" },
   });
 }
 
-export async function getPropertyById(id: string, ownerId: string) {
+export async function getPropertyById(id: string, userId: string) {
+  const scope = await resolvePropertyScope(userId, id);
   return db.property.findFirst({
-    where: { id, ownerId },
+    where: scope,
   });
 }
 
@@ -335,9 +357,15 @@ function normalizeFormData(data: PropertyFormValues) {
 }
 
 export async function createProperty(ownerId: string, data: PropertyFormValues) {
+  const user = await db.user.findUnique({
+    where: { id: ownerId },
+    select: { organizationId: true },
+  });
+
   const created = await db.property.create({
     data: {
       ownerId,
+      organizationId: user?.organizationId ?? null,
       ...normalizeFormData(data),
     },
   });
@@ -379,10 +407,15 @@ export async function createPropertyFromAirbnbImport(
   preview: AirbnbImportPayload,
 ) {
   const data = sanitizeAirbnbImport(preview);
+  const user = await db.user.findUnique({
+    where: { id: ownerId },
+    select: { organizationId: true },
+  });
 
   const created = await db.property.create({
     data: {
       ownerId,
+      organizationId: user?.organizationId ?? null,
       ...data,
       status: PropertyStatus.ACTIVE,
       checkInTime: "15:00",
@@ -396,25 +429,28 @@ export async function createPropertyFromAirbnbImport(
 
 export async function updateProperty(
   id: string,
-  ownerId: string,
+  userId: string,
   data: PropertyFormValues,
 ) {
+  const scope = await resolvePropertyScope(userId, id);
   return db.property.updateMany({
-    where: { id, ownerId },
+    where: scope,
     data: normalizeFormData(data),
   });
 }
 
-export async function deleteProperty(id: string, ownerId: string) {
+export async function deleteProperty(id: string, userId: string) {
+  const scope = await resolvePropertyScope(userId, id);
   return db.property.deleteMany({
-    where: { id, ownerId },
+    where: scope,
   });
 }
 
 /** @deprecated Usar listPropertiesForGrid */
-export async function listProperties(ownerId: string) {
+export async function listProperties(userId: string) {
+  const scope = await resolvePropertyScope(userId);
   return db.property.findMany({
-    where: { ownerId },
+    where: scope,
     orderBy: { createdAt: "desc" },
   });
 }

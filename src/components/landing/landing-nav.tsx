@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
+import { AuthCtaPair, FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
 import {
   getLandingPrimaryCta,
-  getLandingSecondaryCta,
   type LandingSession,
 } from "@/lib/landing-session";
-import { Button } from "@/components/ui/button";
 
 const links = [
   { href: "#solution", label: "Solución" },
@@ -24,7 +23,6 @@ type LandingNavProps = {
 
 export function LandingNav({ session }: LandingNavProps) {
   const primary = getLandingPrimaryCta(session);
-  const secondary = getLandingSecondaryCta(session);
 
   return (
     <motion.header
@@ -34,7 +32,7 @@ export function LandingNav({ session }: LandingNavProps) {
       className="sticky top-0 z-50 border-b border-pragma-border/80 bg-white/95 backdrop-blur-xl"
     >
       <nav
-        className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-6 px-6"
+        className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-4 px-6"
         aria-label="Principal"
       >
         <Link href="/" className="flex min-w-0 items-center py-1" aria-label="PRAGMA — inicio">
@@ -59,20 +57,20 @@ export function LandingNav({ session }: LandingNavProps) {
           ))}
         </ul>
 
-        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {secondary ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="hidden text-pragma-mid-gray hover:bg-pragma-soft-gray hover:text-pragma-black sm:inline-flex"
-              asChild
-            >
-              <Link href={secondary.href}>{secondary.label}</Link>
-            </Button>
-          ) : null}
-          <Button variant="brand" size="sm" asChild>
-            <Link href={primary.href}>{primary.label}</Link>
-          </Button>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
+          {!session.signedIn ? (
+            <>
+              <LogInButton size="sm" className="hidden sm:inline-flex" />
+              <FreeTrialButton
+                href={primary.href}
+                label={primary.label}
+                size="sm"
+                className="max-sm:[&_.trial-badge]:hidden"
+              />
+            </>
+          ) : (
+            <AuthCtaPair session={session} size="sm" layout="row" />
+          )}
         </div>
       </nav>
     </motion.header>

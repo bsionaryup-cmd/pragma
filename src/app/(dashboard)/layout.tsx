@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
 import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,6 +11,7 @@ import {
   getMainNavigationForRole,
   getSettingsNavItem,
 } from "@/lib/navigation";
+import { userNeedsOnboarding } from "@/services/onboarding/onboarding.service";
 import type { AppUserRole } from "@/types/auth";
 
 export default async function DashboardLayout({
@@ -22,6 +24,10 @@ export default async function DashboardLayout({
     getServerLocale(),
     getServerLocale().then((l) => getDictionary(l)),
   ]);
+
+  if (userNeedsOnboarding(user)) {
+    redirect("/onboarding");
+  }
   const role = user.role as AppUserRole;
   const navItems = getMainNavigationForRole(role);
   const settingsItem = getSettingsNavItem(role);

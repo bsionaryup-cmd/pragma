@@ -4,7 +4,7 @@ import {
   type BillingPlanCode,
 } from "@prisma/client";
 import { db } from "@/lib/db";
-import { BILLING_ACCOUNT_SINGLETON } from "@/modules/billing/domain/constants";
+import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
 import { getPlanMonthlyAmount } from "@/modules/billing/domain/plan-catalog";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
 import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
@@ -13,16 +13,17 @@ export async function selectSubscriptionPlan(input: {
   plan: BillingPlanCode;
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const billingAccountId = await requireBillingAccountId();
   const amount = getPlanMonthlyAmount(input.plan);
 
   await db.billingAccount.update({
-    where: { id: BILLING_ACCOUNT_SINGLETON },
+    where: { id: billingAccountId },
     data: { plan: input.plan },
   });
 
   await db.billingInvoice.updateMany({
     where: {
-      billingAccountId: BILLING_ACCOUNT_SINGLETON,
+      billingAccountId,
       status: BillingInvoiceStatus.OPEN,
     },
     data: { amount },
@@ -30,7 +31,7 @@ export async function selectSubscriptionPlan(input: {
 
   await writePaymentAuditLog({
     entityType: "billing_account",
-    entityId: BILLING_ACCOUNT_SINGLETON,
+    entityId: billingAccountId,
     action: "plan_selected",
     actorId: input.actorId,
     after: { plan: input.plan, amount },
@@ -45,6 +46,7 @@ export async function submitManualPaymentProof(input: {
   note?: string;
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const billingAccountId = await requireBillingAccountId();
   const reference = input.reference.trim();
   if (reference.length < 4) {
     return { ok: false, message: "Indica la referencia de la transferencia" };
@@ -53,7 +55,7 @@ export async function submitManualPaymentProof(input: {
   const invoice = await db.billingInvoice.findFirst({
     where: {
       id: input.invoiceId,
-      billingAccountId: BILLING_ACCOUNT_SINGLETON,
+      billingAccountId,
       status: { in: [BillingInvoiceStatus.OPEN, BillingInvoiceStatus.FAILED] },
     },
   });
@@ -91,10 +93,11 @@ export async function confirmManualPayment(input: {
   actorId: string;
   note?: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const billingAccountId = await requireBillingAccountId();
   const invoice = await db.billingInvoice.findFirst({
     where: {
       id: input.invoiceId,
-      billingAccountId: BILLING_ACCOUNT_SINGLETON,
+      billingAccountId,
     },
   });
 
@@ -120,7 +123,7 @@ export async function confirmManualPayment(input: {
   });
 
   await db.billingAccount.update({
-    where: { id: BILLING_ACCOUNT_SINGLETON },
+    where: { id: billingAccountId },
     data: {
       status: BillingSubscriptionStatus.ACTIVE,
       billingLockedAt: null,

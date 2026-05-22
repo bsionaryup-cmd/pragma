@@ -11,6 +11,11 @@ import {
   type BillingAccessSnapshot,
 } from "@/lib/billing/billing-access";
 import {
+  getCurrentBillingAccountId,
+  requireBillingAccountId,
+  resolveBillingAccountForUserId,
+} from "@/lib/billing/resolve-billing-account";
+import {
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_TRIAL_DAYS,
 } from "@/modules/billing/domain/subscription-pricing";
@@ -20,8 +25,8 @@ import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
 } from "@/modules/billing/services/billing-lifecycle.service";
-
-const SINGLETON_ID = "singleton";
+import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
+import { requireDbUser } from "@/lib/auth";
 
 function isBillingSchemaMissing(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
@@ -29,19 +34,21 @@ function isBillingSchemaMissing(error: unknown): boolean {
   return code === "P2021" || code === "P2022";
 }
 
-export async function ensureBillingAccount(): Promise<BillingAccount | null> {
+export async function ensureBillingAccount(
+  organizationId?: string | null,
+): Promise<BillingAccount | null> {
   try {
-    return await db.billingAccount.upsert({
-      where: { id: SINGLETON_ID },
-      create: {
-        id: SINGLETON_ID,
-        status: BillingSubscriptionStatus.TRIAL,
-        trialEndsAt: new Date(
-          Date.now() + SUBSCRIPTION_TRIAL_DAYS * 24 * 60 * 60 * 1000,
-        ),
-      },
-      update: {},
-    });
+    if (organizationId) {
+      return ensureOrganizationBillingAccount(organizationId);
+    }
+
+    const user = await requireDbUser();
+    if (user.organizationId) {
+      return ensureOrganizationBillingAccount(user.organizationId);
+    }
+
+    const billingAccountId = await requireBillingAccountId();
+    return db.billingAccount.findUnique({ where: { id: billingAccountId } });
   } catch (error) {
     if (isBillingSchemaMissing(error)) return null;
     throw error;
@@ -50,7 +57,8 @@ export async function ensureBillingAccount(): Promise<BillingAccount | null> {
 
 export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | null> => {
   try {
-    return await db.billingAccount.findUnique({ where: { id: SINGLETON_ID } });
+    const billingAccountId = await getCurrentBillingAccountId();
+    return await db.billingAccount.findUnique({ where: { id: billingAccountId } });
   } catch (error) {
     if (isBillingSchemaMissing(error)) return null;
     throw error;
@@ -59,8 +67,9 @@ export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | nu
 
 export async function listBillingInvoices(limit = 20): Promise<BillingInvoice[]> {
   try {
+    const billingAccountId = await getCurrentBillingAccountId();
     return await db.billingInvoice.findMany({
-      where: { billingAccountId: SINGLETON_ID },
+      where: { billingAccountId },
       orderBy: { dueAt: "desc" },
       take: limit,
     });
@@ -108,12 +117,13 @@ export async function activateBillingSubscription(): Promise<{
   message: string;
 }> {
   try {
+    const billingAccountId = await requireBillingAccountId();
     await ensureBillingAccount();
     const periodEnd = new Date();
     periodEnd.setMonth(periodEnd.getMonth() + 1);
 
     await db.billingAccount.update({
-      where: { id: SINGLETON_ID },
+      where: { id: billingAccountId },
       data: {
         status: BillingSubscriptionStatus.ACTIVE,
         trialEndsAt: null,
@@ -125,7 +135,7 @@ export async function activateBillingSubscription(): Promise<{
 
     await db.billingInvoice.updateMany({
       where: {
-        billingAccountId: SINGLETON_ID,
+        billingAccountId,
         status: BillingInvoiceStatus.OPEN,
       },
       data: {
@@ -237,48 +247,50 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
 /** Lectura ligera para banner/layout — reconcilia solo si el ciclo requiere transición. */
 export const getBillingAccessSnapshot = cache(
   async (): Promise<BillingAccessSnapshot> => {
-  try {
-    let account = await getBillingAccountSafe();
-    if (!account) {
+    try {
+      let account = await getBillingAccountSafe();
+      if (!account) {
+        return {
+          locked: false,
+          status: BillingSubscriptionStatus.TRIAL,
+          trialEndsAt: null,
+          gracePeriodEndsAt: null,
+          reason: null,
+        };
+      }
+
+      if (accountNeedsLifecycleReconciliation(account)) {
+        account = await reconcileBillingLifecycle(account);
+      }
+
+      const locked = resolveBillingLocked({
+        status: account.status,
+        gracePeriodEndsAt: account.gracePeriodEndsAt,
+        billingLockedAt: account.billingLockedAt,
+      });
+
       return {
-        locked: false,
-        status: BillingSubscriptionStatus.TRIAL,
-        trialEndsAt: null,
-        gracePeriodEndsAt: null,
-        reason: null,
+        locked,
+        status: account.status,
+        trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
+        gracePeriodEndsAt: account.gracePeriodEndsAt?.toISOString() ?? null,
+        reason: locked
+          ? "Suscripción vencida o pago pendiente. Actualiza tu método de pago para continuar."
+          : null,
       };
+    } catch (error) {
+      if (isBillingSchemaMissing(error)) {
+        return {
+          locked: false,
+          status: BillingSubscriptionStatus.TRIAL,
+          trialEndsAt: null,
+          gracePeriodEndsAt: null,
+          reason: null,
+        };
+      }
+      throw error;
     }
-
-    if (accountNeedsLifecycleReconciliation(account)) {
-      account = await reconcileBillingLifecycle(account);
-    }
-
-    const locked = resolveBillingLocked({
-      status: account.status,
-      gracePeriodEndsAt: account.gracePeriodEndsAt,
-      billingLockedAt: account.billingLockedAt,
-    });
-
-    return {
-      locked,
-      status: account.status,
-      trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
-      gracePeriodEndsAt: account.gracePeriodEndsAt?.toISOString() ?? null,
-      reason: locked
-        ? "Suscripción vencida o pago pendiente. Actualiza tu método de pago para continuar."
-        : null,
-    };
-  } catch (error) {
-    if (isBillingSchemaMissing(error)) {
-      return {
-        locked: false,
-        status: BillingSubscriptionStatus.TRIAL,
-        trialEndsAt: null,
-        gracePeriodEndsAt: null,
-        reason: null,
-      };
-    }
-    throw error;
-  }
   },
 );
+
+export { SUBSCRIPTION_TRIAL_DAYS, resolveBillingAccountForUserId };

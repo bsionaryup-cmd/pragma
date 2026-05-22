@@ -30,7 +30,7 @@ export async function completeOnboarding(
     return { ok: false, message: "Indica cuántas propiedades administras (mínimo 1)" };
   }
 
-  await db.user.update({
+  const user = await db.user.update({
     where: { id: userId },
     data: {
       companyName,
@@ -40,6 +40,15 @@ export async function completeOnboarding(
     },
   });
 
-  await ensureBillingAccount();
+  if (user.organizationId) {
+    await db.organization.update({
+      where: { id: user.organizationId },
+      data: { name: companyName },
+    });
+    await ensureBillingAccount(user.organizationId);
+  } else {
+    await ensureBillingAccount();
+  }
+
   return { ok: true, message: "Configuración inicial completada" };
 }

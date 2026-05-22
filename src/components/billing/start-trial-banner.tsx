@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
 
 export function StartTrialBanner() {
   return (
@@ -9,7 +10,7 @@ export function StartTrialBanner() {
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 shrink-0 text-pragma-electric" />
           <p>
-            <span className="font-medium">Activa tu prueba gratis de 14 días</span>
+            <span className="font-medium">Activa tu {SUBSCRIPTION_TRIAL_LABEL.toLowerCase()}</span>
             <span className="text-muted-foreground">
               {" "}
               · configura tu operación y usa PRAGMA con tus propiedades

@@ -1,7 +1,7 @@
 import type { BillingInvoice, BillingPlanCode } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { BILLING_ACCOUNT_SINGLETON } from "@/modules/billing/domain/constants";
+import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
 import { BANK_TRANSFER_DETAILS } from "@/modules/billing/domain/bank-transfer";
 import {
   buildInvoiceNumber,
@@ -106,9 +106,14 @@ function buildDocumentFromParts(input: {
   };
 }
 
-async function resolveBillingCustomer() {
+async function resolveBillingCustomer(organizationId?: string | null) {
   const admin = await db.user.findFirst({
-    where: { role: "ADMIN", isActive: true, isAccountOwner: true },
+    where: {
+      role: "ADMIN",
+      isActive: true,
+      isAccountOwner: true,
+      ...(organizationId ? { organizationId } : {}),
+    },
     orderBy: { createdAt: "asc" },
     select: {
       email: true,
@@ -127,7 +132,11 @@ async function resolveBillingCustomer() {
   }
 
   const fallback = await db.user.findFirst({
-    where: { role: "ADMIN", isActive: true },
+    where: {
+      role: "ADMIN",
+      isActive: true,
+      ...(organizationId ? { organizationId } : {}),
+    },
     orderBy: { createdAt: "asc" },
     select: {
       email: true,
@@ -158,17 +167,18 @@ async function resolveBillingCustomer() {
 export async function getBillingInvoiceDocument(
   invoiceId: string,
 ): Promise<BillingInvoiceDocument | null> {
-  const [invoice, account, customer] = await Promise.all([
-    db.billingInvoice.findFirst({
-      where: {
-        id: invoiceId,
-        billingAccountId: BILLING_ACCOUNT_SINGLETON,
-        status: "PAID",
-      },
-    }),
-    db.billingAccount.findUnique({ where: { id: BILLING_ACCOUNT_SINGLETON } }),
-    resolveBillingCustomer(),
-  ]);
+  const billingAccountId = await requireBillingAccountId();
+  const account = await db.billingAccount.findUnique({
+    where: { id: billingAccountId },
+  });
+  const invoice = await db.billingInvoice.findFirst({
+    where: {
+      id: invoiceId,
+      billingAccountId,
+      status: "PAID",
+    },
+  });
+  const customer = await resolveBillingCustomer(account?.organizationId);
 
   if (!invoice) return null;
 
@@ -189,17 +199,18 @@ export async function getBillingInvoiceDocument(
 
 /** Factura del plan actual: última pagada o vista previa desde la cuenta activa. */
 export async function getCurrentPlanInvoiceDocument(): Promise<BillingInvoiceDocument | null> {
-  const [account, customer, latestPaid] = await Promise.all([
-    db.billingAccount.findUnique({ where: { id: BILLING_ACCOUNT_SINGLETON } }),
-    resolveBillingCustomer(),
+  const billingAccountId = await requireBillingAccountId();
+  const [account, latestPaid] = await Promise.all([
+    db.billingAccount.findUnique({ where: { id: billingAccountId } }),
     db.billingInvoice.findFirst({
       where: {
-        billingAccountId: BILLING_ACCOUNT_SINGLETON,
+        billingAccountId,
         status: "PAID",
       },
       orderBy: { paidAt: "desc" },
     }),
   ]);
+  const customer = await resolveBillingCustomer(account?.organizationId);
 
   if (!account) return null;
 
@@ -227,7 +238,7 @@ export async function getCurrentPlanInvoiceDocument(): Promise<BillingInvoiceDoc
 
   const previewInvoice: BillingInvoice = {
     id: "clpreview00000001",
-    billingAccountId: BILLING_ACCOUNT_SINGLETON,
+    billingAccountId,
     amount: new Prisma.Decimal(planDef.monthlyAmountCop),
     currency: planDef.currency,
     status: "PAID",

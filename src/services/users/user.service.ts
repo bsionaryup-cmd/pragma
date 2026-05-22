@@ -18,15 +18,23 @@ import { clerkUserPayloadSchema } from "@/lib/validations/user";
 import type { ClerkUserPayload } from "@/types/auth";
 import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
 import { clerkClient } from "@clerk/nextjs/server";
+import { createOrganizationWithTrial } from "@/services/organizations/organization.service";
 
-async function resolveNewUserFlags(): Promise<{
+async function resolveSelfSignupContext(payload: ClerkUserPayload): Promise<{
   role: UserRole;
   isAccountOwner: boolean;
+  organizationId: string;
 }> {
-  const count = await db.user.count();
-  return count === 0
-    ? { role: "ADMIN", isAccountOwner: true }
-    : { role: "RECEPTIONIST", isAccountOwner: false };
+  const organization = await createOrganizationWithTrial({
+    email: payload.email,
+    firstName: payload.firstName,
+  });
+
+  return {
+    role: "ADMIN",
+    isAccountOwner: true,
+    organizationId: organization.id,
+  };
 }
 
 function mapWebhookToPayload(data: ClerkWebhookUserData): ClerkUserPayload {
@@ -89,7 +97,11 @@ function buildUserUpdateData(
 function buildUserCreateData(
   payload: ClerkUserPayload,
   role: UserRole,
-  options?: { touchLogin?: boolean; isAccountOwner?: boolean },
+  options?: {
+    touchLogin?: boolean;
+    isAccountOwner?: boolean;
+    organizationId?: string | null;
+  },
 ): Prisma.UserCreateInput {
   return {
     clerkId: payload.id,
@@ -99,6 +111,9 @@ function buildUserCreateData(
     imageUrl: payload.imageUrl,
     role,
     isAccountOwner: options?.isAccountOwner ?? false,
+    ...(options?.organizationId
+      ? { organization: { connect: { id: options.organizationId } } }
+      : {}),
     locale: "es",
     theme: "system",
     timezone: "America/Bogota",
@@ -131,7 +146,13 @@ export async function syncClerkPublicMetadata(
 /** Upsert idempotente desde webhook o sesión */
 export async function upsertUserFromClerk(
   payload: ClerkUserPayload,
-  options?: { touchLogin?: boolean; syncClerkMetadata?: boolean },
+  options?: {
+    touchLogin?: boolean;
+    syncClerkMetadata?: boolean;
+    organizationId?: string;
+    role?: UserRole;
+    isAccountOwner?: boolean;
+  },
 ): Promise<User> {
   const validated = clerkUserPayloadSchema.parse(payload);
 
@@ -169,13 +190,21 @@ export async function upsertUserFromClerk(
     return withUserPreferenceDefaults(updated);
   }
 
-  const flags = await resolveNewUserFlags();
+  const signupContext = options?.organizationId
+    ? {
+        role: options.role ?? ("RECEPTIONIST" as UserRole),
+        isAccountOwner: options.isAccountOwner ?? false,
+        organizationId: options.organizationId,
+      }
+    : await resolveSelfSignupContext(validated);
+
   let created: User;
   try {
     created = await db.user.create({
-      data: buildUserCreateData(validated, flags.role, {
+      data: buildUserCreateData(validated, signupContext.role, {
         ...options,
-        isAccountOwner: flags.isAccountOwner,
+        isAccountOwner: signupContext.isAccountOwner,
+        organizationId: signupContext.organizationId,
       }),
     });
   } catch (error) {
@@ -296,12 +325,24 @@ async function findClerkUserByEmail(email: string) {
   );
 }
 
-export async function createUserByAdmin(input: {
-  email: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  role: UserRole;
-}) {
+export async function createUserByAdmin(
+  input: {
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    role: UserRole;
+  },
+  adminUserId: string,
+) {
+  const admin = await db.user.findUnique({
+    where: { id: adminUserId },
+    select: { organizationId: true },
+  });
+
+  if (!admin?.organizationId) {
+    throw new Error("No se pudo determinar la organización del administrador");
+  }
+
   const email = input.email.trim().toLowerCase();
 
   const existingDb = await db.user.findFirst({
@@ -351,6 +392,7 @@ export async function createUserByAdmin(input: {
         role: input.role,
         isActive: true,
         deletedAt: null,
+        organizationId: admin.organizationId,
       },
     });
     await syncClerkPublicMetadata(clerkUser.id, {
@@ -371,6 +413,7 @@ export async function createUserByAdmin(input: {
         imageUrl: payload.imageUrl,
         role: input.role,
         isActive: true,
+        organizationId: admin.organizationId,
       },
     });
     await syncClerkPublicMetadata(clerkUser.id, {
@@ -384,6 +427,7 @@ export async function createUserByAdmin(input: {
     data: buildUserCreateData(
       payload,
       input.role,
+      { organizationId: admin.organizationId },
     ),
   });
 

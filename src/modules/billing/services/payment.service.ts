@@ -7,7 +7,6 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
-  BILLING_ACCOUNT_SINGLETON,
   TENANT_SINGLETON,
 } from "@/modules/billing/domain/constants";
 import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
@@ -232,7 +231,7 @@ export async function reconcileTransactionFromWebhook(input: {
     const periodEnd = new Date();
     periodEnd.setMonth(periodEnd.getMonth() + 1);
     await db.billingAccount.update({
-      where: { id: BILLING_ACCOUNT_SINGLETON },
+      where: { id: billingInvoice.billingAccountId },
       data: {
         status: BillingSubscriptionStatus.ACTIVE,
         billingLockedAt: null,

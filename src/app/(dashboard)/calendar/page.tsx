@@ -40,7 +40,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const [data, propertyOptions] = await Promise.all([
     getCalendarData(anchor),
-    listPropertiesForInbox(),
+    listPropertiesForInbox(auth.dbUserId),
   ]);
 
   const reservationParam = params.reservation?.trim() ?? null;

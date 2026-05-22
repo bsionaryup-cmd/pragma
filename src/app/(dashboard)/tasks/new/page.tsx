@@ -5,8 +5,8 @@ import { requirePermission } from "@/lib/auth";
 import { listPropertiesForSelect } from "@/services/properties/property.service";
 
 export default async function NewTaskPage() {
-  await requirePermission("tasks:write");
-  const properties = await listPropertiesForSelect();
+  const auth = await requirePermission("tasks:write");
+  const properties = await listPropertiesForSelect(auth.dbUserId);
 
   return (
     <ModuleShellFlow className="bg-background">

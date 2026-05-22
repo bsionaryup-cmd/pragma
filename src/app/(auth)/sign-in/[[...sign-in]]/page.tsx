@@ -1,4 +1,5 @@
 import { SignIn } from "@clerk/nextjs";
+import { AuthPageCta } from "@/components/brand/auth-cta-buttons";
 import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
 import { pragmaClerkAppearance } from "@/lib/clerk-appearance";
 
@@ -38,6 +39,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         fallbackRedirectUrl="/panel"
         appearance={pragmaClerkAppearance}
       />
+      <AuthPageCta mode="sign-in" />
     </PragmaAuthLayout>
   );
 }

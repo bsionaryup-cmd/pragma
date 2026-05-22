@@ -1,16 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Play } from "lucide-react";
 import { LandingDashboardMockup } from "@/components/landing/landing-dashboard-mockup";
+import { AuthCtaPair } from "@/components/brand/auth-cta-buttons";
 import { BRAND } from "@/lib/brand";
-import {
-  getLandingPrimaryCta,
-  getLandingSecondaryCta,
-  type LandingSession,
-} from "@/lib/landing-session";
-import { Button } from "@/components/ui/button";
+import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
+import type { LandingSession } from "@/lib/landing-session";
 
 const ease = [0.21, 0.47, 0.32, 0.98] as const;
 
@@ -19,9 +14,6 @@ type LandingHeroProps = {
 };
 
 export function LandingHero({ session }: LandingHeroProps) {
-  const primary = getLandingPrimaryCta(session);
-  const secondary = getLandingSecondaryCta(session);
-
   return (
     <section className="relative mx-auto max-w-7xl px-6 pt-14 pb-20 md:pt-20 md:pb-28">
       <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
@@ -69,36 +61,12 @@ export function LandingHero({ session }: LandingHeroProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, delay: 0.2, ease }}
-            className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4"
+            className="mt-9"
           >
-            <Button variant="brand" size="lg" className="h-11 px-6 text-[15px]" asChild>
-              <Link href={primary.href}>
-                {primary.label}
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </Link>
-            </Button>
-            {secondary ? (
-              <Button
-                variant="brandOutline"
-                size="lg"
-                className="h-11 px-6 text-[15px]"
-                asChild
-              >
-                <Link href={secondary.href}>{secondary.label}</Link>
-              </Button>
-            ) : (
-              <Button
-                variant="brandOutline"
-                size="lg"
-                className="h-11 px-6 text-[15px]"
-                asChild
-              >
-                <Link href="/demo">
-                  <Play className="h-4 w-4" strokeWidth={2} />
-                  Ver demo en vivo
-                </Link>
-              </Button>
-            )}
+            <AuthCtaPair session={session} size="lg" />
+            <p className="mt-4 text-xs text-pragma-mid-gray">
+              {SUBSCRIPTION_TRIAL_LABEL} · Sin tarjeta para empezar
+            </p>
           </motion.div>
         </div>
 

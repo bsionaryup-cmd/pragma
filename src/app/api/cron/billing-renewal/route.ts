@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import {
-  ensureBillingAccount,
-  getBillingAccountSafe,
-} from "@/services/billing/billing.service";
-import { reconcileBillingLifecycle } from "@/modules/billing/services/billing-lifecycle.service";
+  accountNeedsLifecycleReconciliation,
+  reconcileBillingLifecycle,
+} from "@/modules/billing/services/billing-lifecycle.service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,20 +28,25 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
-  if (!account) {
-    return NextResponse.json(
-      { ok: false, message: "Facturación no disponible (migración pendiente)" },
-      { status: 503 },
-    );
-  }
+  const accounts = await db.billingAccount.findMany();
+  const reconciled = [];
 
-  const reconciled = await reconcileBillingLifecycle(account);
+  for (const account of accounts) {
+    const current = accountNeedsLifecycleReconciliation(account)
+      ? await reconcileBillingLifecycle(account)
+      : account;
+    reconciled.push({
+      id: current.id,
+      organizationId: current.organizationId,
+      status: current.status,
+      gracePeriodEndsAt: current.gracePeriodEndsAt?.toISOString() ?? null,
+      currentPeriodEnd: current.currentPeriodEnd?.toISOString() ?? null,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
-    status: reconciled.status,
-    gracePeriodEndsAt: reconciled.gracePeriodEndsAt?.toISOString() ?? null,
-    currentPeriodEnd: reconciled.currentPeriodEnd?.toISOString() ?? null,
+    processed: reconciled.length,
+    accounts: reconciled,
   });
 }

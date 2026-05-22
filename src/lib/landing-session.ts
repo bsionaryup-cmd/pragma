@@ -1,3 +1,5 @@
+import { APP_DEMO_CTA, APP_LOGIN_CTA } from "@/lib/constants";
+
 export type LandingSession = {
   signedIn: boolean;
   needsTrialSetup: boolean;
@@ -13,7 +15,7 @@ export function getLandingPrimaryCta(session: LandingSession): {
   label: string;
 } {
   if (!session.signedIn) {
-    return { href: "/sign-up", label: "Prueba gratis 14 días" };
+    return { href: "/sign-up", label: APP_DEMO_CTA };
   }
   if (session.needsTrialSetup) {
     return { href: "/onboarding", label: "Comenzar prueba gratis" };
@@ -26,7 +28,7 @@ export function getLandingSecondaryCta(session: LandingSession): {
   label: string;
 } | null {
   if (!session.signedIn) {
-    return { href: "/sign-in", label: "Iniciar sesión" };
+    return { href: "/sign-in", label: APP_LOGIN_CTA };
   }
   if (session.needsTrialSetup) {
     return { href: "/panel", label: "Explorar panel" };

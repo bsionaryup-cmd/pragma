@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { BRAND } from "@/lib/brand";
 
@@ -6,8 +7,8 @@ const footerLinks = [
   { href: "#solution", label: "Solución" },
   { href: "#product", label: "Command Center" },
   { href: "#integrations", label: "Integraciones" },
-  { href: "/sign-in", label: "Iniciar sesión" },
-  { href: "/sign-up", label: "Solicitar demo" },
+  { href: "/demo", label: "Demo" },
+  { href: "#contact", label: "Contacto" },
 ];
 
 export function LandingFooter() {
@@ -26,6 +27,10 @@ export function LandingFooter() {
             <p className="text-sm leading-relaxed text-pragma-mid-gray">
               {BRAND.positioning}
             </p>
+            <div className="flex flex-wrap gap-3 pt-1">
+              <FreeTrialButton size="sm" />
+              <LogInButton size="sm" />
+            </div>
             <p className="text-xs leading-relaxed text-pragma-mid-gray/90">
               © {year} {BRAND.productName}. Todos los derechos reservados.
             </p>

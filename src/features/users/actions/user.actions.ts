@@ -21,14 +21,17 @@ import {
 } from "@/services/users/user.service";
 
 export async function createUserAction(input: unknown) {
-  await requirePermission("users:write");
+  const admin = await requirePermission("users:write");
   const parsed = createUserSchema.parse(input);
-  await createUserByAdmin({
-    email: parsed.email,
-    firstName: parsed.firstName || null,
-    lastName: parsed.lastName || null,
-    role: parsed.role,
-  });
+  await createUserByAdmin(
+    {
+      email: parsed.email,
+      firstName: parsed.firstName || null,
+      lastName: parsed.lastName || null,
+      role: parsed.role,
+    },
+    admin.dbUserId,
+  );
   revalidatePath("/users");
 }
 

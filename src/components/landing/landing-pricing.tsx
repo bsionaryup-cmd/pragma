@@ -1,18 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import {
   APP_PRICING_HEADLINE,
   SUBSCRIPTION_TRIAL_LABEL,
 } from "@/lib/constants";
+import { FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
 import {
   getLandingPrimaryCta,
   type LandingSession,
 } from "@/lib/landing-session";
 import { PLAN_CATALOG } from "@/modules/billing/domain/plan-catalog";
-import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/landing/motion";
 
 type LandingPricingProps = {
@@ -72,13 +71,11 @@ export function LandingPricing({ session }: LandingPricingProps) {
                     </li>
                   ))}
                 </ul>
-                <div className="border-t px-8 py-6">
-                  <Button variant="brand" className="w-full" asChild>
-                    <Link href={primary.href}>
-                      {primary.label}
-                      <ArrowRight className="h-4 w-4" />
-                    </Link>
-                  </Button>
+                <div className="border-t px-8 py-6 space-y-3">
+                  <FreeTrialButton href={primary.href} label={primary.label} className="w-full" />
+                  {!session.signedIn ? (
+                    <LogInButton className="w-full" />
+                  ) : null}
                 </div>
               </motion.div>
             </FadeIn>

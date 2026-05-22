@@ -9,6 +9,21 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── Organization (multi-tenant workspace) ─────────────────
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]
+  billingAccount BillingAccount?
+  properties     Property[]
+
+  @@map("organizations")
+}
+
 // ─── User ───────────────────────────────────────────────────
 // Sincronizado con Clerk (webhook en módulo Auth)
 
@@ -31,9 +46,11 @@ model User {
   companyName       String?
   phone             String?
   propertyCount     Int?
+  organizationId    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  organization         Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   properties           Property[]
   assignedTasks        Task[]                 @relation("TaskAssignee")
   ttlockIntegrations   TTLockIntegration[]
@@ -45,6 +62,7 @@ model User {
   wompiIntegration     WompiIntegration?        @relation("WompiConfigurator")
 
   @@index([role, isActive])
+  @@index([organizationId])
   @@map("users")
 }
 
@@ -78,6 +96,7 @@ enum LoginActivityStatus {
 model Property {
   id                 String         @id @default(cuid())
   ownerId            String
+  organizationId     String?
   name               String
   description        String?
   address            String
@@ -110,12 +129,14 @@ model Property {
   updatedAt          DateTime       @updatedAt
 
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   reservations Reservation[]
   tasks        Task[]
   propertyLock PropertyLock?
   priceLabs      PropertyPriceLabs?
 
   @@index([ownerId, status])
+  @@index([organizationId, status])
   @@index([status])
   @@index([airbnbRoomId])
   @@map("properties")
@@ -676,7 +697,8 @@ model Lead {
 }
 
 model BillingAccount {
-  id                    String                    @id @default("singleton")
+  id                    String                    @id @default(cuid())
+  organizationId        String?                   @unique
   status                BillingSubscriptionStatus @default(TRIAL)
   plan                  BillingPlanCode           @default(STARTER)
   trialEndsAt           DateTime?
@@ -689,7 +711,8 @@ model BillingAccount {
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
 
-  invoices BillingInvoice[]
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invoices     BillingInvoice[]
 
   @@map("billing_accounts")
 }

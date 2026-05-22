@@ -82,9 +82,13 @@ async function markReceiptEmailSent(invoiceId: string): Promise<boolean> {
   }
 }
 
-async function resolveBillingRecipient() {
+async function resolveBillingRecipient(organizationId?: string | null) {
   const admin = await db.user.findFirst({
-    where: { role: "ADMIN", isActive: true },
+    where: {
+      role: "ADMIN",
+      isActive: true,
+      ...(organizationId ? { organizationId } : {}),
+    },
     orderBy: { createdAt: "asc" },
     select: { email: true, firstName: true, lastName: true },
   });
@@ -273,20 +277,18 @@ export async function sendBillingReceiptEmail(
     return { ok: true, message: "Correo de factura ya enviado" };
   }
 
-  const [invoice, account, recipient] = await Promise.all([
-    db.billingInvoice.findFirst({
-      where: {
-        id: input.invoiceId,
-        billingAccountId: BILLING_ACCOUNT_SINGLETON,
-      },
-    }),
-    db.billingAccount.findUnique({ where: { id: BILLING_ACCOUNT_SINGLETON } }),
-    resolveBillingRecipient(),
-  ]);
+  const invoice = await db.billingInvoice.findFirst({
+    where: { id: input.invoiceId },
+  });
 
   if (!invoice || invoice.status !== "PAID") {
     return { ok: false, message: "Factura no pagada" };
   }
+
+  const account = await db.billingAccount.findUnique({
+    where: { id: invoice.billingAccountId },
+  });
+  const recipient = await resolveBillingRecipient(account?.organizationId);
 
   if (invoice.invoiceEmailSentAt) {
     return { ok: true, message: "Correo de factura ya enviado" };
