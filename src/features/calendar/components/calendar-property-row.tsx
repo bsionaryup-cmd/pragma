@@ -79,8 +79,8 @@ function CalendarPropertyRowComponent({
   return (
     <div
       className={cn(
-        "relative box-border border-b border-[#E9ECEF] bg-white",
-        rowIndex % 2 === 1 && "bg-[#FAFBFC]",
+        "relative box-border border-b border-[var(--cal-border)] bg-white",
+        rowIndex % 2 === 1 && "bg-[var(--cal-bg-alt)]",
       )}
       style={{
         width: gridWidth,
@@ -100,12 +100,12 @@ function CalendarPropertyRowComponent({
             disabled={!canWrite}
             onClick={() => onDayClick(propertyId, day.date)}
             className={cn(
-              "absolute top-0 z-0 border-r border-[#E9ECEF] bg-white transition-colors duration-150",
-              day.isWeekend && "bg-[#F3F5F7]",
+              "absolute top-0 z-0 border-r border-[var(--cal-border)] bg-white transition-colors duration-150",
+              day.isWeekend && "bg-[var(--cal-bg-weekend)]",
               day.isToday &&
-                "z-[1] bg-[#E6F7F4] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.35)]",
-              selected && "bg-[#D1F0EA] ring-1 ring-inset ring-[#0E9F8D]/50",
-              canWrite && "cursor-crosshair hover:bg-[#EAF8F5]",
+                "z-[1] bg-[var(--cal-bg-today)] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.35)]",
+              selected && "bg-[var(--cal-bg-selected)] ring-1 ring-inset ring-[#0E9F8D]/50",
+              canWrite && "cursor-crosshair hover:bg-[var(--cal-bg-hover-cell)]",
               !canWrite && "cursor-default",
             )}
             style={{
@@ -117,7 +117,7 @@ function CalendarPropertyRowComponent({
           >
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(217,222,229,0.55)_calc(50%-0.5px),rgba(217,222,229,0.55)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(190,198,208,0.68)_calc(50%-0.5px),rgba(190,198,208,0.68)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
             />
             <CalendarDayPrice pricing={dailyPricesByDate[day.date]} />
           </button>

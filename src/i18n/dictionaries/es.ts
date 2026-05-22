@@ -137,6 +137,10 @@ export const es = {
       netProfit: "Utilidad neta",
       pendingIncome: "Ingresos pendientes",
       outstanding: "Pagos pendientes",
+      reservations: "Reservas",
+      otherIncome: "Otros ingresos",
+      cleaning: "Limpieza",
+      otherExpenses: "Otros egresos",
     },
     comparison: {
       title: "Mes actual vs anterior",

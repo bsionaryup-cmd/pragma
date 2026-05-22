@@ -33,14 +33,14 @@ function CalendarToolbarComponent({
 
   return (
     <div
-      className="flex shrink-0 items-center justify-between gap-4 border-b border-[#E9ECEF] bg-white px-5 shadow-pragma-soft"
+      className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--cal-border)] bg-white px-5 shadow-pragma-soft"
       style={{ height: CALENDAR_TOOLBAR_HEIGHT }}
     >
       <div className="flex items-center gap-1.5">
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 rounded-lg border-[#E9ECEF] bg-white hover:bg-[#F7F8FA]"
+          className="h-9 w-9 rounded-lg border-[var(--cal-border)] bg-white hover:bg-[var(--cal-bg-hover)]"
           asChild
         >
           <Link
@@ -53,7 +53,7 @@ function CalendarToolbarComponent({
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 rounded-lg border-[#E9ECEF] bg-white hover:bg-[#F7F8FA]"
+          className="h-9 w-9 rounded-lg border-[var(--cal-border)] bg-white hover:bg-[var(--cal-bg-hover)]"
           asChild
         >
           <Link
@@ -67,7 +67,7 @@ function CalendarToolbarComponent({
           variant="outline"
           size="sm"
           className={cn(
-            "h-9 rounded-lg border-[#E9ECEF] bg-white px-4 text-xs font-medium hover:bg-[#F7F8FA]",
+            "h-9 rounded-lg border-[var(--cal-border)] bg-white px-4 text-xs font-medium hover:bg-[var(--cal-bg-hover)]",
             isOnToday && "opacity-60",
           )}
           asChild={!isOnToday}
@@ -89,7 +89,7 @@ function CalendarToolbarComponent({
         {canSyncAirbnb ? (
           <AirbnbSyncStatus canSync compact className="justify-end" />
         ) : (
-          <p className="text-[11px] text-[#6B7280] tabular-nums">
+          <p className="text-[11px] text-[var(--cal-text-secondary)] tabular-nums">
             {today}
           </p>
         )}

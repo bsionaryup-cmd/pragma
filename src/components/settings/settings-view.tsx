@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -10,46 +9,31 @@ import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 import { saveUserPreferencesAction } from "@/features/settings/actions/settings.actions";
 
 type SettingsViewProps = {
-  canAccessProperties: boolean;
   canAccessIntegrations: boolean;
   canManageUsers: boolean;
+  canManageBilling: boolean;
   email: string;
   displayName: string;
   initialLocale: string;
   initialTheme: string;
 };
 
-const tabs = [
-  { id: "general", label: "General" },
-  { id: "appearance", label: "Apariencia" },
-  { id: "profile", label: "Perfil" },
-] as const;
-
-type TabId = (typeof tabs)[number]["id"];
-
 export function SettingsView({
-  canAccessProperties,
   canAccessIntegrations,
   canManageUsers,
+  canManageBilling,
   email,
   displayName,
   initialLocale,
   initialTheme,
 }: SettingsViewProps) {
   const { t } = useI18n();
-  const searchParams = useSearchParams();
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const activeTab = (searchParams.get("tab") as TabId) || "general";
-
-  function setTab(tab: TabId) {
-    router.replace(`/settings?tab=${tab}`, { scroll: false });
-  }
 
   function persistPreferences() {
     startTransition(async () => {
@@ -67,6 +51,9 @@ export function SettingsView({
     });
   }
 
+  const hasQuickLinks =
+    canAccessIntegrations || canManageBilling || canManageUsers;
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 pb-12 sm:px-6 lg:px-8">
       <div>
@@ -78,85 +65,95 @@ export function SettingsView({
         </h1>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setTab(tab.id)}
-            className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-              activeTab === tab.id
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-        {canAccessProperties ? (
-          <Link
-            href="/properties"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-          >
-            {t("nav.properties")}
-          </Link>
-        ) : null}
-        {canAccessIntegrations ? (
-          <Link
-            href="/integrations"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-          >
-            {t("nav.integrations")}
-          </Link>
-        ) : null}
-        {canManageUsers ? (
-          <>
+      {hasQuickLinks ? (
+        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+          {canAccessIntegrations ? (
             <Link
-              href="/users"
+              href="/integrations"
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
-              {t("nav.users")}
+              {t("nav.integrations")}
             </Link>
+          ) : null}
+          {canManageBilling ? (
             <Link
               href="/settings/billing"
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               Facturación
             </Link>
-          </>
-        ) : null}
-      </div>
-
-      {activeTab === "general" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">General</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Idioma</Label>
-              <LanguageSwitcher collapsed={false} />
-            </div>
-            <div className="space-y-2">
-              <Label>Zona horaria del sistema</Label>
-              <p className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm">
-                {PRAGMA_TIMEZONE} (fija para toda la operación)
-              </p>
-            </div>
-            <Button type="button" disabled={pending} onClick={persistPreferences}>
-              Guardar preferencias
-            </Button>
-          </CardContent>
-        </Card>
+          ) : null}
+          {canManageUsers ? (
+            <Link
+              href="/users"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              {t("nav.users")}
+            </Link>
+          ) : null}
+        </div>
       ) : null}
 
-      {activeTab === "appearance" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Apariencia</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">General</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-8">
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Perfil</h2>
+              <p className="text-xs text-muted-foreground">
+                Información de tu cuenta en PRAGMA.
+              </p>
+            </div>
+            <dl className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
+                <dt className="text-xs text-muted-foreground">Nombre</dt>
+                <dd className="mt-1 text-sm font-medium">{displayName}</dd>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
+                <dt className="text-xs text-muted-foreground">Email</dt>
+                <dd className="mt-1 text-sm font-medium">{email}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Preferencias
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Idioma y zona horaria de la operación.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Idioma</Label>
+                <LanguageSwitcher collapsed={false} />
+              </div>
+              <div className="space-y-2">
+                <Label>Zona horaria del sistema</Label>
+                <p className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm">
+                  {PRAGMA_TIMEZONE} (fija para toda la operación)
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <Separator />
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Apariencia
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Tema visual de la interfaz.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label>Tema</Label>
               <ThemeToggle />
@@ -164,27 +161,15 @@ export function SettingsView({
                 Claro, oscuro o según el sistema. Se guarda en tu perfil.
               </p>
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          </section>
 
-      {activeTab === "profile" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Perfil</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div>
-              <p className="text-muted-foreground">Nombre</p>
-              <p className="font-medium">{displayName}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Email</p>
-              <p className="font-medium">{email}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
+          <div className="pt-2">
+            <Button type="button" disabled={pending} onClick={persistPreferences}>
+              Guardar preferencias
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

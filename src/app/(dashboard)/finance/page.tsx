@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { FinanceView } from "@/components/finance/finance-view";
-import { hasPermission, requireDbUser } from "@/lib/auth";
+import { hasPermission, requireAnyPermission } from "@/lib/auth";
 import { getServerLocale } from "@/i18n/locale.server";
 import { getFinanceOverview } from "@/services/finance/finance.service";
+import type { AppUserRole } from "@/types/auth";
+import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
 
 export const metadata: Metadata = {
   title: "Finanzas",
@@ -11,15 +13,22 @@ export const metadata: Metadata = {
 };
 
 export default async function FinancePage() {
-  const user = await requireDbUser();
-  if (!hasPermission(user.role, "finance:read")) {
+  const locale = await getServerLocale();
+  const [auth, data] = await Promise.all([
+    requireAnyPermission("finance:read", "finance:operations:read"),
+    getFinanceOverview(locale),
+  ]);
+  await redirectIfBillingLocked("/finance");
+
+  const role = auth.role as AppUserRole;
+  const hasFullFinance = hasPermission(role, "finance:read");
+
+  if (!hasFullFinance && !hasPermission(role, "finance:operations:read")) {
     redirect("/unauthorized");
   }
 
-  const locale = await getServerLocale();
-  const data = await getFinanceOverview(locale);
+  const canWrite = hasPermission(role, "finance:write");
+  const scope = hasFullFinance ? "full" : "operations";
 
-  const canWrite = hasPermission(user.role, "finance:write");
-
-  return <FinanceView data={data} canWrite={canWrite} />;
+  return <FinanceView data={data} canWrite={canWrite} scope={scope} />;
 }

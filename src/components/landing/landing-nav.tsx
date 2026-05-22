@@ -3,17 +3,29 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
-import { APP_DEMO_CTA } from "@/lib/constants";
+import {
+  getLandingPrimaryCta,
+  getLandingSecondaryCta,
+  type LandingSession,
+} from "@/lib/landing-session";
 import { Button } from "@/components/ui/button";
 
 const links = [
   { href: "#solution", label: "Solución" },
   { href: "#product", label: "Producto" },
-  { href: "#integrations", label: "Integraciones" },
-  { href: "#benefits", label: "Beneficios" },
+  { href: "#pricing", label: "Precios" },
+  { href: "/demo", label: "Demo" },
+  { href: "#contact", label: "Contacto" },
 ];
 
-export function LandingNav() {
+type LandingNavProps = {
+  session: LandingSession;
+};
+
+export function LandingNav({ session }: LandingNavProps) {
+  const primary = getLandingPrimaryCta(session);
+  const secondary = getLandingSecondaryCta(session);
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -12 }}
@@ -25,11 +37,7 @@ export function LandingNav() {
         className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-6 px-6"
         aria-label="Principal"
       >
-        <Link
-          href="/"
-          className="flex min-w-0 items-center py-1"
-          aria-label="PRAGMA — inicio"
-        >
+        <Link href="/" className="flex min-w-0 items-center py-1" aria-label="PRAGMA — inicio">
           <PragmaLogo
             variant="full"
             tone="light"
@@ -52,16 +60,18 @@ export function LandingNav() {
         </ul>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="hidden text-pragma-mid-gray hover:bg-pragma-soft-gray hover:text-pragma-black sm:inline-flex"
-            asChild
-          >
-            <Link href="/sign-in">Iniciar sesión</Link>
-          </Button>
+          {secondary ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden text-pragma-mid-gray hover:bg-pragma-soft-gray hover:text-pragma-black sm:inline-flex"
+              asChild
+            >
+              <Link href={secondary.href}>{secondary.label}</Link>
+            </Button>
+          ) : null}
           <Button variant="brand" size="sm" asChild>
-            <Link href="/sign-up">{APP_DEMO_CTA}</Link>
+            <Link href={primary.href}>{primary.label}</Link>
           </Button>
         </div>
       </nav>

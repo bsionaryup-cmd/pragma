@@ -1,5 +1,6 @@
-import { AirbnbAutoSync } from "@/components/airbnb/airbnb-auto-sync";
-import { BillingLockBanner } from "@/components/billing/billing-lock-banner";
+import { Suspense } from "react";
+import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
+import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import { hasPermission, requireDbUser } from "@/lib/auth";
@@ -16,10 +17,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireDbUser();
+  const [user, locale, dictionary] = await Promise.all([
+    requireDbUser(),
+    getServerLocale(),
+    getServerLocale().then((l) => getDictionary(l)),
+  ]);
   const role = user.role as AppUserRole;
-  const locale = await getServerLocale();
-  const dictionary = await getDictionary(locale);
   const navItems = getMainNavigationForRole(role);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb = hasPermission(role, "properties:write");
@@ -34,10 +37,13 @@ export default async function DashboardLayout({
           lastName: user.lastName,
           email: user.email,
           imageUrl: user.imageUrl,
+          role,
         }}
       >
-        <BillingLockBanner />
-        <AirbnbAutoSync enabled={canSyncAirbnb} />
+        <Suspense fallback={null}>
+          <DashboardBanners user={user} />
+        </Suspense>
+        <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
         {children}
       </AppShell>
     </I18nProvider>

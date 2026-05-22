@@ -35,12 +35,29 @@ export function resolveStoredUserToken(
   return resolveStoredSecret(encrypted);
 }
 
+const PRICELABS_INTEGRATION_READ_SELECT = {
+  id: true,
+  status: true,
+  integrationTokenEncrypted: true,
+  integrationName: true,
+  userTokenEncrypted: true,
+  syncInProgressAt: true,
+  lastHealthCheckAt: true,
+  lastListingsSyncAt: true,
+  lastPricesSyncAt: true,
+  lastError: true,
+  configuredById: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function getPriceLabsIntegrationSafe(): Promise<PriceLabsIntegration | null> {
   if (!(await isPriceLabsSchemaReady())) return null;
   try {
-    return await db.priceLabsIntegration.findUnique({
+    return (await db.priceLabsIntegration.findUnique({
       where: { id: SINGLETON_ID },
-    });
+      select: PRICELABS_INTEGRATION_READ_SELECT,
+    })) as PriceLabsIntegration | null;
   } catch (error) {
     if (isPriceLabsSchemaDriftError(error)) return null;
     throw error;

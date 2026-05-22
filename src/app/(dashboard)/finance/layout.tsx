@@ -1,10 +1,10 @@
-import { requirePermission } from "@/lib/auth";
+import { requireAnyPermission } from "@/lib/auth";
 
 export default async function FinanceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requirePermission("finance:read");
+  await requireAnyPermission("finance:read", "finance:operations:read");
   return children;
 }

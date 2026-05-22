@@ -1,4 +1,8 @@
-import { hasPermission, type Permission } from "@/lib/auth/permissions";
+import {
+  hasAnyPermission,
+  hasPermission,
+  type Permission,
+} from "@/lib/auth/permissions";
 import type { TranslationKey } from "@/i18n/translate";
 import type { AppUserRole } from "@/types/auth";
 
@@ -42,10 +46,16 @@ const mainNavItems: NavItem[] = [
     permission: "calendar:read",
   },
   {
+    labelKey: "nav.properties",
+    href: "/properties",
+    icon: "building-2",
+    permission: "properties:read",
+  },
+  {
     labelKey: "nav.revenue",
     href: "/revenue",
     icon: "line-chart",
-    permission: "calendar:read",
+    permission: "finance:revenue:read",
   },
   {
     labelKey: "nav.messages",
@@ -62,6 +72,13 @@ const financeNavItem: NavItem = {
   permission: "finance:read",
 };
 
+const settingsNavItem: NavItem = {
+  labelKey: "nav.settings",
+  href: "/settings",
+  icon: "settings",
+  permission: "settings:read",
+};
+
 export const secondaryRouteLinks: Pick<NavItem, "labelKey" | "href" | "permission">[] =
   [];
 
@@ -73,20 +90,17 @@ export function getSecondaryRouteLinksForRole(
     .map(({ labelKey, href }) => ({ labelKey, href }));
 }
 
-const settingsNavItem: NavItem = {
-  labelKey: "nav.settings",
-  href: "/settings",
-  icon: "settings",
-  permission: "dashboard:read",
-};
-
 export function getMainNavigationForRole(role: AppUserRole): NavItem[] {
   const items = mainNavItems.filter((item) =>
     hasPermission(role, item.permission),
   );
-  if (hasPermission(role, "finance:read")) {
+
+  if (
+    hasAnyPermission(role, ["finance:read", "finance:operations:read"])
+  ) {
     items.push(financeNavItem);
   }
+
   return items;
 }
 

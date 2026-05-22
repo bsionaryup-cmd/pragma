@@ -32,6 +32,7 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
     user.lastName,
     user.email,
   );
+  const isAdmin = user.role === "ADMIN";
 
   async function handleLogout() {
     await signOut({ redirectUrl: "/sign-in?session_reset=1" });
@@ -86,24 +87,28 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/settings?tab=profile" className="cursor-pointer">
-            <User className="mr-2 h-4 w-4" />
-            Perfil
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings" className="cursor-pointer">
-            <Settings className="mr-2 h-4 w-4" />
-            Configuración
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/settings/billing" className="cursor-pointer">
-            <CreditCard className="mr-2 h-4 w-4" />
-            Facturación
-          </Link>
-        </DropdownMenuItem>
+        {isAdmin ? (
+          <>
+            <DropdownMenuItem asChild>
+              <Link href="/settings?tab=profile" className="cursor-pointer">
+                <User className="mr-2 h-4 w-4" />
+                Perfil
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings" className="cursor-pointer">
+                <Settings className="mr-2 h-4 w-4" />
+                Configuración
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/settings/billing" className="cursor-pointer">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Facturación
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer text-destructive focus:text-destructive"

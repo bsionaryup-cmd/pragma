@@ -4,7 +4,7 @@ import { requirePermission } from "@/lib/auth";
 import { getSmartpriceDashboard } from "@/services/revenue/revenue-dashboard.service";
 
 export default async function SmartpricePage() {
-  await requirePermission("calendar:read");
+  await requirePermission("finance:revenue:read");
   const data = await getSmartpriceDashboard();
   return (
     <ModuleShellFlow>

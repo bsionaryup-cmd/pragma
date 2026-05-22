@@ -1,14 +1,26 @@
-import { requireRole } from "@/lib/auth";
-import { BillingCenter } from "@/features/billing/components/billing-center";
-import { getBillingOverview } from "@/services/billing/billing.service";
+import { requirePermission } from "@/lib/auth";
+import { BillingCheckoutFeedback } from "@/features/billing/components/billing-checkout-feedback";
+import { BillingDashboard } from "@/features/billing/components/billing-dashboard";
+import { getBillingDashboard } from "@/modules/billing/services/dashboard.service";
 
-export default async function BillingSettingsPage() {
-  await requireRole("ADMIN");
-  const overview = await getBillingOverview();
+type BillingSettingsPageProps = {
+  searchParams: Promise<{ paid?: string }>;
+};
+
+export default async function BillingSettingsPage({
+  searchParams,
+}: BillingSettingsPageProps) {
+  await requirePermission("billing:manage");
+  const params = await searchParams;
+  const data = await getBillingDashboard();
+
   return (
-    <BillingCenter
-      overview={overview}
-      showDevActivate={process.env.NODE_ENV !== "production"}
-    />
+    <>
+      <BillingCheckoutFeedback paid={params.paid === "1"} />
+      <BillingDashboard
+        data={data}
+        showDevActivate={process.env.NODE_ENV !== "production"}
+      />
+    </>
   );
 }

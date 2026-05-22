@@ -29,14 +29,14 @@ export function CalendarDayPrice({ pricing }: CalendarDayPriceProps) {
     >
       <span
         className={cn(
-          "max-w-full truncate text-[9px] font-semibold leading-none tabular-nums",
-          pricing.isBooked ? "text-[#9CA3AF]" : "text-[#0E9F8D]",
+          "max-w-full truncate text-[10px] font-semibold leading-none tabular-nums",
+          pricing.isBooked ? "text-[var(--cal-text-muted)]" : "text-[#0E9F8D]",
         )}
       >
         {formatCompactPrice(display)}
       </span>
       {pricing.minStay != null && pricing.minStay > 1 ? (
-        <span className="text-[8px] leading-none text-muted-foreground">
+        <span className="text-[9px] leading-none text-[var(--cal-text-secondary)]">
           {pricing.minStay}n
         </span>
       ) : null}

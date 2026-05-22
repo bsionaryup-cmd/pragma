@@ -12,6 +12,7 @@ export type SidebarUser = {
   lastName: string | null;
   email: string;
   imageUrl: string | null;
+  role?: "ADMIN" | "RECEPTIONIST";
 };
 
 type SidebarUserProfileProps = {

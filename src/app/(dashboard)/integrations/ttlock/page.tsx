@@ -1,6 +1,7 @@
 import { TTLockLoadError } from "@/features/integrations/ttlock/components/ttlock-load-error";
 import { TTLockPanel } from "@/features/integrations/ttlock/components/ttlock-panel";
-import { requirePermission } from "@/lib/auth";
+import { hasPermission, requirePermission } from "@/lib/auth";
+import type { AppUserRole } from "@/types/auth";
 import { resolveRequestContextFromHeaders } from "@/lib/integrations/ttlock-config";
 import { isTTLockSchemaDriftError } from "@/services/integrations/ttlock/ttlock-prisma-guard";
 import { getTTLockOverview } from "@/services/integrations/ttlock.service";
@@ -14,7 +15,7 @@ export default async function TTLockIntegrationPage({
   searchParams,
 }: TTLockPageProps) {
   const user = await requirePermission("integrations:read");
-  const canManage = user.role === "ADMIN";
+  const canManage = hasPermission(user.role as AppUserRole, "integrations:manage");
 
   const headerStore = await headers();
   const host = headerStore.get("x-forwarded-host") ?? headerStore.get("host");

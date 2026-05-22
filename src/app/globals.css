@@ -151,6 +151,25 @@
   color-scheme: light;
 }
 
+.cal-module {
+  --cal-border: #d5dde6;
+  --cal-bg-canvas: #f0f2f5;
+  --cal-bg-alt: #eceef2;
+  --cal-bg-weekend: #e4e8ed;
+  --cal-bg-hover: #e8ecf0;
+  --cal-bg-hover-cell: #e0f2ee;
+  --cal-bg-today: #ddefea;
+  --cal-bg-today-header: #d6ebe5;
+  --cal-bg-selected: #c8e8de;
+  --cal-bg-thumbnail: #e2e7ec;
+  --cal-text-day: #2f3744;
+  --cal-text-secondary: #5a6472;
+  --cal-text-muted: #8891a0;
+  --cal-reservation-muted-bg: #eceef2;
+  --cal-reservation-muted-text: #5a6472;
+  --cal-reservation-blocked-bg: #e8eaed;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

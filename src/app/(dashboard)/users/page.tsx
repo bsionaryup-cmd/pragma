@@ -14,6 +14,7 @@ import { EditUserDialog } from "@/features/users/components/edit-user-dialog";
 import { UserActiveToggle } from "@/features/users/components/user-active-toggle";
 import { UserRoleSelect } from "@/features/users/components/user-role-select";
 import { requirePermission } from "@/lib/auth";
+import { hasPermission } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/helpers/date";
 import { listUsers } from "@/services/users/user.service";
 import { listRecentLoginActivities } from "@/services/users/login-activity.service";
@@ -26,6 +27,9 @@ const roleBadgeVariant = {
 
 export default async function UsersPage() {
   const current = await requirePermission("users:read");
+  const canWrite = hasPermission(current.role, "users:write");
+  const canDelete = hasPermission(current.role, "users:delete");
+  const isCurrentAccountOwner = current.isAccountOwner;
   const [users, loginActivity] = await Promise.all([
     listUsers(),
     listRecentLoginActivities(40),
@@ -43,7 +47,7 @@ export default async function UsersPage() {
               {users.length} usuarios registrados
             </p>
           </div>
-          <CreateUserDialog />
+          {canWrite ? <CreateUserDialog /> : null}
         </div>
         <div className="rounded-xl border border-border">
           <Table>
@@ -60,19 +64,33 @@ export default async function UsersPage() {
             <TableBody>
               {users.map((user) => {
                 const isSelf = user.id === current.dbUserId;
+                const isAccountOwner = user.isAccountOwner;
+                const ownerLockedForOthers = isAccountOwner && !isSelf;
+                const canDeleteThisUser =
+                  canDelete &&
+                  !isSelf &&
+                  !isAccountOwner &&
+                  (user.role !== "ADMIN" || isCurrentAccountOwner);
                 const name =
                   [user.firstName, user.lastName].filter(Boolean).join(" ") ||
                   "—";
 
                 return (
                   <TableRow key={user.id}>
-                    <TableCell className="font-medium">{name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{name}</span>
+                        {isAccountOwner ? (
+                          <Badge variant="outline">Dueño de la cuenta</Badge>
+                        ) : null}
+                      </div>
+                    </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
                       <UserRoleSelect
                         userId={user.id}
                         currentRole={user.role}
-                        disabled={isSelf}
+                        disabled={isSelf || isAccountOwner || !canWrite}
                       />
                     </TableCell>
                     <TableCell>
@@ -89,23 +107,28 @@ export default async function UsersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        <EditUserDialog
-                          userId={user.id}
-                          email={user.email}
-                          firstName={user.firstName}
-                          lastName={user.lastName}
-                          disabled={!user.isActive}
-                        />
-                        <UserActiveToggle
-                          userId={user.id}
-                          isActive={user.isActive}
-                          disabled={isSelf}
-                        />
-                        <DeleteUserButton
-                          userId={user.id}
-                          email={user.email}
-                          disabled={isSelf}
-                        />
+                        {canWrite ? (
+                          <EditUserDialog
+                            userId={user.id}
+                            email={user.email}
+                            firstName={user.firstName}
+                            lastName={user.lastName}
+                            disabled={!user.isActive || ownerLockedForOthers}
+                          />
+                        ) : null}
+                        {canWrite ? (
+                          <UserActiveToggle
+                            userId={user.id}
+                            isActive={user.isActive}
+                            disabled={isSelf || isAccountOwner}
+                          />
+                        ) : null}
+                        {canDeleteThisUser ? (
+                          <DeleteUserButton
+                            userId={user.id}
+                            email={user.email}
+                          />
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>

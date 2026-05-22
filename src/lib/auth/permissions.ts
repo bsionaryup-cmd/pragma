@@ -5,73 +5,122 @@ export type Permission =
   | "properties:read"
   | "properties:write"
   | "reservations:read"
+  | "reservations:create"
   | "reservations:write"
   | "reservations:delete"
+  | "calendar:read"
   | "tasks:read"
   | "tasks:write"
-  | "calendar:read"
   | "users:read"
   | "users:write"
+  | "users:delete"
   | "finance:read"
+  | "finance:operations:read"
   | "finance:write"
+  | "finance:revenue:read"
+  | "billing:read"
+  | "billing:manage"
   | "integrations:read"
-  | "integrations:manage";
+  | "integrations:manage"
+  | "settings:read"
+  | "pricing:read";
+
+const ALL_PERMISSIONS: Permission[] = [
+  "dashboard:read",
+  "properties:read",
+  "properties:write",
+  "reservations:read",
+  "reservations:create",
+  "reservations:write",
+  "reservations:delete",
+  "calendar:read",
+  "tasks:read",
+  "tasks:write",
+  "users:read",
+  "users:write",
+  "users:delete",
+  "finance:read",
+  "finance:operations:read",
+  "finance:write",
+  "finance:revenue:read",
+  "billing:read",
+  "billing:manage",
+  "integrations:read",
+  "integrations:manage",
+  "settings:read",
+  "pricing:read",
+];
 
 const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
-  ADMIN: [
-    "dashboard:read",
-    "properties:read",
-    "properties:write",
-    "reservations:read",
-    "reservations:write",
-    "reservations:delete",
-    "tasks:read",
-    "tasks:write",
-    "calendar:read",
-    "users:read",
-    "users:write",
-    "finance:read",
-    "finance:write",
-    "integrations:read",
-    "integrations:manage",
-  ],
+  ADMIN: ALL_PERMISSIONS,
   RECEPTIONIST: [
     "dashboard:read",
     "properties:read",
     "reservations:read",
-    "reservations:write",
-    "tasks:read",
-    "tasks:write",
+    "reservations:create",
     "calendar:read",
+    "finance:operations:read",
   ],
 };
 
 /** Ruta → permiso mínimo para acceder */
 export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/panel": "dashboard:read",
+  "/properties/new": "properties:write",
   "/properties": "properties:read",
+  "/reservations/new": "reservations:create",
   "/reservations": "reservations:read",
   "/inbox": "reservations:read",
-  "/integrations": "integrations:read",
+  "/calendar": "calendar:read",
+  "/revenue": "finance:revenue:read",
+  "/finance": "finance:read",
   "/integrations/sire": "integrations:manage",
   "/integrations/traa": "integrations:manage",
-  "/integrations/ttlock": "integrations:read",
   "/integrations/ttlock/connect": "integrations:manage",
+  "/integrations/ttlock": "integrations:read",
   "/integrations/pricelabs": "integrations:read",
-  "/revenue": "calendar:read",
-  "/settings/billing": "dashboard:read",
-  "/settings": "dashboard:read",
+  "/integrations": "integrations:read",
+  "/settings/billing": "billing:manage",
+  "/settings": "settings:read",
+  "/tasks/new": "tasks:write",
   "/tasks": "tasks:read",
-  "/calendar": "calendar:read",
   "/users": "users:read",
-  "/finance": "finance:read",
+  "/onboarding": "billing:manage",
 };
+
+export const PROTECTED_DASHBOARD_PREFIXES = [
+  "/panel",
+  "/calendar",
+  "/reservations",
+  "/properties",
+  "/finance",
+  "/revenue",
+  "/integrations",
+  "/settings",
+  "/users",
+  "/tasks",
+  "/inbox",
+  "/onboarding",
+] as const;
+
+export function isProtectedDashboardPath(pathname: string): boolean {
+  return PROTECTED_DASHBOARD_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 export function hasPermission(
   role: AppUserRole,
   permission: Permission,
 ): boolean {
   return ROLE_PERMISSIONS[role].includes(permission);
+}
+
+export function hasAnyPermission(
+  role: AppUserRole,
+  permissions: readonly Permission[],
+): boolean {
+  return permissions.some((permission) => hasPermission(role, permission));
 }
 
 export function getPermissionsForRole(role: AppUserRole): Permission[] {
@@ -86,6 +135,23 @@ export function getRequiredPermissionForPath(pathname: string): Permission | nul
     );
 
   return match?.[1] ?? null;
+}
+
+/** Route access with partial finance fallback for receptionist operations view. */
+export function hasRouteAccess(role: AppUserRole, pathname: string): boolean {
+  const permission = getRequiredPermissionForPath(pathname);
+  if (!permission) return false;
+
+  if (hasPermission(role, permission)) return true;
+
+  if (
+    permission === "finance:read" &&
+    hasPermission(role, "finance:operations:read")
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 export function roleLabel(role: AppUserRole): string {

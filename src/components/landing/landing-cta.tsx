@@ -3,11 +3,23 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { APP_DEMO_CTA } from "@/lib/constants";
+import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
+import {
+  getLandingPrimaryCta,
+  getLandingSecondaryCta,
+  type LandingSession,
+} from "@/lib/landing-session";
 import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/landing/motion";
 
-export function LandingCta() {
+type LandingCtaProps = {
+  session: LandingSession;
+};
+
+export function LandingCta({ session }: LandingCtaProps) {
+  const primary = getLandingPrimaryCta(session);
+  const secondary = getLandingSecondaryCta(session);
+
   return (
     <section className="border-t border-pragma-border bg-pragma-soft-gray py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-6">
@@ -26,21 +38,26 @@ export function LandingCta() {
                 Gestiona mejor. Automatiza más. Escala sin fricción.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-base text-pragma-mid-gray">
-                Agenda una demo y descubre cómo PRAGMA convierte tu operación
-                Airbnb en un Command Center inteligente.
+                {session.signedIn && session.needsTrialSetup
+                  ? "Configura tu prueba gratis y usa PRAGMA con tu operación real."
+                  : "Centraliza reservas, calendario e ingresos en un Command Center inteligente."}
               </p>
               <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
                 <Button variant="brand" size="lg" className="h-12 px-8" asChild>
-                  <Link href="/sign-up">
-                    Agenda una demo
+                  <Link href={primary.href}>
+                    {primary.label}
                     <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
-                <Button variant="brandOutline" size="lg" className="h-12 px-8" asChild>
-                  <Link href="/sign-in">Ya tengo cuenta</Link>
-                </Button>
+                {secondary ? (
+                  <Button variant="brandOutline" size="lg" className="h-12 px-8" asChild>
+                    <Link href={secondary.href}>{secondary.label}</Link>
+                  </Button>
+                ) : null}
               </div>
-              <p className="mt-6 text-xs text-pragma-mid-gray">{APP_DEMO_CTA} · Sin compromiso</p>
+              <p className="mt-6 text-xs text-pragma-mid-gray">
+                {SUBSCRIPTION_TRIAL_LABEL} · Sin tarjeta para empezar
+              </p>
             </div>
           </motion.div>
         </FadeIn>

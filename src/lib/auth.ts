@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+import { after } from "next/server";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@prisma/client";
@@ -18,6 +19,7 @@ import {
   hasPermission,
   type Permission,
 } from "@/lib/auth/permissions";
+import { readPublicMetadata } from "@/lib/auth/session-claims";
 
 export type { Permission } from "@/lib/auth/permissions";
 export { hasPermission, getPermissionsForRole } from "@/lib/auth/permissions";
@@ -28,17 +30,6 @@ type ClerkPublicMetadata = {
   role?: AppUserRole;
   dbUserId?: string;
 };
-
-function readPublicMetadata(sessionClaims: unknown): ClerkPublicMetadata | undefined {
-  if (!sessionClaims || typeof sessionClaims !== "object") return undefined;
-
-  const claims = sessionClaims as Record<string, unknown>;
-  const raw =
-    claims.publicMetadata ?? claims.public_metadata ?? claims.metadata;
-
-  if (!raw || typeof raw !== "object") return undefined;
-  return raw as ClerkPublicMetadata;
-}
 
 async function fetchClerkUser() {
   try {
@@ -64,6 +55,7 @@ function toAuthContext(user: User): AuthContext {
     clerkId: user.clerkId,
     email: user.email,
     role: user.role as AppUserRole,
+    isAccountOwner: user.isAccountOwner,
     firstName: user.firstName,
     lastName: user.lastName,
     imageUrl: user.imageUrl,
@@ -103,10 +95,13 @@ export const requireDbUser = cache(async (): Promise<User> => {
       metadata.role !== (dbUser.role as AppUserRole);
 
     if (needsMetadataSync) {
-      await syncClerkPublicMetadata(userId, {
-        role: dbUser.role as AppUserRole,
-        dbUserId: dbUser.id,
-      });
+      const activeUser = dbUser;
+      after(() =>
+        syncClerkPublicMetadata(userId, {
+          role: activeUser.role as AppUserRole,
+          dbUserId: activeUser.id,
+        }),
+      );
     }
 
     if (shouldTouchLastLogin(dbUser.lastLoginAt)) {
@@ -116,21 +111,34 @@ export const requireDbUser = cache(async (): Promise<User> => {
         forwarded?.split(",")[0]?.trim() ||
         headerStore.get("x-real-ip") ||
         null;
-      try {
-        await recordLoginActivity({
-          userId: dbUser.id,
-          ipAddress: ip,
-          userAgent: headerStore.get("user-agent"),
-        });
-      } catch (error) {
-        if (!isUserSchemaDriftError(error)) {
-          console.warn("[auth] login activity skipped:", error);
+      const userAgent = headerStore.get("user-agent");
+      const userIdForLogin = dbUser.id;
+
+      after(async () => {
+        try {
+          await recordLoginActivity({
+            userId: userIdForLogin,
+            ipAddress: ip,
+            userAgent,
+          });
+        } catch (error) {
+          if (!isUserSchemaDriftError(error)) {
+            console.warn("[auth] login activity skipped:", error);
+          }
         }
-      }
-      return db.user.update({
-        where: { id: dbUser.id },
-        data: { lastLoginAt: new Date() },
+        try {
+          await db.user.update({
+            where: { id: userIdForLogin },
+            data: { lastLoginAt: new Date() },
+          });
+        } catch (error) {
+          if (!isUserSchemaDriftError(error)) {
+            console.warn("[auth] lastLoginAt touch skipped:", error);
+          }
+        }
       });
+
+      return dbUser;
     }
 
     return dbUser;
@@ -182,6 +190,19 @@ export const requirePermission = cache(async (
   const user = await requireDbUser();
 
   if (!hasPermission(user.role as AppUserRole, permission)) {
+    redirect("/unauthorized");
+  }
+
+  return toAuthContext(user);
+});
+
+export const requireAnyPermission = cache(async (
+  ...permissions: Permission[]
+): Promise<AuthContext> => {
+  const user = await requireDbUser();
+  const role = user.role as AppUserRole;
+
+  if (!permissions.some((permission) => hasPermission(role, permission))) {
     redirect("/unauthorized");
   }
 

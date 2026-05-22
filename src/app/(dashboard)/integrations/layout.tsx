@@ -6,7 +6,7 @@ export default async function IntegrationsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requirePermission("properties:read");
+  await requirePermission("integrations:read");
   await redirectIfBillingLocked("/integrations");
   return children;
 }

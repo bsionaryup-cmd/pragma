@@ -38,6 +38,7 @@ type CommandCenterViewProps = {
   data: CommandCenterData;
   showEmptyBanner: boolean;
   canCreateProperties: boolean;
+  canViewFinancials?: boolean;
 };
 
 function trendLabel(
@@ -64,6 +65,7 @@ export function CommandCenterView({
   data,
   showEmptyBanner,
   canCreateProperties,
+  canViewFinancials = true,
 }: CommandCenterViewProps) {
   const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<PanelTab>("arrivals");
@@ -147,34 +149,39 @@ export function CommandCenterView({
             trend={occupancyTrend.trend}
             trendLabel={occupancyTrend.label}
           />
-          <KpiCard
-            label={t("dashboard.kpi.monthlyRevenue")}
-            value={kpis.monthlyRevenueFormatted}
-            detail={t("dashboard.kpiDetail.revenue", {
-              amount: kpis.monthlyRevenueFormatted,
-            })}
-            icon={TrendingUp}
-            trend={revenueTrend.trend}
-            trendLabel={revenueTrend.label}
-          />
-          <KpiCard
-            label="Egresos del mes"
-            value={kpis.monthlyExpensesFormatted}
-            detail="Limpieza y gastos operativos base"
-            icon={Receipt}
-            trend={expenseTrend.trend}
-            trendLabel={expenseTrend.label}
-          />
-          <KpiCard
-            label="Flujo neto"
-            value={kpis.netFlowFormatted}
-            detail="Ingresos − egresos (mes actual)"
-            icon={Wallet}
-            trend={netTrend.trend}
-            trendLabel={netTrend.label}
-          />
+          {canViewFinancials ? (
+            <>
+              <KpiCard
+                label={t("dashboard.kpi.monthlyRevenue")}
+                value={kpis.monthlyRevenueFormatted}
+                detail={t("dashboard.kpiDetail.revenue", {
+                  amount: kpis.monthlyRevenueFormatted,
+                })}
+                icon={TrendingUp}
+                trend={revenueTrend.trend}
+                trendLabel={revenueTrend.label}
+              />
+              <KpiCard
+                label="Egresos del mes"
+                value={kpis.monthlyExpensesFormatted}
+                detail="Limpieza y gastos operativos base"
+                icon={Receipt}
+                trend={expenseTrend.trend}
+                trendLabel={expenseTrend.label}
+              />
+              <KpiCard
+                label="Flujo neto"
+                value={kpis.netFlowFormatted}
+                detail="Ingresos − egresos (mes actual)"
+                icon={Wallet}
+                trend={netTrend.trend}
+                trendLabel={netTrend.label}
+              />
+            </>
+          ) : null}
         </section>
 
+        {canViewFinancials ? (
         <section className="mb-6 grid gap-4 lg:grid-cols-3">
           <DashboardTrendChart
             title="Ingresos"
@@ -204,6 +211,7 @@ export function CommandCenterView({
             }))}
           />
         </section>
+        ) : null}
 
         {showEmptyBanner ? (
           <div className="mb-6">

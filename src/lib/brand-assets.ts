@@ -6,6 +6,8 @@ export const BRAND_ASSETS = {
   logoFullDark: "/branding/logo-full-dark.png",
   logoStacked: "/branding/logo-stacked.png",
   logoMark: "/branding/logo-mark.png",
+  logoPMark: "/branding/logo-p-mark.png",
+  airbnbMark: "/branding/airbnb-mark.png",
   loader: "/branding/loader.svg",
   loaderPng: "/branding/loader.png",
   favicon: "/branding/favicon.ico",

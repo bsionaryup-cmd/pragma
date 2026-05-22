@@ -18,6 +18,7 @@ import {
   toPanelReservationRow,
   type PanelReservationRow,
 } from "@/services/dashboard/dashboard.service";
+import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 
 export type CommandCenterKpis = {
   occupancyCurrent: number;
@@ -137,7 +138,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
   const [
     activeProperties,
     checkedInReservations,
-    activeReservationCount,
     counts,
     arrivalsRaw,
     departuresRaw,
@@ -156,18 +156,12 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         status: ReservationStatus.CHECKED_IN,
       }),
       select: {
+        propertyId: true,
         adults: true,
         children: true,
         infants: true,
         property: { select: { maxGuests: true } },
       },
-    }),
-    db.reservation.count({
-      where: withVisibleReservationsFilter({
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-      }),
     }),
     getPanelCounts(),
     getUpcomingArrivals(8),
@@ -267,14 +261,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       : (portfolioCapacity._sum.maxGuests ?? 0);
 
   const occupiedProperties = new Set(
-    (
-      await db.reservation.findMany({
-        where: withVisibleReservationsFilter({
-          status: ReservationStatus.CHECKED_IN,
-        }),
-        select: { propertyId: true },
-      })
-    ).map((r) => r.propertyId),
+    checkedInReservations.map((r) => r.propertyId),
   ).size;
 
   const occupancyCurrent =
@@ -287,21 +274,30 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     computeOccupancyMonthly(activeProperties, daysInMonth, prevStart, prevEnd),
   ]);
 
-  const monthlyRevenue = sumDecimal(monthReservations);
-  const prevMonthlyRevenue = sumDecimal(prevMonthReservations);
+  const [currentManual, previousManual] = await Promise.all([
+    getManualFinanceInRange(start, end),
+    getManualFinanceInRange(prevStart, prevEnd),
+  ]);
+
+  const monthlyRevenue =
+    sumDecimal(monthReservations) + currentManual.incomeTotal;
+  const prevMonthlyRevenue =
+    sumDecimal(prevMonthReservations) + previousManual.incomeTotal;
   const revenueTrend =
     prevMonthlyRevenue > 0
       ? Math.round(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100)
       : 0;
 
-  const monthlyExpenses = monthReservations.reduce(
-    (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
-    0,
-  );
-  const prevMonthlyExpenses = prevMonthReservations.reduce(
-    (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
-    0,
-  );
+  const monthlyExpenses =
+    monthReservations.reduce(
+      (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
+      0,
+    ) + currentManual.expenseTotal;
+  const prevMonthlyExpenses =
+    prevMonthReservations.reduce(
+      (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
+      0,
+    ) + previousManual.expenseTotal;
   const expenseTrend =
     prevMonthlyExpenses > 0
       ? Math.round(((monthlyExpenses - prevMonthlyExpenses) / prevMonthlyExpenses) * 100)

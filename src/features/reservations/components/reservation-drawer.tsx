@@ -1,7 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { ReservationCreateWizard } from "@/features/reservations/components/reservation-create-wizard";
 import { ReservationDetailPanel } from "@/features/reservations/components/reservation-detail-panel";
 import type {
   PropertyOption,
@@ -15,6 +15,20 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+
+const ReservationCreateWizard = dynamic(
+  () =>
+    import("@/features/reservations/components/reservation-create-wizard").then(
+      (m) => ({ default: m.ReservationCreateWizard }),
+    ),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+      </div>
+    ),
+  },
+);
 
 export type ReservationDrawerMode = "create" | "detail" | null;
 

@@ -6,6 +6,7 @@ export const BILLING_ALLOWED_PATH_PREFIXES = [
   "/settings/profile",
   "/settings",
   "/api/webhooks/wompi",
+  "/api/payments/wompi",
 ] as const;
 
 /** Sensitive PMS actions blocked when locked */

@@ -11,6 +11,7 @@ import {
   AIRBNB_AUTO_SYNC_COOLDOWN_MS,
   AIRBNB_AUTO_SYNC_INITIAL_MS,
   AIRBNB_AUTO_SYNC_MS,
+  AIRBNB_AUTO_SYNC_RECENT_MS,
   dispatchAirbnbSyncComplete,
   dispatchAirbnbSyncFailed,
 } from "@/lib/airbnb-sync";
@@ -45,6 +46,25 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       return elapsed < AIRBNB_AUTO_SYNC_COOLDOWN_MS;
     }
 
+    function refreshIfNeeded(
+      currentPath: string,
+      changes: { created: number; updated: number; cancelled: number },
+    ) {
+      const hasChanges =
+        changes.created + changes.updated + changes.cancelled > 0;
+      if (!hasChanges) return;
+
+      const reservationViews =
+        currentPath.startsWith("/calendar") ||
+        currentPath.startsWith("/reservations") ||
+        currentPath.startsWith("/panel") ||
+        currentPath.startsWith("/inbox");
+
+      if (reservationViews) {
+        routerRef.current.refresh();
+      }
+    }
+
     async function runSync(trigger: string) {
       if (syncingRef.current || cancelled) return;
       if (shouldThrottle(trigger)) return;
@@ -63,21 +83,27 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
         if (status.linkedCount === 0) {
           await runAirbnbAutoSyncCleanup();
-          if (!currentPath.startsWith("/calendar")) {
-            routerRef.current.refresh();
-          }
           if (process.env.NODE_ENV === "development") {
             console.info("[ical-sync:auto] skip — sin iCal; huérfanos archivados", trigger);
           }
           return;
         }
 
+        if (
+          trigger !== "manual" &&
+          status.lastSyncedAt &&
+          Date.now() - new Date(status.lastSyncedAt).getTime() <
+            AIRBNB_AUTO_SYNC_RECENT_MS
+        ) {
+          if (process.env.NODE_ENV === "development") {
+            console.info("[ical-sync:auto] skip — sync reciente", trigger);
+          }
+          return;
+        }
+
         const summary = await runAirbnbAutoSync();
         dispatchAirbnbSyncComplete(summary);
-
-        if (!currentPath.startsWith("/calendar")) {
-          routerRef.current.refresh();
-        }
+        refreshIfNeeded(currentPath, summary);
 
         if (process.env.NODE_ENV === "development") {
           console.info("[ical-sync:auto]", trigger, summary);
@@ -102,23 +128,15 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
     if (!initialDoneRef.current) {
       initialDoneRef.current = true;
-      if (AIRBNB_AUTO_SYNC_INITIAL_MS === 0) {
-        void runSync("initial");
-      } else {
-        schedule(AIRBNB_AUTO_SYNC_INITIAL_MS, "initial");
-      }
+      schedule(AIRBNB_AUTO_SYNC_INITIAL_MS, "initial");
     }
 
-    const onFocus = () => {
-      void runSync("focus");
-    };
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         void runSync("visible");
       }
     };
 
-    window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
 
     const intervalId = window.setInterval(() => {
@@ -129,7 +147,6 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
       cancelled = true;
       window.clearTimeout(timerId);
       window.clearInterval(intervalId);
-      window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled]);

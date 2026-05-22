@@ -1,54 +1,17 @@
 "use client";
 
-import type { BookingPlatform } from "@prisma/client";
-import { cn } from "@/lib/utils";
+import {
+  ReservationSourceIcon,
+  type ReservationSourceIconProps,
+} from "@/components/reservations/reservation-source-icon";
 
-type PlatformIconProps = {
-  platform: BookingPlatform;
-  className?: string;
-};
+export type PlatformIconProps = ReservationSourceIconProps;
 
-export function PlatformIcon({ platform, className }: PlatformIconProps) {
-  if (platform === "AIRBNB") {
-    return (
-      <span
-        className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#FF5A5F] text-[9px] font-bold text-white",
-          className,
-        )}
-        aria-label="Airbnb"
-        title="Airbnb"
-      >
-        A
-      </span>
-    );
-  }
-
-  if (platform === "BOOKING") {
-    return (
-      <span
-        className={cn(
-          "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#003580] text-[8px] font-bold text-white",
-          className,
-        )}
-        aria-label="Booking.com"
-        title="Booking.com"
-      >
-        B
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-md bg-[#0E9F8D] text-[9px] font-bold text-white ring-1 ring-[#0E9F8D]/30",
-        className,
-      )}
-      aria-label="PRAGMA Direct"
-      title="PRAGMA Direct"
-    >
-      P
-    </span>
-  );
+/** Calendar-friendly alias; compact plain icons without badge frame. */
+export function PlatformIcon({
+  size = "xs",
+  framed = false,
+  ...props
+}: PlatformIconProps) {
+  return <ReservationSourceIcon size={size} framed={framed} {...props} />;
 }

@@ -1,5 +1,5 @@
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 
 export async function requireTTLockAdmin() {
-  return requireRole("ADMIN");
+  return requirePermission("integrations:manage");
 }

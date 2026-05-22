@@ -50,6 +50,7 @@ export async function createManualExpenseAction(formData: FormData) {
   }
 
   revalidatePath("/finance");
+  revalidatePath("/panel");
 }
 
 export async function createOtherIncomeAction(formData: FormData) {
@@ -86,4 +87,5 @@ export async function createOtherIncomeAction(formData: FormData) {
   }
 
   revalidatePath("/finance");
+  revalidatePath("/panel");
 }

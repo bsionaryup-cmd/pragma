@@ -2,10 +2,7 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
-import {
-  listManualExpensesInRange,
-  listOtherIncomesInRange,
-} from "@/services/finance/finance-prisma-guard";
+import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 import type { Locale } from "@/i18n/types";
 
 export type FinanceKpis = {
@@ -19,6 +16,10 @@ export type FinanceKpis = {
   pendingIncomeFormatted: string;
   outstanding: number;
   outstandingFormatted: string;
+  reservationRevenue: number;
+  manualIncomeTotal: number;
+  reservationExpenses: number;
+  manualExpenseTotal: number;
 };
 
 export type MonthComparison = {
@@ -91,87 +92,95 @@ function trendPct(current: number, previous: number): number {
   return Math.round(((current - previous) / previous) * 100);
 }
 
+function sortByDateDesc<T extends { date: string }>(rows: T[]): T[] {
+  return [...rows].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+  );
+}
+
 export async function getFinanceOverview(locale: Locale = "es"): Promise<FinanceOverview> {
   const { start, end, prevStart, prevEnd } = monthBounds();
 
-  const [currentReservations, previousReservations, activeProperties] =
-    await Promise.all([
-      db.reservation.findMany({
-        where: withVisibleReservationsFilter({
-          status: {
-            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-          },
-          checkIn: { lte: end },
-          checkOut: { gte: start },
-        }),
-        select: {
-          id: true,
-          totalAmount: true,
-          checkIn: true,
-          platform: true,
-          property: {
-            select: {
-              id: true,
-              name: true,
-              cleaningFee: true,
-            },
+  const [
+    currentReservations,
+    previousReservations,
+    activeProperties,
+    currentManual,
+    previousManual,
+  ] = await Promise.all([
+    db.reservation.findMany({
+      where: withVisibleReservationsFilter({
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+        },
+        checkIn: { lte: end },
+        checkOut: { gte: start },
+      }),
+      select: {
+        id: true,
+        totalAmount: true,
+        checkIn: true,
+        platform: true,
+        property: {
+          select: {
+            id: true,
+            name: true,
+            cleaningFee: true,
           },
         },
-      }),
-      db.reservation.findMany({
-        where: withVisibleReservationsFilter({
-          status: {
-            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-          },
-          checkIn: { lte: prevEnd },
-          checkOut: { gte: prevStart },
-        }),
-        select: {
-          totalAmount: true,
-          property: { select: { cleaningFee: true } },
+      },
+    }),
+    db.reservation.findMany({
+      where: withVisibleReservationsFilter({
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
         },
+        checkIn: { lte: prevEnd },
+        checkOut: { gte: prevStart },
       }),
-      db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
-    ]);
-
-  const [manualExpenses, manualIncomes] = await Promise.all([
-    listManualExpensesInRange(start, end),
-    listOtherIncomesInRange(start, end),
+      select: {
+        totalAmount: true,
+        property: { select: { cleaningFee: true } },
+      },
+    }),
+    db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
+    getManualFinanceInRange(start, end),
+    getManualFinanceInRange(prevStart, prevEnd),
   ]);
 
-  const manualExpenseTotal = manualExpenses.reduce(
-    (sum, row) => sum + Number(row.amount),
-    0,
-  );
-  const manualIncomeTotal = manualIncomes.reduce(
-    (sum, row) => sum + Number(row.amount),
-    0,
-  );
+  const { expenses: manualExpenses, incomes: manualIncomes } = currentManual;
+  const manualExpenseTotal = currentManual.expenseTotal;
+  const manualIncomeTotal = currentManual.incomeTotal;
 
-  const revenue =
-    currentReservations.reduce((sum, r) => sum + Number(r.totalAmount), 0) +
-    manualIncomeTotal;
-  const prevRevenue = previousReservations.reduce(
+  const reservationRevenue = currentReservations.reduce(
+    (sum, r) => sum + Number(r.totalAmount),
+    0,
+  );
+  const prevReservationRevenue = previousReservations.reduce(
     (sum, r) => sum + Number(r.totalAmount),
     0,
   );
 
-  const expenses =
-    currentReservations.reduce((sum, r) => {
-      const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
-      return sum + fee;
-    }, 0) + manualExpenseTotal;
-  const prevExpenses = previousReservations.reduce((sum, r) => {
+  const reservationExpenses = currentReservations.reduce((sum, r) => {
+    const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
+    return sum + fee;
+  }, 0);
+  const prevReservationExpenses = previousReservations.reduce((sum, r) => {
     const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
     return sum + fee;
   }, 0);
 
+  const revenue = reservationRevenue + manualIncomeTotal;
+  const prevRevenue = prevReservationRevenue + previousManual.incomeTotal;
+
+  const expenses = reservationExpenses + manualExpenseTotal;
+  const prevExpenses = prevReservationExpenses + previousManual.expenseTotal;
+
   const netProfit = revenue - expenses;
   const prevProfit = prevRevenue - prevExpenses;
 
-  const revenueFlow: RevenueFlowRow[] = currentReservations
-    .slice(0, 12)
-    .map((r) => ({
+  const revenueFlow: RevenueFlowRow[] = sortByDateDesc([
+    ...currentReservations.map((r) => ({
       id: r.id,
       source: r.platform,
       amount: Number(r.totalAmount),
@@ -179,12 +188,21 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       date: r.checkIn.toISOString(),
       propertyName: r.property.name,
       status: "confirmed" as const,
-    }));
+    })),
+    ...manualIncomes.map((row) => ({
+      id: row.id,
+      source: row.incomeType,
+      amount: Number(row.amount),
+      amountFormatted: formatMoney(Number(row.amount), undefined, locale),
+      date: row.incomeDate.toISOString(),
+      propertyName: "Otros ingresos",
+      status: "confirmed" as const,
+    })),
+  ]).slice(0, 12);
 
-  const expenseFlow: ExpenseFlowRow[] = [
+  const expenseFlow: ExpenseFlowRow[] = sortByDateDesc([
     ...currentReservations
       .filter((r) => r.property.cleaningFee)
-      .slice(0, 8)
       .map((r) => ({
         id: `exp-${r.id}`,
         category: "Limpieza",
@@ -198,16 +216,16 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
         propertyName: r.property.name,
         responsible: "Reserva",
       })),
-    ...manualExpenses.slice(0, 8).map((row) => ({
+    ...manualExpenses.map((row) => ({
       id: row.id,
       category: row.category,
       amount: Number(row.amount),
       amountFormatted: formatMoney(Number(row.amount), undefined, locale),
       date: row.expenseDate.toISOString(),
-      propertyName: "Manual",
+      propertyName: "Otros egresos",
       responsible: "Finanzas",
     })),
-  ];
+  ]).slice(0, 12);
 
   const byProperty = new Map<
     string,
@@ -235,15 +253,26 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       ),
       reservations: data.count,
     }))
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .sort((a, b) => b.revenue - a.revenue);
 
+  if (manualIncomeTotal > 0) {
+    topProperties.push({
+      propertyId: "manual-income",
+      name: "Otros ingresos",
+      revenue: manualIncomeTotal,
+      revenueFormatted: formatMoney(manualIncomeTotal, undefined, locale),
+      occupancy: 0,
+      reservations: manualIncomes.length,
+    });
+    topProperties.sort((a, b) => b.revenue - a.revenue);
+  }
+
+  const incomeEventCount =
+    currentReservations.length + manualIncomes.length;
   const avgPerProperty =
     activeProperties > 0 ? Math.round(revenue / activeProperties) : 0;
   const avgPerReservation =
-    currentReservations.length > 0
-      ? Math.round(revenue / currentReservations.length)
-      : 0;
+    incomeEventCount > 0 ? Math.round(revenue / incomeEventCount) : 0;
   const margin = revenue > 0 ? clampPercent((netProfit / revenue) * 100) : 0;
   const roi = expenses > 0 ? clampPercent((netProfit / expenses) * 100) : 0;
 
@@ -261,6 +290,10 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       pendingIncomeFormatted: formatMoney(0, undefined, locale),
       outstanding: 0,
       outstandingFormatted: formatMoney(0, undefined, locale),
+      reservationRevenue,
+      manualIncomeTotal,
+      reservationExpenses,
+      manualExpenseTotal,
     },
     comparison: {
       revenue: {
@@ -302,6 +335,6 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       avgPerProperty,
       avgPerReservation,
     },
-    topProperties,
+    topProperties: topProperties.slice(0, 5),
   };
 }

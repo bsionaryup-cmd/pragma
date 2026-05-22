@@ -1,16 +1,23 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { getRoleFromSessionClaims } from "@/lib/auth/session-claims";
 import {
   getRequiredPermissionForPath,
-  hasPermission,
+  hasRouteAccess,
+  isProtectedDashboardPath,
 } from "@/lib/auth/permissions";
+
 import type { AppUserRole } from "@/types/auth";
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/pricing",
+  "/contact",
+  "/demo",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  "/api/payments/wompi/webhook",
   "/api/ical/export",
   "/api/ical/(.*)",
   "/api/cron/(.*)",
@@ -19,6 +26,15 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
+
+/** APIs that authenticate inside the route handler — skip duplicate Clerk auth in proxy. */
+const isSelfAuthedApi = createRouteMatcher([
+  "/api/airbnb/auto-sync",
+  "/api/integrations/ttlock/connect",
+  "/api/integrations/ttlock/disconnect",
+  "/api/integrations/ttlock/status",
+  "/api/integrations/ttlock/test",
+]);
 
 const useClerkProxy =
   process.env.NODE_ENV === "production" &&
@@ -34,6 +50,10 @@ export default clerkMiddleware(
       return;
     }
 
+    if (isSelfAuthedApi(request)) {
+      return;
+    }
+
     const authState = await auth();
     if (!authState.userId) {
       await auth.protect();
@@ -44,14 +64,21 @@ export default clerkMiddleware(
       return;
     }
 
-    const metadata = authState.sessionClaims?.publicMetadata as
-      | { role?: AppUserRole }
-      | undefined;
-    const role = metadata?.role;
+    const pathname = request.nextUrl.pathname;
+    if (!isProtectedDashboardPath(pathname)) {
+      return;
+    }
 
-    const permission = getRequiredPermissionForPath(request.nextUrl.pathname);
+    let role = getRoleFromSessionClaims(authState.sessionClaims);
 
-    if (permission && role && !hasPermission(role, permission)) {
+    // RBAC without role in JWT is enforced in Server Components (requirePermission).
+    // Skipping the Clerk users.getUser() fallback saves ~400–900ms per navigation.
+    if (!role) {
+      return;
+    }
+
+    const permission = getRequiredPermissionForPath(pathname);
+    if (!permission || !hasRouteAccess(role, pathname)) {
       const url = new URL("/unauthorized", request.url);
       return NextResponse.redirect(url);
     }

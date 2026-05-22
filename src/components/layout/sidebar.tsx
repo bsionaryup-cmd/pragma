@@ -33,6 +33,7 @@ function SidebarNavLink({
   return (
     <Link
       href={item.href}
+      prefetch={true}
       title={collapsed ? title : undefined}
       className={cn(
         "group flex items-center rounded-xl text-[14px] font-medium transition-all duration-200",
@@ -85,6 +86,7 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
       <PragmaLogo
         variant="full"
         fullClassName="h-16 w-full max-w-full"
+        priority
       />
       <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
         {t("nav.hostCommandCenter")}

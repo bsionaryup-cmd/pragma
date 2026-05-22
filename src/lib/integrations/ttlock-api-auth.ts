@@ -5,7 +5,8 @@ import {
   type TTLockRequestContext,
 } from "@/lib/integrations/ttlock-config";
 import { getUserByClerkId } from "@/services/users/user.service";
-import type { AuthContext } from "@/types/auth";
+import { hasPermission } from "@/lib/auth/permissions";
+import type { AppUserRole, AuthContext } from "@/types/auth";
 
 export async function requireTTLockApiAdmin(
   request: Request,
@@ -19,7 +20,7 @@ export async function requireTTLockApiAdmin(
   }
 
   const user = await getUserByClerkId(userId);
-  if (!user?.isActive || user.role !== "ADMIN") {
+  if (!user?.isActive || !hasPermission(user.role as AppUserRole, "integrations:manage")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -29,6 +30,7 @@ export async function requireTTLockApiAdmin(
       clerkId: user.clerkId,
       email: user.email,
       role: user.role,
+      isAccountOwner: user.isAccountOwner,
       firstName: user.firstName,
       lastName: user.lastName,
       imageUrl: user.imageUrl,

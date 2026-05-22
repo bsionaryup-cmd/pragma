@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatMoney } from "@/lib/format-currency";
 import { formatPanelDate } from "@/lib/helpers/date";
 import { ManualFinanceForms } from "@/components/finance/manual-finance-forms";
 import type { FinanceOverview } from "@/services/finance/finance.service";
@@ -21,6 +22,7 @@ import type { FinanceOverview } from "@/services/finance/finance.service";
 type FinanceViewProps = {
   data: FinanceOverview;
   canWrite?: boolean;
+  scope?: "full" | "operations";
 };
 
 function ComparisonRow({
@@ -49,30 +51,162 @@ function ComparisonRow({
   );
 }
 
-export function FinanceView({ data, canWrite = false }: FinanceViewProps) {
-  const { t } = useI18n();
-  const { kpis, comparison, profitability, topProperties } = data;
+function KpiBreakdown({
+  reservationAmount,
+  manualAmount,
+  reservationLabel,
+  manualLabel,
+}: {
+  reservationAmount: number;
+  manualAmount: number;
+  reservationLabel: string;
+  manualLabel: string;
+}) {
+  if (manualAmount <= 0) return null;
+  return (
+    <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+      {reservationLabel}: {reservationAmount.toLocaleString()} · {manualLabel}:{" "}
+      {manualAmount.toLocaleString()}
+    </p>
+  );
+}
+
+export function FinanceView({
+  data,
+  canWrite = false,
+  scope = "full",
+}: FinanceViewProps) {
+  const { t, locale } = useI18n();
+  const { kpis, comparison, profitability } = data;
+  const formatAmount = (amount: number) => formatMoney(amount, undefined, locale);
+  const isOperations = scope === "operations";
+  const otherIncomeFlow = data.revenueFlow.filter(
+    (row) => row.propertyName === "Otros ingresos",
+  );
 
   return (
     <ModuleShellFlow className="bg-background">
       <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
         <PageHeader
           eyebrow={t("finance.eyebrow")}
-          title={t("finance.title")}
-          description={t("finance.description")}
+          title={isOperations ? "Finanzas operativas" : t("finance.title")}
+          description={
+            isOperations
+              ? "Consulta gastos y otros ingresos registrados."
+              : t("finance.description")
+          }
         />
 
+        {isOperations ? (
+          <>
+            <section className="mb-6 grid gap-3 sm:grid-cols-2">
+              <KpiCard
+                label={t("finance.kpi.expenses")}
+                value={kpis.expensesFormatted}
+                icon={Receipt}
+              />
+              <KpiCard
+                label={t("finance.kpi.otherIncome")}
+                value={formatAmount(kpis.manualIncomeTotal)}
+                icon={TrendingUp}
+              />
+            </section>
+
+            <div className="mb-6 grid gap-6 lg:grid-cols-2">
+              <SectionCard title={t("finance.flows.expenses")}>
+                <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs uppercase">{t("finance.flows.category")}</TableHead>
+                        <TableHead className="text-xs uppercase">{t("finance.flows.property")}</TableHead>
+                        <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
+                        <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.expenseFlow.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                            {t("finance.empty")}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        data.expenseFlow.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.category}</TableCell>
+                            <TableCell>{row.propertyName}</TableCell>
+                            <TableCell>{formatPanelDate(row.date)}</TableCell>
+                            <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </SectionCard>
+
+              <SectionCard title={t("finance.kpi.otherIncome")}>
+                <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="text-xs uppercase">{t("finance.flows.source")}</TableHead>
+                        <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
+                        <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {otherIncomeFlow.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                            {t("finance.empty")}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        otherIncomeFlow.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="font-medium">{row.source}</TableCell>
+                            <TableCell>{formatPanelDate(row.date)}</TableCell>
+                            <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </SectionCard>
+            </div>
+          </>
+        ) : (
+          <>
         <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <KpiCard
-            label={t("finance.kpi.revenue")}
-            value={kpis.revenueFormatted}
-            icon={TrendingUp}
-          />
-          <KpiCard
-            label={t("finance.kpi.expenses")}
-            value={kpis.expensesFormatted}
-            icon={Receipt}
-          />
+          <div>
+            <KpiCard
+              label={t("finance.kpi.revenue")}
+              value={kpis.revenueFormatted}
+              icon={TrendingUp}
+            />
+            <KpiBreakdown
+              reservationAmount={kpis.reservationRevenue}
+              manualAmount={kpis.manualIncomeTotal}
+              reservationLabel={t("finance.kpi.reservations")}
+              manualLabel={t("finance.kpi.otherIncome")}
+            />
+          </div>
+          <div>
+            <KpiCard
+              label={t("finance.kpi.expenses")}
+              value={kpis.expensesFormatted}
+              icon={Receipt}
+            />
+            <KpiBreakdown
+              reservationAmount={kpis.reservationExpenses}
+              manualAmount={kpis.manualExpenseTotal}
+              reservationLabel={t("finance.kpi.cleaning")}
+              manualLabel={t("finance.kpi.otherExpenses")}
+            />
+          </div>
           <KpiCard
             label={t("finance.kpi.netProfit")}
             value={kpis.netProfitFormatted}
@@ -86,19 +220,19 @@ export function FinanceView({ data, canWrite = false }: FinanceViewProps) {
               <ComparisonRow
                 label={t("finance.comparison.revenue")}
                 current={kpis.revenueFormatted}
-                previous={String(comparison.revenue.previous)}
+                previous={formatAmount(comparison.revenue.previous)}
                 trend={comparison.revenue.trend}
               />
               <ComparisonRow
                 label={t("finance.comparison.expenses")}
                 current={kpis.expensesFormatted}
-                previous={String(comparison.expenses.previous)}
+                previous={formatAmount(comparison.expenses.previous)}
                 trend={comparison.expenses.trend}
               />
               <ComparisonRow
                 label={t("finance.comparison.profit")}
                 current={kpis.netProfitFormatted}
-                previous={String(comparison.profit.previous)}
+                previous={formatAmount(comparison.profit.previous)}
                 trend={comparison.profit.trend}
               />
               <ComparisonRow
@@ -223,44 +357,13 @@ export function FinanceView({ data, canWrite = false }: FinanceViewProps) {
           </SectionCard>
         </div>
 
-        <SectionCard title={t("finance.topProperties.title")}>
-          <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6 pb-4">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs uppercase">{t("finance.topProperties.property")}</TableHead>
-                  <TableHead className="text-xs uppercase">{t("finance.topProperties.revenue")}</TableHead>
-                  <TableHead className="text-xs uppercase">{t("finance.topProperties.occupancy")}</TableHead>
-                  <TableHead className="text-end text-xs uppercase">{t("finance.topProperties.reservations")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topProperties.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                      {t("finance.empty")}
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  topProperties.map((row) => (
-                    <TableRow key={row.propertyId}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell>{row.revenueFormatted}</TableCell>
-                      <TableCell>{row.occupancy}%</TableCell>
-                      <TableCell className="text-end">{row.reservations}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </SectionCard>
-
         {canWrite ? (
           <div className="mt-8">
             <ManualFinanceForms />
           </div>
         ) : null}
+          </>
+        )}
       </div>
     </ModuleShellFlow>
   );

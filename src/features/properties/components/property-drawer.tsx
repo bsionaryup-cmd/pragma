@@ -58,7 +58,7 @@ export function PropertyDrawer({
         showCloseButton
         className={cn(
           "flex w-full flex-col gap-0 border-l border-border p-0",
-          "sm:max-w-[480px]",
+          "sm:max-w-[min(100%,480px)]",
           "data-[state=open]:duration-300 data-[state=closed]:duration-200",
         )}
       >
@@ -86,8 +86,9 @@ export function PropertyDrawer({
 
           {mode === "detail" ? (
             detailLoading ? (
-              <div className="flex flex-1 items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+                <span className="sr-only">Cargando propiedad…</span>
               </div>
             ) : property ? (
               <PropertyDetailPanel

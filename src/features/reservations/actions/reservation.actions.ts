@@ -52,7 +52,7 @@ function toInboxFromCreated(
 }
 
 export async function createReservationAction(data: ReservationWizardValues) {
-  await requirePermission("reservations:write");
+  await requirePermission("reservations:create");
   await assertBillingUnlocked();
   const parsed = reservationWizardSchema.parse(data);
 

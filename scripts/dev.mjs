@@ -3,7 +3,7 @@
  * Regenera Prisma Client antes de iniciar para evitar imports/schema desincronizados.
  */
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { config } from "dotenv";
 import {
@@ -93,8 +93,29 @@ async function resolveDevPort() {
 
 ensureSingleDevServer();
 
-console.log("Regenerando Prisma Client…");
-execSync("npx prisma generate", { stdio: "inherit", cwd: process.cwd() });
+function shouldRegeneratePrismaClient() {
+  const schemaPath = join(process.cwd(), "prisma", "schema.prisma");
+  const clientPath = join(
+    process.cwd(),
+    "node_modules",
+    ".prisma",
+    "client",
+    "index.js",
+  );
+  if (!existsSync(clientPath)) return true;
+  try {
+    return statSync(schemaPath).mtimeMs > statSync(clientPath).mtimeMs;
+  } catch {
+    return true;
+  }
+}
+
+if (shouldRegeneratePrismaClient()) {
+  console.log("Regenerando Prisma Client…");
+  execSync("npx prisma generate", { stdio: "inherit", cwd: process.cwd() });
+} else {
+  console.log("Prisma Client al día — omitiendo generate.");
+}
 
 const port = await resolveDevPort();
 if (port !== "3000") {
@@ -108,7 +129,8 @@ if (port !== "3000") {
 
 const devOrigin = `http://localhost:${port}`;
 
-const child = spawn("npx", ["next", "dev", "-p", port], {
+// Turbopack (default in Next 16) can hang on Windows in this project — webpack is stable.
+const child = spawn("npx", ["next", "dev", "--webpack", "-p", port], {
   stdio: "inherit",
   shell: true,
   env: {

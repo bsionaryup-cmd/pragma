@@ -7,7 +7,7 @@
     "dev:clean": "node scripts/dev-clean.mjs",
     "dev:clear": "npm run dev:clean",
     "dev:doctor": "node scripts/dev-doctor.mjs",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "verify:env": "node scripts/verify-env.mjs",
@@ -24,7 +24,9 @@
     "validate:ical": "node scripts/validate-ical-export.mjs && node scripts/validate-ical-sync.mjs",
     "validate:ttlock-callback": "node scripts/validate-ttlock-callback.mjs",
     "audit:ical": "node scripts/run-ical-sync-audit.mjs",
-    "brand:assets": "node scripts/generate-brand-assets.mjs"
+    "brand:assets": "node scripts/generate-brand-assets.mjs",
+    "brand:favicon": "node scripts/brand/generate-favicon.mjs",
+    "test:billing": "npx tsx --test tests/billing/*.test.ts tests/rbac/*.test.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",
@@ -43,6 +45,7 @@
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "pdfkit": "^0.18.0",
     "pg": "^8.20.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
@@ -56,6 +59,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",

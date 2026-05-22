@@ -5,6 +5,6 @@ export default async function SettingsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requirePermission("dashboard:read");
+  await requirePermission("settings:read");
   return children;
 }

@@ -1,5 +1,5 @@
 /**
- * Verificación estática de matriz de permisos (MVP stabilization).
+ * Verificación estática de matriz RBAC.
  * Ejecutar: node scripts/verify-permissions.mjs
  */
 
@@ -9,60 +9,88 @@ const ROLE_PERMISSIONS = {
     "properties:read",
     "properties:write",
     "reservations:read",
+    "reservations:create",
     "reservations:write",
+    "reservations:delete",
+    "calendar:read",
     "tasks:read",
     "tasks:write",
-    "calendar:read",
     "users:read",
     "users:write",
+    "users:delete",
+    "finance:read",
+    "finance:operations:read",
+    "finance:write",
+    "finance:revenue:read",
+    "billing:read",
+    "billing:manage",
+    "integrations:read",
+    "integrations:manage",
+    "settings:read",
+    "pricing:read",
   ],
-  OPERATIONS: [
+  RECEPTIONIST: [
     "dashboard:read",
+    "properties:read",
     "reservations:read",
-    "tasks:read",
-    "tasks:write",
+    "reservations:create",
     "calendar:read",
+    "finance:operations:read",
   ],
 };
 
 const ROUTE_PERMISSIONS = {
-  "/": "dashboard:read",
-  "/properties": "properties:read",
-  "/reservations": "reservations:read",
-  "/tasks": "tasks:read",
-  "/calendar": "calendar:read",
-  "/users": "users:read",
-};
-
-const NAV = [
-  { href: "/", permission: "dashboard:read" },
-  { href: "/properties", permission: "properties:read" },
-  { href: "/reservations", permission: "reservations:read" },
-  { href: "/calendar", permission: "calendar:read" },
-  { href: "/tasks", permission: "tasks:read" },
-  { href: "/users", permission: "users:read" },
-];
-
-const WRITE_ROUTE_PERMISSIONS = {
+  "/panel": "dashboard:read",
   "/properties/new": "properties:write",
-  "/reservations/new": "reservations:write",
-  "/tasks/new": "tasks:write",
+  "/properties": "properties:read",
+  "/reservations/new": "reservations:create",
+  "/reservations": "reservations:read",
+  "/calendar": "calendar:read",
+  "/revenue": "finance:revenue:read",
+  "/finance": "finance:read",
+  "/integrations": "integrations:read",
+  "/settings/billing": "billing:manage",
+  "/settings": "settings:read",
+  "/users": "users:read",
+  "/tasks": "tasks:read",
 };
 
-/** Rutas que cada rol debe poder abrir (middleware + layouts) */
 const EXPECTED_ACCESS = {
   ADMIN: [
-    "/",
+    "/panel",
     "/properties",
     "/properties/new",
     "/reservations",
     "/reservations/new",
-    "/tasks",
-    "/tasks/new",
     "/calendar",
+    "/finance",
+    "/revenue",
+    "/integrations",
+    "/settings",
+    "/settings/billing",
     "/users",
+    "/tasks",
   ],
-  OPERATIONS: ["/", "/reservations", "/tasks", "/tasks/new", "/calendar"],
+  RECEPTIONIST: [
+    "/panel",
+    "/properties",
+    "/reservations",
+    "/reservations/new",
+    "/calendar",
+    "/finance",
+  ],
+};
+
+const EXPECTED_DENIED = {
+  RECEPTIONIST: [
+    "/revenue",
+    "/integrations",
+    "/settings",
+    "/settings/billing",
+    "/users",
+    "/tasks",
+    "/properties/new",
+  ],
 };
 
 function hasPermission(role, permission) {
@@ -72,56 +100,40 @@ function hasPermission(role, permission) {
 function getRequiredPermission(pathname) {
   const match = Object.entries(ROUTE_PERMISSIONS)
     .sort(([a], [b]) => b.length - a.length)
-    .find(([route]) =>
-      route === "/" ? pathname === "/" : pathname.startsWith(route),
-    );
+    .find(([route]) => pathname.startsWith(route));
   return match?.[1] ?? null;
 }
 
-function canAccessPath(role, pathname) {
-  const readPerm = getRequiredPermission(pathname);
-  const writePerm = WRITE_ROUTE_PERMISSIONS[pathname];
-  if (readPerm && !hasPermission(role, readPerm)) return false;
-  if (writePerm && !hasPermission(role, writePerm)) return false;
-  return true;
-}
-
-function getNavForRole(role) {
-  return NAV.filter((item) => hasPermission(role, item.permission));
+function hasRouteAccess(role, pathname) {
+  const permission = getRequiredPermission(pathname);
+  if (!permission) return false;
+  if (hasPermission(role, permission)) return true;
+  if (permission === "finance:read" && hasPermission(role, "finance:operations:read")) {
+    return true;
+  }
+  return false;
 }
 
 let failed = 0;
 
-for (const role of ["ADMIN", "OPERATIONS"]) {
-  const nav = getNavForRole(role).map((n) => n.href);
-  console.log(`\n[${role}] menú: ${nav.join(", ")}`);
-
-  const expected = EXPECTED_ACCESS[role];
-  const allPaths = [
-    ...new Set([
-      ...EXPECTED_ACCESS.ADMIN,
-      ...EXPECTED_ACCESS.OPERATIONS,
-    ]),
-  ];
-
-  for (const path of allPaths) {
-    const allowed = canAccessPath(role, path);
-    const shouldAllow = expected.includes(path);
-    if (allowed !== shouldAllow) {
-      console.log(
-        `  ✗ ${path}: esperado ${shouldAllow ? "permitido" : "bloqueado"}, obtuvo ${allowed ? "permitido" : "bloqueado"}`,
-      );
+for (const role of Object.keys(EXPECTED_ACCESS)) {
+  for (const path of EXPECTED_ACCESS[role]) {
+    if (!hasRouteAccess(role, path)) {
+      console.log(`✗ ${role} should access ${path}`);
       failed++;
     }
   }
 }
 
-if (getNavForRole("ADMIN").length !== 6) {
-  console.error("ADMIN: menú debe tener 6 ítems");
-  failed++;
+for (const path of EXPECTED_DENIED.RECEPTIONIST) {
+  if (hasRouteAccess("RECEPTIONIST", path)) {
+    console.log(`✗ RECEPTIONIST should NOT access ${path}`);
+    failed++;
+  }
 }
-if (getNavForRole("OPERATIONS").length !== 4) {
-  console.error("OPERATIONS: menú debe tener 4 ítems");
+
+if (hasPermission("RECEPTIONIST", "reservations:write")) {
+  console.log("✗ RECEPTIONIST must not have reservations:write");
   failed++;
 }
 
@@ -130,4 +142,4 @@ if (failed > 0) {
   process.exit(1);
 }
 
-console.log("\n✓ Matriz de permisos y navegación coherentes");
+console.log("\n✓ Matriz RBAC coherente (ADMIN / RECEPTIONIST)");

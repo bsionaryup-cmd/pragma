@@ -4,7 +4,7 @@ import type {
   ReservationInboxItem,
   ReservationRelatedBlock,
 } from "@/features/reservations/types/reservation.types";
-import { PropertyStatus, ReservationStatus } from "@prisma/client";
+import { GuestRegistrationStatus, PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -117,19 +117,57 @@ async function getGuestsByReservationIds(reservationIds: string[]) {
 }
 
 async function getRegistrationsByReservationIds(reservationIds: string[]) {
-  const entries = await Promise.all(
-    reservationIds.map(async (id) => [
-      id,
-      await getActiveGuestRegistrationForReservation(id),
-    ] as const),
-  );
-  return new Map(entries);
+  if (reservationIds.length === 0) return new Map<string, ReservationInboxItem["guestRegistration"]>();
+
+  const tokens = await db.guestRegistrationToken.findMany({
+    where: {
+      reservationId: { in: reservationIds },
+      status: {
+        in: [GuestRegistrationStatus.ACTIVE, GuestRegistrationStatus.COMPLETED],
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const byReservation = new Map<string, ReservationInboxItem["guestRegistration"]>();
+  for (const token of tokens) {
+    if (byReservation.has(token.reservationId)) continue;
+    byReservation.set(token.reservationId, {
+      token: token.token,
+      status: token.status,
+      url: buildGuestRegistrationUrl(token.token),
+      createdAt: token.createdAt.toISOString(),
+      expiresAt: token.expiresAt?.toISOString() ?? null,
+      usedAt: token.usedAt?.toISOString() ?? null,
+    });
+  }
+  return byReservation;
 }
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const rows = await db.reservation.findMany({
     where: withVisibleReservationsFilter({}),
-    include: {
+    select: {
+      id: true,
+      guestName: true,
+      guestFirstName: true,
+      guestLastName: true,
+      guestEmail: true,
+      guestPhone: true,
+      guestCountry: true,
+      guestLanguage: true,
+      adults: true,
+      children: true,
+      infants: true,
+      checkIn: true,
+      checkOut: true,
+      platform: true,
+      status: true,
+      totalAmount: true,
+      currency: true,
+      internalNotes: true,
+      guestRegistrationToken: true,
+      guestRegistrationCompletedAt: true,
       property: {
         select: { id: true, name: true, address: true, city: true },
       },

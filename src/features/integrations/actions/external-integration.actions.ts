@@ -39,9 +39,10 @@ export async function testExternalIntegrationAction(
   return result;
 }
 
-export async function getExternalIntegrationOverview(
+export async function getExternalIntegrationOverviewAction(
   provider: ExternalIntegrationProvider,
 ) {
+  await requirePermission("integrations:read");
   const row = await getExternalIntegration(provider);
   if (!row) return null;
   return {
@@ -53,3 +54,6 @@ export async function getExternalIntegrationOverview(
     hasSecret: Boolean(row.clientSecretEncrypted),
   };
 }
+
+/** @deprecated Use getExternalIntegrationOverviewAction */
+export const getExternalIntegrationOverview = getExternalIntegrationOverviewAction;

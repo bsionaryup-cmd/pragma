@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import {
   Card,
   CardContent,
@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/helpers";
 import { formatDate } from "@/lib/helpers/date";
-import { platformLabels } from "@/lib/labels";
 import type { getUpcomingArrivals } from "@/services/dashboard/dashboard.service";
 
 type Arrival = Awaited<ReturnType<typeof getUpcomingArrivals>>[number];
@@ -38,7 +37,7 @@ export function UpcomingArrivals({ arrivals }: { arrivals: Arrival[] }) {
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge variant="secondary">{platformLabels[a.platform]}</Badge>
+                <ReservationSourceBadge platform={a.platform} />
                 <span className="text-xs font-medium">
                   {formatCurrency(Number(a.totalAmount))}
                 </span>

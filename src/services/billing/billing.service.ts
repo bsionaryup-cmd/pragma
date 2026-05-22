@@ -4,16 +4,24 @@ import {
   type BillingAccount,
   type BillingInvoice,
 } from "@prisma/client";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import {
   resolveBillingLocked,
   type BillingAccessSnapshot,
 } from "@/lib/billing/billing-access";
+import {
+  SUBSCRIPTION_CURRENCY,
+  SUBSCRIPTION_TRIAL_DAYS,
+} from "@/modules/billing/domain/subscription-pricing";
+import { getPlanMonthlyAmount } from "@/modules/billing/domain/plan-catalog";
+import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import {
+  reconcileBillingLifecycle,
+  accountNeedsLifecycleReconciliation,
+} from "@/modules/billing/services/billing-lifecycle.service";
 
 const SINGLETON_ID = "singleton";
-const TRIAL_DAYS = 14;
-const GRACE_DAYS = 7;
-const MONTHLY_AMOUNT_COP = 199_000;
 
 function isBillingSchemaMissing(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
@@ -28,7 +36,9 @@ export async function ensureBillingAccount(): Promise<BillingAccount | null> {
       create: {
         id: SINGLETON_ID,
         status: BillingSubscriptionStatus.TRIAL,
-        trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        trialEndsAt: new Date(
+          Date.now() + SUBSCRIPTION_TRIAL_DAYS * 24 * 60 * 60 * 1000,
+        ),
       },
       update: {},
     });
@@ -38,14 +48,14 @@ export async function ensureBillingAccount(): Promise<BillingAccount | null> {
   }
 }
 
-export async function getBillingAccountSafe(): Promise<BillingAccount | null> {
+export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | null> => {
   try {
     return await db.billingAccount.findUnique({ where: { id: SINGLETON_ID } });
   } catch (error) {
     if (isBillingSchemaMissing(error)) return null;
     throw error;
   }
-}
+});
 
 export async function listBillingInvoices(limit = 20): Promise<BillingInvoice[]> {
   try {
@@ -69,6 +79,8 @@ export type BillingOverviewDto = {
     trialEndsAt: string | null;
     currentPeriodEnd: string | null;
     nextRenewalLabel: string | null;
+    monthlyAmount: number;
+    monthlyCurrency: string;
   };
   invoices: Array<{
     id: string;
@@ -78,75 +90,18 @@ export type BillingOverviewDto = {
     description: string | null;
     dueAt: string;
     paidAt: string | null;
+    manualPaymentRef: string | null;
+    manualSubmittedAt: string | null;
   }>;
   paymentMethods: {
     wompiEnabled: boolean;
+    wompiWebhookReady: boolean;
     pse: boolean;
     nequi: boolean;
     cards: boolean;
     hasDefaultToken: boolean;
   };
 };
-
-async function reconcileBillingLifecycle(
-  account: BillingAccount,
-): Promise<BillingAccount> {
-  const now = Date.now();
-
-  if (
-    account.status === BillingSubscriptionStatus.TRIAL &&
-    account.trialEndsAt &&
-    account.trialEndsAt.getTime() < now
-  ) {
-    const graceEnds = new Date(now + GRACE_DAYS * 24 * 60 * 60 * 1000);
-    const updated = await db.billingAccount.update({
-      where: { id: SINGLETON_ID },
-      data: {
-        status: BillingSubscriptionStatus.PAST_DUE,
-        gracePeriodEndsAt: graceEnds,
-        billingLockedAt: null,
-      },
-    });
-
-    const openCount = await db.billingInvoice.count({
-      where: {
-        billingAccountId: SINGLETON_ID,
-        status: BillingInvoiceStatus.OPEN,
-      },
-    });
-    if (openCount === 0) {
-      await db.billingInvoice.create({
-        data: {
-          billingAccountId: SINGLETON_ID,
-          amount: MONTHLY_AMOUNT_COP,
-          currency: "COP",
-          status: BillingInvoiceStatus.OPEN,
-          description: "Suscripción PRAGMA — período mensual",
-          dueAt: new Date(now + 3 * 24 * 60 * 60 * 1000),
-          externalRef: `inv-trial-${Date.now()}`,
-        },
-      });
-    }
-    return updated;
-  }
-
-  if (account.status === BillingSubscriptionStatus.PAST_DUE) {
-    const graceExpired =
-      account.gracePeriodEndsAt &&
-      account.gracePeriodEndsAt.getTime() < now;
-    if (graceExpired) {
-      return db.billingAccount.update({
-        where: { id: SINGLETON_ID },
-        data: {
-          status: BillingSubscriptionStatus.LOCKED,
-          billingLockedAt: new Date(),
-        },
-      });
-    }
-  }
-
-  return account;
-}
 
 export async function activateBillingSubscription(): Promise<{
   ok: boolean;
@@ -190,7 +145,7 @@ export async function activateBillingSubscription(): Promise<{
 
 export async function getBillingOverview(): Promise<BillingOverviewDto> {
   let account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
-  const wompiPublicKey = process.env.WOMPI_PUBLIC_KEY?.trim();
+  const wompi = await resolveWompiConfig();
 
   if (!account) {
     return {
@@ -208,10 +163,13 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
         trialEndsAt: null,
         currentPeriodEnd: null,
         nextRenewalLabel: null,
+        monthlyAmount: getPlanMonthlyAmount("STARTER"),
+        monthlyCurrency: SUBSCRIPTION_CURRENCY,
       },
       invoices: [],
       paymentMethods: {
-        wompiEnabled: Boolean(wompiPublicKey),
+        wompiEnabled: wompi.configured,
+        wompiWebhookReady: Boolean(wompi.eventsSecret),
         pse: true,
         nequi: true,
         cards: true,
@@ -251,6 +209,8 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
             dateStyle: "medium",
           })
         : null,
+      monthlyAmount: getPlanMonthlyAmount(account?.plan ?? "STARTER"),
+      monthlyCurrency: SUBSCRIPTION_CURRENCY,
     },
     invoices: invoices.map((inv) => ({
       id: inv.id,
@@ -260,9 +220,12 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       description: inv.description,
       dueAt: inv.dueAt.toISOString(),
       paidAt: inv.paidAt?.toISOString() ?? null,
+      manualPaymentRef: inv.manualPaymentRef ?? null,
+      manualSubmittedAt: inv.manualSubmittedAt?.toISOString() ?? null,
     })),
     paymentMethods: {
-      wompiEnabled: Boolean(wompiPublicKey),
+      wompiEnabled: wompi.configured,
+      wompiWebhookReady: Boolean(wompi.eventsSecret),
       pse: true,
       nequi: true,
       cards: true,
@@ -271,10 +234,11 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
   };
 }
 
-/** Lectura ligera para banner/layout — sin reconciliar ciclo de facturación en cada request. */
-export async function getBillingAccessSnapshot(): Promise<BillingAccessSnapshot> {
+/** Lectura ligera para banner/layout — reconcilia solo si el ciclo requiere transición. */
+export const getBillingAccessSnapshot = cache(
+  async (): Promise<BillingAccessSnapshot> => {
   try {
-    const account = await getBillingAccountSafe();
+    let account = await getBillingAccountSafe();
     if (!account) {
       return {
         locked: false,
@@ -283,6 +247,10 @@ export async function getBillingAccessSnapshot(): Promise<BillingAccessSnapshot>
         gracePeriodEndsAt: null,
         reason: null,
       };
+    }
+
+    if (accountNeedsLifecycleReconciliation(account)) {
+      account = await reconcileBillingLifecycle(account);
     }
 
     const locked = resolveBillingLocked({
@@ -312,4 +280,5 @@ export async function getBillingAccessSnapshot(): Promise<BillingAccessSnapshot>
     }
     throw error;
   }
-}
+  },
+);

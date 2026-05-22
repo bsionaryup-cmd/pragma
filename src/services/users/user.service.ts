@@ -7,6 +7,10 @@ import {
 } from "@/lib/clerk-metadata-sync";
 import { db } from "@/lib/db";
 import {
+  assertAdminCanChangeUserRole,
+  AccountOwnerProtectionError,
+} from "@/services/users/account-owner.guard";
+import {
   rethrowUnlessUserSchemaDrift,
   withUserPreferenceDefaults,
 } from "@/services/users/user-prisma-guard";
@@ -15,9 +19,14 @@ import type { ClerkUserPayload } from "@/types/auth";
 import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
 import { clerkClient } from "@clerk/nextjs/server";
 
-async function resolveRoleForNewUser(): Promise<UserRole> {
+async function resolveNewUserFlags(): Promise<{
+  role: UserRole;
+  isAccountOwner: boolean;
+}> {
   const count = await db.user.count();
-  return count === 0 ? "ADMIN" : "RECEPTIONIST";
+  return count === 0
+    ? { role: "ADMIN", isAccountOwner: true }
+    : { role: "RECEPTIONIST", isAccountOwner: false };
 }
 
 function mapWebhookToPayload(data: ClerkWebhookUserData): ClerkUserPayload {
@@ -80,7 +89,7 @@ function buildUserUpdateData(
 function buildUserCreateData(
   payload: ClerkUserPayload,
   role: UserRole,
-  options?: { touchLogin?: boolean },
+  options?: { touchLogin?: boolean; isAccountOwner?: boolean },
 ): Prisma.UserCreateInput {
   return {
     clerkId: payload.id,
@@ -89,6 +98,7 @@ function buildUserCreateData(
     lastName: payload.lastName,
     imageUrl: payload.imageUrl,
     role,
+    isAccountOwner: options?.isAccountOwner ?? false,
     locale: "es",
     theme: "system",
     timezone: "America/Bogota",
@@ -159,11 +169,14 @@ export async function upsertUserFromClerk(
     return withUserPreferenceDefaults(updated);
   }
 
-  const role = await resolveRoleForNewUser();
+  const flags = await resolveNewUserFlags();
   let created: User;
   try {
     created = await db.user.create({
-      data: buildUserCreateData(validated, role, options),
+      data: buildUserCreateData(validated, flags.role, {
+        ...options,
+        isAccountOwner: flags.isAccountOwner,
+      }),
     });
   } catch (error) {
     rethrowUnlessUserSchemaDrift(error);
@@ -194,9 +207,17 @@ export async function handleUserDeletedWebhook(clerkId: string) {
   const user = await db.user.findUnique({ where: { clerkId } });
   if (!user) return null;
 
+  if (user.isAccountOwner) {
+    console.warn(
+      "[clerk-webhook] Refusing to deactivate account owner",
+      clerkId,
+    );
+    return user;
+  }
+
   return db.user.update({
     where: { clerkId },
-    data: { isActive: false },
+    data: { isActive: false, deletedAt: new Date() },
   });
 }
 
@@ -220,11 +241,14 @@ export async function getUserById(id: string) {
 
 export async function listUsers() {
   return db.user.findMany({
+    where: { deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 }
 
 export async function updateUserRole(userId: string, role: UserRole) {
+  await assertAdminCanChangeUserRole(userId);
+
   const user = await db.user.update({
     where: { id: userId },
     data: { role },
@@ -237,6 +261,19 @@ export async function updateUserRole(userId: string, role: UserRole) {
 }
 
 export async function setUserActive(userId: string, isActive: boolean) {
+  if (!isActive) {
+    const target = await db.user.findUnique({
+      where: { id: userId },
+      select: { isAccountOwner: true },
+    });
+
+    if (target?.isAccountOwner) {
+      throw new AccountOwnerProtectionError(
+        "No se puede desactivar al dueño principal de la cuenta",
+      );
+    }
+  }
+
   return db.user.update({
     where: { id: userId },
     data: { isActive },
@@ -268,7 +305,10 @@ export async function createUserByAdmin(input: {
   const email = input.email.trim().toLowerCase();
 
   const existingDb = await db.user.findFirst({
-    where: { email: { equals: email, mode: "insensitive" } },
+    where: {
+      email: { equals: email, mode: "insensitive" },
+      deletedAt: null,
+    },
   });
   if (existingDb?.isActive) {
     throw new Error("Ya existe un usuario activo con ese email");
@@ -291,6 +331,34 @@ export async function createUserByAdmin(input: {
   }
 
   const payload = mapClerkUserToPayload(clerkUser);
+
+  const deletedDb = await db.user.findFirst({
+    where: {
+      email: { equals: email, mode: "insensitive" },
+      deletedAt: { not: null },
+    },
+  });
+
+  if (deletedDb) {
+    const reactivated = await db.user.update({
+      where: { id: deletedDb.id },
+      data: {
+        clerkId: clerkUser.id,
+        email: payload.email,
+        firstName: input.firstName?.trim() || payload.firstName,
+        lastName: input.lastName?.trim() || payload.lastName,
+        imageUrl: payload.imageUrl,
+        role: input.role,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+    await syncClerkPublicMetadata(clerkUser.id, {
+      role: reactivated.role,
+      dbUserId: reactivated.id,
+    });
+    return withUserPreferenceDefaults(reactivated);
+  }
 
   if (existingDb) {
     const reactivated = await db.user.update({
@@ -359,6 +427,12 @@ export async function deleteUserByAdmin(userId: string) {
     throw new Error("Usuario no encontrado");
   }
 
+  if (user.isAccountOwner) {
+    throw new AccountOwnerProtectionError(
+      "No se puede eliminar al dueño principal de la cuenta",
+    );
+  }
+
   const client = await clerkClient();
   try {
     await client.users.deleteUser(user.clerkId);
@@ -370,7 +444,7 @@ export async function deleteUserByAdmin(userId: string) {
 
   return db.user.update({
     where: { id: userId },
-    data: { isActive: false },
+    data: { isActive: false, deletedAt: new Date() },
   });
 }
 

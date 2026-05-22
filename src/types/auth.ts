@@ -17,6 +17,7 @@ export type AuthContext = {
   clerkId: string;
   email: string;
   role: AppUserRole;
+  isAccountOwner: boolean;
   firstName: string | null;
   lastName: string | null;
   imageUrl: string | null;

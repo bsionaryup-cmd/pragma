@@ -5,7 +5,6 @@ import { PlatformIcon } from "@/features/calendar/components/platform-icon";
 import {
   getReservationBarClasses,
   getReservationVisualState,
-  getStatusDotClass,
   getStatusLabel,
 } from "@/features/calendar/lib/reservation-style";
 import type {
@@ -48,14 +47,11 @@ function ReservationBarComponent({
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <span
-        className={cn(
-          "h-2 w-2 shrink-0 rounded-full",
-          getStatusDotClass(visualState),
-        )}
-        aria-hidden
+      <PlatformIcon
+        platform={reservation.platform}
+        size="xs"
+        className="scale-[0.92]"
       />
-      <PlatformIcon platform={reservation.platform} />
       <span className="truncate">{reservation.guestName}</span>
     </button>
   );

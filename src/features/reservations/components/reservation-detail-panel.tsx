@@ -21,6 +21,13 @@ import {
 } from "@/features/reservations/lib/reservation-status";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import { Button } from "@/components/ui/button";
+import {
+  DetailDrawerHero,
+  DetailEmptyState,
+  DetailListItem,
+  DetailRow,
+  DetailSection,
+} from "@/components/detail/detail-section";
 import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { cn } from "@/lib/utils";
@@ -34,40 +41,6 @@ type ReservationDetailPanelProps = {
   /** false en calendario: no refrescar la página al eliminar */
   refreshAfterDelete?: boolean;
 };
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span className="text-sm text-foreground">{value?.trim() || "—"}</span>
-    </div>
-  );
-}
-
-function DetailSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-3 border-b border-border pb-4 last:border-0">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h4>
-      <div className="space-y-3">{children}</div>
-    </section>
-  );
-}
 
 function formatReservationCode(reservation: ReservationDetailItem): string {
   if (reservation.icalUid?.trim()) return reservation.icalUid.trim();
@@ -177,20 +150,20 @@ export function ReservationDetailPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border px-5 py-4">
-        <span
-          className={cn(
-            "inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase",
-            getStatusBadgeClass(displayStatus),
-          )}
-        >
-          {displayStatusLabels[displayStatus]}
-        </span>
-        <h3 className="mt-2 text-lg font-semibold leading-tight">
-          {reservation.guestName}
-        </h3>
-        <p className="text-sm text-muted-foreground">{reservation.property.name}</p>
-      </div>
+      <DetailDrawerHero
+        badge={
+          <span
+            className={cn(
+              "inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase",
+              getStatusBadgeClass(displayStatus),
+            )}
+          >
+            {displayStatusLabels[displayStatus]}
+          </span>
+        }
+        title={reservation.guestName}
+        subtitle={reservation.property.name}
+      />
 
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <DetailSection title="Huésped">
@@ -329,10 +302,10 @@ export function ReservationDetailPanel({
               ) : null}
             </div>
           ) : (
-            <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4">
-              <p className="text-sm text-muted-foreground">
+            <div className="space-y-3">
+              <DetailEmptyState>
                 Esta reserva todavía no tiene link activo de registro.
-              </p>
+              </DetailEmptyState>
               {canWrite ? (
                 <Button
                   type="button"
@@ -376,10 +349,10 @@ export function ReservationDetailPanel({
               ))}
             </ul>
           ) : (
-            <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+            <DetailEmptyState>
               Registro de huéspedes pendiente. Se mostrará aquí cuando el
               huésped principal complete el formulario.
-            </p>
+            </DetailEmptyState>
           )}
         </DetailSection>
 

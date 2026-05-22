@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import {
@@ -11,8 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionCard } from "@/components/ui/section-card";
 
+function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function ManualFinanceForms() {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const today = todayDateInputValue();
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -24,6 +31,7 @@ export function ManualFinanceForms() {
               try {
                 await createManualExpenseAction(fd);
                 toast.success("Egreso registrado");
+                router.refresh();
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Error");
               }
@@ -53,7 +61,7 @@ export function ManualFinanceForms() {
           </div>
           <div className="space-y-2">
             <Label>Fecha</Label>
-            <Input name="expenseDate" type="date" required />
+            <Input name="expenseDate" type="date" required defaultValue={today} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Descripción</Label>
@@ -77,6 +85,7 @@ export function ManualFinanceForms() {
               try {
                 await createOtherIncomeAction(fd);
                 toast.success("Ingreso registrado");
+                router.refresh();
               } catch (e) {
                 toast.error(e instanceof Error ? e.message : "Error");
               }
@@ -93,7 +102,7 @@ export function ManualFinanceForms() {
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Fecha</Label>
-            <Input name="incomeDate" type="date" required />
+            <Input name="incomeDate" type="date" required defaultValue={today} />
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label>Descripción</Label>

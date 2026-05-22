@@ -83,12 +83,9 @@ export function AirbnbSyncStatus({
 
   useEffect(() => {
     const updateNow = () => setNow(Date.now());
-    const timeoutId = window.setTimeout(updateNow, 0);
-    const intervalId = window.setInterval(updateNow, 1_000);
-    return () => {
-      window.clearTimeout(timeoutId);
-      window.clearInterval(intervalId);
-    };
+    updateNow();
+    const intervalId = window.setInterval(updateNow, 30_000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   if (!canSync || linkedCount === 0) return null;

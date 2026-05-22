@@ -1,9 +1,16 @@
+import dynamic from "next/dynamic";
 import { ModuleShellFill } from "@/components/layout/module-shell";
-import { ReservationsInbox } from "@/features/reservations/components/reservations-inbox";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForInbox } from "@/services/properties/property.service";
 import { listReservationsForInbox } from "@/services/reservations/reservation.service";
 import type { AppUserRole } from "@/types/auth";
+
+const ReservationsInbox = dynamic(
+  () =>
+    import("@/features/reservations/components/reservations-inbox").then(
+      (m) => ({ default: m.ReservationsInbox }),
+    ),
+);
 
 type ReservationsPageProps = {
   searchParams: Promise<{
@@ -18,15 +25,16 @@ type ReservationsPageProps = {
 export default async function ReservationsPage({
   searchParams,
 }: ReservationsPageProps) {
-  const auth = await requirePermission("reservations:read");
-  const params = await searchParams;
-  const canWrite = hasPermission(auth.role as AppUserRole, "reservations:write");
-  const canDelete = hasPermission(auth.role as AppUserRole, "reservations:delete");
-
-  const [reservations, properties] = await Promise.all([
+  const [auth, params, reservations, properties] = await Promise.all([
+    requirePermission("reservations:read"),
+    searchParams,
     listReservationsForInbox(),
     listPropertiesForInbox(),
   ]);
+  const role = auth.role as AppUserRole;
+  const canCreate = hasPermission(role, "reservations:create");
+  const canWrite = hasPermission(role, "reservations:write");
+  const canDelete = hasPermission(role, "reservations:delete");
 
   const reservationId = params.reservation ?? null;
   const validReservationId =
@@ -39,12 +47,13 @@ export default async function ReservationsPage({
       <ReservationsInbox
         initialReservations={reservations}
         properties={properties}
+        canCreate={canCreate}
         canWrite={canWrite}
         canDelete={canDelete}
-        openCreateOnMount={params.create === "true" && canWrite}
+        openCreateOnMount={params.create === "true" && canCreate}
         initialSelectedId={validReservationId}
         initialCreateValues={
-          params.create === "true" && canWrite
+          params.create === "true" && canCreate
             ? {
                 propertyId: params.propertyId,
                 checkIn: params.checkIn,

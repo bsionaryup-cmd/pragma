@@ -8,6 +8,11 @@ import {
   updateUserProfileSchema,
 } from "@/features/users/schemas/user.schema";
 import {
+  assertAdminCanChangeUserRole,
+  assertAdminCanManageUser,
+  assertCanDeleteUser,
+} from "@/services/users/account-owner.guard";
+import {
   createUserByAdmin,
   deleteUserByAdmin,
   setUserActive,
@@ -28,7 +33,10 @@ export async function createUserAction(input: unknown) {
 }
 
 export async function updateUserProfileAction(userId: string, input: unknown) {
-  await requirePermission("users:write");
+  const current = await requirePermission("users:write");
+  await assertAdminCanManageUser(userId, current.dbUserId, {
+    allowSelfProfileEdit: true,
+  });
   const parsed = updateUserProfileSchema.parse(input);
   await updateUserProfile(userId, {
     firstName: parsed.firstName || null,
@@ -38,12 +46,8 @@ export async function updateUserProfileAction(userId: string, input: unknown) {
 }
 
 export async function deleteUserAction(userId: string) {
-  const current = await requirePermission("users:write");
-
-  if (userId === current.dbUserId) {
-    throw new Error("No puedes eliminar tu propia cuenta");
-  }
-
+  const current = await requirePermission("users:delete");
+  await assertCanDeleteUser(userId, current.dbUserId);
   await deleteUserByAdmin(userId);
   revalidatePath("/users");
 }
@@ -55,6 +59,7 @@ export async function updateUserRoleAction(userId: string, role: UserRole) {
     throw new Error("No puedes quitarte el rol de administrador");
   }
 
+  await assertAdminCanChangeUserRole(userId);
   await updateUserRole(userId, role);
   revalidatePath("/users");
 }
@@ -64,6 +69,10 @@ export async function setUserActiveAction(userId: string, isActive: boolean) {
 
   if (userId === current.dbUserId && !isActive) {
     throw new Error("No puedes desactivar tu propia cuenta");
+  }
+
+  if (!isActive) {
+    await assertAdminCanManageUser(userId, current.dbUserId);
   }
 
   await setUserActive(userId, isActive);

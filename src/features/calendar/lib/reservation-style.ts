@@ -43,7 +43,7 @@ export function getReservationVisualState(
 }
 
 const pillBase =
-  "absolute top-1/2 z-20 flex h-8 min-w-[28px] -translate-y-1/2 cursor-pointer items-center gap-1.5 overflow-hidden border border-[#E9ECEF] bg-white px-2 text-[11px] font-medium leading-tight text-[#111111] shadow-[0_1px_3px_rgba(8,22,38,0.08)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(8,22,38,0.12)] pointer-events-auto";
+  "absolute top-1/2 z-20 flex h-9 min-w-[32px] -translate-y-1/2 cursor-pointer items-center gap-1.5 overflow-hidden border border-[var(--cal-border)] bg-white px-2 text-xs font-medium leading-tight text-[#111111] shadow-[0_1px_3px_rgba(8,22,38,0.1)] transition-shadow duration-200 hover:shadow-[0_2px_8px_rgba(8,22,38,0.14)] pointer-events-auto";
 
 export function getReservationBarClasses(state: ReservationVisualState): string {
   switch (state) {
@@ -52,9 +52,9 @@ export function getReservationBarClasses(state: ReservationVisualState): string 
     case "checkout_today":
       return `${pillBase} border-l-[3px] border-l-[#F5A524] bg-[#FFFBEB]`;
     case "checked_out":
-      return `${pillBase} border-l-[3px] border-l-[#9CA3AF] bg-[#F7F8FA] text-[#6B7280]`;
+      return `${pillBase} border-l-[3px] border-l-[#9CA3AF] bg-[var(--cal-reservation-muted-bg)] text-[var(--cal-reservation-muted-text)]`;
     case "blocked":
-      return `${pillBase} border-l-[3px] border-l-[#6B7280] bg-[#F3F4F6] text-[#6B7280]`;
+      return `${pillBase} border-l-[3px] border-l-[#6B7280] bg-[var(--cal-reservation-blocked-bg)] text-[var(--cal-reservation-muted-text)]`;
     case "confirmed":
     default:
       return `${pillBase} border-l-[3px] border-l-[#0E9F8D] bg-[#F0FDF9]`;

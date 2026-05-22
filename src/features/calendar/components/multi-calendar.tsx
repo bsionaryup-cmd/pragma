@@ -82,13 +82,6 @@ export function MultiCalendar({
   );
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      setCalendarReservations(null);
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, [data.reservations, data.viewport.anchor]);
-
-  useEffect(() => {
     if (scrolledRef.current === viewport.anchor) return;
     const targetIdx = viewport.days.findIndex((d) => d.date === viewport.anchor);
     if (targetIdx < 0) return;
@@ -245,7 +238,7 @@ export function MultiCalendar({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#FAFBFC]">
+    <div className="cal-module flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--cal-bg-canvas)]">
       <CalendarToolbar viewport={viewport} canSyncAirbnb={canSyncAirbnb} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -258,7 +251,7 @@ export function MultiCalendar({
         />
 
         <div className="calendar-workspace flex min-w-0 flex-1 flex-col overflow-hidden">
-          <div className="sticky top-0 z-20 shrink-0 border-b border-[#E9ECEF] bg-white">
+          <div className="sticky top-0 z-20 shrink-0 border-b border-[var(--cal-border)] bg-white">
             <CalendarDayHeader
               days={viewport.days}
               gridWidth={viewport.gridWidth}
@@ -284,7 +277,7 @@ export function MultiCalendar({
       </div>
 
       {canWrite ? (
-        <div className="shrink-0 border-t border-[#E9ECEF] bg-white px-4 py-2 text-[11px] text-[#6B7280]">
+        <div className="shrink-0 border-t border-[var(--cal-border)] bg-white px-4 py-2 text-[11px] text-[var(--cal-text-secondary)]">
           {selection?.checkOut === null ? (
             <span>
               1.er clic: entrada ({selection.checkIn}). Elige la fecha de salida

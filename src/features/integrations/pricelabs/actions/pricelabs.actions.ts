@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
-import { requireRole } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 
-async function requireAdminUnlocked() {
-  const user = await requireRole("ADMIN");
+async function requireIntegrationsManageUnlocked() {
+  const user = await requirePermission("integrations:manage");
   await assertBillingUnlocked();
   return user;
 }
@@ -29,7 +29,7 @@ function revalidatePriceLabs() {
 }
 
 export async function savePriceLabsApiKeyAction(apiKey: string) {
-  const user = await requireAdminUnlocked();
+  const user = await requireIntegrationsManageUnlocked();
   const result = await savePriceLabsApiKeyFromPanel({
     configuredById: user.dbUserId,
     apiKey,
@@ -39,14 +39,14 @@ export async function savePriceLabsApiKeyAction(apiKey: string) {
 }
 
 export async function revokePriceLabsApiKeyAction() {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const result = await revokePriceLabsApiKeyFromPanel();
   revalidatePriceLabs();
   return result;
 }
 
 export async function syncPriceLabsOverridesAction() {
-  await requireRole("ADMIN");
+  await requirePermission("integrations:manage");
   const wrapped = await runWithPriceLabsSyncLock(() => syncPriceLabsOverrides());
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
@@ -54,7 +54,7 @@ export async function syncPriceLabsOverridesAction() {
 }
 
 export async function confirmPriceLabsSetupAction() {
-  const user = await requireAdminUnlocked();
+  const user = await requireIntegrationsManageUnlocked();
   const result = await markPriceLabsSetupFromPanel({
     configuredById: user.dbUserId,
   });
@@ -63,14 +63,14 @@ export async function confirmPriceLabsSetupAction() {
 }
 
 export async function testPriceLabsConnectionAction() {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const result = await checkConnection();
   revalidatePriceLabs();
   return result;
 }
 
 export async function syncPriceLabsListingsAction() {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const wrapped = await runWithPriceLabsSyncLock(() => syncListings());
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
@@ -78,7 +78,7 @@ export async function syncPriceLabsListingsAction() {
 }
 
 export async function fetchPriceLabsPricesAction() {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const wrapped = await runWithPriceLabsSyncLock(() => fetchDynamicPrices());
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
@@ -86,14 +86,14 @@ export async function fetchPriceLabsPricesAction() {
 }
 
 export async function runPriceLabsFullSyncAction() {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const result = await runPriceLabsSyncPipeline({ source: "manual" });
   revalidatePriceLabs();
   return result;
 }
 
 export async function syncSinglePriceLabsListingAction(propertyId: string) {
-  await requireAdminUnlocked();
+  await requireIntegrationsManageUnlocked();
   const result = await syncSingleListing(propertyId);
   revalidatePriceLabs();
   return result;

@@ -138,6 +138,10 @@ export const en = {
       netProfit: "Net profit",
       pendingIncome: "Pending income",
       outstanding: "Outstanding payments",
+      reservations: "Reservations",
+      otherIncome: "Other income",
+      cleaning: "Cleaning",
+      otherExpenses: "Other expenses",
     },
     comparison: {
       title: "Current vs previous month",

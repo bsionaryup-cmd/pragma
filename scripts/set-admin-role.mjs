@@ -34,6 +34,15 @@ try {
     process.exit(1);
   }
 
+  const existingOwner = users.find((u) => u.isAccountOwner);
+  if (!existingOwner) {
+    await db.user.update({
+      where: { id: users[0].id },
+      data: { isAccountOwner: true },
+    });
+    console.log(`✓ Dueño de cuenta asignado: ${users[0].email}`);
+  }
+
   const updated = await db.user.update({
     where: { id: target.id },
     data: { role: "ADMIN", isActive: true },

@@ -11,11 +11,13 @@ type PropertiesPageProps = {
 export default async function PropertiesPage({
   searchParams,
 }: PropertiesPageProps) {
-  const auth = await requirePermission("properties:read");
-  const params = await searchParams;
+  const authPromise = requirePermission("properties:read");
+  const [auth, params, properties] = await Promise.all([
+    authPromise,
+    searchParams,
+    authPromise.then((a) => listPropertiesForGrid(a.dbUserId)),
+  ]);
   const canWrite = hasPermission(auth.role as AppUserRole, "properties:write");
-
-  const properties = await listPropertiesForGrid(auth.dbUserId);
 
   const propertyId = params.property ?? null;
   const validPropertyId =

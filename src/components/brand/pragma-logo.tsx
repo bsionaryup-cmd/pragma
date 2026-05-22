@@ -20,7 +20,7 @@ const VARIANT_CONFIG: Record<
   fullLight: { src: BRAND_ASSETS.logoFullLight, width: 1331, height: 332 },
   fullDark: { src: BRAND_ASSETS.logoFullDark, width: 1331, height: 332 },
   stacked: { src: BRAND_ASSETS.logoStacked, width: 1331, height: 332 },
-  mark: { src: BRAND_ASSETS.logoMark, width: 479, height: 332 },
+  mark: { src: BRAND_ASSETS.logoMark, width: 493, height: 574 },
 };
 
 function resolveVariant(

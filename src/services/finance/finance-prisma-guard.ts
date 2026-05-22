@@ -18,7 +18,7 @@ type ManualExpenseDelegate = {
 type OtherIncomeDelegate = {
   findMany: (args: unknown) => Promise<
     Array<{
-      id?: string;
+      id: string;
       amount: { toString(): string };
       incomeType: string;
       incomeDate: Date;
@@ -114,6 +114,7 @@ export async function listOtherIncomesInRange(
   end: Date,
 ): Promise<
   Array<{
+    id: string;
     amount: { toString(): string };
     incomeType: string;
     incomeDate: Date;
@@ -128,7 +129,7 @@ export async function listOtherIncomesInRange(
   try {
     return await otherIncome.findMany({
       where: { incomeDate: { gte: start, lte: end } },
-      select: { amount: true, incomeType: true, incomeDate: true },
+      select: { id: true, amount: true, incomeType: true, incomeDate: true },
     });
   } catch (error) {
     if (isFinanceSchemaDriftError(error)) {

@@ -6,7 +6,7 @@ import { DEV_PORTS, getListeningPids, isPortBusy } from "./dev-port-utils.mjs";
 
 async function probeHttp(port) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5000);
+  const timer = setTimeout(() => controller.abort(), 15000);
   try {
     const res = await fetch(`http://127.0.0.1:${port}/`, {
       signal: controller.signal,

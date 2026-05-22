@@ -1,14 +1,14 @@
 "use client";
 
 import { Filter, Search, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { CreateReservationButton } from "@/features/reservations/components/create-reservation-button";
 import { ReservationCard } from "@/features/reservations/components/reservation-card";
-import {
-  ReservationDrawer,
-  type ReservationCreateInitialValues,
-  type ReservationDrawerMode,
+import type {
+  ReservationCreateInitialValues,
+  ReservationDrawerMode,
 } from "@/features/reservations/components/reservation-drawer";
 import { useI18n } from "@/components/providers/i18n-provider";
 import type {
@@ -16,9 +16,18 @@ import type {
   ReservationInboxItem,
 } from "@/features/reservations/types/reservation.types";
 
+const ReservationDrawer = dynamic(
+  () =>
+    import("@/features/reservations/components/reservation-drawer").then(
+      (m) => ({ default: m.ReservationDrawer }),
+    ),
+  { loading: () => null },
+);
+
 type ReservationsInboxProps = {
   initialReservations: ReservationInboxItem[];
   properties: PropertyOption[];
+  canCreate: boolean;
   canWrite: boolean;
   canDelete?: boolean;
   openCreateOnMount?: boolean;
@@ -29,6 +38,7 @@ type ReservationsInboxProps = {
 export function ReservationsInbox({
   initialReservations,
   properties,
+  canCreate,
   canWrite,
   canDelete = false,
   openCreateOnMount = false,
@@ -49,7 +59,7 @@ export function ReservationsInbox({
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [drawerMode, setDrawerMode] = useState<ReservationDrawerMode>(() => {
-    if (openCreateOnMount && canWrite) return "create";
+    if (openCreateOnMount && canCreate) return "create";
     if (initialSelectedId) return "detail";
     return null;
   });
@@ -155,7 +165,7 @@ export function ReservationsInbox({
           {/* Listado con scroll — el footer queda fuera */}
           <div
             className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain"
-            style={canWrite ? { paddingBottom: 4 } : undefined}
+            style={canCreate ? { paddingBottom: 4 } : undefined}
           >
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
@@ -181,7 +191,7 @@ export function ReservationsInbox({
           </div>
 
           {/* Acciones inferiores */}
-          {canWrite ? (
+          {canCreate ? (
             <footer className="shrink-0 border-t border-border/80 bg-white px-4 pb-4 pt-3 dark:bg-background">
               <CreateReservationButton onClick={openCreate} />
             </footer>

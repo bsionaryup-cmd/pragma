@@ -5,6 +5,6 @@ export default async function NewReservationLayout({
 }: {
   children: React.ReactNode;
 }) {
-  await requirePermission("reservations:write");
+  await requirePermission("reservations:create");
   return children;
 }

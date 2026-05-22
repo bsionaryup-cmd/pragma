@@ -19,6 +19,13 @@ import { PropertyIcalExportLink } from "@/features/properties/components/propert
 import { PropertyCover } from "@/features/properties/components/property-cover";
 import { getPropertyStatusBadgeClass } from "@/features/properties/lib/property-style";
 import type { PropertyDetailDto } from "@/features/properties/types/property.types";
+import {
+  DetailEmptyState,
+  DetailListItem,
+  DetailRow,
+  DetailSection,
+  DetailStatCard,
+} from "@/components/detail/detail-section";
 import { Button } from "@/components/ui/button";
 import {
   propertyStatusLabels,
@@ -37,41 +44,6 @@ type PropertyDetailPanelProps = {
   onDeleted: (id: string) => void;
   onClose: () => void;
 };
-
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  if (!value) return null;
-  return (
-    <div className="flex justify-between gap-4 py-2 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="max-w-[60%] text-right font-medium">{value}</span>
-    </div>
-  );
-}
-
-function DetailSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-1">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h4>
-      <div className="divide-y divide-border/60 rounded-lg border border-border/60 px-3">
-        {children}
-      </div>
-    </section>
-  );
-}
 
 export function PropertyDetailPanel({
   property,
@@ -130,18 +102,20 @@ export function PropertyDetailPanel({
     property.currency,
   );
   const hasIcalImport = hasActiveAirbnbIcalImport(property.icalUrl);
+  const locationLabel = [property.neighborhood, property.city, property.country]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div className="flex h-full flex-col">
-      <PropertyCover
-        id={property.id}
-        name={property.name}
-        coverImageUrl={property.coverImageUrl}
-        className="aspect-[16/9] w-full shrink-0"
-      />
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-5">
-        <div>
+      <div className="flex shrink-0 gap-4 border-b border-border px-5 py-4">
+        <PropertyCover
+          id={property.id}
+          name={property.name}
+          coverImageUrl={property.coverImageUrl}
+          className="h-24 w-32 shrink-0 rounded-xl"
+        />
+        <div className="min-w-0 flex-1">
           <span
             className={cn(
               "inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase",
@@ -153,33 +127,26 @@ export function PropertyDetailPanel({
           <h3 className="mt-2 text-lg font-semibold leading-tight">
             {property.name}
           </h3>
-          <p className="text-sm text-muted-foreground">
-            {[property.neighborhood, property.city, property.country]
-              .filter(Boolean)
-              .join(", ")}
-          </p>
-          {property.description ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {property.description}
-            </p>
+          {locationLabel ? (
+            <p className="text-sm text-muted-foreground">{locationLabel}</p>
           ) : null}
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-border bg-muted/30 p-3">
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <DollarSign className="h-3.5 w-3.5" />
-              Ingresos del mes
-            </p>
-            <p className="mt-1 text-lg font-semibold">{monthRevenue}</p>
+      <div className="flex-1 overflow-y-auto px-5 py-4">
+        <DetailSection title="Resumen del mes">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <DetailStatCard
+              label="Ingresos del mes"
+              value={monthRevenue}
+              icon={<DollarSign className="h-3.5 w-3.5" />}
+            />
+            <DetailStatCard
+              label="Ocupación mes"
+              value={`${property.monthOccupancyPercent}%`}
+            />
           </div>
-          <div className="rounded-xl border border-border bg-muted/30 p-3">
-            <p className="text-xs text-muted-foreground">Ocupación mes</p>
-            <p className="mt-1 text-lg font-semibold">
-              {property.monthOccupancyPercent}%
-            </p>
-          </div>
-        </div>
+        </DetailSection>
 
         <DetailSection title="Información">
           <DetailRow
@@ -197,17 +164,20 @@ export function PropertyDetailPanel({
           />
           <DetailRow
             label="Tarifas"
-            value={[
-              property.baseRate
-                ? `Base ${formatCurrency(Number(property.baseRate), property.currency)}`
-                : null,
-              property.cleaningFee
-                ? `Limpieza ${formatCurrency(Number(property.cleaningFee), property.currency)}`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || null}
+            value={
+              [
+                property.baseRate
+                  ? `Base ${formatCurrency(Number(property.baseRate), property.currency)}`
+                  : null,
+                property.cleaningFee
+                  ? `Limpieza ${formatCurrency(Number(property.cleaningFee), property.currency)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || null
+            }
           />
+          <DetailRow label="Descripción" value={property.description} />
         </DetailSection>
 
         <DetailSection title="Operación">
@@ -238,17 +208,16 @@ export function PropertyDetailPanel({
               </p>
             )}
             {property.airbnbListingUrl ? (
-              <div className="flex justify-between gap-4 py-2 text-sm">
-                <span className="text-muted-foreground">Anuncio</span>
+              <DetailRow label="Anuncio">
                 <a
                   href={property.airbnbListingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="max-w-[60%] truncate text-right font-medium text-danger hover:underline"
+                  className="text-sm font-medium text-primary underline-offset-4 hover:underline"
                 >
                   Ver en Airbnb
                 </a>
-              </div>
+              </DetailRow>
             ) : null}
             {hasIcalImport ? (
               <DetailRow label="iCal" value="Guardado para sincronización" />
@@ -256,11 +225,13 @@ export function PropertyDetailPanel({
             {property.lastIcalSyncedAt ? (
               <DetailRow
                 label="Última sync"
-                value={new Date(property.lastIcalSyncedAt).toLocaleString("es-CO")}
+                value={new Date(property.lastIcalSyncedAt).toLocaleString(
+                  "es-CO",
+                )}
               />
             ) : null}
             {hasIcalImport && canWrite ? (
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2">
                 <AirbnbSyncButton
                   propertyId={property.id}
                   variant="detail"
@@ -287,64 +258,50 @@ export function PropertyDetailPanel({
           </DetailSection>
         ) : null}
 
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Próximas reservas
-            </h4>
+        <DetailSection
+          title="Próximas reservas"
+          headerAside={
             <Button variant="link" size="sm" className="h-auto p-0" asChild>
-              <Link href={`/calendar`}>Ver calendario</Link>
+              <Link href="/calendar">Ver calendario</Link>
             </Button>
-          </div>
+          }
+        >
           {property.upcomingReservations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin reservas próximas</p>
+            <DetailEmptyState>Sin reservas próximas</DetailEmptyState>
           ) : (
             <ul className="space-y-2">
               {property.upcomingReservations.map((r) => (
-                <li
+                <DetailListItem
                   key={r.id}
-                  className="rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <p className="font-medium">{r.guestName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.checkIn} → {r.checkOut} ·{" "}
-                    {reservationStatusLabels[r.status]}
-                  </p>
-                </li>
+                  title={r.guestName}
+                  subtitle={`${r.checkIn} → ${r.checkOut} · ${reservationStatusLabels[r.status]}`}
+                />
               ))}
             </ul>
           )}
-        </section>
+        </DetailSection>
 
-        <section className="space-y-2">
-          <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <ClipboardList className="h-3.5 w-3.5" />
-            Tareas pendientes
-          </h4>
+        <DetailSection title="Tareas pendientes">
           {property.pendingTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin tareas pendientes</p>
+            <DetailEmptyState>Sin tareas pendientes</DetailEmptyState>
           ) : (
             <ul className="space-y-2">
               {property.pendingTasks.map((t) => (
-                <li
+                <DetailListItem
                   key={t.id}
-                  className="rounded-lg border border-border px-3 py-2 text-sm"
-                >
-                  <p className="font-medium">{t.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {taskTypeLabels[t.type]}
-                    {t.dueDate ? ` · ${t.dueDate.slice(0, 10)}` : ""}
-                  </p>
-                </li>
+                  title={t.title}
+                  subtitle={`${taskTypeLabels[t.type]}${
+                    t.dueDate ? ` · ${t.dueDate.slice(0, 10)}` : ""
+                  }`}
+                />
               ))}
             </ul>
           )}
-        </section>
+        </DetailSection>
       </div>
 
       {canWrite ? (
-        <div className="flex shrink-0 gap-2 border-t border-border px-5 py-4">
+        <div className="flex shrink-0 gap-2 border-t border-border p-4">
           <Button variant="outline" className="flex-1" onClick={onEdit}>
             <Pencil className="mr-2 h-4 w-4" />
             Editar
