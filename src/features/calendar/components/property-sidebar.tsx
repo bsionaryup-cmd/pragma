@@ -8,6 +8,10 @@ import {
   CALENDAR_ROW_HEIGHT,
   CALENDAR_SIDEBAR_WIDTH,
 } from "@/features/calendar/constants";
+import {
+  formatCalendarUnitDisplay,
+  resolveCalendarUnitLabel,
+} from "@/features/calendar/lib/property-unit";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 
 const rowStyle: React.CSSProperties = {
@@ -26,19 +30,23 @@ type PropertySidebarProps = {
 };
 
 function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
+  const unit = formatCalendarUnitDisplay(
+    resolveCalendarUnitLabel(property),
+  );
+
   return (
     <div
-      className="flex items-center gap-2.5 border-b-2 border-[var(--cal-border-strong)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
+      className="flex items-center gap-3 border-b border-[var(--cal-row-divider)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
       style={rowStyle}
     >
-      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[var(--cal-bg-thumbnail)] ring-1 ring-[var(--cal-border)]">
+      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-[var(--cal-bg-thumbnail)] ring-1 ring-[var(--cal-border)]">
         {property.coverImageUrl ? (
           <Image
             src={property.coverImageUrl}
             alt={property.name}
             fill
             className="object-cover"
-            sizes="40px"
+            sizes="44px"
             loading="lazy"
           />
         ) : (
@@ -48,20 +56,17 @@ function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight text-[#111111]">
+        <p className="truncate text-[13px] font-semibold leading-snug text-[#111111]">
           {property.name}
         </p>
-        <p className="truncate text-xs text-[var(--cal-text-secondary)]">
-          {property.city}
-        </p>
-        {property.pricing?.recommendedRate ? (
-          <p className="truncate text-[11px] font-medium text-[#0E9F8D]">
-            PL $
-            {Number.parseFloat(property.pricing.recommendedRate).toLocaleString(
-              "es-CO",
-            )}
+        {unit !== "—" ? (
+          <p className="mt-0.5 text-[11px] font-normal leading-tight tabular-nums text-[var(--cal-text-secondary)]">
+            Apto {unit}
           </p>
         ) : null}
+        <p className="mt-0.5 truncate text-[10px] font-normal leading-tight text-[var(--cal-text-muted)]">
+          {property.city}
+        </p>
       </div>
     </div>
   );
@@ -82,7 +87,7 @@ function PropertySidebarComponent({
       style={{ width: CALENDAR_SIDEBAR_WIDTH }}
     >
       <div
-        className="flex shrink-0 flex-col justify-center border-b border-[var(--cal-border)] px-3"
+        className="flex shrink-0 flex-col justify-center border-b border-[var(--cal-row-divider)] px-3"
         style={{
           height: CALENDAR_DAY_HEADER_HEIGHT,
           minHeight: CALENDAR_DAY_HEADER_HEIGHT,
@@ -96,7 +101,7 @@ function PropertySidebarComponent({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Buscar propiedad..."
-            className="h-9 w-full rounded-xl border border-[var(--cal-border)] bg-white pl-9 pr-3 text-xs text-[#111111] outline-none transition-colors placeholder:text-[var(--cal-text-muted)] focus:border-[#0E9F8D] focus:ring-2 focus:ring-[#0E9F8D]/20"
+            className="h-9 w-full rounded-xl border border-[var(--cal-border)] bg-white pl-9 pr-3 text-[13px] text-[#111111] outline-none transition-colors placeholder:text-[var(--cal-text-muted)] focus:border-[#0E9F8D] focus:ring-2 focus:ring-[#0E9F8D]/20"
           />
         </div>
       </div>
@@ -107,7 +112,7 @@ function PropertySidebarComponent({
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {properties.length === 0 ? (
-          <p className="p-6 text-center text-xs text-[var(--cal-text-secondary)]">
+          <p className="p-6 text-center text-sm text-[var(--cal-text-secondary)]">
             Sin propiedades
           </p>
         ) : (

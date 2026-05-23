@@ -7,6 +7,8 @@ import { PropertyStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { parseDailyPricesFromMeta } from "@/features/calendar/lib/daily-pricing";
+import { resolveCalendarUnitLabel } from "@/features/calendar/lib/property-unit";
+import type { StoredPriceLabsMeta } from "@/integrations/pricelabs/types";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import { db } from "@/lib/db";
@@ -72,10 +74,24 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
   const pl = (
     "priceLabs" in p ? p.priceLabs : null
   ) as PriceLabsRow | null;
+  const listingName =
+    pl?.meta && typeof pl.meta === "object"
+      ? (pl.meta as StoredPriceLabsMeta).listing?.name
+      : null;
+  const unitNumber =
+    resolveCalendarUnitLabel({
+      name: p.name,
+      unitNumber: p.unitNumber,
+    }) ??
+    (listingName
+      ? resolveCalendarUnitLabel({ name: listingName, unitNumber: null })
+      : null) ??
+    p.unitNumber;
+
   return {
     id: p.id,
     name: p.name,
-    unitNumber: p.unitNumber,
+    unitNumber,
     address: p.address,
     city: p.city,
     propertyType: p.propertyType,

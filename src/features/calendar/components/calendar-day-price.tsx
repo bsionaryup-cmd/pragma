@@ -1,5 +1,6 @@
 "use client";
 
+import { Users } from "lucide-react";
 import { formatCompactPrice } from "@/features/calendar/lib/daily-pricing";
 import type { CalendarDayPricingDto } from "@/features/calendar/types/calendar.types";
 import { cn } from "@/lib/utils";
@@ -20,33 +21,38 @@ export function CalendarDayPrice({ pricing }: CalendarDayPriceProps) {
       ? { backgroundColor: pricing.demandColor }
       : undefined;
 
+  const minStay = pricing.minStay != null && pricing.minStay > 0 ? pricing.minStay : null;
+
   return (
-    <div
-      className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 z-[2] flex flex-col items-center gap-0 px-0.5 pb-0.5",
-        pricing.isBooked && "opacity-60",
-      )}
-    >
-      <span
+    <>
+      {minStay != null ? (
+        <div
+          className={cn(
+            "pointer-events-none absolute top-1 right-1 z-[2] flex items-center gap-0.5 text-[11px] font-medium tabular-nums text-[var(--cal-text-secondary)]",
+            pricing.isBooked && "opacity-60",
+          )}
+        >
+          <Users className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+          <span>{minStay}</span>
+        </div>
+      ) : null}
+      <div
         className={cn(
-          "max-w-full truncate text-[10px] font-semibold leading-none tabular-nums",
-          pricing.isBooked ? "text-[var(--cal-text-muted)]" : "text-[#0E9F8D]",
+          "pointer-events-none absolute right-1 bottom-1 z-[2] text-right",
+          pricing.isBooked && "opacity-55",
         )}
       >
-        {formatCompactPrice(display)}
-      </span>
-      {pricing.minStay != null && pricing.minStay > 1 ? (
-        <span className="text-[9px] leading-none text-[var(--cal-text-secondary)]">
-          {pricing.minStay}n
+        <span className="text-xs font-medium tabular-nums text-[var(--cal-text-secondary)]">
+          {formatCompactPrice(display)}
         </span>
-      ) : null}
-      {demandStyle ? (
-        <span
-          className="mt-0.5 h-1 w-1 rounded-full"
-          style={demandStyle}
-          aria-hidden
-        />
-      ) : null}
-    </div>
+        {demandStyle ? (
+          <span
+            className="mt-0.5 ml-auto block h-1 w-1 rounded-full"
+            style={demandStyle}
+            aria-hidden
+          />
+        ) : null}
+      </div>
+    </>
   );
 }
