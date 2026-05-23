@@ -1,11 +1,10 @@
-import { PlatformRole } from "@prisma/client";
-
 /** Canonical platform owner email — override via PLATFORM_OWNER_EMAIL env. */
 export const PLATFORM_OWNER_EMAIL =
   process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase() ||
   "bsionaryup@gmail.com";
 
-export const PLATFORM_SUPER_ADMIN_ROLE = PlatformRole.SUPER_ADMIN_OWNER;
+/** Matches PlatformRole.SUPER_ADMIN_OWNER in the database. */
+export const PLATFORM_SUPER_ADMIN_ROLE = "SUPER_ADMIN_OWNER" as const;
 
 /** Impersonation session TTL (ms). Default 2 hours. */
 export const PLATFORM_IMPERSONATION_TTL_MS = Number(
