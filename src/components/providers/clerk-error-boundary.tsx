@@ -65,9 +65,7 @@ function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
           variant="outline"
           onClick={() => {
             onRetry();
-            void signOut().then(() => {
-              window.location.assign("/sign-in");
-            });
+            void signOut({ redirectUrl: "/sign-in" });
           }}
         >
           Cerrar sesión

@@ -1,4 +1,5 @@
 import { ModuleShellFlow } from "@/components/layout/module-shell";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -35,6 +36,7 @@ export default async function UsersPage() {
   return (
     <ModuleShellFlow className="bg-background">
       <main className="w-full p-6 pb-12">
+        <BackLink href="/settings" label="Configuración" className="mb-4" />
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">

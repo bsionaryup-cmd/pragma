@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
+import { BackLink } from "@/components/ui/back-link";
 import {
   confirmPriceLabsSetupAction,
   fetchPriceLabsPricesAction,
@@ -115,6 +116,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
   return (
     <ModuleShellFlow className="bg-background px-4 py-6 pb-12 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
+        <BackLink href="/integrations" label="Integraciones" />
         <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-pragma-soft lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">

@@ -21,14 +21,15 @@ export function EmailPasswordSignInForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const hadSessionOnArrivalRef = useRef<boolean | null>(null);
   const loginSucceededRef = useRef(false);
 
   useEffect(() => {
     if (!authLoaded) return;
 
-    if (hadSessionOnArrivalRef.current === null) {
-      hadSessionOnArrivalRef.current = isSignedIn;
+    // Fresh login on this page — keep the new session and let handleSubmit redirect.
+    if (loginSucceededRef.current) {
+      setReady(true);
+      return;
     }
 
     if (!isSignedIn) {
@@ -36,13 +37,8 @@ export function EmailPasswordSignInForm() {
       return;
     }
 
-    // Fresh login on this page — keep the new session and let handleSubmit redirect.
-    if (loginSucceededRef.current || !hadSessionOnArrivalRef.current) {
-      setReady(true);
-      return;
-    }
-
-    // Already signed in before opening /sign-in — clear stale session for a clean login.
+    // Stale session after logout or late Clerk hydration — clear before showing the form.
+    setReady(false);
     let cancelled = false;
     void signOut().then(() => {
       if (!cancelled) setReady(true);

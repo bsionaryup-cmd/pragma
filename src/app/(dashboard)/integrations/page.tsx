@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, KeyRound, LineChart, Shield } from "lucide-react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
+import { BackLink } from "@/components/ui/back-link";
 import { requirePermission } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
 import type { AppUserRole } from "@/types/auth";
@@ -12,6 +13,7 @@ export default async function IntegrationsPage() {
   return (
     <ModuleShellFlow className="bg-background px-4 py-6 pb-10 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
+        <BackLink href="/settings" label="Configuración" />
         <header>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
             Integraciones

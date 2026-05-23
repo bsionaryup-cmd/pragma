@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
+import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ export default async function TTLockConnectPage({
   return (
     <ModuleShellFlow className="bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-lg space-y-6">
+        <BackLink href="/integrations/ttlock" label="TTLock" />
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             TTLock — Conexión de cuenta
@@ -85,14 +86,9 @@ export default async function TTLockConnectPage({
                   autoComplete="current-password"
                 />
               </div>
-              <div className="flex flex-wrap gap-2">
                 <Button type="submit" disabled={!resolved.validation.valid}>
                   Completar conexión
                 </Button>
-                <Button asChild variant="outline">
-                  <Link href="/integrations/ttlock">Volver</Link>
-                </Button>
-              </div>
             </form>
           </CardContent>
         </Card>

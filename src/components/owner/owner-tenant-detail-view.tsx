@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
-  ArrowLeft,
   Building2,
   CreditCard,
   Eye,
@@ -13,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -137,12 +136,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 py-6 pb-16 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/owner-dashboard">
-            <ArrowLeft className="h-4 w-4" />
-            Volver
-          </Link>
-        </Button>
+        <BackLink href="/owner-dashboard" label="Owner Dashboard" />
         <div className="min-w-0 flex-1">
           <h1 className="font-heading truncate text-2xl font-semibold">{tenant.name}</h1>
           <p className="text-sm text-muted-foreground">{tenant.mainEmail ?? "—"}</p>

@@ -115,6 +115,8 @@ export function BillingDashboard({
     <ModuleShellFlow className="bg-background">
       <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-10 sm:px-6">
         <PageHeader
+          backHref="/settings"
+          backLabel="Configuración"
           eyebrow="Configuración"
           title="Facturación"
           description="Consulta tu suscripción, realiza el pago y revisa tus facturas."

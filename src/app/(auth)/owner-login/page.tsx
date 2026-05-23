@@ -32,6 +32,8 @@ export default async function OwnerLoginPage({ searchParams }: OwnerLoginPagePro
     if (user) {
       return (
         <PragmaAuthLayout
+          backHref="/sign-in"
+          backLabel="Acceso clientes"
           hint={
             params.error === "forbidden" ? (
               <p className="mb-4 text-center text-sm text-destructive">
@@ -47,7 +49,7 @@ export default async function OwnerLoginPage({ searchParams }: OwnerLoginPagePro
   }
 
   return (
-    <PragmaAuthLayout>
+    <PragmaAuthLayout backHref="/sign-in" backLabel="Acceso clientes">
       <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">Cargando…</div>}>
         <OwnerLoginForm />
       </Suspense>

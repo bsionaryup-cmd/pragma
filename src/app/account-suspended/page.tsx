@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
 import { requireDbUser } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Cuenta suspendida | PRAGMA",
@@ -24,9 +23,9 @@ export default async function AccountSuspendedPage() {
           Tu organización ha sido suspendida temporalmente. Contacta a soporte
           para más información.
         </p>
-        <Button asChild className="mt-6" variant="outline">
-          <Link href="/sign-in">Volver al inicio de sesión</Link>
-        </Button>
+        <ClerkSignOutButton className="mt-6">
+          Cerrar sesión e ir al inicio
+        </ClerkSignOutButton>
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
 export default function SignUpPage() {
   return (
     <PragmaAuthLayout
+      backHref="/sign-in"
+      backLabel="Iniciar sesión"
       hint={
         <p className="text-sm text-muted-foreground">
           Crea tu cuenta con correo y contraseña. {SUBSCRIPTION_TRIAL_LABEL} — sin tarjeta

@@ -12,6 +12,8 @@ export default async function TraaIntegrationPage() {
     <ModuleShellFlow className="bg-background px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl space-y-6">
         <PageHeader
+          backHref="/integrations"
+          backLabel="Integraciones"
           eyebrow="Integraciones"
           title="TRAA"
           description="Turismo registrado — estructura de conexión preparada para producción."

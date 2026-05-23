@@ -13,6 +13,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   return (
     <PragmaAuthLayout
+      backHref="/"
+      backLabel="Inicio"
       hint={
         showInactiveHint ? (
           <p className="text-sm text-destructive">

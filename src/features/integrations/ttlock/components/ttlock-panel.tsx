@@ -12,6 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
+import { BackLink } from "@/components/ui/back-link";
 import { TTLockConnectionCard } from "@/features/integrations/ttlock/components/ttlock-connection-card";
 import {
   refreshTTLockTokenAction,
@@ -80,6 +81,7 @@ export function TTLockPanel({
   return (
     <ModuleShellFlow className="bg-background px-4 py-6 pb-10 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
+        <BackLink href="/integrations" label="Integraciones" />
         <header className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-pragma-soft lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">

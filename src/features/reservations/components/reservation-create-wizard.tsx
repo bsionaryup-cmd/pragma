@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type MouseEvent, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -588,6 +588,7 @@ export function ReservationCreateWizard({
               onClick={goBack}
               disabled={isSubmitting}
             >
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Atrás
             </Button>
           ) : (
@@ -598,6 +599,7 @@ export function ReservationCreateWizard({
               onClick={onCancel}
               disabled={isSubmitting}
             >
+              <ArrowLeft className="mr-2 h-4 w-4" />
               Cancelar
             </Button>
           )}

@@ -12,6 +12,8 @@ export default async function SireIntegrationPage() {
     <ModuleShellFlow className="bg-background px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-3xl space-y-6">
         <PageHeader
+          backHref="/integrations"
+          backLabel="Integraciones"
           eyebrow="Integraciones"
           title="SIRE"
           description="Reporte de huéspedes — configuración lista para conectar API oficial."

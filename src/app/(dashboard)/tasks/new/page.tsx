@@ -11,7 +11,11 @@ export default async function NewTaskPage() {
   return (
     <ModuleShellFlow className="bg-background">
       <main className="w-full p-6 pb-12">
-        <PageHeader title="Crear tarea operativa" />
+        <PageHeader
+          backHref="/tasks"
+          backLabel="Tareas"
+          title="Crear tarea operativa"
+        />
         <TaskForm properties={properties} />
       </main>
     </ModuleShellFlow>

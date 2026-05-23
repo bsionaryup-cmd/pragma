@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Building2, CalendarDays, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { completeOnboardingAction } from "@/features/onboarding/actions/onboarding.actions";
 import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
@@ -67,6 +67,19 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
           />
         ))}
       </div>
+
+      {step > 1 ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 w-fit"
+          onClick={() => setStep((current) => (current - 1) as 1 | 2 | 3)}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Atrás
+        </Button>
+      ) : null}
 
       {step === 1 ? (
         <Card>

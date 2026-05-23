@@ -1,14 +1,22 @@
 import { ClerkAuthFooterCleanup } from "@/components/auth/clerk-auth-footer-cleanup";
 import { PragmaAuthBrand } from "@/components/brand/pragma-auth-brand";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
+import { BackLink } from "@/components/ui/back-link";
 import { BRAND } from "@/lib/brand";
 
 type PragmaAuthLayoutProps = {
   children: React.ReactNode;
   hint?: React.ReactNode;
+  backHref?: string;
+  backLabel?: string;
 };
 
-export function PragmaAuthLayout({ children, hint }: PragmaAuthLayoutProps) {
+export function PragmaAuthLayout({
+  children,
+  hint,
+  backHref,
+  backLabel,
+}: PragmaAuthLayoutProps) {
   return (
     <div className="pragma-auth-shell flex h-dvh flex-col overflow-hidden bg-pragma-gradient-subtle lg:flex-row">
       <ClerkAuthFooterCleanup />
@@ -37,6 +45,11 @@ export function PragmaAuthLayout({ children, hint }: PragmaAuthLayoutProps) {
 
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-10">
         <div className="mx-auto flex w-full max-w-[420px] flex-col items-center gap-4 py-2 sm:gap-5">
+          {backHref ? (
+            <div className="w-full">
+              <BackLink href={backHref} label={backLabel} />
+            </div>
+          ) : null}
           <div className="flex w-full justify-center lg:hidden">
             <PragmaLogo
               variant="full"

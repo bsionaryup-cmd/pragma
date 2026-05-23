@@ -1,10 +1,13 @@
 import { cn } from "@/lib/utils";
+import { BackLink } from "@/components/ui/back-link";
 
 type PageHeaderProps = {
   eyebrow?: string;
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  backHref?: string;
+  backLabel?: string;
   className?: string;
 };
 
@@ -13,6 +16,8 @@ export function PageHeader({
   title,
   description,
   actions,
+  backHref,
+  backLabel,
   className,
 }: PageHeaderProps) {
   return (
@@ -23,6 +28,9 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
+        {backHref ? (
+          <BackLink href={backHref} label={backLabel} className="mb-3" />
+        ) : null}
         {eyebrow ? (
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
             {eyebrow}

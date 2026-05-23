@@ -60,8 +60,7 @@ export function OwnerAccountMenu({
   const onOwnerDashboard = pathname.startsWith(OWNER_DASHBOARD_PATH);
 
   async function handleLogout() {
-    await signOut();
-    window.location.assign("/owner-login");
+    await signOut({ redirectUrl: "/owner-login" });
   }
 
   return (
