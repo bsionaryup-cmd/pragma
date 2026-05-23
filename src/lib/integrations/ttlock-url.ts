@@ -1,8 +1,17 @@
 export const TTLOCK_CALLBACK_PATH = "/api/integrations/ttlock/callback";
 
 /** Canonical production callback — source of truth for TTLock Open Platform. */
-export const PRAGMA_CANONICAL_APP_ORIGIN = "https://pragma-pms.vercel.app";
+export const PRAGMA_CANONICAL_APP_ORIGIN = "https://pragmapms.com";
 export const PRAGMA_CANONICAL_TTLOCK_CALLBACK = `${PRAGMA_CANONICAL_APP_ORIGIN}${TTLOCK_CALLBACK_PATH}`;
+
+function shouldNormalizeToCanonicalCallback(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  return (
+    host === "pragmapms.com" ||
+    host === "www.pragmapms.com" ||
+    host === "pragma-pms.vercel.app"
+  );
+}
 
 export type TTLockCallbackValidation = {
   valid: boolean;
@@ -83,7 +92,7 @@ export function normalizeTTLockCallbackUri(uri: string): string {
     const url = new URL(trimmed);
     if (
       isProductionRuntime() &&
-      url.hostname === new URL(PRAGMA_CANONICAL_APP_ORIGIN).hostname
+      shouldNormalizeToCanonicalCallback(url.hostname)
     ) {
       return PRAGMA_CANONICAL_TTLOCK_CALLBACK;
     }
@@ -101,7 +110,7 @@ export function buildTTLockCallbackFromOrigin(origin: string): string {
     const url = new URL(origin.trim());
     if (
       isProductionRuntime() &&
-      url.hostname === new URL(PRAGMA_CANONICAL_APP_ORIGIN).hostname
+      shouldNormalizeToCanonicalCallback(url.hostname)
     ) {
       return PRAGMA_CANONICAL_TTLOCK_CALLBACK;
     }
@@ -170,7 +179,7 @@ export function validateTTLockCallbackUrl(uri: string): TTLockCallbackValidation
     if (
       isProductionRuntime() &&
       normalized !== PRAGMA_CANONICAL_TTLOCK_CALLBACK &&
-      url.hostname === new URL(PRAGMA_CANONICAL_APP_ORIGIN).hostname
+      shouldNormalizeToCanonicalCallback(url.hostname)
     ) {
       issues.push(
         `Usa la callback canónica: ${PRAGMA_CANONICAL_TTLOCK_CALLBACK}`,
@@ -183,7 +192,7 @@ export function validateTTLockCallbackUrl(uri: string): TTLockCallbackValidation
       issues,
       normalizedUrl:
         issues.length === 0 &&
-        url.hostname === new URL(PRAGMA_CANONICAL_APP_ORIGIN).hostname
+        shouldNormalizeToCanonicalCallback(url.hostname)
           ? PRAGMA_CANONICAL_TTLOCK_CALLBACK
           : normalized,
     };
@@ -240,7 +249,7 @@ export type ResolvedTTLockRedirect = {
 
 /**
  * Canonical redirect_uri for TTLock OAuth (authorize + token + UI).
- * Production default: https://pragma-pms.vercel.app/api/integrations/ttlock/callback
+ * Production default: https://pragmapms.com/api/integrations/ttlock/callback
  */
 export function resolveTTLockRedirectUri(options?: {
   storedRedirectUri?: string | null;

@@ -20,6 +20,7 @@ import {
   testTTLockConnectionAction,
 } from "@/features/integrations/ttlock/actions/ttlock.actions";
 import type { TTLockOverviewDto } from "@/services/integrations/ttlock/ttlock.types";
+import { PRAGMA_CANONICAL_TTLOCK_CALLBACK } from "@/lib/integrations/ttlock-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,7 +157,7 @@ export function TTLockConnectionCard({
               <p className="mt-2 text-xs">
                 En producción usa{" "}
                 <code className="rounded bg-muted px-1 break-all">
-                  https://pragma-pms.vercel.app/api/integrations/ttlock/callback
+                  {PRAGMA_CANONICAL_TTLOCK_CALLBACK}
                 </code>
               </p>
             </div>
