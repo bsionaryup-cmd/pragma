@@ -11,6 +11,7 @@ import {
   markWebhookProcessed,
 } from "@/modules/billing/repositories/webhook-log.repository";
 import { reconcileTransactionFromWebhook } from "@/modules/billing/services/payment.service";
+import { validateWompiWebhookTimestamp } from "@/modules/billing/lib/webhook-timestamp";
 import { parseWompiWebhookPayload } from "@/modules/billing/validation/webhook.schema";
 import {
   hasPaymentLedgerDelegates,
@@ -113,6 +114,26 @@ export async function processWompiWebhook(input: {
   const event = parseWompiWebhookPayload(input.rawBody);
   if (!event) {
     return { ok: false, message: "JSON inválido", status: 400 };
+  }
+
+  const timestampCheck = validateWompiWebhookTimestamp(event, {
+    strict: process.env.WOMPI_ENV?.trim().toLowerCase() === "production",
+  });
+  if (!timestampCheck.valid) {
+    if (hasPaymentLedgerDelegates()) {
+      await createWebhookLog({
+        eventType: event.event ?? "unknown",
+        eventId: createHash("sha256").update(input.rawBody).digest("hex").slice(0, 16),
+        signatureValid: true,
+        payload: { error: timestampCheck.reason, event },
+        errorMessage: `Timestamp inválido: ${timestampCheck.reason}`,
+      });
+    }
+    return {
+      ok: false,
+      message: `Evento rechazado (${timestampCheck.reason})`,
+      status: 401,
+    };
   }
 
   const eventId = buildEventId(event, input.rawBody);

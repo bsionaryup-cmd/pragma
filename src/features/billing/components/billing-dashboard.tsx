@@ -6,11 +6,11 @@ import { CreditCard, Download, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import {
   activateSubscriptionManualAction,
+  cancelSubscriptionAction,
   payOpenInvoiceAction,
 } from "@/features/billing/actions/billing.actions";
 import { PlanSelector } from "@/features/billing/components/plan-selector";
 import { BankTransferPanel } from "@/features/billing/components/bank-transfer-panel";
-import { WompiCredentialsCard } from "@/features/billing/components/wompi-credentials-card";
 import type { BillingDashboardDto } from "@/modules/billing/services/dashboard.service";
 import type { BillingPlanCode } from "@prisma/client";
 import { getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
@@ -58,7 +58,7 @@ export function BillingDashboard({
   data,
   showDevActivate = false,
 }: BillingDashboardProps) {
-  const { account, access, invoices, paymentMethods, wompi, canManageWompiSettings, ready } = data;
+  const { account, access, invoices, paymentMethods, ready } = data;
   const [pending, startTransition] = useTransition();
 
   const payableInvoice =
@@ -140,10 +140,6 @@ export function BillingDashboard({
 
         {ready ? (
           <>
-            {canManageWompiSettings && wompi ? (
-              <WompiCredentialsCard wompi={wompi} canManage />
-            ) : null}
-
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-base">Tu suscripción</CardTitle>
@@ -274,6 +270,42 @@ export function BillingDashboard({
               <Card className="mb-6">
                 <CardContent className="py-6 text-center text-sm text-muted-foreground">
                   Tu suscripción está al día. No hay pagos pendientes.
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {["ACTIVE", "PAST_DUE", "TRIAL"].includes(account.status) ? (
+              <Card className="mb-6 border-dashed">
+                <CardHeader>
+                  <CardTitle className="text-base">Cancelar suscripción</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <p className="text-muted-foreground">
+                    Puedes cancelar en cualquier momento. Las facturas abiertas se
+                    anularán y el acceso al panel quedará restringido.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    disabled={pending}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          "¿Confirmas la cancelación de tu suscripción PRAGMA?",
+                        )
+                      ) {
+                        return;
+                      }
+                      startTransition(async () => {
+                        const result = await cancelSubscriptionAction();
+                        if (result.ok) toast.success(result.message);
+                        else toast.error(result.message);
+                      });
+                    }}
+                  >
+                    Cancelar suscripción
+                  </Button>
                 </CardContent>
               </Card>
             ) : null}

@@ -177,6 +177,7 @@ export type PriceLabsOverviewDto = {
   properties: Array<{
     id: string;
     name: string;
+    unitNumber: string | null;
     city: string;
     baseRate: string | null;
     syncStatus: PropertyPriceLabsSyncStatus;
@@ -1086,6 +1087,7 @@ export async function getPriceLabsOverview(
       return {
         id: p.id,
         name: p.name,
+        unitNumber: p.unitNumber ?? null,
         city: p.city,
         baseRate: p.baseRate?.toString() ?? insights.listingBase,
         syncStatus:

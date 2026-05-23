@@ -1,14 +1,21 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { savePropertyPriceBoundsAction } from "@/features/revenue/actions/smartprice.actions";
+import {
+  formatCalendarUnitDisplay,
+  resolveCalendarUnitLabel,
+} from "@/features/calendar/lib/property-unit";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
+import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { cn } from "@/lib/utils";
 
 type PropertyRow = PriceLabsOverviewDto["properties"][number];
 
@@ -29,7 +36,7 @@ function formatMoney(value: string | null, currency = "COP") {
   }).format(amount);
 }
 
-function PropertyPricingRow({
+function PropertyPricingCard({
   property,
   canEdit,
 }: {
@@ -41,6 +48,12 @@ function PropertyPricingRow({
   const [minRate, setMinRate] = useState(property.minRate ?? "");
   const [baseRate, setBaseRate] = useState(property.baseRate ?? "");
   const [maxRate, setMaxRate] = useState(property.maxRate ?? "");
+
+  const unitLabel = resolveCalendarUnitLabel({
+    name: property.name,
+    unitNumber: property.unitNumber,
+  });
+  const unitDisplay = unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
 
   const onSave = () => {
     startTransition(async () => {
@@ -60,63 +73,71 @@ function PropertyPricingRow({
   };
 
   return (
-    <tr className="border-b border-border/70">
-      <td className="py-3 pr-4 align-top">
-        <p className="font-medium">{property.name}</p>
-        <p className="text-xs text-muted-foreground">{property.city}</p>
-      </td>
-      <td className="py-3 pr-3 align-top">
-        {canEdit ? (
-          <Input
-            inputMode="numeric"
-            value={minRate}
-            onChange={(e) => setMinRate(e.target.value)}
-            placeholder="0"
-            className="h-9 min-w-[88px] tabular-nums"
-            disabled={pending}
-          />
-        ) : (
-          <span className="tabular-nums">{formatMoney(property.minRate)}</span>
-        )}
-      </td>
-      <td className="py-3 pr-3 align-top">
-        {canEdit ? (
-          <Input
-            inputMode="numeric"
-            value={baseRate}
-            onChange={(e) => setBaseRate(e.target.value)}
-            placeholder="0"
-            className="h-9 min-w-[88px] tabular-nums"
-            disabled={pending}
-          />
-        ) : (
-          <span className="tabular-nums">{formatMoney(property.baseRate)}</span>
-        )}
-      </td>
-      <td className="py-3 pr-3 align-top">
-        {canEdit ? (
-          <Input
-            inputMode="numeric"
-            value={maxRate}
-            onChange={(e) => setMaxRate(e.target.value)}
-            placeholder="0"
-            className="h-9 min-w-[88px] tabular-nums"
-            disabled={pending}
-          />
-        ) : (
-          <span className="tabular-nums">{formatMoney(property.maxRate)}</span>
-        )}
-      </td>
-      <td className="py-3 pr-3 align-top tabular-nums text-success">
-        {formatMoney(property.recommendedRate)}
-      </td>
-      <td className="py-3 pr-3 align-top tabular-nums">
-        {formatMoney(property.priceDelta)}
-      </td>
-      <td className="py-3 pr-3 align-top tabular-nums text-muted-foreground">
-        {property.revenue ? formatMoney(property.revenue) : "—"}
-      </td>
-      <td className="py-3 align-top">
+    <article className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-pragma-soft">
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          {unitDisplay ? (
+            <p className="text-xs font-semibold uppercase tracking-wide text-pragma-electric">
+              {t("smartprice.pricing.unit")} {unitDisplay}
+            </p>
+          ) : null}
+          <p
+            className={cn(
+              "truncate font-medium text-foreground",
+              unitDisplay ? "mt-0.5 text-sm" : "text-base",
+            )}
+            title={property.name}
+          >
+            {property.name}
+          </p>
+          {property.city ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{property.city}</p>
+          ) : null}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t("smartprice.pricing.recommended")}
+          </p>
+          <p className="text-sm font-semibold tabular-nums text-success">
+            {formatMoney(property.recommendedRate)}
+          </p>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-3 gap-2 text-sm">
+        <RateField
+          label={t("smartprice.pricing.min")}
+          value={minRate}
+          onChange={setMinRate}
+          display={formatMoney(property.minRate)}
+          canEdit={canEdit}
+          pending={pending}
+        />
+        <RateField
+          label={t("smartprice.pricing.base")}
+          value={baseRate}
+          onChange={setBaseRate}
+          display={formatMoney(property.baseRate)}
+          canEdit={canEdit}
+          pending={pending}
+        />
+        <RateField
+          label={t("smartprice.pricing.max")}
+          value={maxRate}
+          onChange={setMaxRate}
+          display={formatMoney(property.maxRate)}
+          canEdit={canEdit}
+          pending={pending}
+        />
+      </div>
+
+      <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+        <span>
+          {t("smartprice.insight.avgDelta")}:{" "}
+          <span className="font-medium tabular-nums text-foreground">
+            {formatMoney(property.priceDelta)}
+          </span>
+        </span>
         {canEdit ? (
           <Button
             type="button"
@@ -124,13 +145,48 @@ function PropertyPricingRow({
             variant="outline"
             disabled={pending}
             onClick={onSave}
+            className="h-8 gap-1.5"
           >
-            <Save className="mr-1.5 h-3.5 w-3.5" />
+            <Save className="h-3.5 w-3.5" />
             {t("common.save")}
           </Button>
         ) : null}
-      </td>
-    </tr>
+      </footer>
+    </article>
+  );
+}
+
+function RateField({
+  label,
+  value,
+  onChange,
+  display,
+  canEdit,
+  pending,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  display: string;
+  canEdit: boolean;
+  pending: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] text-muted-foreground">{label}</Label>
+      {canEdit ? (
+        <Input
+          inputMode="numeric"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          className="h-9 tabular-nums text-sm"
+          disabled={pending}
+        />
+      ) : (
+        <p className="py-1.5 text-sm tabular-nums">{display}</p>
+      )}
+    </div>
   );
 }
 
@@ -142,6 +198,15 @@ export function SmartpricePropertyPricingSection({
   const { t } = useI18n();
   const canEdit = canEditPrices && !billingLocked;
 
+  const sortedProperties = useMemo(
+    () =>
+      sortPropertiesByUnitNumber(properties, (property) => ({
+        name: property.name,
+        unitNumber: property.unitNumber,
+      })),
+    [properties],
+  );
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -151,35 +216,19 @@ export function SmartpricePropertyPricingSection({
         </p>
       </CardHeader>
       <CardContent>
-        {properties.length === 0 ? (
+        {sortedProperties.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("smartprice.pricing.empty")}
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-left text-sm">
-              <thead>
-                <tr className="border-b text-xs uppercase text-muted-foreground">
-                  <th className="py-2 pr-4">{t("smartprice.pricing.property")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.pricing.min")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.pricing.base")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.pricing.max")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.pricing.recommended")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.insight.avgDelta")}</th>
-                  <th className="py-2 pr-3">{t("smartprice.pricing.revenue")}</th>
-                  <th className="py-2">{canEdit ? t("common.save") : ""}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {properties.map((property) => (
-                  <PropertyPricingRow
-                    key={property.id}
-                    property={property}
-                    canEdit={canEdit}
-                  />
-                ))}
-              </tbody>
-            </table>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sortedProperties.map((property) => (
+              <PropertyPricingCard
+                key={property.id}
+                property={property}
+                canEdit={canEdit}
+              />
+            ))}
           </div>
         )}
       </CardContent>

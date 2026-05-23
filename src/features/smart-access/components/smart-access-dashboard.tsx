@@ -107,9 +107,9 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
     <ModuleShellFlow className="bg-background">
       <div className="mx-auto w-full max-w-6xl px-4 py-5 pb-10 sm:px-6">
         <PageHeader
-          eyebrow="Operación"
-          title="Llaves Inteligentes"
-          description="Gestiona códigos TTLock automáticamente cuando el huésped completa el registro de la reserva. Hasta entonces, PRAGMA no envía instrucciones a la cerradura."
+          eyebrow="TTLock"
+          title="TTLock"
+          description="Códigos de acceso automáticos cuando el huésped completa el registro. Hasta entonces, PRAGMA no envía instrucciones a la cerradura."
         />
 
         {!metrics.integrationConnected ? (

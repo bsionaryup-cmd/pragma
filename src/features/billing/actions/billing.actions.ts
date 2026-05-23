@@ -11,6 +11,8 @@ import {
   selectSubscriptionPlan,
   submitManualPaymentProof,
 } from "@/modules/billing/services/manual-payment.service";
+import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
+import { cancelOrganizationSubscription } from "@/modules/billing/services/subscription-cancel.service";
 import {
   activateBillingSubscription,
   getBillingOverview,
@@ -109,6 +111,18 @@ export async function getSubscriptionStatusAction() {
     status: overview.account.status,
     locked: overview.access.locked,
   };
+}
+
+export async function cancelSubscriptionAction() {
+  const user = await requirePermission("billing:manage");
+  const billingAccountId = await requireBillingAccountId();
+  const result = await cancelOrganizationSubscription({
+    billingAccountId,
+    actorId: user.dbUserId,
+  });
+  revalidateBilling();
+  revalidatePath("/owner-dashboard");
+  return result;
 }
 
 /** Dev / manual activation when online payment is not configured */

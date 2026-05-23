@@ -266,6 +266,15 @@ function OverviewPanel({ snapshot }: { snapshot: OwnerDashboardSnapshot }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button asChild size="sm" variant="outline" className="gap-2">
+          <Link href="/owner-dashboard/billing">
+            <CreditCard className="h-4 w-4" />
+            Wompi y webhooks
+          </Link>
+        </Button>
+      </div>
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard
           label="MRR"

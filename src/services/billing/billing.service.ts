@@ -24,9 +24,7 @@ import {
   resolveSubscriptionAmountForAccount,
   syncOpenInvoiceAmountForAccount,
 } from "@/modules/billing/domain/subscription-property-count";
-import { resolvePlatformWompiConfig, getPlatformWompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
-import type { WompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
-import { isPlatformOwnerUser } from "@/modules/billing/services/wompi-platform.service";
+import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-credentials";
 import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
@@ -120,8 +118,6 @@ export type BillingOverviewDto = {
     cards: boolean;
     hasDefaultToken: boolean;
   };
-  wompi: WompiCredentialSnapshot | null;
-  canManageWompiSettings: boolean;
 };
 
 export async function activateBillingSubscription(): Promise<{
@@ -167,12 +163,7 @@ export async function activateBillingSubscription(): Promise<{
 
 export async function getBillingOverview(): Promise<BillingOverviewDto> {
   let account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
-  const user = await requireDbUser();
-  const canManageWompiSettings = isPlatformOwnerUser(user);
   const wompi = await resolvePlatformWompiConfig();
-  const wompiSnapshot = canManageWompiSettings
-    ? await getPlatformWompiCredentialSnapshot()
-    : null;
 
   if (!account) {
     return {
@@ -204,8 +195,6 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
         cards: true,
         hasDefaultToken: false,
       },
-      wompi: wompiSnapshot,
-      canManageWompiSettings,
     };
   }
 
@@ -271,8 +260,6 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       cards: true,
       hasDefaultToken: Boolean(account.defaultPaymentTokenRef),
     },
-    wompi: wompiSnapshot,
-    canManageWompiSettings,
   };
 }
 

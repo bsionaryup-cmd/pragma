@@ -17,6 +17,7 @@ import { testWompiConnection } from "@/modules/billing/services/wompi-test.servi
 function revalidateWompiPaths() {
   revalidatePath("/settings/billing");
   revalidatePath("/owner-dashboard");
+  revalidatePath("/owner-dashboard/billing");
   revalidatePath("/panel");
 }
 

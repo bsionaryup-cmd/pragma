@@ -1,29 +1,79 @@
-# Billing / Payments — PRAGMA PMS
+# Billing / Payments — PRAGMA PMS (SaaS subscriptions)
 
-## Auditoría (Fase 1)
+## Scope
 
-| Componente | Estado |
-|------------|--------|
-| Suscripción SaaS (`BillingAccount`, `BillingInvoice`) | Operativo |
-| Lock por impago (`billing-guard`) | Operativo |
-| Finanzas `/finance` | Separado (no PSP) |
-| Wompi checkout | Listo con credenciales |
-| Payment ledger | Migración `20260521180000_payment_ledger` |
+Wompi is the **centralized** payment processor for **PRAGMA SaaS subscriptions only**.
 
-## Arquitectura
+It must **not** be used for:
 
-`src/modules/billing/` — Provider Strategy (Wompi primero; Stripe/MP/PayU registrables).
+- Reservation / guest payments
+- OTA or Airbnb-like flows
+- Deposits or booking operational charges
 
-Facades sin romper imports:
+Hospitality finance (`/finance`, `PaymentStatus` on reservations) remains separate.
 
-- `src/services/billing/billing.service.ts`
-- `src/services/billing/wompi.service.ts`
+## Ownership model
 
-## Variables de entorno
+| Actor | Capabilities |
+|-------|----------------|
+| **Platform Super Admin Owner** | Wompi credentials, sandbox/production, webhooks, global revenue, failed payments, tenant billing overrides |
+| **Tenant ADMIN** | Own subscription, pay, retry, invoices, cancel |
+| **Tenant RECEPTIONIST** | No billing access |
 
-Ver `.env.example`. Webhook canónico: `/api/payments/wompi/webhook`.
+Wompi credentials live under one internal org (`PRAGMA Platform (Wompi)`) or env vars — never per-tenant PSP accounts.
 
-## Activación
+## Architecture
+
+```
+src/modules/billing/          # Domain + Wompi adapter + webhooks
+src/services/billing/         # Facades (backward compatible imports)
+src/services/platform/        # Owner dashboard + billing infra
+```
+
+Policy constants: `src/modules/billing/permissions/billing-access-policy.ts`
+
+## Environment (sandbox first)
+
+```env
+WOMPI_PUBLIC_KEY=pub_test_...
+WOMPI_PRIVATE_KEY=prv_test_...
+WOMPI_EVENTS_SECRET=...
+WOMPI_INTEGRITY_SECRET=...
+WOMPI_ENV=test          # test | sandbox | production
+WOMPI_BASE_URL=https://sandbox.wompi.co/v1
+WOMPI_WEBHOOK_URL=https://your-app.com/api/payments/wompi/webhook
+```
+
+Secrets are server-only. Production switch = change `WOMPI_ENV` + keys only.
+
+## Webhooks
+
+| Endpoint | Notes |
+|----------|--------|
+| `POST /api/payments/wompi/webhook` | Canonical |
+| `POST /api/webhooks/wompi` | Legacy alias |
+
+Security: `x-event-checksum`, events secret, idempotency, rate limit, timestamp validation (strict in production).
+
+## Tenant flow
+
+1. Sign-up → org + `BillingAccount` **TRIAL** (7 days)
+2. Onboarding → property slots for pricing
+3. Trial end → **PAST_DUE** + open invoice + 7-day grace
+4. Grace end → **LOCKED** (`billing-guard` blocks ops except `/settings/billing`)
+5. Pay at **Configuración → Facturación** → Wompi checkout → webhook → **ACTIVE**
+
+## Owner flow
+
+- **Owner Dashboard** (`/owner-dashboard`) — MRR, subscriptions, revenue, clients
+- **Billing infra** (`/owner-dashboard/billing`) — Wompi credentials, webhook monitor, failed payments
+- APIs: `/api/owner/billing/webhooks`, `/api/owner/billing/failed-payments`
+
+## Cron
+
+`GET /api/cron/billing-renewal` with `Authorization: Bearer CRON_SECRET` — daily lifecycle reconciliation.
+
+## Activation
 
 ```bash
 npm run db:migrate:deploy
@@ -31,20 +81,12 @@ npx prisma generate
 npm run test:billing
 ```
 
-Pegar credenciales Wompi y registrar webhook URL en dashboard Wompi.
+Register webhook URL in Wompi dashboard (sandbox).
 
-## Pago de suscripción (flujo)
+## States
 
-1. Admin visita **Configuración → Facturación** (`/settings/billing`).
-2. Si hay factura **OPEN** o **FAILED**, pulsa **Pagar suscripción con Wompi**.
-3. Redirección al checkout Wompi (payment link, uso único).
-4. Wompi notifica `POST /api/payments/wompi/webhook` con `x-event-checksum`.
-5. Webhook reconcilia: factura **PAID**, cuenta **ACTIVE**, `currentPeriodEnd` +1 mes.
+**Subscription:** `TRIAL` → `ACTIVE` → `PAST_DUE` → `LOCKED` | `CANCELED`
 
-Al vencer el período (trial o mensual), el sistema genera factura abierta y pasa a **PAST_DUE** (7 días de gracia antes de **LOCKED**).
+**Invoice:** `OPEN` → `PAID` | `FAILED` | `VOID`
 
-## Cron de renovación
-
-`GET /api/cron/billing-renewal` con `Authorization: Bearer CRON_SECRET` (o `?secret=`).
-
-Recomendado: ejecución diaria en Vercel Cron para crear facturas de renovación sin depender de que alguien abra Facturación.
+**Payment (ledger):** `PENDING` → `APPROVED` | `DECLINED` | `FAILED`

@@ -21,9 +21,14 @@ function resolveBaseUrl(env: WompiEnvironment, override?: string): string {
     : "https://sandbox.wompi.co/v1";
 }
 
+function resolveWompiEnvironment(raw: string | undefined): WompiEnvironment {
+  const normalized = raw?.trim().toLowerCase() ?? "test";
+  if (normalized === "production" || normalized === "prod") return "production";
+  return "test";
+}
+
 export function getWompiConfigFromEnv(): WompiConfig {
-  const envRaw = process.env.WOMPI_ENV?.trim() || "test";
-  const env: WompiEnvironment = envRaw === "production" ? "production" : "test";
+  const env = resolveWompiEnvironment(process.env.WOMPI_ENV);
 
   return {
     publicKey: process.env.WOMPI_PUBLIC_KEY?.trim() || null,

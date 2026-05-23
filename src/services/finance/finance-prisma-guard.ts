@@ -28,6 +28,7 @@ type OtherIncomeDelegate = {
       amount: { toString(): string };
       incomeType: string;
       incomeDate: Date;
+      description?: string | null;
     }>
   >;
 };
@@ -129,6 +130,7 @@ export async function listOtherIncomesInRange(
     amount: { toString(): string };
     incomeType: string;
     incomeDate: Date;
+    description: string | null;
   }>
 > {
   const { otherIncome } = getFinanceDelegates();
@@ -138,13 +140,17 @@ export async function listOtherIncomesInRange(
   }
 
   try {
-    return await otherIncome.findMany({
+    const rows = await otherIncome.findMany({
       where: {
         ...otherIncomeWhere(scope),
         incomeDate: { gte: start, lte: end },
       },
-      select: { id: true, amount: true, incomeType: true, incomeDate: true },
+      select: { id: true, amount: true, incomeType: true, incomeDate: true, description: true },
     });
+    return rows.map((row) => ({
+      ...row,
+      description: row.description ?? null,
+    }));
   } catch (error) {
     if (isFinanceSchemaDriftError(error)) {
       console.error("[finance] other_incomes query failed:", error);

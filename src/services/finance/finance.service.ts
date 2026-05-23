@@ -236,7 +236,7 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
     })),
     ...manualIncomes.map((row) => ({
       id: row.id,
-      source: row.incomeType,
+      source: row.description ?? row.incomeType,
       amount: Number(row.amount),
       amountFormatted: formatMoney(Number(row.amount), undefined, locale),
       date: row.incomeDate.toISOString(),

@@ -201,6 +201,7 @@ const propertyBaseSelect = {
   maxGuests: true,
   bedrooms: true,
   bathrooms: true,
+  unitNumber: true,
   baseRate: true,
   currency: true,
 } as const;

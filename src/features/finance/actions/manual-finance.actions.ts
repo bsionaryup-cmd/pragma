@@ -10,6 +10,7 @@ import {
   isFinanceSchemaDriftError,
 } from "@/services/finance/finance-prisma-guard";
 import { dateKeyToPrismaDate } from "@/lib/dates";
+import { resolveFinanceAttachmentUrl } from "@/lib/finance/attachment";
 
 export async function createManualExpenseAction(formData: FormData) {
   const auth = await requirePermission("finance:write");
@@ -23,10 +24,17 @@ export async function createManualExpenseAction(formData: FormData) {
   const description = String(formData.get("description") ?? "").trim();
 
   if (!category || !expenseDate || !Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Completa categoría, monto y fecha");
+    throw new Error("Completa descripción, categoría, monto y fecha");
   }
 
   assertFinanceDelegates();
+
+  let attachmentUrl: string | null = null;
+  try {
+    attachmentUrl = await resolveFinanceAttachmentUrl(formData);
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("No se pudo adjuntar el archivo");
+  }
 
   try {
     await db.manualExpense.create({
@@ -37,7 +45,7 @@ export async function createManualExpenseAction(formData: FormData) {
       paymentMethod,
       expenseDate: dateKeyToPrismaDate(expenseDate),
       description: description || null,
-      attachmentUrl: String(formData.get("attachmentUrl") ?? "").trim() || null,
+      attachmentUrl,
     },
     });
   } catch (error) {
@@ -57,12 +65,11 @@ export async function createOtherIncomeAction(formData: FormData) {
   const auth = await requirePermission("finance:write");
   await assertBillingUnlocked();
   const amount = Number(formData.get("amount"));
-  const incomeType = String(formData.get("incomeType") ?? "").trim();
   const incomeDate = String(formData.get("incomeDate") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
 
-  if (!incomeType || !incomeDate || !Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Completa tipo, monto y fecha");
+  if (!description || !incomeDate || !Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Completa descripción, monto y fecha");
   }
 
   assertFinanceDelegates();
@@ -72,9 +79,9 @@ export async function createOtherIncomeAction(formData: FormData) {
     data: {
       createdById: auth.dbUserId,
       amount,
-      incomeType,
+      incomeType: description.slice(0, 80),
       incomeDate: dateKeyToPrismaDate(incomeDate),
-      description: description || null,
+      description,
     },
     });
   } catch (error) {

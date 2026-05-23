@@ -143,7 +143,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
         <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-pragma-soft lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
-              Integraciones · Smart Price
+              Integraciones · PriceLabs
             </p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
               PriceLabs
@@ -224,14 +224,14 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <LineChart className="h-4 w-4" />
-                Smart Price snapshot
+                Resumen de tarifas
               </CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-2 text-sm">
-              <Stat label="Sync" value={`${metrics.syncedCount}/${metrics.propertyCount}`} />
-              <Stat label="Último precio" value={formatDate(integration.lastPricesSyncAt)} />
-              <Stat label="Subprecio" value={String(revenue.underpricedCount)} warn />
-              <Stat label="Sobre precio" value={String(revenue.overpricedCount)} />
+              <Stat label="Sincronizadas" value={`${metrics.syncedCount}/${metrics.propertyCount}`} />
+              <Stat label="Última sync" value={formatDate(integration.lastPricesSyncAt)} />
+              <Stat label="Tarifa baja" value={String(revenue.underpricedCount)} warn />
+              <Stat label="Tarifa alta" value={String(revenue.overpricedCount)} />
               <div className="col-span-2 border-t pt-2">
                 <p className="text-xs text-[#9CA3AF]">Delta promedio</p>
                 <p className="font-semibold">{formatMoney(revenue.avgDelta)}</p>

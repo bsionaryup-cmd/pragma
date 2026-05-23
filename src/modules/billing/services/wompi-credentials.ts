@@ -57,7 +57,9 @@ function buildPublicKeyHint(value: string | null | undefined): string | null {
 }
 
 function resolveEnv(raw: string | null | undefined): WompiEnvironment {
-  return raw?.trim() === "production" ? "production" : "test";
+  const normalized = raw?.trim().toLowerCase() ?? "test";
+  if (normalized === "production" || normalized === "prod") return "production";
+  return "test";
 }
 
 function buildConfigFromRow(
