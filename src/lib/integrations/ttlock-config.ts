@@ -28,8 +28,8 @@ const TTLOCK_API_BASE: Record<TTLockEnvironment, string> = {
 };
 
 const TTLOCK_OAUTH_WEB_BASE: Record<TTLockEnvironment, string> = {
-  PRODUCTION: "https://euopen.ttlock.com",
-  SANDBOX: "https://euopen.ttlock.com",
+  PRODUCTION: "https://euapi.ttlock.com",
+  SANDBOX: "https://euapi.ttlock.com",
 };
 
 /** @deprecated Use resolveTTLockRedirectUri — ignores request to avoid localhost. */
@@ -88,7 +88,7 @@ export function getTTLockOAuthAuthorizeUrl(
   params: { clientId: string; state: string },
 ): string {
   const redirectUri = getTTLockOAuthRedirectUri();
-  const base = getTTLockOAuthWebBaseUrl(environment);
+  const base = getTTLockApiBaseUrl(environment);
   const search = new URLSearchParams();
   search.set("client_id", params.clientId.trim());
   search.set("response_type", "code");
