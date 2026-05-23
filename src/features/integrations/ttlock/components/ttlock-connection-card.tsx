@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { KeyRound, Loader2, Plug, RefreshCw, Unplug } from "lucide-react";
 import {
@@ -193,14 +194,21 @@ export function TTLockConnectionCard({
 
         <div className="flex flex-wrap gap-2">
           {!isConnected || needsReconnect ? (
-            <Button type="button" onClick={runReconnect} disabled={isPending}>
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plug className="h-4 w-4" />
-              )}
-              {needsReconnect ? "Reconectar TTLock" : "Conectar TTLock"}
-            </Button>
+            <>
+              <Button type="button" onClick={runReconnect} disabled={isPending}>
+                {isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plug className="h-4 w-4" />
+                )}
+                {needsReconnect ? "Reconectar TTLock" : "Conectar TTLock"}
+              </Button>
+              <Button type="button" variant="outline" asChild disabled={isPending}>
+                <Link href="/integrations/ttlock/connect">
+                  Conectar con cuenta TTLock
+                </Link>
+              </Button>
+            </>
           ) : (
             <Button
               type="button"

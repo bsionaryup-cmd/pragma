@@ -1,4 +1,5 @@
 import type { TTLockEnvironment } from "@prisma/client";
+import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import {
   buildTTLockCallbackFromInput,
   getTTLockOAuthRedirectUri,
@@ -28,8 +29,8 @@ const TTLOCK_API_BASE: Record<TTLockEnvironment, string> = {
 };
 
 const TTLOCK_OAUTH_WEB_BASE: Record<TTLockEnvironment, string> = {
-  PRODUCTION: "https://euapi.ttlock.com",
-  SANDBOX: "https://euapi.ttlock.com",
+  PRODUCTION: "https://euopen.ttlock.com",
+  SANDBOX: "https://euopen.ttlock.com",
 };
 
 /** @deprecated Use resolveTTLockRedirectUri — ignores request to avoid localhost. */
@@ -88,7 +89,7 @@ export function getTTLockOAuthAuthorizeUrl(
   params: { clientId: string; state: string },
 ): string {
   const redirectUri = getTTLockOAuthRedirectUri();
-  const base = getTTLockApiBaseUrl(environment);
+  const base = getTTLockOAuthWebBaseUrl(environment);
   const search = new URLSearchParams();
   search.set("client_id", params.clientId.trim());
   search.set("response_type", "code");
@@ -112,6 +113,7 @@ export function getTTLockKeyboardPwdDeleteUrl(environment: TTLockEnvironment): s
 export function isTTLockBrowserOAuthEnabled(): boolean {
   if (process.env.TTLOCK_BROWSER_OAUTH === "false") return false;
   if (process.env.TTLOCK_BROWSER_OAUTH === "true") return true;
+  if (isPlatformTTLockConfigured()) return true;
   return (
     process.env.NODE_ENV === "production" ||
     process.env.VERCEL === "1" ||

@@ -596,7 +596,9 @@ export async function handleTTLockOAuthCallback(input: {
   if (input.error) {
     const message =
       input.errorDescription?.trim() ||
-      input.error ||
+      (input.error === "10008"
+        ? "redirect_uri inválido: debe coincidir exactamente con la URL registrada en TTLock Open Platform"
+        : input.error) ||
       "Autorización TTLock denegada";
     return {
       redirectPath: `${basePath}?error=${encodeURIComponent(message)}`,

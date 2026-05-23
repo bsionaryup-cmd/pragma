@@ -1,5 +1,6 @@
 import type { TTLockEnvironment } from "@prisma/client";
 import { getTTLockOAuthTokenUrl } from "@/lib/integrations/ttlock-config";
+import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import { ttlockPasswordMd5 } from "@/services/integrations/ttlock/ttlock-crypto";
 
 export { ttlockPasswordMd5 };
@@ -39,7 +40,9 @@ export type TTLockOAuthCodeInput = {
 };
 
 export function isTTLockLiveApiEnabled(): boolean {
-  return process.env.TTLOCK_API_ENABLED === "true";
+  if (process.env.TTLOCK_API_ENABLED === "false") return false;
+  if (process.env.TTLOCK_API_ENABLED === "true") return true;
+  return isPlatformTTLockConfigured();
 }
 
 function buildFormBody(entries: Record<string, string>): string {
