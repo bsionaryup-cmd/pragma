@@ -139,6 +139,7 @@ export type PriceLabsOverviewDto = {
     keyHint: string | null;
     hasStoredKey: boolean;
     hasEnvKey: boolean;
+    decryptFailed: boolean;
   };
   revenue: {
     underpricedCount: number;
@@ -950,11 +951,14 @@ export async function getPriceLabsOverview(
 
   const auditRows = await listPriceLabsSyncLogs(15);
   const syncing = await isPriceLabsSyncInProgress();
+  const decryptErrorMessage = credentials.decryptFailed
+    ? "La API key guardada no se puede descifrar con las claves actuales del servidor. Vuelve a pegarla en el panel o verifica TTLOCK_ENCRYPTION_KEY en Vercel."
+    : null;
 
   return {
     integration: {
       status: integrationStatus,
-      lastError: row?.lastError ?? null,
+      lastError: row?.lastError ?? decryptErrorMessage,
       lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null,
       lastListingsSyncAt: row?.lastListingsSyncAt?.toISOString() ?? null,
       lastPricesSyncAt: row?.lastPricesSyncAt?.toISOString() ?? null,
@@ -973,6 +977,7 @@ export async function getPriceLabsOverview(
       keyHint: credentials.keyHint,
       hasStoredKey: credentials.hasStoredKey,
       hasEnvKey: credentials.hasEnvKey,
+      decryptFailed: credentials.decryptFailed,
     },
     revenue: {
       underpricedCount,

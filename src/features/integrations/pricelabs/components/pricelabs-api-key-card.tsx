@@ -36,7 +36,9 @@ export function PriceLabsApiKeyCard({
   const { credentials, config } = overview;
   const [showKey, setShowKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
-  const [editing, setEditing] = useState(!credentials.hasStoredKey);
+  const [editing, setEditing] = useState(
+    !credentials.hasStoredKey || credentials.decryptFailed,
+  );
   const [pending, startTransition] = useTransition();
 
   const onSave = () => {
@@ -103,6 +105,13 @@ export function PriceLabsApiKeyCard({
             {credentialStatusLabels[credentials.status]}
           </span>
         </div>
+
+        {credentials.decryptFailed ? (
+          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            Hay una API key guardada, pero el servidor no puede descifrarla. Pega
+            la key de nuevo para restaurar la conexión.
+          </p>
+        ) : null}
 
         {credentials.keyHint ? (
           <p className="text-xs text-[#6B7280]">

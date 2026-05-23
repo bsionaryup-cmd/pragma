@@ -29,8 +29,16 @@ const SINGLETON_ID = "singleton";
 export function resolveStoredSecret(
   encrypted: string | null | undefined,
 ): string | null {
-  if (!encrypted) return null;
-  return decryptTTLockSecret(encrypted);
+  if (!encrypted?.trim()) return null;
+  try {
+    return decryptTTLockSecret(encrypted);
+  } catch (error) {
+    console.error(
+      "[pricelabs] No se pudo descifrar credencial almacenada:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 }
 
 /** @deprecated Use resolveStoredSecret */

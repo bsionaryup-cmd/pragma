@@ -18,6 +18,8 @@ export type PriceLabsCredentialSnapshot = {
   status: PriceLabsCredentialStatus;
   hasStoredKey: boolean;
   hasEnvKey: boolean;
+  /** Ciphertext exists but current server keys cannot decrypt it */
+  decryptFailed: boolean;
   /** Last 4 chars only — safe for UI */
   keyHint: string | null;
 };
@@ -38,17 +40,23 @@ export async function resolvePriceLabsApiKey(): Promise<string | null> {
 
 export async function getPriceLabsCredentialSnapshot(): Promise<PriceLabsCredentialSnapshot> {
   const row = await getPriceLabsIntegrationSafe();
-  const stored = resolveStoredSecret(row?.integrationTokenEncrypted);
+  const encrypted = row?.integrationTokenEncrypted;
+  const hasStoredKey = Boolean(encrypted?.trim());
+  const stored = resolveStoredSecret(encrypted);
   const env = getPriceLabsApiKeyFromEnv();
-  const hasStoredKey = Boolean(stored);
+  const decryptFailed =
+    hasStoredKey && stored === null && encrypted!.startsWith("enc:v1:");
   const hasEnvKey = Boolean(env);
 
   let source: PriceLabsCredentialSource = "none";
   let status: PriceLabsCredentialStatus = "missing";
 
-  if (hasStoredKey && hasEnvKey) {
+  if (stored && hasEnvKey) {
     source = "both";
     status = "both";
+  } else if (stored) {
+    source = "database";
+    status = "stored";
   } else if (hasStoredKey) {
     source = "database";
     status = "stored";
@@ -65,6 +73,7 @@ export async function getPriceLabsCredentialSnapshot(): Promise<PriceLabsCredent
     status,
     hasStoredKey,
     hasEnvKey,
+    decryptFailed,
     keyHint: activeKey ? buildKeyHint(activeKey) : null,
   };
 }
