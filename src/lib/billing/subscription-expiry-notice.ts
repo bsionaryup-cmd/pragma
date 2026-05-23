@@ -1,6 +1,11 @@
 import { cache } from "react";
-import { getBillingAccessSnapshot, getBillingAccountSafe } from "@/services/billing/billing.service";
+import type { BillingAccount } from "@prisma/client";
 import { BillingSubscriptionStatus } from "@prisma/client";
+import type { BillingAccessSnapshot } from "@/lib/billing/billing-access";
+import {
+  getBillingAccessSnapshot,
+  getBillingAccountSafe,
+} from "@/services/billing/billing.service";
 
 const EXPIRY_NOTICE_DAYS = 5;
 
@@ -9,13 +14,10 @@ export type SubscriptionExpiryNotice = {
   message: string;
 };
 
-export const getSubscriptionExpiryNotice = cache(
-  async (): Promise<SubscriptionExpiryNotice | null> => {
-  const [access, account] = await Promise.all([
-    getBillingAccessSnapshot(),
-    getBillingAccountSafe(),
-  ]);
-
+export function buildSubscriptionExpiryNotice(
+  access: BillingAccessSnapshot,
+  account: Pick<BillingAccount, "currentPeriodEnd"> | null,
+): SubscriptionExpiryNotice | null {
   const deadline =
     access.status === BillingSubscriptionStatus.TRIAL
       ? access.trialEndsAt
@@ -38,5 +40,15 @@ export const getSubscriptionExpiryNotice = cache(
     daysRemaining,
     message: `La suscripción vence en ${daysRemaining} ${dayLabel}. Contacta al administrador.`,
   };
+}
+
+export const getSubscriptionExpiryNotice = cache(
+  async (): Promise<SubscriptionExpiryNotice | null> => {
+    const [access, account] = await Promise.all([
+      getBillingAccessSnapshot(),
+      getBillingAccountSafe(),
+    ]);
+
+    return buildSubscriptionExpiryNotice(access, account);
   },
 );

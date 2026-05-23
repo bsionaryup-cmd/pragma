@@ -1,10 +1,19 @@
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { SettingsView } from "@/components/settings/settings-view";
 import { requireDbUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getUserDisplayName } from "@/lib/helpers/user-display";
 import type { AppUserRole } from "@/types/auth";
+import SettingsLoading from "./loading";
+
+const SettingsView = dynamic(
+  () =>
+    import("@/components/settings/settings-view").then((m) => ({
+      default: m.SettingsView,
+    })),
+  { loading: () => <SettingsLoading /> },
+);
 
 export default async function SettingsPage() {
   const user = await requireDbUser();

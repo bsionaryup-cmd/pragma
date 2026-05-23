@@ -9,10 +9,16 @@ const nextConfig: NextConfig = {
       "@radix-ui/react-dropdown-menu",
       "@radix-ui/react-select",
       "@radix-ui/react-avatar",
+      "@radix-ui/react-label",
+      "@radix-ui/react-separator",
+      "@radix-ui/react-slot",
+      "react-hook-form",
+      "sonner",
       "date-fns",
     ],
   },
   images: {
+    formats: ["image/avif", "image/webp"],
     remotePatterns: [
       { protocol: "https", hostname: "a0.muscache.com" },
       { protocol: "https", hostname: "**.muscache.com" },

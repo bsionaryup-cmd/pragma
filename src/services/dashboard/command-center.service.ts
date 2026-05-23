@@ -105,27 +105,14 @@ function sumDecimal(rows: { totalAmount: { toString(): string } }[]): number {
   return rows.reduce((acc, row) => acc + Number(row.totalAmount), 0);
 }
 
-async function computeOccupancyMonthly(
-  scope: TenantDataScope,
+function computeOccupancyFromReservations(
+  reservations: { checkIn: Date; checkOut: Date }[],
   activeProperties: number,
   daysInMonth: number,
   rangeStart: Date,
   rangeEnd: Date,
-): Promise<number> {
+): number {
   if (activeProperties <= 0 || daysInMonth <= 0) return 0;
-
-  const reservations = await db.reservation.findMany({
-    where: withVisibleReservationsFilter(
-      mergeReservationScope(scope, {
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-        checkIn: { lte: rangeEnd },
-        checkOut: { gt: rangeStart },
-      }),
-    ),
-    select: { checkIn: true, checkOut: true },
-  });
 
   let occupiedNights = 0;
   for (const reservation of reservations) {
@@ -161,6 +148,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     prevMonthReservations,
     recentReservations,
     recentTasks,
+    portfolioCapacity,
   ] = await Promise.all([
     db.property.count({
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
@@ -224,6 +212,8 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       ),
       select: {
         totalAmount: true,
+        checkIn: true,
+        checkOut: true,
         property: { select: { cleaningFee: true } },
       },
     }),
@@ -239,6 +229,8 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       ),
       select: {
         totalAmount: true,
+        checkIn: true,
+        checkOut: true,
         property: { select: { cleaningFee: true } },
       },
     }),
@@ -269,6 +261,10 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         property: { select: { name: true } },
       },
     }),
+    db.property.aggregate({
+      where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
+      _sum: { maxGuests: true },
+    }),
   ]);
 
   const guestsCurrent = checkedInReservations.reduce(
@@ -279,10 +275,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     (sum, r) => sum + r.property.maxGuests,
     0,
   );
-  const portfolioCapacity = await db.property.aggregate({
-    where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
-    _sum: { maxGuests: true },
-  });
   const guestsCapacity =
     guestsCurrent > 0
       ? checkedInCapacity
@@ -297,10 +289,20 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       ? clampPercent((occupiedProperties / activeProperties) * 100)
       : 0;
 
-  const [occupancyMonthly, occupancyMonthlyPrev] = await Promise.all([
-    computeOccupancyMonthly(scope, activeProperties, daysInMonth, start, end),
-    computeOccupancyMonthly(scope, activeProperties, daysInMonth, prevStart, prevEnd),
-  ]);
+  const occupancyMonthly = computeOccupancyFromReservations(
+    monthReservations,
+    activeProperties,
+    daysInMonth,
+    start,
+    end,
+  );
+  const occupancyMonthlyPrev = computeOccupancyFromReservations(
+    prevMonthReservations,
+    activeProperties,
+    daysInMonth,
+    prevStart,
+    prevEnd,
+  );
 
   const [currentManual, previousManual] = await Promise.all([
     getManualFinanceInRange(start, end, scope),

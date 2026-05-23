@@ -10,7 +10,7 @@ type ClerkSignOutButtonProps = {
 } & Pick<ComponentProps<typeof Button>, "variant" | "className">;
 
 export function ClerkSignOutButton({
-  redirectUrl = "/sign-in",
+  redirectUrl = "/sign-in?signed_out=1",
   children,
   variant = "outline",
   className,

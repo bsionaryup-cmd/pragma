@@ -9,11 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CreateUserDialog } from "@/features/users/components/create-user-dialog";
-import { DeleteUserButton } from "@/features/users/components/delete-user-button";
-import { EditUserDialog } from "@/features/users/components/edit-user-dialog";
-import { UserActiveToggle } from "@/features/users/components/user-active-toggle";
-import { UserRoleSelect } from "@/features/users/components/user-role-select";
+import { CreateUserDialogButton, UserRoleSelectField, UserTableActions } from "@/features/users/components/user-row-actions";
 import { requirePermission } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/helpers/date";
@@ -46,7 +42,7 @@ export default async function UsersPage() {
               {users.length} usuarios registrados · acceso solo con correo y contraseña
             </p>
           </div>
-          {canWrite ? <CreateUserDialog /> : null}
+          {canWrite ? <CreateUserDialogButton /> : null}
         </div>
         <div className="overflow-hidden rounded-xl border border-border">
           <div className="pragma-scrollbar overflow-x-auto">
@@ -87,9 +83,9 @@ export default async function UsersPage() {
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <UserRoleSelect
+                      <UserRoleSelectField
                         userId={user.id}
-                        currentRole={user.role}
+                        role={user.role}
                         disabled={isSelf || isAccountOwner || !canWrite}
                       />
                     </TableCell>
@@ -106,30 +102,18 @@ export default async function UsersPage() {
                       {formatDate(user.createdAt)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        {canWrite ? (
-                          <EditUserDialog
-                            userId={user.id}
-                            email={user.email}
-                            firstName={user.firstName}
-                            lastName={user.lastName}
-                            disabled={!user.isActive || ownerLockedForOthers}
-                          />
-                        ) : null}
-                        {canWrite ? (
-                          <UserActiveToggle
-                            userId={user.id}
-                            isActive={user.isActive}
-                            disabled={isSelf || isAccountOwner}
-                          />
-                        ) : null}
-                        {canDeleteThisUser ? (
-                          <DeleteUserButton
-                            userId={user.id}
-                            email={user.email}
-                          />
-                        ) : null}
-                      </div>
+                      <UserTableActions
+                        userId={user.id}
+                        email={user.email}
+                        firstName={user.firstName}
+                        lastName={user.lastName}
+                        isActive={user.isActive}
+                        ownerLockedForOthers={ownerLockedForOthers}
+                        canWrite={canWrite}
+                        canDeleteThisUser={canDeleteThisUser}
+                        isSelf={isSelf}
+                        isAccountOwner={isAccountOwner}
+                      />
                     </TableCell>
                   </TableRow>
                 );

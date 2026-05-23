@@ -72,9 +72,9 @@ export async function enhanceMarkVibrancy(input, { strong = false } = {}) {
 }
 
 export function faviconPaddingRatio(size) {
-  if (size <= 16) return 0.03;
-  if (size <= 32) return 0.05;
-  return 0.07;
+  if (size <= 16) return 0.015;
+  if (size <= 32) return 0.025;
+  return 0.04;
 }
 
 /** Safe-zone padding for installable / home-screen icons. */
@@ -157,8 +157,8 @@ async function compositeMarkOnCanvas(markAlphaBuf, size, options = {}) {
     .png({ compressionLevel: 9, force: true });
 }
 
-/** Tab favicon sizes — bold mark, tight padding. */
-export function renderFaviconIcon(markAlphaBuf, size, { transparent = false } = {}) {
+/** Tab favicon sizes — bold mark, tight padding, transparent canvas. */
+export function renderFaviconIcon(markAlphaBuf, size, { transparent = true } = {}) {
   return compositeMarkOnCanvas(markAlphaBuf, size, {
     transparent,
     paddingRatio: faviconPaddingRatio(size),

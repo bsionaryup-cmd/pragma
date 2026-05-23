@@ -1,7 +1,22 @@
+import dynamic from "next/dynamic";
 import { requirePermission } from "@/lib/auth";
 import { BillingCheckoutFeedback } from "@/features/billing/components/billing-checkout-feedback";
-import { BillingDashboard } from "@/features/billing/components/billing-dashboard";
 import { getBillingDashboard } from "@/modules/billing/services/dashboard.service";
+import { PragmaLoader } from "@/components/brand/pragma-loader";
+
+const BillingDashboard = dynamic(
+  () =>
+    import("@/features/billing/components/billing-dashboard").then((m) => ({
+      default: m.BillingDashboard,
+    })),
+  {
+    loading: () => (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <PragmaLoader size="lg" />
+      </div>
+    ),
+  },
+);
 
 type BillingSettingsPageProps = {
   searchParams: Promise<{ paid?: string }>;

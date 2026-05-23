@@ -25,6 +25,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
   const pathname = usePathname();
   const syncingRef = useRef(false);
   const lastRunAtRef = useRef(0);
+  const lastRefreshAtRef = useRef(0);
   const initialDoneRef = useRef(false);
   const pathnameRef = useRef(pathname);
   const routerRef = useRef(router);
@@ -61,6 +62,9 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         currentPath.startsWith("/inbox");
 
       if (reservationViews) {
+        const elapsed = Date.now() - lastRefreshAtRef.current;
+        if (elapsed < 5000) return;
+        lastRefreshAtRef.current = Date.now();
         routerRef.current.refresh();
       }
     }

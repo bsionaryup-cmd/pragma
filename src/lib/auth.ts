@@ -22,7 +22,7 @@ import {
   type Permission,
 } from "@/lib/auth/permissions";
 import { readPublicMetadata } from "@/lib/auth/session-claims";
-import { buildTenantContext } from "@/lib/platform/tenant-context";
+import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 
@@ -30,6 +30,8 @@ export type { Permission } from "@/lib/auth/permissions";
 export { hasPermission, getPermissionsForRole } from "@/lib/auth/permissions";
 
 const LOGIN_TOUCH_INTERVAL_MS = 30 * 60 * 1000;
+
+const fetchDbUserByClerkId = cache(async (clerkId: string) => getUserByClerkId(clerkId));
 
 type ClerkPublicMetadata = {
   role?: AppUserRole;
@@ -77,7 +79,7 @@ export const currentDbUser = cache(async (): Promise<User | null> => {
   const { userId } = await auth();
   if (!userId) return null;
 
-  const user = await getUserByClerkId(userId);
+  const user = await fetchDbUserByClerkId(userId);
   if (!user?.isActive) return null;
   return user;
 });
@@ -90,7 +92,7 @@ export const requireDbUser = cache(async (): Promise<User> => {
   const { userId, sessionClaims } = await auth();
   if (!userId) redirect("/sign-in");
 
-  let dbUser = await getUserByClerkId(userId);
+  let dbUser = await fetchDbUserByClerkId(userId);
 
   if (dbUser?.isActive) {
     const metadata = readPublicMetadata(sessionClaims);
@@ -182,20 +184,14 @@ export const requireDbUser = cache(async (): Promise<User> => {
   return dbUser;
 });
 
-async function resolveEffectiveAuthContext(user: User): Promise<AuthContext> {
-  const ctx = await buildTenantContext(user);
-  const base = toAuthContext(user);
-  return {
-    ...base,
-    role: ctx.effectiveRole,
-  };
-}
-
 export const requireRole = cache(async (
   allowed: AppUserRole | AppUserRole[],
 ): Promise<AuthContext> => {
-  const user = await requireDbUser();
-  const authContext = await resolveEffectiveAuthContext(user);
+  const [user, ctx] = await Promise.all([requireDbUser(), requireTenantContext()]);
+  const authContext: AuthContext = {
+    ...toAuthContext(user),
+    role: ctx.effectiveRole,
+  };
   const roles = Array.isArray(allowed) ? allowed : [allowed];
 
   if (!roles.includes(authContext.role)) {
@@ -208,31 +204,35 @@ export const requireRole = cache(async (
 export const requirePermission = cache(async (
   permission: Permission,
 ): Promise<AuthContext> => {
-  const user = await requireDbUser();
-  const authContext = await resolveEffectiveAuthContext(user);
+  const [user, ctx] = await Promise.all([requireDbUser(), requireTenantContext()]);
 
-  if (!hasPermission(authContext.role, permission)) {
+  if (!hasPermission(ctx.effectiveRole, permission)) {
     redirect("/unauthorized");
   }
 
-  return authContext;
+  return {
+    ...toAuthContext(user),
+    role: ctx.effectiveRole,
+  };
 });
 
 export const requireAnyPermission = cache(async (
   ...permissions: Permission[]
 ): Promise<AuthContext> => {
-  const user = await requireDbUser();
-  const authContext = await resolveEffectiveAuthContext(user);
+  const [user, ctx] = await Promise.all([requireDbUser(), requireTenantContext()]);
 
   if (
     !permissions.some((permission) =>
-      hasPermission(authContext.role, permission),
+      hasPermission(ctx.effectiveRole, permission),
     )
   ) {
     redirect("/unauthorized");
   }
 
-  return authContext;
+  return {
+    ...toAuthContext(user),
+    role: ctx.effectiveRole,
+  };
 });
 
 export async function getAuthContext(): Promise<AuthContext | null> {

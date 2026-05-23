@@ -159,31 +159,70 @@ export async function listPropertiesForGrid(
   const properties = await db.property.findMany({
     where: scope,
     orderBy: { name: "asc" },
-    include: {
-      reservations: {
-        where: {
-          status: { not: ReservationStatus.CANCELLED },
-          OR: [
-            { checkIn: { lte: monthEnd }, checkOut: { gt: monthStart } },
-            { checkOut: { gt: today } },
-          ],
-        },
-        select: {
-          id: true,
-          guestName: true,
-          checkIn: true,
-          checkOut: true,
-          status: true,
-          totalAmount: true,
-          icalUid: true,
-          platform: true,
-        },
-        orderBy: { checkIn: "asc" },
-      },
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      country: true,
+      neighborhood: true,
+      coverImageUrl: true,
+      propertyType: true,
+      status: true,
+      maxGuests: true,
+      bedrooms: true,
+      beds: true,
+      bathrooms: true,
+      icalUrl: true,
     },
   });
 
-  return properties.map((p) => mapPropertyRow(p, today, monthStart, monthEnd));
+  if (properties.length === 0) return [];
+
+  const propertyIds = properties.map((property) => property.id);
+  const reservations = await db.reservation.findMany({
+    where: {
+      propertyId: { in: propertyIds },
+      status: { not: ReservationStatus.CANCELLED },
+      OR: [
+        { checkIn: { lte: monthEnd }, checkOut: { gt: monthStart } },
+        { checkOut: { gt: today } },
+      ],
+    },
+    select: {
+      propertyId: true,
+      id: true,
+      guestName: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      totalAmount: true,
+      icalUid: true,
+      platform: true,
+    },
+    orderBy: { checkIn: "asc" },
+  });
+
+  const reservationsByProperty = new Map<
+    string,
+    Array<(typeof reservations)[number]>
+  >();
+  for (const reservation of reservations) {
+    const list = reservationsByProperty.get(reservation.propertyId) ?? [];
+    list.push(reservation);
+    reservationsByProperty.set(reservation.propertyId, list);
+  }
+
+  return properties.map((property) =>
+    mapPropertyRow(
+      {
+        ...property,
+        reservations: reservationsByProperty.get(property.id) ?? [],
+      },
+      today,
+      monthStart,
+      monthEnd,
+    ),
+  );
 }
 
 export async function getPropertyDetail(

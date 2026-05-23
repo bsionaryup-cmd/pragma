@@ -50,7 +50,7 @@ async function loadActiveImpersonationSession(
   return session;
 }
 
-export async function buildTenantContext(user: User): Promise<TenantContext> {
+async function computeTenantContext(user: User): Promise<TenantContext> {
   const platformOwner = isSuperAdminOwner(user);
   const sessionId = platformOwner
     ? await readImpersonationSessionIdFromCookies()
@@ -81,6 +81,22 @@ export async function buildTenantContext(user: User): Promise<TenantContext> {
   };
 }
 
+const resolveTenantContextForUser = cache(
+  async (user: User): Promise<TenantContext> => computeTenantContext(user),
+);
+
+const resolveTenantContextByUserId = cache(async (userId: string): Promise<TenantContext> => {
+  const user = await db.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error("Usuario no encontrado");
+  }
+  return computeTenantContext(user);
+});
+
+export async function buildTenantContext(user: User): Promise<TenantContext> {
+  return resolveTenantContextForUser(user);
+}
+
 export const getCurrentTenantContext = cache(async (): Promise<TenantContext | null> => {
   const user = await currentDbUser();
   if (!user) return null;
@@ -93,10 +109,15 @@ export const requireTenantContext = cache(async (): Promise<TenantContext> => {
 });
 
 export async function getEffectiveOrganizationIdForUser(
-  userId: string,
+  userOrId: User | string,
 ): Promise<string | null> {
-  const user = await db.user.findUnique({ where: { id: userId } });
-  if (!user) return null;
-  const ctx = await buildTenantContext(user);
-  return ctx.organizationId;
+  try {
+    const ctx =
+      typeof userOrId === "string"
+        ? await resolveTenantContextByUserId(userOrId)
+        : await buildTenantContext(userOrId);
+    return ctx.organizationId;
+  } catch {
+    return null;
+  }
 }

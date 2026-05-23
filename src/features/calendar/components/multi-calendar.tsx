@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
@@ -16,7 +17,6 @@ import type {
   CalendarReservationDto,
 } from "@/features/calendar/types/calendar.types";
 import {
-  ReservationDrawer,
   type ReservationDrawerMode,
 } from "@/features/reservations/components/reservation-drawer";
 import type {
@@ -24,6 +24,14 @@ import type {
   ReservationDetailItem,
   ReservationInboxItem,
 } from "@/features/reservations/types/reservation.types";
+
+const ReservationDrawer = dynamic(
+  () =>
+    import("@/features/reservations/components/reservation-drawer").then((m) => ({
+      default: m.ReservationDrawer,
+    })),
+  { loading: () => null },
+);
 
 type MultiCalendarProps = {
   data: CalendarDataDto;

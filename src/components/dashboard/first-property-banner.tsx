@@ -31,10 +31,11 @@ export function FirstPropertyBanner({ canCreate }: FirstPropertyBannerProps) {
       </div>
       <Button
         asChild
-        className="h-10 shrink-0 rounded-full bg-white px-5 text-pragma-black hover:bg-white/90"
+        variant="brandOutline"
+        className="h-10 shrink-0 rounded-full border-white/40 bg-white px-5 text-pragma-black shadow-md hover:border-white/60 hover:bg-white/95 hover:text-pragma-black"
       >
-        <Link href="/properties?create=true">
-          <Plus className="mr-2 h-4 w-4" />
+        <Link href="/properties?create=true" className="text-pragma-black">
+          <Plus className="mr-2 h-4 w-4 text-pragma-black" />
           {t("dashboard.emptyProperty.cta")}
         </Link>
       </Button>

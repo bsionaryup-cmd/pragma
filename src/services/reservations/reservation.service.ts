@@ -153,10 +153,13 @@ async function getRegistrationsByReservationIds(reservationIds: string[]) {
   return byReservation;
 }
 
+const INBOX_RESERVATION_LIMIT = 1000;
+
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const scope = await requireTenantDataScope();
   const rows = await db.reservation.findMany({
     where: withVisibleReservationsFilter(mergeReservationScope(scope, {})),
+    take: INBOX_RESERVATION_LIMIT,
     select: {
       id: true,
       guestName: true,

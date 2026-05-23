@@ -1,11 +1,18 @@
+import dynamic from "next/dynamic";
 import { TTLockLoadError } from "@/features/integrations/ttlock/components/ttlock-load-error";
-import { TTLockPanel } from "@/features/integrations/ttlock/components/ttlock-panel";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import type { AppUserRole } from "@/types/auth";
 import { resolveRequestContextFromHeaders } from "@/lib/integrations/ttlock-config";
 import { isTTLockSchemaDriftError } from "@/services/integrations/ttlock/ttlock-prisma-guard";
 import { getTTLockOverview } from "@/services/integrations/ttlock.service";
 import { headers } from "next/headers";
+
+const TTLockPanel = dynamic(
+  () =>
+    import("@/features/integrations/ttlock/components/ttlock-panel").then(
+      (m) => ({ default: m.TTLockPanel }),
+    ),
+);
 
 type TTLockPageProps = {
   searchParams: Promise<{ error?: string; connected?: string }>;

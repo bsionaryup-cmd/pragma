@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
-import { FinanceView } from "@/components/finance/finance-view";
 import { hasPermission, requireAnyPermission } from "@/lib/auth";
 import { getServerLocale } from "@/i18n/locale.server";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import type { AppUserRole } from "@/types/auth";
 import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
+import FinanceLoading from "./loading";
+
+const FinanceView = dynamic(
+  () =>
+    import("@/components/finance/finance-view").then((m) => ({
+      default: m.FinanceView,
+    })),
+  { loading: () => <FinanceLoading /> },
+);
 
 export const metadata: Metadata = {
   title: "Finanzas",

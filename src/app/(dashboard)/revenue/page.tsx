@@ -1,11 +1,18 @@
+import dynamic from "next/dynamic";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { SmartpriceDashboard } from "@/features/revenue/components/smartprice-dashboard";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import type { AppUserRole } from "@/types/auth";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import { getPriceLabsOverview } from "@/services/integrations/pricelabs.service";
 import { buildAttentionItems } from "@/services/revenue/revenue-dashboard.service";
+
+const SmartpriceDashboard = dynamic(
+  () =>
+    import("@/features/revenue/components/smartprice-dashboard").then((m) => ({
+      default: m.SmartpriceDashboard,
+    })),
+);
 
 export default async function SmartpricePage() {
   const user = await requirePermission("finance:revenue:read");

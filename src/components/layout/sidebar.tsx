@@ -38,7 +38,7 @@ function SidebarNavLink({
   return (
     <Link
       href={item.href}
-      prefetch={true}
+      prefetch={false}
       title={collapsed ? title : undefined}
       onClick={() => onNavigate?.()}
       className={cn(

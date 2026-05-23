@@ -206,7 +206,9 @@
   --color-pragma-cyan: var(--pragma-cyan);
   --color-pragma-aqua: var(--pragma-aqua);
   --color-pragma-electric: var(--pragma-electric);
+  --color-pragma-black: var(--pragma-black);
   --color-pragma-navy: var(--pragma-navy);
+  --color-pragma-mid-gray: var(--pragma-mid-gray);
   --color-pragma-soft-cyan: var(--pragma-soft-cyan);
   --color-pragma-light-blue: var(--pragma-light-blue);
   --radius-sm: calc(var(--radius) - 4px);

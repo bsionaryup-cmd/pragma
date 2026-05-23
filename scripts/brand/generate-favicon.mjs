@@ -94,7 +94,7 @@ async function main() {
   console.log("wrote", "src/app/favicon.ico");
 
   await writePng(
-    await renderFaviconIcon(faviconMarkBuf, 32, { transparent: true }),
+    await renderFaviconIcon(faviconMarkBuf, 48),
     path.join(root, "src", "app", "icon.png"),
   );
 

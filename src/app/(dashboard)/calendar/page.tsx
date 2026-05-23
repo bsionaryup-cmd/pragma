@@ -4,7 +4,6 @@ import { resolveCalendarAnchor } from "@/features/calendar/lib/calendar-dates";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getCalendarData } from "@/services/calendar/calendar.service";
-import { listPropertiesForInbox } from "@/services/properties/property.service";
 import type { AppUserRole } from "@/types/auth";
 import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
 import CalendarLoading from "./loading";
@@ -38,10 +37,13 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     "properties:write",
   );
 
-  const [data, propertyOptions] = await Promise.all([
-    getCalendarData(anchor),
-    listPropertiesForInbox(auth.dbUserId),
-  ]);
+  const data = await getCalendarData(anchor);
+  const propertyOptions = data.properties.map((property) => ({
+    id: property.id,
+    name: property.name,
+    address: property.address,
+    city: property.city,
+  }));
 
   const reservationParam = params.reservation?.trim() ?? null;
   const initialReservationId =

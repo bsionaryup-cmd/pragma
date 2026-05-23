@@ -22,18 +22,24 @@ import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { userNeedsOnboarding } from "@/services/onboarding/onboarding.service";
 import type { AppUserRole } from "@/types/auth";
 
+const AIRBNB_AUTO_SYNC_PREFIXES = [
+  "/panel",
+  "/calendar",
+  "/properties",
+  "/reservations",
+] as const;
+
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [user, locale, dictionary] = await Promise.all([
+  const [user, locale, headerStore] = await Promise.all([
     requireDbUser(),
     getServerLocale(),
-    getServerLocale().then((l) => getDictionary(l)),
+    headers(),
   ]);
-
-  const headerStore = await headers();
+  const dictionary = await getDictionary(locale);
   const pathname =
     headerStore.get("x-pathname") ??
     headerStore.get("x-invoke-path") ??
@@ -49,7 +55,9 @@ export default async function DashboardLayout({
   const role = tenantContext.effectiveRole as AppUserRole;
   const navItems = getMainNavigationForRole(role);
   const settingsItem = getSettingsNavItem(role);
-  const canSyncAirbnb = hasPermission(role, "properties:write");
+  const canSyncAirbnb =
+    hasPermission(role, "properties:write") &&
+    AIRBNB_AUTO_SYNC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const isPlatformOwnerSession =
     isSuperAdminOwner(user) && Boolean(user.organizationId);
 

@@ -30,6 +30,7 @@ export default async function IntegrationsPage() {
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/integrations/ttlock"
+            prefetch={false}
             className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -43,6 +44,7 @@ export default async function IntegrationsPage() {
 
           <Link
             href="/integrations/pricelabs"
+            prefetch={false}
             className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
@@ -58,6 +60,7 @@ export default async function IntegrationsPage() {
             <>
               <Link
                 href="/integrations/sire"
+                prefetch={false}
                 className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
@@ -70,6 +73,7 @@ export default async function IntegrationsPage() {
               </Link>
               <Link
                 href="/integrations/traa"
+                prefetch={false}
                 className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">

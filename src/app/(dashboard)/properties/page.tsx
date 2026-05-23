@@ -1,8 +1,17 @@
+import dynamic from "next/dynamic";
 import { ModuleShellFill } from "@/components/layout/module-shell";
-import { PropertiesHub } from "@/features/properties/components/properties-hub";
 import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForGrid } from "@/services/properties/property.service";
 import type { AppUserRole } from "@/types/auth";
+import PropertiesLoading from "./loading";
+
+const PropertiesHub = dynamic(
+  () =>
+    import("@/features/properties/components/properties-hub").then((m) => ({
+      default: m.PropertiesHub,
+    })),
+  { loading: () => <PropertiesLoading /> },
+);
 
 type PropertiesPageProps = {
   searchParams: Promise<{ create?: string; property?: string }>;

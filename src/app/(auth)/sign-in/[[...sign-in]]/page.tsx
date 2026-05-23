@@ -10,6 +10,7 @@ type SignInPageProps = {
   searchParams: Promise<{
     inactive?: string;
     signed_out?: string;
+    clerk_unavailable?: string;
   }>;
 };
 
@@ -17,9 +18,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const showInactiveHint = params.inactive === "1";
   const showSignedOutHint = params.signed_out === "1";
+  const showClerkUnavailableHint = params.clerk_unavailable === "1";
   const { userId } = await auth();
 
-  if (userId && !showInactiveHint) {
+  // After logout, allow the sign-in form even if a stale server session cookie lingers.
+  if (userId && !showInactiveHint && !showSignedOutHint) {
     const dbUser = await getUserByClerkId(userId);
 
     if (dbUser && !dbUser.isActive) {
@@ -50,6 +53,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         ) : showSignedOutHint ? (
           <p className="text-sm text-muted-foreground">
             Sesión cerrada correctamente. Puedes iniciar sesión de nuevo.
+          </p>
+        ) : showClerkUnavailableHint ? (
+          <p className="text-sm text-destructive">
+            No se pudo conectar con el servicio de autenticación. Intenta de nuevo en unos
+            momentos.
           </p>
         ) : null
       }
