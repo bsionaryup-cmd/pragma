@@ -5,6 +5,7 @@ import {
   CALENDAR_DAY_WIDTH,
   CALENDAR_ROW_HEIGHT,
 } from "@/features/calendar/constants";
+import { OccupancyBand } from "@/features/calendar/components/occupancy-band";
 import { computeReservationSpan } from "@/features/calendar/lib/reservation-span";
 import { CalendarDayPrice } from "@/features/calendar/components/calendar-day-price";
 import { ReservationBar } from "@/features/calendar/components/reservation-bar";
@@ -43,6 +44,26 @@ function isDayInSelection(
   return dateKey >= checkIn && dateKey < checkOut;
 }
 
+function isDayCoveredByReservation(
+  dateKey: string,
+  reservations: CalendarReservationDto[],
+): boolean {
+  return reservations.some(
+    (r) =>
+      r.status !== "CANCELLED" &&
+      dateKey >= r.checkIn &&
+      dateKey <= r.checkOut,
+  );
+}
+
+/** Día ocupado solo en PriceLabs (sin reserva PRAGMA) — paralelogramo de una celda */
+function externalBookedClipPath(dayIndex: number): string {
+  const W = CALENDAR_DAY_WIDTH;
+  const H = CALENDAR_ROW_HEIGHT;
+  const x = dayIndex * W;
+  return `polygon(${x}px ${H}px, ${x + W}px ${H}px, ${x + W}px 0px, ${x}px 0px)`;
+}
+
 function CalendarPropertyRowComponent({
   propertyId,
   dailyPricesByDate,
@@ -58,9 +79,14 @@ function CalendarPropertyRowComponent({
 }: CalendarPropertyRowProps) {
   const dayKeys = useMemo(() => days.map((d) => d.date), [days]);
 
+  const activeReservations = useMemo(
+    () => reservations.filter((r) => r.status !== "CANCELLED"),
+    [reservations],
+  );
+
   const bars = useMemo(
     () =>
-      reservations
+      activeReservations
         .map((reservation) => ({
           reservation,
           span: computeReservationSpan(reservation, rangeStart, dayKeys),
@@ -73,13 +99,13 @@ function CalendarPropertyRowComponent({
             span: NonNullable<ReturnType<typeof computeReservationSpan>>;
           } => item.span !== null,
         ),
-    [reservations, rangeStart, dayKeys],
+    [activeReservations, rangeStart, dayKeys],
   );
 
   return (
     <div
       className={cn(
-        "relative box-border border-b-2 border-[var(--cal-border-strong)] bg-white",
+        "relative box-border border-b border-[var(--cal-row-divider)] bg-white",
         rowIndex % 2 === 1 && "bg-[var(--cal-bg-alt)]",
       )}
       style={{
@@ -91,8 +117,22 @@ function CalendarPropertyRowComponent({
       }}
       data-property-id={propertyId}
     >
+      {activeReservations.map((reservation) => (
+        <OccupancyBand
+          key={`band-${reservation.id}`}
+          reservation={reservation}
+          allReservations={activeReservations}
+          rangeStart={rangeStart}
+          dayKeys={dayKeys}
+        />
+      ))}
+
       {days.map((day, index) => {
         const selected = isDayInSelection(day.date, selection, propertyId);
+        const showExternalBooked =
+          dailyPricesByDate[day.date]?.isBooked &&
+          !isDayCoveredByReservation(day.date, activeReservations);
+
         return (
           <button
             key={day.date}
@@ -100,11 +140,11 @@ function CalendarPropertyRowComponent({
             disabled={!canWrite}
             onClick={() => onDayClick(propertyId, day.date)}
             className={cn(
-              "absolute top-0 z-0 border-r border-[var(--cal-border-strong)] bg-white transition-colors duration-150",
+              "absolute top-0 z-0 border-r border-dashed border-[var(--cal-col-divider)] bg-white transition-colors duration-150",
               day.isWeekend && "bg-[var(--cal-bg-weekend)]",
               day.isToday &&
-                "z-[1] bg-[var(--cal-bg-today)] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.35)]",
-              selected && "bg-[var(--cal-bg-selected)] ring-1 ring-inset ring-[#0E9F8D]/50",
+                "z-[1] bg-[var(--cal-bg-today)] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.28)]",
+              selected && "bg-[var(--cal-bg-selected)] ring-1 ring-inset ring-[#0E9F8D]/40",
               canWrite && "cursor-crosshair hover:bg-[var(--cal-bg-hover-cell)]",
               !canWrite && "cursor-default",
             )}
@@ -115,10 +155,16 @@ function CalendarPropertyRowComponent({
             }}
             aria-label={`${day.date}${selected ? " (seleccionado)" : ""}`}
           >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom_left,transparent_calc(50%-0.5px),rgba(190,198,208,0.68)_calc(50%-0.5px),rgba(190,198,208,0.68)_calc(50%+0.5px),transparent_calc(50%+0.5px))]"
-            />
+            {showExternalBooked ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 z-[1] bg-[var(--cal-booked-fill)]"
+                style={{
+                  clipPath: externalBookedClipPath(index),
+                  WebkitClipPath: externalBookedClipPath(index),
+                }}
+              />
+            ) : null}
             <CalendarDayPrice pricing={dailyPricesByDate[day.date]} />
           </button>
         );

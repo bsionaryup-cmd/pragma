@@ -90,7 +90,8 @@ export function buildRollingCalendarViewport(
       dayOfMonth: cursor.getUTCDate(),
       dayOfWeek,
       isToday: dateKey === todayKey,
-      isWeekend: utcDay === 0 || utcDay === 6,
+      /** Solo domingo con fondo destacado; sábado igual que día laboral */
+      isWeekend: utcDay === 0,
       isCurrentMonth,
       label: String(cursor.getUTCDate()),
       weekdayShort: WEEKDAY_SHORT[utcDay],

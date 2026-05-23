@@ -152,11 +152,15 @@
 }
 
 .cal-module {
-  --cal-border: #c5ced8;
-  --cal-border-strong: #9aa8b8;
-  --cal-bg-canvas: #f0f2f5;
-  --cal-bg-alt: #eceef2;
-  --cal-bg-weekend: #e4e8ed;
+  --cal-border: #d4dae3;
+  --cal-border-strong: #b8c2ce;
+  /** Separador horizontal entre filas (sidebar + grid), estilo Lodgify */
+  --cal-row-divider: #eceef2;
+  /** Separador vertical entre días (punteado) */
+  --cal-col-divider: #c8d0da;
+  --cal-bg-canvas: #f4f5f7;
+  --cal-bg-alt: #fafbfc;
+  --cal-bg-weekend: #f0f2f5;
   --cal-bg-hover: #e8ecf0;
   --cal-bg-hover-cell: #e0f2ee;
   --cal-bg-today: #ddefea;
@@ -169,6 +173,8 @@
   --cal-reservation-muted-bg: #eceef2;
   --cal-reservation-muted-text: #5a6472;
   --cal-reservation-blocked-bg: #e8eaed;
+  /** Banda de ocupación continua (estilo Lodgify) */
+  --cal-booked-fill: #e4e8ed;
 }
 
 @theme inline {

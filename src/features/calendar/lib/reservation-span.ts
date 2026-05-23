@@ -1,4 +1,8 @@
-import { CALENDAR_DAY_WIDTH } from "@/features/calendar/constants";
+import {
+  CALENDAR_DAY_WIDTH,
+  CALENDAR_ROW_HEIGHT,
+  CALENDAR_TURNOVER_GAP_PX,
+} from "@/features/calendar/constants";
 import {
   addDaysToKey,
   differenceInCalendarDays,
@@ -11,6 +15,10 @@ import type {
 
 /** Mitad de celda: check-in/check-out a mediodía. */
 const HALF_DAY = CALENDAR_DAY_WIDTH / 2;
+const CHECKIN_BAR_INSET = CALENDAR_TURNOVER_GAP_PX / 2;
+const CHECKOUT_BAR_INSET = CALENDAR_TURNOVER_GAP_PX / 2;
+const CHECKIN_BAR_START = HALF_DAY + CHECKIN_BAR_INSET;
+const CHECKOUT_BAR_END = HALF_DAY - CHECKOUT_BAR_INSET;
 
 /**
  * Noches ocupadas: check-in inclusive, check-out exclusive (estándar PMS).
@@ -56,11 +64,15 @@ export function computeReservationSpan(
   const continuesToFuture = checkOutKey > addDaysToKey(rangeEndKey, 1);
 
   const leftPx =
-    startCol * CALENDAR_DAY_WIDTH + (continuesFromPast ? 0 : HALF_DAY);
+    startCol * CALENDAR_DAY_WIDTH +
+    (continuesFromPast ? 0 : CHECKIN_BAR_START);
   const rightPx = continuesToFuture
     ? (startCol + clippedSpan) * CALENDAR_DAY_WIDTH
-    : endCol * CALENDAR_DAY_WIDTH + HALF_DAY;
-  const widthPx = Math.max(HALF_DAY, rightPx - leftPx);
+    : endCol * CALENDAR_DAY_WIDTH + CHECKOUT_BAR_END;
+  const widthPx = Math.max(
+    HALF_DAY - CALENDAR_TURNOVER_GAP_PX,
+    rightPx - leftPx,
+  );
 
   return {
     reservationId: reservation.id,
@@ -71,6 +83,74 @@ export function computeReservationSpan(
     roundedStart: !continuesFromPast,
     roundedEnd: !continuesToFuture,
   };
+}
+
+/**
+ * Banda gris continua estilo Lodgify: paralelogramo con diagonal
+ * inf. izq. → sup. der. en primer/último día, alineado al grid.
+ */
+export function computeOccupancyBandClipPath(
+  reservation: CalendarReservationDto,
+  rangeStartKey: string,
+  dayKeys: readonly string[],
+  allReservations: CalendarReservationDto[],
+  rowHeight: number = CALENDAR_ROW_HEIGHT,
+): string | null {
+  const span = computeReservationSpan(reservation, rangeStartKey, dayKeys);
+  if (!span) return null;
+
+  const W = CALENDAR_DAY_WIDTH;
+  const H = rowHeight;
+  const checkInKey = reservation.checkIn;
+  const checkOutKey = reservation.checkOut;
+  const rangeEndKey = dayKeys[dayKeys.length - 1];
+  const continuesFromPast = checkInKey < rangeStartKey;
+  const continuesToFuture = checkOutKey > addDaysToKey(rangeEndKey, 1);
+
+  const startCol = span.startCol;
+  const endCol = startCol + span.spanCols;
+
+  const hasTurnoverOnCheckout =
+    span.roundedEnd &&
+    allReservations.some(
+      (r) =>
+        r.id !== reservation.id &&
+        r.status !== "CANCELLED" &&
+        r.checkIn === checkOutKey,
+    );
+  const hasTurnoverOnCheckin =
+    span.roundedStart &&
+    allReservations.some(
+      (r) =>
+        r.id !== reservation.id &&
+        r.status !== "CANCELLED" &&
+        r.checkOut === checkInKey,
+    );
+
+  const xBlStart = startCol * W;
+  const xBlEnd = endCol * W;
+  let xTrEnd = endCol * W + W;
+  let xTrStart = startCol * W + W;
+
+  if (continuesFromPast) {
+    xTrStart = xBlStart;
+    const xRight = endCol * W;
+    return `polygon(${xBlStart}px ${H}px, ${xRight}px ${H}px, ${xRight}px 0px, ${xTrStart}px 0px)`;
+  }
+
+  if (continuesToFuture) {
+    const xRight = endCol * W;
+    return `polygon(${xBlStart}px ${H}px, ${xRight}px ${H}px, ${xRight}px 0px, ${xTrStart}px 0px)`;
+  }
+
+  if (hasTurnoverOnCheckout) {
+    xTrEnd = endCol * W + CHECKOUT_BAR_END;
+  }
+  if (hasTurnoverOnCheckin) {
+    xTrStart = startCol * W + CHECKIN_BAR_START;
+  }
+
+  return `polygon(${xBlStart}px ${H}px, ${xBlEnd}px ${H}px, ${xTrEnd}px 0px, ${xTrStart}px 0px)`;
 }
 
 export function groupReservationsByProperty(
