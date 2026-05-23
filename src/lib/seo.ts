@@ -4,7 +4,7 @@ import { BRAND, SEO_KEYWORDS } from "@/lib/brand";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://pragma-pms.vercel.app";
+  "https://pragmapms.com";
 
 export function getSiteUrl(): string {
   return siteUrl;
@@ -22,7 +22,13 @@ export const defaultMetadata: Metadata = {
   authors: [{ name: BRAND.name }],
   creator: BRAND.name,
   icons: {
-    icon: [{ url: BRAND_ASSETS.favicon, type: "image/x-icon" }],
+    icon: [
+      { url: BRAND_ASSETS.favicon, sizes: "any" },
+      { url: BRAND_ASSETS.favicon32, sizes: "32x32", type: "image/png" },
+      { url: BRAND_ASSETS.favicon16, sizes: "16x16", type: "image/png" },
+      { url: BRAND_ASSETS.icon192, sizes: "192x192", type: "image/png" },
+      { url: BRAND_ASSETS.icon512, sizes: "512x512", type: "image/png" },
+    ],
     apple: [
       { url: BRAND_ASSETS.appleTouch, sizes: "180x180", type: "image/png" },
     ],

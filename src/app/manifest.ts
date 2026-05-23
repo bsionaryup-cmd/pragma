@@ -13,7 +13,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: BRAND.colors.darkNavy,
     icons: [
       {
-        src: BRAND_ASSETS.manifestIcons.icon512,
+        src: BRAND_ASSETS.favicon,
+        sizes: "48x48",
+        type: "image/x-icon",
+        purpose: "any",
+      },
+      {
+        src: BRAND_ASSETS.icon512,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
@@ -25,7 +31,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
       {
-        src: BRAND_ASSETS.manifestIcons.icon192,
+        src: BRAND_ASSETS.icon192,
         sizes: "192x192",
         type: "image/png",
         purpose: "any",

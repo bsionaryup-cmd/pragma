@@ -87,6 +87,12 @@ async function main() {
   await fs.writeFile(path.join(brandingDir, "favicon.ico"), faviconIco);
   console.log("wrote", path.relative(root, path.join(brandingDir, "favicon.ico")));
 
+  await fs.copyFile(
+    path.join(brandingDir, "favicon.ico"),
+    path.join(root, "src", "app", "favicon.ico"),
+  );
+  console.log("wrote", "src/app/favicon.ico");
+
   await writePng(
     await renderFaviconIcon(faviconMarkBuf, 32, { transparent: true }),
     path.join(root, "src", "app", "icon.png"),
@@ -97,6 +103,19 @@ async function main() {
     path.join(root, "src", "app", "apple-icon.png"),
   );
   console.log("wrote", "src/app/apple-icon.png");
+
+  const publicRootIcons = [
+    ["apple-touch-icon.png", path.join(brandingDir, "apple-touch-icon.png")],
+    ["apple-touch-icon-precomposed.png", path.join(brandingDir, "apple-touch-icon.png")],
+    ["icon-192.png", path.join(manifestIconsDir, "icon-192.png")],
+    ["icon-512.png", path.join(manifestIconsDir, "icon-512.png")],
+    ["favicon-32x32.png", path.join(manifestIconsDir, "icon-32.png")],
+  ];
+
+  for (const [name, source] of publicRootIcons) {
+    await fs.copyFile(source, path.join(root, "public", name));
+    console.log("wrote", path.join("public", name));
+  }
 
   console.log("Favicon + install app icons generated from logo-p-mark.png");
 }
