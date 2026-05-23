@@ -36,7 +36,7 @@ function dateLabel(row: PanelReservationRow, tab: PanelTab) {
 
 function timeLabel(row: PanelReservationRow, tab: PanelTab) {
   if (tab === "current") return null;
-  if (tab === "departures") return row.property.checkOutTime ?? "11:00";
+  if (tab === "departures") return row.property.checkOutTime ?? "13:00";
   return row.property.checkInTime ?? "15:00";
 }
 

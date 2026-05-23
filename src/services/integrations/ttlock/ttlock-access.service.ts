@@ -50,7 +50,7 @@ export function resolveAccessWindow(input: {
   const checkInKey = prismaDateToKey(input.checkIn);
   const checkOutKey = prismaDateToKey(input.checkOut);
   const inTime = parseTime(input.checkInTime, "15:00");
-  const outTime = parseTime(input.checkOutTime, "11:00");
+  const outTime = parseTime(input.checkOutTime, "13:00");
 
   const validFrom = localColombiaDateTime(checkInKey, inTime.hours, inTime.minutes);
   const validTo = localColombiaDateTime(checkOutKey, outTime.hours, outTime.minutes);

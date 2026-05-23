@@ -163,7 +163,7 @@ export function PropertyDetailPanel({
           <DetailRow label="Dirección" value={property.address} />
           <DetailRow
             label="Horarios"
-            value={`Check-in ${property.checkInTime ?? "15:00"} · Check-out ${property.checkOutTime ?? "11:00"}`}
+            value={`Check-in ${property.checkInTime ?? "15:00"} · Check-out ${property.checkOutTime ?? "13:00"}`}
           />
           <DetailRow
             label="Tarifas"

@@ -1,5 +1,4 @@
 import { ReservationStatus, type Reservation } from "@prisma/client";
-import { getPublicAppUrl } from "@/lib/app-url";
 import { prismaDateToKey, startOfTodayUtc } from "@/lib/dates";
 import { platformLabels, reservationStatusLabels } from "@/lib/labels";
 import { db } from "@/lib/db";
@@ -222,11 +221,13 @@ export async function buildPropertyExportIcalByPropertyId(
   );
 }
 
+const ICAL_EXPORT_PUBLIC_BASE_URL = "https://pragmapms.com";
+
 export function buildIcalExportUrl(
   propertyId: string,
   exportToken: string,
   baseUrl?: string,
 ): string {
-  const base = (baseUrl ?? getPublicAppUrl()).replace(/\/$/, "");
+  const base = (baseUrl ?? ICAL_EXPORT_PUBLIC_BASE_URL).replace(/\/$/, "");
   return `${base}/api/ical/${encodeURIComponent(propertyId)}.ics?token=${encodeURIComponent(exportToken)}`;
 }

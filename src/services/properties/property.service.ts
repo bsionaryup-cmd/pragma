@@ -400,7 +400,7 @@ function normalizeFormData(data: PropertyFormValues) {
     beds: data.beds,
     bathrooms: data.bathrooms,
     checkInTime: normalizeTime(data.checkInTime, "15:00"),
-    checkOutTime: normalizeTime(data.checkOutTime, "11:00"),
+    checkOutTime: normalizeTime(data.checkOutTime, "13:00"),
     accessCode: data.accessCode?.trim() || null,
     accessInstructions: data.accessInstructions?.trim() || null,
     wifiName: data.wifiName?.trim() || null,
@@ -473,7 +473,7 @@ export async function createPropertyFromAirbnbImport(
       ...data,
       status: PropertyStatus.ACTIVE,
       checkInTime: "15:00",
-      checkOutTime: "11:00",
+      checkOutTime: "13:00",
     },
   });
 
