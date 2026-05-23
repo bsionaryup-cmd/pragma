@@ -3,14 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
-
-async function requireIntegrationsManageUnlocked() {
-  const user = await requirePermission("integrations:manage");
-  await assertBillingUnlocked();
-  return user;
-}
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { runPriceLabsSyncPipeline } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
 import { runWithPriceLabsSyncLock } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
+import { runWithPriceLabsOrganization } from "@/services/integrations/pricelabs/pricelabs-org-context";
 import {
   checkConnection,
   fetchDynamicPrices,
@@ -22,6 +18,20 @@ import {
   syncSingleListing,
 } from "@/services/integrations/pricelabs.service";
 
+async function requireIntegrationsManageUnlocked() {
+  const user = await requirePermission("integrations:manage");
+  await assertBillingUnlocked();
+  return user;
+}
+
+async function withPriceLabsOrg<T>(fn: () => Promise<T>): Promise<T> {
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    throw new Error("Organización no disponible para integración PriceLabs");
+  }
+  return runWithPriceLabsOrganization(scope.organizationId, fn);
+}
+
 function revalidatePriceLabs() {
   revalidatePath("/integrations");
   revalidatePath("/integrations/pricelabs");
@@ -31,24 +41,38 @@ function revalidatePriceLabs() {
 
 export async function savePriceLabsApiKeyAction(apiKey: string) {
   const user = await requireIntegrationsManageUnlocked();
-  const result = await savePriceLabsApiKeyFromPanel({
-    configuredById: user.dbUserId,
-    apiKey,
-  });
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    return { ok: false, message: "Organización no disponible" };
+  }
+  const result = await withPriceLabsOrg(() =>
+    savePriceLabsApiKeyFromPanel({
+      configuredById: user.dbUserId,
+      organizationId: scope.organizationId!,
+      apiKey,
+    }),
+  );
   revalidatePriceLabs();
   return result;
 }
 
 export async function revokePriceLabsApiKeyAction() {
   await requireIntegrationsManageUnlocked();
-  const result = await revokePriceLabsApiKeyFromPanel();
+  const result = await withPriceLabsOrg(() => revokePriceLabsApiKeyFromPanel());
   revalidatePriceLabs();
   return result;
 }
 
+/** Alias for disconnect in UX */
+export async function disconnectPriceLabsAction() {
+  return revokePriceLabsApiKeyAction();
+}
+
 export async function syncPriceLabsOverridesAction() {
   await requireIntegrationsManageUnlocked();
-  const wrapped = await runWithPriceLabsSyncLock(() => syncPriceLabsOverrides());
+  const wrapped = await withPriceLabsOrg(() =>
+    runWithPriceLabsSyncLock(() => syncPriceLabsOverrides()),
+  );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
   return wrapped.value;
@@ -56,23 +80,32 @@ export async function syncPriceLabsOverridesAction() {
 
 export async function confirmPriceLabsSetupAction() {
   const user = await requireIntegrationsManageUnlocked();
-  const result = await markPriceLabsSetupFromPanel({
-    configuredById: user.dbUserId,
-  });
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    return { ok: false, message: "Organización no disponible" };
+  }
+  const result = await withPriceLabsOrg(() =>
+    markPriceLabsSetupFromPanel({
+      configuredById: user.dbUserId,
+      organizationId: scope.organizationId!,
+    }),
+  );
   revalidatePriceLabs();
   return result;
 }
 
 export async function testPriceLabsConnectionAction() {
   await requireIntegrationsManageUnlocked();
-  const result = await checkConnection();
+  const result = await withPriceLabsOrg(() => checkConnection());
   revalidatePriceLabs();
   return result;
 }
 
 export async function syncPriceLabsListingsAction() {
   await requireIntegrationsManageUnlocked();
-  const wrapped = await runWithPriceLabsSyncLock(() => syncListings());
+  const wrapped = await withPriceLabsOrg(() =>
+    runWithPriceLabsSyncLock(() => syncListings()),
+  );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
   return wrapped.value;
@@ -80,7 +113,9 @@ export async function syncPriceLabsListingsAction() {
 
 export async function fetchPriceLabsPricesAction() {
   await requireIntegrationsManageUnlocked();
-  const wrapped = await runWithPriceLabsSyncLock(() => fetchDynamicPrices());
+  const wrapped = await withPriceLabsOrg(() =>
+    runWithPriceLabsSyncLock(() => fetchDynamicPrices()),
+  );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
   return wrapped.value;
@@ -88,14 +123,16 @@ export async function fetchPriceLabsPricesAction() {
 
 export async function runPriceLabsFullSyncAction() {
   await requireIntegrationsManageUnlocked();
-  const result = await runPriceLabsSyncPipeline({ source: "manual" });
+  const result = await withPriceLabsOrg(() =>
+    runPriceLabsSyncPipeline({ source: "manual" }),
+  );
   revalidatePriceLabs();
   return result;
 }
 
 export async function syncSinglePriceLabsListingAction(propertyId: string) {
   await requireIntegrationsManageUnlocked();
-  const result = await syncSingleListing(propertyId);
+  const result = await withPriceLabsOrg(() => syncSingleListing(propertyId));
   revalidatePriceLabs();
   return result;
 }

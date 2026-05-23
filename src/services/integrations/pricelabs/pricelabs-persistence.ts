@@ -1,9 +1,9 @@
 import {
-  PriceLabsIntegrationStatus,
+  OrganizationIntegrationProvider,
+  OrganizationIntegrationStatus,
   Prisma,
   PropertyPriceLabsSyncStatus,
   PropertyStatus,
-  type PriceLabsIntegration,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
@@ -11,88 +11,58 @@ import {
   propertyWhere,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
-  decryptTTLockSecret,
-  encryptTTLockSecret,
-} from "@/services/integrations/ttlock/ttlock-crypto";
+  disconnectOrganizationIntegration,
+  ensureOrganizationIntegration,
+  getOrganizationIntegration,
+  isOrganizationIntegrationSchemaReady,
+  resolveOrganizationIntegrationApiKey,
+  resolveStoredIntegrationSecret,
+  saveOrganizationIntegrationApiKey,
+  saveOrganizationNeighborhoodSnapshot,
+  updateOrganizationIntegrationState,
+} from "@/services/integrations/organization-integration.service";
 import {
   isPriceLabsSchemaDriftError,
   wrapPriceLabsSchemaError,
 } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import { requirePriceLabsOrganizationId } from "@/services/integrations/pricelabs/pricelabs-org-context";
 import {
-  isPriceLabsSchemaReady,
   isPropertyPriceLabsSchemaReady,
 } from "@/services/integrations/pricelabs/pricelabs-schema";
 
-const SINGLETON_ID = "singleton";
-
-export function resolveStoredSecret(
-  encrypted: string | null | undefined,
-): string | null {
-  if (!encrypted?.trim()) return null;
-  try {
-    return decryptTTLockSecret(encrypted);
-  } catch (error) {
-    console.error(
-      "[pricelabs] No se pudo descifrar credencial almacenada:",
-      error instanceof Error ? error.message : error,
-    );
-    return null;
-  }
-}
+export { resolveStoredIntegrationSecret as resolveStoredSecret } from "@/services/integrations/organization-integration.service";
 
 /** @deprecated Use resolveStoredSecret */
 export function resolveStoredUserToken(
   encrypted: string | null | undefined,
 ): string | null {
-  return resolveStoredSecret(encrypted);
+  return resolveStoredIntegrationSecret(encrypted);
 }
 
-const PRICELABS_INTEGRATION_READ_SELECT = {
-  id: true,
-  status: true,
-  integrationTokenEncrypted: true,
-  integrationName: true,
-  userTokenEncrypted: true,
-  syncInProgressAt: true,
-  lastHealthCheckAt: true,
-  lastListingsSyncAt: true,
-  lastPricesSyncAt: true,
-  lastError: true,
-  configuredById: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
+const PRICELABS = OrganizationIntegrationProvider.PRICELABS;
 
-export async function getPriceLabsIntegrationSafe(): Promise<PriceLabsIntegration | null> {
-  if (!(await isPriceLabsSchemaReady())) return null;
-  try {
-    return (await db.priceLabsIntegration.findUnique({
-      where: { id: SINGLETON_ID },
-      select: PRICELABS_INTEGRATION_READ_SELECT,
-    })) as PriceLabsIntegration | null;
-  } catch (error) {
-    if (isPriceLabsSchemaDriftError(error)) return null;
-    throw error;
-  }
+export async function getPriceLabsOrgIntegration(organizationId: string) {
+  return getOrganizationIntegration(organizationId, PRICELABS);
 }
 
-export async function ensurePriceLabsIntegration(): Promise<PriceLabsIntegration> {
-  if (!(await isPriceLabsSchemaReady())) {
-    throw wrapPriceLabsSchemaError({ code: "P2021" });
-  }
-  try {
-    return await db.priceLabsIntegration.upsert({
-      where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID },
-      update: {},
-    });
-  } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
-  }
+/** @deprecated singleton — use getPriceLabsOrgIntegration */
+export async function getPriceLabsIntegrationSafe() {
+  const organizationId = requirePriceLabsOrganizationId();
+  return getPriceLabsOrgIntegration(organizationId);
 }
 
-export async function getPriceLabsIntegration(): Promise<PriceLabsIntegration | null> {
+export async function ensurePriceLabsIntegration(organizationId?: string) {
+  const orgId = organizationId ?? requirePriceLabsOrganizationId();
+  return ensureOrganizationIntegration({
+    organizationId: orgId,
+    provider: PRICELABS,
+  });
+}
+
+/** @deprecated */
+export async function getPriceLabsIntegration() {
   return getPriceLabsIntegrationSafe();
 }
 
@@ -100,124 +70,54 @@ export async function resolvePriceLabsTenantScope(
   scope?: TenantDataScope,
 ): Promise<TenantDataScope> {
   if (scope) return scope;
-
-  const row = await getPriceLabsIntegrationSafe();
-  if (!row?.configuredById) {
-    throw new Error("PriceLabs no configurado");
-  }
-
-  const user = await db.user.findUnique({
-    where: { id: row.configuredById },
-    select: { id: true, organizationId: true },
-  });
-
-  if (!user) {
-    throw new Error("Configurador PriceLabs no encontrado");
-  }
-
-  return { userId: user.id, organizationId: user.organizationId };
+  return requireTenantDataScope();
 }
-
-const MIN_API_KEY_LENGTH = 8;
 
 export async function savePriceLabsApiKeyEncrypted(input: {
   configuredById: string;
+  organizationId: string;
   apiKey: string;
 }): Promise<{ ok: boolean; message: string }> {
-  const trimmed = input.apiKey.trim();
-  if (trimmed.length < MIN_API_KEY_LENGTH) {
-    return {
-      ok: false,
-      message: "La API key debe tener al menos 8 caracteres",
-    };
-  }
-
-  const encrypted = encryptTTLockSecret(trimmed);
-  if (!encrypted) {
-    return {
-      ok: false,
-      message:
-        "No se pudo cifrar la API key. Verifica TTLOCK_ENCRYPTION_KEY en el servidor.",
-    };
-  }
-
-  if (!(await isPriceLabsSchemaReady())) {
-    return {
-      ok: false,
-      message:
-        "Tablas PriceLabs no disponibles. Ejecuta npm run db:migrate y vuelve a intentar.",
-    };
-  }
-
-  try {
-    await db.priceLabsIntegration.upsert({
-      where: { id: SINGLETON_ID },
-      create: {
-        id: SINGLETON_ID,
-        integrationTokenEncrypted: encrypted,
-        configuredById: input.configuredById,
-        status: PriceLabsIntegrationStatus.PENDING_SETUP,
-        lastError: null,
-      },
-      update: {
-        integrationTokenEncrypted: encrypted,
-        configuredById: input.configuredById,
-        lastError: null,
-      },
-    });
-    return { ok: true, message: "API key guardada de forma segura en el servidor" };
-  } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
-  }
+  return saveOrganizationIntegrationApiKey({
+    organizationId: input.organizationId,
+    provider: PRICELABS,
+    configuredById: input.configuredById,
+    apiKey: input.apiKey,
+  });
 }
 
-export async function revokePriceLabsApiKey(): Promise<{ ok: boolean; message: string }> {
-  if (!(await isPriceLabsSchemaReady())) {
-    return { ok: false, message: "Tablas PriceLabs no disponibles" };
-  }
-  try {
-    const row = await getPriceLabsIntegrationSafe();
-    if (!row?.integrationTokenEncrypted) {
-      return { ok: true, message: "No había API key almacenada en base de datos" };
-    }
-    await db.priceLabsIntegration.update({
-      where: { id: SINGLETON_ID },
-      data: {
-        integrationTokenEncrypted: null,
-        status: PriceLabsIntegrationStatus.NOT_CONNECTED,
-        lastError: null,
-      },
-    });
-    return { ok: true, message: "API key revocada del servidor" };
-  } catch (error) {
-    throw wrapPriceLabsSchemaError(error);
-  }
+export async function revokePriceLabsApiKey(
+  organizationId?: string,
+): Promise<{ ok: boolean; message: string }> {
+  const orgId = organizationId ?? requirePriceLabsOrganizationId();
+  return disconnectOrganizationIntegration({
+    organizationId: orgId,
+    provider: PRICELABS,
+  });
 }
 
-/** Marks integration row when credentials exist (env and/or DB). */
 export async function markPriceLabsIntegrationReady(input: {
   configuredById: string;
+  organizationId: string;
 }): Promise<{ ok: boolean; message: string }> {
-  if (!(await isPriceLabsSchemaReady())) {
+  if (!(await isOrganizationIntegrationSchemaReady())) {
     return {
       ok: false,
       message:
-        "Tablas PriceLabs no disponibles. Ejecuta npm run db:migrate y vuelve a intentar.",
+        "Tablas de integración no disponibles. Ejecuta npm run db:migrate:deploy.",
     };
   }
   try {
-    await db.priceLabsIntegration.upsert({
-      where: { id: SINGLETON_ID },
-      create: {
-        id: SINGLETON_ID,
-        configuredById: input.configuredById,
-        status: PriceLabsIntegrationStatus.PENDING_SETUP,
-        lastError: null,
-      },
-      update: {
-        configuredById: input.configuredById,
-        lastError: null,
-      },
+    await ensureOrganizationIntegration({
+      organizationId: input.organizationId,
+      provider: PRICELABS,
+      configuredById: input.configuredById,
+    });
+    await updateOrganizationIntegrationState({
+      organizationId: input.organizationId,
+      provider: PRICELABS,
+      status: OrganizationIntegrationStatus.SYNC_REQUIRED,
+      lastError: null,
     });
     return {
       ok: true,
@@ -230,65 +130,66 @@ export async function markPriceLabsIntegrationReady(input: {
 
 export async function saveNeighborhoodSnapshot(
   snapshot: Record<string, unknown>,
+  organizationId?: string,
 ): Promise<void> {
-  if (!(await isPriceLabsSchemaReady())) return;
-  try {
-    await ensurePriceLabsIntegration();
-    await db.priceLabsIntegration.update({
-      where: { id: SINGLETON_ID },
-      data: {
-        neighborhoodSnapshot: snapshot as Prisma.InputJsonValue,
-      },
-    });
-  } catch (error) {
-    if (isPriceLabsSchemaDriftError(error)) return;
-    throw wrapPriceLabsSchemaError(error);
-  }
+  const orgId = organizationId ?? requirePriceLabsOrganizationId();
+  await saveOrganizationNeighborhoodSnapshot({
+    organizationId: orgId,
+    provider: PRICELABS,
+    snapshot,
+  });
 }
 
-/** @deprecated API key is env-only (PRICELABS_API_KEY) */
+/** @deprecated */
 export async function savePriceLabsUserToken(input: {
   configuredById: string;
   userToken: string;
+  organizationId: string;
 }) {
   void input.userToken;
   const result = await markPriceLabsIntegrationReady({
     configuredById: input.configuredById,
+    organizationId: input.organizationId,
   });
   if (!result.ok) throw new Error(result.message);
-  return ensurePriceLabsIntegration();
+  return ensurePriceLabsIntegration(input.organizationId);
 }
 
 export async function updatePriceLabsIntegrationState(input: {
-  status?: PriceLabsIntegrationStatus;
+  status?: OrganizationIntegrationStatus;
+  isConnected?: boolean;
+  connectedAt?: Date | null;
   lastError?: string | null;
   lastHealthCheckAt?: Date | null;
   lastListingsSyncAt?: Date | null;
   lastPricesSyncAt?: Date | null;
-}): Promise<PriceLabsIntegration | null> {
-  if (!(await isPriceLabsSchemaReady())) return null;
-  try {
-    await ensurePriceLabsIntegration();
-    return await db.priceLabsIntegration.update({
-      where: { id: SINGLETON_ID },
-      data: {
-        ...(input.status !== undefined ? { status: input.status } : {}),
-        ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),
-        ...(input.lastHealthCheckAt !== undefined
-          ? { lastHealthCheckAt: input.lastHealthCheckAt }
-          : {}),
-        ...(input.lastListingsSyncAt !== undefined
-          ? { lastListingsSyncAt: input.lastListingsSyncAt }
-          : {}),
-        ...(input.lastPricesSyncAt !== undefined
-          ? { lastPricesSyncAt: input.lastPricesSyncAt }
-          : {}),
-      },
-    });
-  } catch (error) {
-    if (isPriceLabsSchemaDriftError(error)) return null;
-    throw wrapPriceLabsSchemaError(error);
-  }
+  lastSyncAt?: Date | null;
+  syncInProgressAt?: Date | null;
+  organizationId?: string;
+}) {
+  const orgId = input.organizationId ?? requirePriceLabsOrganizationId();
+  return updateOrganizationIntegrationState({
+    organizationId: orgId,
+    provider: PRICELABS,
+    status: input.status,
+    isConnected: input.isConnected,
+    connectedAt: input.connectedAt,
+    lastError: input.lastError,
+    lastHealthCheckAt: input.lastHealthCheckAt,
+    lastListingsSyncAt: input.lastListingsSyncAt,
+    lastPricesSyncAt: input.lastPricesSyncAt,
+    lastSyncAt: input.lastSyncAt,
+    syncInProgressAt: input.syncInProgressAt,
+  });
+}
+
+export async function resolvePriceLabsApiKeyForOrg(
+  organizationId: string,
+): Promise<string | null> {
+  return resolveOrganizationIntegrationApiKey({
+    organizationId,
+    provider: PRICELABS,
+  });
 }
 
 const propertyBaseSelect = {

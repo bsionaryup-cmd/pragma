@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
+import { isOrganizationIntegrationSchemaReady } from "@/services/integrations/organization-integration.service";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 
-/** Probes whether PriceLabs tables exist (no throw on missing schema). */
+/** Probes whether PriceLabs / org integration tables exist. */
 export async function isPriceLabsSchemaReady(): Promise<boolean> {
+  if (await isOrganizationIntegrationSchemaReady()) return true;
   try {
-    await db.priceLabsIntegration.findFirst({
-      select: { id: true },
-    });
+    await db.priceLabsIntegration.findFirst({ select: { id: true } });
     return true;
   } catch (error) {
     if (isPriceLabsSchemaDriftError(error)) return false;

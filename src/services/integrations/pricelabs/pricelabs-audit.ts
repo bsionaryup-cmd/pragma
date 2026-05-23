@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import { getPriceLabsOrganizationId } from "@/services/integrations/pricelabs/pricelabs-org-context";
 
 export type PriceLabsAuditResult = "success" | "failure" | "skipped";
 
@@ -17,10 +18,14 @@ export async function appendPriceLabsSyncLog(input: {
   message?: string | null;
   source?: PriceLabsAuditSource;
   meta?: Record<string, unknown> | null;
+  organizationId?: string | null;
 }): Promise<void> {
+  const organizationId =
+    input.organizationId ?? getPriceLabsOrganizationId() ?? null;
   try {
     await db.priceLabsSyncLog.create({
       data: {
+        organizationId,
         action: input.action,
         result: input.result,
         message: input.message ?? null,
@@ -36,9 +41,14 @@ export async function appendPriceLabsSyncLog(input: {
   }
 }
 
-export async function listPriceLabsSyncLogs(limit = 20) {
+export async function listPriceLabsSyncLogs(
+  limit = 20,
+  organizationId?: string | null,
+) {
+  const orgId = organizationId ?? getPriceLabsOrganizationId() ?? undefined;
   try {
     return await db.priceLabsSyncLog.findMany({
+      where: orgId ? { organizationId: orgId } : undefined,
       orderBy: { createdAt: "desc" },
       take: limit,
       select: {

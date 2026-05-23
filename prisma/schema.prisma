@@ -30,6 +30,7 @@ model Organization {
   ttlockIntegration TTLockIntegration?
   properties     Property[]
   impersonationSessions PlatformImpersonationSession[]
+  organizationIntegrations OrganizationIntegration[]
 
   @@map("organizations")
 }
@@ -71,6 +72,7 @@ model User {
   otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
   externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
   priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
+  organizationIntegrations OrganizationIntegration[] @relation("OrgIntegrationConfigurator")
   wompiIntegrations      WompiIntegration[]       @relation("WompiConfigurator")
   platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
   platformAuditLogs      PlatformAuditLog[]
@@ -544,6 +546,50 @@ model OtherIncome {
   @@map("other_incomes")
 }
 
+// ─── Organization integrations (multi-tenant) ─────────────────
+
+enum OrganizationIntegrationProvider {
+  PRICELABS
+}
+
+enum OrganizationIntegrationStatus {
+  NOT_CONNECTED
+  CONNECTED
+  INVALID_KEY
+  SYNC_REQUIRED
+  SYNC_FAILED
+  DEGRADED
+}
+
+model OrganizationIntegration {
+  id                   String                          @id @default(cuid())
+  organizationId       String
+  provider             OrganizationIntegrationProvider
+  apiKeyEncrypted      String?
+  isConnected          Boolean                         @default(false)
+  connectedAt          DateTime?
+  lastSyncAt           DateTime?
+  lastListingsSyncAt   DateTime?
+  lastPricesSyncAt     DateTime?
+  lastHealthCheckAt    DateTime?
+  syncInProgressAt     DateTime?
+  status               OrganizationIntegrationStatus   @default(NOT_CONNECTED)
+  lastError            String?
+  metadata             Json?
+  neighborhoodSnapshot Json?
+  configuredById       String?
+  createdAt            DateTime                        @default(now())
+  updatedAt            DateTime                        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  configuredBy User?        @relation("OrgIntegrationConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, provider])
+  @@index([organizationId])
+  @@index([provider, status])
+  @@map("organization_integrations")
+}
+
 // ─── PriceLabs dynamic pricing ─────────────────────────────────
 
 enum PriceLabsIntegrationStatus {
@@ -576,15 +622,17 @@ model PriceLabsIntegration {
 }
 
 model PriceLabsSyncLog {
-  id        String   @id @default(cuid())
-  action    String
-  result    String
-  message   String?
-  source    String   @default("system")
-  meta      Json?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String?
+  action         String
+  result         String
+  message        String?
+  source         String   @default("system")
+  meta           Json?
+  createdAt      DateTime @default(now())
 
   @@index([createdAt])
+  @@index([organizationId, createdAt(sort: Desc)])
   @@map("pricelabs_sync_logs")
 }
 

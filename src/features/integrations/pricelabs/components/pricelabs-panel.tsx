@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { BackLink } from "@/components/ui/back-link";
 import {
-  confirmPriceLabsSetupAction,
+  disconnectPriceLabsAction,
   fetchPriceLabsPricesAction,
   runPriceLabsFullSyncAction,
   syncPriceLabsListingsAction,
@@ -57,10 +57,20 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
       </Badge>
     );
   }
-  if (!overview.config.configured) {
+
+  const status = overview.integration.status;
+
+  if (status === "NOT_CONNECTED" || !overview.config.configured) {
     return (
       <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
-        En espera de API key
+        No conectado
+      </Badge>
+    );
+  }
+  if (status === "INVALID_KEY") {
+    return (
+      <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
+        API key inválida
       </Badge>
     );
   }
@@ -71,9 +81,23 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
       </Badge>
     );
   }
-  if (overview.integration.status === "CONNECTED") {
+  if (status === "CONNECTED") {
     return (
       <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>
+    );
+  }
+  if (status === "SYNC_REQUIRED") {
+    return (
+      <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
+        Sync requerido
+      </Badge>
+    );
+  }
+  if (status === "SYNC_FAILED") {
+    return (
+      <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
+        Sync fallido
+      </Badge>
     );
   }
   return <Badge variant="outline">{overview.metrics.statusLabel}</Badge>;
@@ -125,8 +149,8 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
               PriceLabs
             </h1>
             <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Customer API oficial — listings, precios dinámicos, overrides y
-              datos de mercado.
+              Conecta tu cuenta PriceLabs para sincronizar listings y precios
+              dinámicos con tus propiedades en PRAGMA.
             </p>
           </div>
           <HealthBadge overview={overview} />
@@ -230,7 +254,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                 onClick={() => run(testPriceLabsConnectionAction)}
               >
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                Probar conexión
+                Validar conexión
               </Button>
               <Button
                 type="button"
@@ -239,7 +263,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                 disabled={pending || !canSync}
                 onClick={() => run(syncPriceLabsListingsAction)}
               >
-                Pull listings
+                Sync listings
               </Button>
               <Button
                 type="button"
@@ -248,7 +272,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                 disabled={pending || !canSync}
                 onClick={() => run(fetchPriceLabsPricesAction)}
               >
-                Importar precios
+                Sync precios
               </Button>
               <Button
                 type="button"
@@ -259,15 +283,19 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
               >
                 Pull overrides
               </Button>
-              {canManage && config.configured && database.ready ? (
+              {canManage && config.configured ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   disabled={pending}
-                  onClick={() => run(confirmPriceLabsSetupAction)}
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => {
+                    if (!window.confirm("¿Desconectar PriceLabs de esta organización?")) return;
+                    run(disconnectPriceLabsAction);
+                  }}
                 >
-                  Registrar integración
+                  Desconectar
                 </Button>
               ) : null}
               <Button

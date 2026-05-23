@@ -1,8 +1,11 @@
+import { OrganizationIntegrationProvider } from "@prisma/client";
 import { getPriceLabsApiKeyFromEnv } from "@/lib/integrations/pricelabs-config";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
-  getPriceLabsIntegrationSafe,
-  resolveStoredSecret,
-} from "@/services/integrations/pricelabs/pricelabs-persistence";
+  getOrganizationIntegration,
+  resolveStoredIntegrationSecret,
+} from "@/services/integrations/organization-integration.service";
+import { getPriceLabsOrganizationId } from "@/services/integrations/pricelabs/pricelabs-org-context";
 
 export type PriceLabsCredentialSource = "environment" | "database" | "both" | "none";
 
@@ -18,9 +21,7 @@ export type PriceLabsCredentialSnapshot = {
   status: PriceLabsCredentialStatus;
   hasStoredKey: boolean;
   hasEnvKey: boolean;
-  /** Ciphertext exists but current server keys cannot decrypt it */
   decryptFailed: boolean;
-  /** Last 4 chars only — safe for UI */
   keyHint: string | null;
 };
 
@@ -30,20 +31,43 @@ function buildKeyHint(key: string): string {
   return `••••${trimmed.slice(-4)}`;
 }
 
-/** Server-only: DB-stored key wins over env. */
+async function resolveOrganizationId(): Promise<string> {
+  const fromContext = getPriceLabsOrganizationId();
+  if (fromContext) return fromContext;
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    throw new Error("Organización no disponible");
+  }
+  return scope.organizationId;
+}
+
+/** Server-only: org-stored key wins over env (dev fallback only). */
 export async function resolvePriceLabsApiKey(): Promise<string | null> {
-  const row = await getPriceLabsIntegrationSafe();
-  const stored = resolveStoredSecret(row?.integrationTokenEncrypted);
+  const organizationId = await resolveOrganizationId();
+  const row = await getOrganizationIntegration(
+    organizationId,
+    OrganizationIntegrationProvider.PRICELABS,
+  );
+  const stored = resolveStoredIntegrationSecret(row?.apiKeyEncrypted);
   if (stored) return stored;
+
+  if (process.env.NODE_ENV === "production") return null;
   return getPriceLabsApiKeyFromEnv();
 }
 
-export async function getPriceLabsCredentialSnapshot(): Promise<PriceLabsCredentialSnapshot> {
-  const row = await getPriceLabsIntegrationSafe();
-  const encrypted = row?.integrationTokenEncrypted;
+export async function getPriceLabsCredentialSnapshot(
+  organizationId?: string,
+): Promise<PriceLabsCredentialSnapshot> {
+  const orgId = organizationId ?? (await resolveOrganizationId());
+  const row = await getOrganizationIntegration(
+    orgId,
+    OrganizationIntegrationProvider.PRICELABS,
+  );
+  const encrypted = row?.apiKeyEncrypted;
   const hasStoredKey = Boolean(encrypted?.trim());
-  const stored = resolveStoredSecret(encrypted);
-  const env = getPriceLabsApiKeyFromEnv();
+  const stored = resolveStoredIntegrationSecret(encrypted);
+  const env =
+    process.env.NODE_ENV === "production" ? null : getPriceLabsApiKeyFromEnv();
   const decryptFailed =
     hasStoredKey && stored === null && encrypted!.startsWith("enc:v1:");
   const hasEnvKey = Boolean(env);
@@ -78,7 +102,9 @@ export async function getPriceLabsCredentialSnapshot(): Promise<PriceLabsCredent
   };
 }
 
-export async function isPriceLabsConfiguredAsync(): Promise<boolean> {
-  const snapshot = await getPriceLabsCredentialSnapshot();
+export async function isPriceLabsConfiguredAsync(
+  organizationId?: string,
+): Promise<boolean> {
+  const snapshot = await getPriceLabsCredentialSnapshot(organizationId);
   return snapshot.configured;
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { runPriceLabsSyncPipeline } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
-import { isPriceLabsConfiguredAsync } from "@/services/integrations/pricelabs/pricelabs-credentials";
+import { runPriceLabsCronSyncForAllOrganizations } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,23 +12,12 @@ function isAuthorized(request: Request): boolean {
   return url.searchParams.get("secret") === secret;
 }
 
-/** Scheduled PriceLabs sync (Customer API). */
+/** Scheduled PriceLabs sync (Customer API) — per organization. */
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!(await isPriceLabsConfiguredAsync())) {
-    return NextResponse.json({
-      ok: false,
-      message: "API key PriceLabs no configurada",
-    });
-  }
-
-  const result = await runPriceLabsSyncPipeline({
-    source: "cron",
-    skipConnectionTest: true,
-  });
-
+  const result = await runPriceLabsCronSyncForAllOrganizations();
   return NextResponse.json(result);
 }

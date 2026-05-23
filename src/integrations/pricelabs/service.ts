@@ -1,4 +1,4 @@
-import { PriceLabsIntegrationStatus, PropertyPriceLabsSyncStatus } from "@prisma/client";
+import { OrganizationIntegrationStatus, PropertyPriceLabsSyncStatus } from "@prisma/client";
 import { assertPriceLabsLiveOrThrow, PriceLabsConfigError } from "@/integrations/pricelabs/auth";
 import { fetchPriceLabsListings } from "@/integrations/pricelabs/listings";
 import { fetchPriceLabsNeighborhoodData } from "@/integrations/pricelabs/neighborhood";
@@ -31,7 +31,7 @@ import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/p
 import type { PriceLabsCredentialStatus } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import {
   getPropertyForPriceLabs,
-  getPriceLabsIntegrationSafe,
+  getPriceLabsOrgIntegration,
   listActivePropertiesForPriceLabs,
   markPropertyPriceLabsError,
   markPriceLabsIntegrationReady,
@@ -48,7 +48,6 @@ import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   assertPropertyInScope,
-  integrationVisibleToOrganization,
 } from "@/lib/platform/tenant-access";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import { propertyWhere } from "@/lib/platform/tenant-data-scope";
@@ -119,7 +118,7 @@ export type PriceLabsConnectionCheck = {
 
 export type PriceLabsOverviewDto = {
   integration: {
-    status: PriceLabsIntegrationStatus;
+    status: OrganizationIntegrationStatus;
     lastError: string | null;
     lastHealthCheckAt: string | null;
     lastListingsSyncAt: string | null;
@@ -183,26 +182,29 @@ export type PriceLabsOverviewDto = {
   canManage: boolean;
 };
 
-const statusLabels: Record<PriceLabsIntegrationStatus, string> = {
+const statusLabels: Record<OrganizationIntegrationStatus, string> = {
   NOT_CONNECTED: "No conectado",
-  PENDING_SETUP: "Configuración pendiente",
   CONNECTED: "Conectado",
-  SYNC_ERROR: "Error de sincronización",
+  INVALID_KEY: "API key inválida",
+  SYNC_REQUIRED: "Sync requerido",
+  SYNC_FAILED: "Sync fallido",
   DEGRADED: "Degradado",
 };
 
 export async function savePriceLabsApiKeyFromPanel(input: {
   configuredById: string;
+  organizationId: string;
   apiKey: string;
 }): Promise<{ ok: boolean; message: string }> {
   const saved = await savePriceLabsApiKeyEncrypted({
     configuredById: input.configuredById,
+    organizationId: input.organizationId,
     apiKey: input.apiKey,
   });
   if (!saved.ok) return saved;
 
   await updatePriceLabsIntegrationState({
-    status: PriceLabsIntegrationStatus.PENDING_SETUP,
+    status: OrganizationIntegrationStatus.SYNC_REQUIRED,
     lastError: null,
   });
   await appendPriceLabsSyncLog({
@@ -331,8 +333,9 @@ export async function syncPriceLabsOverrides(): Promise<{
 
 export async function markPriceLabsSetupFromPanel(input: {
   configuredById: string;
+  organizationId: string;
 }): Promise<{ ok: boolean; message: string }> {
-  if (!(await isPriceLabsConfiguredAsync())) {
+  if (!(await isPriceLabsConfiguredAsync(input.organizationId))) {
     return {
       ok: false,
       message: "Guarda la API key de PriceLabs en el panel de integración",
@@ -342,8 +345,8 @@ export async function markPriceLabsSetupFromPanel(input: {
   if (result.ok) {
     await updatePriceLabsIntegrationState({
       status: isPriceLabsLiveApiEnabled()
-        ? PriceLabsIntegrationStatus.PENDING_SETUP
-        : PriceLabsIntegrationStatus.CONNECTED,
+        ? OrganizationIntegrationStatus.SYNC_REQUIRED
+        : OrganizationIntegrationStatus.CONNECTED,
       lastError: null,
     });
   }
@@ -365,7 +368,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
 
   if (!liveApiEnabled) {
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.PENDING_SETUP,
+      status: OrganizationIntegrationStatus.SYNC_REQUIRED,
       lastHealthCheckAt: new Date(),
       lastError: null,
     });
@@ -382,8 +385,13 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
     assertPriceLabsLiveOrThrow();
     const result = await checkPriceLabsReachability();
     if (!result.ok) {
+      const invalidKey =
+        result.status === 401 || result.status === 403;
       await updatePriceLabsIntegrationState({
-        status: PriceLabsIntegrationStatus.SYNC_ERROR,
+        status: invalidKey
+          ? OrganizationIntegrationStatus.INVALID_KEY
+          : OrganizationIntegrationStatus.SYNC_FAILED,
+        isConnected: false,
         lastHealthCheckAt: new Date(),
         lastError: result.message,
       });
@@ -402,7 +410,9 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
     }
 
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.CONNECTED,
+      status: OrganizationIntegrationStatus.CONNECTED,
+      isConnected: true,
+      connectedAt: new Date(),
       lastHealthCheckAt: new Date(),
       lastError: null,
     });
@@ -429,7 +439,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
           ? error.message
           : "Error al verificar PriceLabs";
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.SYNC_ERROR,
+      status: OrganizationIntegrationStatus.SYNC_FAILED,
       lastHealthCheckAt: new Date(),
       lastError: message,
     });
@@ -466,7 +476,7 @@ export async function syncListings(): Promise<
       });
     }
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.PENDING_SETUP,
+      status: OrganizationIntegrationStatus.SYNC_REQUIRED,
       lastListingsSyncAt: new Date(),
       lastError: null,
     });
@@ -490,7 +500,7 @@ export async function syncListings(): Promise<
     const message =
       error instanceof Error ? error.message : "Configuración inválida";
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.SYNC_ERROR,
+      status: OrganizationIntegrationStatus.SYNC_FAILED,
       lastError: message,
     });
     return { ok: false, message, ...empty };
@@ -499,7 +509,7 @@ export async function syncListings(): Promise<
   const api = await fetchPriceLabsListings();
   if (!api.ok) {
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.SYNC_ERROR,
+      status: OrganizationIntegrationStatus.SYNC_FAILED,
       lastListingsSyncAt: new Date(),
       lastError: api.message,
     });
@@ -578,9 +588,12 @@ export async function syncListings(): Promise<
   await updatePriceLabsIntegrationState({
     status:
       summary.failed > 0
-        ? PriceLabsIntegrationStatus.DEGRADED
-        : PriceLabsIntegrationStatus.CONNECTED,
+        ? OrganizationIntegrationStatus.DEGRADED
+        : OrganizationIntegrationStatus.CONNECTED,
+    isConnected: true,
+    connectedAt: summary.failed === 0 ? new Date() : undefined,
     lastListingsSyncAt: new Date(),
+    lastSyncAt: new Date(),
     lastError:
       summary.failed > 0
         ? `${summary.failed} propiedad(es) sin match en PriceLabs`
@@ -679,7 +692,7 @@ export async function fetchDynamicPrices(): Promise<
     const message =
       error instanceof Error ? error.message : "Configuración inválida";
     await updatePriceLabsIntegrationState({
-      status: PriceLabsIntegrationStatus.SYNC_ERROR,
+      status: OrganizationIntegrationStatus.SYNC_FAILED,
       lastError: message,
     });
     return { ok: false, message, ...empty };
@@ -699,7 +712,7 @@ export async function fetchDynamicPrices(): Promise<
 
     if (!api.ok) {
       await updatePriceLabsIntegrationState({
-        status: PriceLabsIntegrationStatus.SYNC_ERROR,
+        status: OrganizationIntegrationStatus.SYNC_FAILED,
         lastPricesSyncAt: new Date(),
         lastError: api.message,
       });
@@ -788,8 +801,8 @@ export async function fetchDynamicPrices(): Promise<
   await updatePriceLabsIntegrationState({
     status:
       empty.failed > 0
-        ? PriceLabsIntegrationStatus.DEGRADED
-        : PriceLabsIntegrationStatus.CONNECTED,
+        ? OrganizationIntegrationStatus.DEGRADED
+        : OrganizationIntegrationStatus.CONNECTED,
     lastPricesSyncAt: new Date(),
     lastError:
       empty.failed > 0
@@ -884,28 +897,22 @@ export async function getPriceLabsOverview(
   canManage: boolean,
 ): Promise<PriceLabsOverviewDto> {
   const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    throw new Error("Organización no disponible");
+  }
+  const organizationId = scope.organizationId;
   const schemaReady = await isPriceLabsSchemaReady();
-  const credentials = await getPriceLabsCredentialSnapshot();
-  const row = schemaReady ? await getPriceLabsIntegrationSafe() : null;
-  const configurator = row?.configuredById
-    ? await db.user.findUnique({
-        where: { id: row.configuredById },
-        select: { organizationId: true },
-      })
+  const credentials = await getPriceLabsCredentialSnapshot(organizationId);
+  const row = schemaReady
+    ? await getPriceLabsOrgIntegration(organizationId)
     : null;
-  const integrationAccessible = integrationVisibleToOrganization(
-    row?.configuredById,
-    configurator?.organizationId,
-    scope.organizationId,
-  );
   const properties = await listActivePropertiesForPriceLabs(scope);
 
   const integrationStatus =
-    integrationAccessible && row?.status
-      ? row.status
-      : credentials.configured && integrationAccessible
-      ? PriceLabsIntegrationStatus.PENDING_SETUP
-      : PriceLabsIntegrationStatus.NOT_CONNECTED;
+    row?.status ??
+    (credentials.configured
+      ? OrganizationIntegrationStatus.SYNC_REQUIRED
+      : OrganizationIntegrationStatus.NOT_CONNECTED);
 
   const syncedCount = properties.filter(
     (p) => p.priceLabs?.syncStatus === PropertyPriceLabsSyncStatus.SYNCED,
@@ -937,9 +944,9 @@ export async function getPriceLabsOverview(
     ? "Setup requerido"
     : !credentials.configured
       ? "En espera de API key"
-      : integrationStatus === PriceLabsIntegrationStatus.CONNECTED
+      : integrationStatus === OrganizationIntegrationStatus.CONNECTED
         ? "Saludable"
-        : integrationStatus === PriceLabsIntegrationStatus.DEGRADED
+        : integrationStatus === OrganizationIntegrationStatus.DEGRADED
           ? "Degradado"
           : statusLabels[integrationStatus];
 
@@ -949,8 +956,8 @@ export async function getPriceLabsOverview(
       ? "En espera de credenciales"
       : statusLabels[integrationStatus];
 
-  const auditRows = await listPriceLabsSyncLogs(15);
-  const syncing = await isPriceLabsSyncInProgress();
+  const auditRows = await listPriceLabsSyncLogs(15, organizationId);
+  const syncing = await isPriceLabsSyncInProgress(organizationId);
   const decryptErrorMessage = credentials.decryptFailed
     ? "La API key guardada no se puede descifrar con las claves actuales del servidor. Vuelve a pegarla en el panel o verifica TTLOCK_ENCRYPTION_KEY en Vercel."
     : null;
