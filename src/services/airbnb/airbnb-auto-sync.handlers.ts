@@ -9,6 +9,9 @@ import {
   syncPropertyIcalCalendar,
 } from "@/services/airbnb/airbnb-ical-sync.service";
 import { db } from "@/lib/db";
+import { resolveTenantDataScopeForUserId } from "@/lib/platform/require-tenant-data-scope";
+import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
+import { TenantAccessError } from "@/lib/platform/tenant-access";
 
 const AIRBNB_SYNC_TIMEOUT_MS = 90_000;
 
@@ -34,8 +37,9 @@ export async function handleAirbnbSyncAll(ownerId: string) {
   await assertBillingUnlocked();
   await enforceOwnerDisconnectedAirbnbImports(ownerId);
 
+  const scope = await resolveTenantDataScopeForUserId(ownerId);
   const linked = await db.property.findMany({
-    where: { ownerId },
+    where: mergePropertyScope(scope, {}),
     select: { icalUrl: true },
   });
   const hasAnyLinked = linked.some((p) => hasActiveAirbnbIcalImport(p.icalUrl));
@@ -72,12 +76,13 @@ export async function handleAirbnbSyncProperty(
 ) {
   await assertBillingUnlocked();
 
+  const scope = await resolveTenantDataScopeForUserId(ownerId);
   const property = await db.property.findFirst({
-    where: { id: propertyId, ownerId },
+    where: mergePropertyScope(scope, { id: propertyId }),
     select: { icalUrl: true, name: true },
   });
   if (!property) {
-    throw new Error("Propiedad no encontrada");
+    throw new TenantAccessError("Propiedad no encontrada");
   }
   if (!hasActiveAirbnbIcalImport(property.icalUrl)) {
     throw new Error("Esta propiedad no tiene iCal de Airbnb conectado");

@@ -67,20 +67,20 @@ export function SettingsView({
 
       {hasQuickLinks ? (
         <div className="flex flex-wrap gap-2 border-b border-border pb-2">
+          {canManageBilling ? (
+            <Link
+              href="/settings/billing"
+              className="rounded-lg bg-pragma-soft-cyan px-3 py-1.5 text-sm font-medium text-pragma-electric ring-1 ring-pragma-cyan/20"
+            >
+              Facturación & Wompi
+            </Link>
+          ) : null}
           {canAccessIntegrations ? (
             <Link
               href="/integrations"
               className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               {t("nav.integrations")}
-            </Link>
-          ) : null}
-          {canManageBilling ? (
-            <Link
-              href="/settings/billing"
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-            >
-              Facturación
             </Link>
           ) : null}
           {canManageUsers ? (
@@ -92,6 +92,24 @@ export function SettingsView({
             </Link>
           ) : null}
         </div>
+      ) : null}
+
+      {canManageBilling ? (
+        <Card className="border-pragma-cyan/20 bg-pragma-soft-cyan/20">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Pagos y suscripción (Wompi)
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Configura credenciales Wompi, revisa facturas y paga tu plan.
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <Link href="/settings/billing">Abrir facturación</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : null}
 
       <Card>

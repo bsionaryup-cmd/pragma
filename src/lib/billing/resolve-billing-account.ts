@@ -1,7 +1,6 @@
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { currentDbUser, requireDbUser } from "@/lib/auth";
-import { BILLING_ACCOUNT_SINGLETON } from "@/modules/billing/domain/constants";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
 import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 
@@ -11,7 +10,7 @@ export async function resolveBillingAccountIdForUserId(
   const organizationId = await getEffectiveOrganizationIdForUser(userId);
 
   if (!organizationId) {
-    return BILLING_ACCOUNT_SINGLETON;
+    return null;
   }
 
   const account = await db.billingAccount.findUnique({
@@ -19,7 +18,7 @@ export async function resolveBillingAccountIdForUserId(
     select: { id: true },
   });
 
-  return account?.id ?? BILLING_ACCOUNT_SINGLETON;
+  return account?.id ?? null;
 }
 
 export async function resolveBillingAccountForUserId(userId: string) {
@@ -31,32 +30,27 @@ export async function resolveBillingAccountForUserId(userId: string) {
   });
 }
 
-export const getCurrentBillingAccountId = cache(async (): Promise<string> => {
+export const getCurrentBillingAccountId = cache(async (): Promise<string | null> => {
   const user = await currentDbUser();
-  if (!user) return BILLING_ACCOUNT_SINGLETON;
+  if (!user) return null;
 
   const organizationId = await getEffectiveOrganizationIdForUser(user.id);
-  if (organizationId) {
-    const account = await ensureOrganizationBillingAccount(organizationId);
-    return account.id;
+  if (!organizationId) {
+    return null;
   }
 
-  const legacyId = await resolveBillingAccountIdForUserId(user.id);
-  return legacyId ?? BILLING_ACCOUNT_SINGLETON;
+  const account = await ensureOrganizationBillingAccount(organizationId);
+  return account.id;
 });
 
 export const requireBillingAccountId = cache(async (): Promise<string> => {
   const user = await requireDbUser();
 
   const organizationId = await getEffectiveOrganizationIdForUser(user.id);
-  if (organizationId) {
-    const account = await ensureOrganizationBillingAccount(organizationId);
-    return account.id;
-  }
-
-  const legacyId = await resolveBillingAccountIdForUserId(user.id);
-  if (!legacyId) {
+  if (!organizationId) {
     throw new Error("Cuenta de facturación no encontrada");
   }
-  return legacyId;
+
+  const account = await ensureOrganizationBillingAccount(organizationId);
+  return account.id;
 });

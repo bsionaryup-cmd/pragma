@@ -55,7 +55,7 @@ export function withUserPreferenceDefaults<T extends {
   return {
     ...user,
     locale: user.locale?.trim() || "es",
-    theme: user.theme?.trim() || "system",
+    theme: user.theme?.trim() || "light",
     timezone: user.timezone?.trim() || "America/Bogota",
   };
 }

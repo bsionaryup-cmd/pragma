@@ -2,6 +2,11 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import {
+  mergePropertyScope,
+  mergeReservationScope,
+} from "@/lib/platform/tenant-data-scope";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 import type { Locale } from "@/i18n/types";
 
@@ -99,6 +104,7 @@ function sortByDateDesc<T extends { date: string }>(rows: T[]): T[] {
 }
 
 export async function getFinanceOverview(locale: Locale = "es"): Promise<FinanceOverview> {
+  const scope = await requireTenantDataScope();
   const { start, end, prevStart, prevEnd } = monthBounds();
 
   const [
@@ -109,13 +115,15 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
     previousManual,
   ] = await Promise.all([
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-        checkIn: { lte: end },
-        checkOut: { gte: start },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: {
+            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+          },
+          checkIn: { lte: end },
+          checkOut: { gte: start },
+        }),
+      ),
       select: {
         id: true,
         totalAmount: true,
@@ -131,21 +139,25 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       },
     }),
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-        checkIn: { lte: prevEnd },
-        checkOut: { gte: prevStart },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: {
+            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+          },
+          checkIn: { lte: prevEnd },
+          checkOut: { gte: prevStart },
+        }),
+      ),
       select: {
         totalAmount: true,
         property: { select: { cleaningFee: true } },
       },
     }),
-    db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
-    getManualFinanceInRange(start, end),
-    getManualFinanceInRange(prevStart, prevEnd),
+    db.property.count({
+      where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
+    }),
+    getManualFinanceInRange(start, end, scope),
+    getManualFinanceInRange(prevStart, prevEnd, scope),
   ]);
 
   const { expenses: manualExpenses, incomes: manualIncomes } = currentManual;

@@ -6,8 +6,6 @@ import {
 } from "@/services/integrations/ttlock/ttlock-crypto";
 import type { WompiEnvironment } from "@/modules/billing/config/wompi.config";
 
-const SINGLETON_ID = "singleton";
-
 export function resolveStoredWompiSecret(
   encrypted: string | null | undefined,
 ): string | null {
@@ -26,11 +24,13 @@ export function hasWompiIntegrationDelegate(): boolean {
   return Boolean(client.wompiIntegration?.findUnique);
 }
 
-export async function getWompiIntegrationSafe(): Promise<WompiIntegration | null> {
+export async function getWompiIntegrationForOrganization(
+  organizationId: string,
+): Promise<WompiIntegration | null> {
   if (!hasWompiIntegrationDelegate()) return null;
   try {
     return await db.wompiIntegration.findUnique({
-      where: { id: SINGLETON_ID },
+      where: { organizationId },
     });
   } catch (error) {
     if (isWompiSchemaMissing(error)) return null;
@@ -39,6 +39,7 @@ export async function getWompiIntegrationSafe(): Promise<WompiIntegration | null
 }
 
 export type SaveWompiCredentialsInput = {
+  organizationId: string;
   configuredById: string;
   publicKey: string;
   privateKey?: string;
@@ -50,11 +51,6 @@ export type SaveWompiCredentialsInput = {
 export async function saveWompiCredentialsEncrypted(
   input: SaveWompiCredentialsInput,
 ): Promise<{ ok: boolean; message: string }> {
-  const publicKey = input.publicKey.trim();
-  if (!publicKey.startsWith("pub_")) {
-    return { ok: false, message: "La llave pública debe comenzar con pub_" };
-  }
-
   if (!hasWompiIntegrationDelegate()) {
     return {
       ok: false,
@@ -63,7 +59,12 @@ export async function saveWompiCredentialsEncrypted(
     };
   }
 
-  const existing = await getWompiIntegrationSafe();
+  const existing = await getWompiIntegrationForOrganization(input.organizationId);
+
+  const publicKey = input.publicKey.trim() || existing?.publicKey?.trim() || "";
+  if (!publicKey.startsWith("pub_")) {
+    return { ok: false, message: "La llave pública debe comenzar con pub_" };
+  }
 
   const privateKeyPlain = input.privateKey?.trim() || null;
   const eventsSecretPlain = input.eventsSecret?.trim() || null;
@@ -95,14 +96,15 @@ export async function saveWompiCredentialsEncrypted(
 
   try {
     await db.wompiIntegration.upsert({
-      where: { id: SINGLETON_ID },
+      where: { organizationId: input.organizationId },
       create: {
-        id: SINGLETON_ID,
+        organizationId: input.organizationId,
         publicKey,
         privateKeyEncrypted,
         eventsSecretEncrypted,
         integritySecretEncrypted,
         env: input.env,
+        enabled: true,
         configuredById: input.configuredById,
       },
       update: {
@@ -112,6 +114,7 @@ export async function saveWompiCredentialsEncrypted(
         integritySecretEncrypted,
         env: input.env,
         configuredById: input.configuredById,
+        lastError: null,
       },
     });
     return { ok: true, message: "Credenciales Wompi guardadas de forma segura" };
@@ -126,24 +129,28 @@ export async function saveWompiCredentialsEncrypted(
   }
 }
 
-export async function revokeWompiCredentials(): Promise<{ ok: boolean; message: string }> {
+export async function revokeWompiCredentialsForOrganization(
+  organizationId: string,
+): Promise<{ ok: boolean; message: string }> {
   if (!hasWompiIntegrationDelegate()) {
     return { ok: false, message: "Tabla Wompi no disponible" };
   }
 
   try {
-    const row = await getWompiIntegrationSafe();
+    const row = await getWompiIntegrationForOrganization(organizationId);
     if (!row?.publicKey && !row?.privateKeyEncrypted) {
       return { ok: true, message: "No había credenciales Wompi almacenadas" };
     }
 
     await db.wompiIntegration.update({
-      where: { id: SINGLETON_ID },
+      where: { organizationId },
       data: {
         publicKey: null,
         privateKeyEncrypted: null,
         eventsSecretEncrypted: null,
         integritySecretEncrypted: null,
+        enabled: false,
+        lastError: null,
       },
     });
     return { ok: true, message: "Credenciales Wompi revocadas del servidor" };
@@ -151,6 +158,55 @@ export async function revokeWompiCredentials(): Promise<{ ok: boolean; message: 
     if (isWompiSchemaMissing(error)) {
       return { ok: false, message: "Tabla Wompi no disponible" };
     }
+    throw error;
+  }
+}
+
+export async function setWompiIntegrationEnabled(
+  organizationId: string,
+  enabled: boolean,
+): Promise<{ ok: boolean; message: string }> {
+  if (!hasWompiIntegrationDelegate()) {
+    return { ok: false, message: "Tabla Wompi no disponible" };
+  }
+
+  const row = await getWompiIntegrationForOrganization(organizationId);
+  if (!row?.privateKeyEncrypted || !row.publicKey) {
+    return {
+      ok: false,
+      message: "Configura las credenciales Wompi antes de activar pagos",
+    };
+  }
+
+  await db.wompiIntegration.update({
+    where: { organizationId },
+    data: { enabled },
+  });
+
+  return {
+    ok: true,
+    message: enabled
+      ? "Pagos Wompi activados"
+      : "Pagos Wompi desactivados",
+  };
+}
+
+export async function recordWompiHealthCheck(
+  organizationId: string,
+  input: { ok: boolean; message?: string },
+): Promise<void> {
+  if (!hasWompiIntegrationDelegate()) return;
+
+  try {
+    await db.wompiIntegration.update({
+      where: { organizationId },
+      data: {
+        lastHealthCheckAt: new Date(),
+        lastError: input.ok ? null : input.message ?? "Error de conexión",
+      },
+    });
+  } catch (error) {
+    if (isWompiSchemaMissing(error)) return;
     throw error;
   }
 }

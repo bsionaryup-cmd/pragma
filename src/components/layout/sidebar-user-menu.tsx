@@ -16,6 +16,7 @@ import {
   getUserDisplayName,
   getUserInitials,
 } from "@/lib/helpers/user-display";
+import { hasPermission } from "@/lib/auth/permissions";
 import { cn } from "@/lib/utils";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 
@@ -32,10 +33,12 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
     user.lastName,
     user.email,
   );
-  const isAdmin = user.role === "ADMIN";
+  const canAccessSettings = hasPermission(user.role ?? "RECEPTIONIST", "settings:read");
+  const canManageBilling = hasPermission(user.role ?? "RECEPTIONIST", "billing:manage");
 
   async function handleLogout() {
-    await signOut({ redirectUrl: "/sign-in?session_reset=1" });
+    await signOut();
+    window.location.assign("/sign-in");
   }
 
   return (
@@ -87,26 +90,32 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {isAdmin ? (
+        {canAccessSettings || canManageBilling ? (
           <>
-            <DropdownMenuItem asChild>
-              <Link href="/settings?tab=profile" className="cursor-pointer">
-                <User className="mr-2 h-4 w-4" />
-                Perfil
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">
-                <Settings className="mr-2 h-4 w-4" />
-                Configuración
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings/billing" className="cursor-pointer">
-                <CreditCard className="mr-2 h-4 w-4" />
-                Facturación
-              </Link>
-            </DropdownMenuItem>
+            {canAccessSettings ? (
+              <DropdownMenuItem asChild>
+                <Link href="/settings?tab=profile" className="cursor-pointer">
+                  <User className="mr-2 h-4 w-4" />
+                  Perfil
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {canAccessSettings ? (
+              <DropdownMenuItem asChild>
+                <Link href="/settings" className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configuración
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {canManageBilling ? (
+              <DropdownMenuItem asChild>
+                <Link href="/settings/billing" className="cursor-pointer">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Facturación
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
           </>
         ) : null}
         <DropdownMenuSeparator />

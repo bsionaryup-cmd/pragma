@@ -101,12 +101,10 @@ export const requireDbUser = cache(async (): Promise<User> => {
 
     if (needsMetadataSync) {
       const activeUser = dbUser;
-      after(() =>
-        syncClerkPublicMetadata(userId, {
-          role: activeUser.role as AppUserRole,
-          dbUserId: activeUser.id,
-        }),
-      );
+      await syncClerkPublicMetadata(userId, {
+        role: activeUser.role as AppUserRole,
+        dbUserId: activeUser.id,
+      });
     }
 
     if (shouldTouchLastLogin(dbUser.lastLoginAt)) {

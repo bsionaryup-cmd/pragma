@@ -2,6 +2,7 @@ import {
   listManualExpensesInRange,
   listOtherIncomesInRange,
 } from "@/services/finance/finance-prisma-guard";
+import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 
 export type ManualFinanceInRange = {
   expenses: Awaited<ReturnType<typeof listManualExpensesInRange>>;
@@ -13,10 +14,11 @@ export type ManualFinanceInRange = {
 export async function getManualFinanceInRange(
   start: Date,
   end: Date,
+  scope: TenantDataScope,
 ): Promise<ManualFinanceInRange> {
   const [expenses, incomes] = await Promise.all([
-    listManualExpensesInRange(start, end),
-    listOtherIncomesInRange(start, end),
+    listManualExpensesInRange(start, end, scope),
+    listOtherIncomesInRange(start, end, scope),
   ]);
 
   return {

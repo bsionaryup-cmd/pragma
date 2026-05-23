@@ -37,8 +37,14 @@ export async function listLoginActivitiesForUser(userId: string, limit = 50) {
   });
 }
 
-export async function listRecentLoginActivities(limit = 100) {
+export async function listLoginActivitiesForOrganization(
+  organizationId: string,
+  limit = 100,
+) {
   return db.loginActivity.findMany({
+    where: {
+      user: { organizationId },
+    },
     orderBy: { createdAt: "desc" },
     take: limit,
     include: {

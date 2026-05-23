@@ -10,6 +10,7 @@ import {
 } from "@/features/billing/actions/billing.actions";
 import { PlanSelector } from "@/features/billing/components/plan-selector";
 import { BankTransferPanel } from "@/features/billing/components/bank-transfer-panel";
+import { WompiCredentialsCard } from "@/features/billing/components/wompi-credentials-card";
 import type { BillingDashboardDto } from "@/modules/billing/services/dashboard.service";
 import type { BillingPlanCode } from "@prisma/client";
 import { getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
@@ -57,7 +58,7 @@ export function BillingDashboard({
   data,
   showDevActivate = false,
 }: BillingDashboardProps) {
-  const { account, access, invoices, paymentMethods, ready } = data;
+  const { account, access, invoices, paymentMethods, wompi, ready } = data;
   const [pending, startTransition] = useTransition();
 
   const payableInvoice =
@@ -137,6 +138,8 @@ export function BillingDashboard({
 
         {ready ? (
           <>
+            <WompiCredentialsCard wompi={wompi} canManage />
+
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-base">Tu suscripción</CardTitle>

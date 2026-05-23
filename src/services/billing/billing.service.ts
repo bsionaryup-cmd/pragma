@@ -24,7 +24,9 @@ import {
   resolveSubscriptionAmountForAccount,
   syncOpenInvoiceAmountForAccount,
 } from "@/modules/billing/domain/subscription-property-count";
-import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import { resolveWompiConfig, getWompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
+import type { WompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
+import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
@@ -62,6 +64,7 @@ export async function ensureBillingAccount(
 export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | null> => {
   try {
     const billingAccountId = await getCurrentBillingAccountId();
+    if (!billingAccountId) return null;
     return await db.billingAccount.findUnique({ where: { id: billingAccountId } });
   } catch (error) {
     if (isBillingSchemaMissing(error)) return null;
@@ -72,6 +75,7 @@ export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | nu
 export async function listBillingInvoices(limit = 20): Promise<BillingInvoice[]> {
   try {
     const billingAccountId = await getCurrentBillingAccountId();
+    if (!billingAccountId) return [];
     return await db.billingInvoice.findMany({
       where: { billingAccountId },
       orderBy: { dueAt: "desc" },
@@ -116,6 +120,7 @@ export type BillingOverviewDto = {
     cards: boolean;
     hasDefaultToken: boolean;
   };
+  wompi: WompiCredentialSnapshot;
 };
 
 export async function activateBillingSubscription(): Promise<{
@@ -161,7 +166,34 @@ export async function activateBillingSubscription(): Promise<{
 
 export async function getBillingOverview(): Promise<BillingOverviewDto> {
   let account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
-  const wompi = await resolveWompiConfig();
+  const user = await requireDbUser();
+  const organizationId = account?.organizationId
+    ?? (await getEffectiveOrganizationIdForUser(user.id));
+  const wompi = organizationId
+    ? await resolveWompiConfig(organizationId)
+    : { configured: false, eventsSecret: null, env: "test" as const };
+  const wompiSnapshot = organizationId
+    ? await getWompiCredentialSnapshot(organizationId)
+    : {
+        configured: false,
+        enabled: false,
+        webhookReady: false,
+        source: "none" as const,
+        status: "missing" as const,
+        hasStoredCredentials: false,
+        hasEnvCredentials: false,
+        env: "test" as const,
+        publicKey: null,
+        publicKeyHint: null,
+        privateKeyHint: null,
+        eventsSecretHint: null,
+        integritySecretHint: null,
+        schemaReady: false,
+        webhookPath: "/api/payments/wompi/webhook",
+        webhookUrl: null,
+        lastHealthCheckAt: null,
+        lastError: null,
+      };
 
   if (!account) {
     return {
@@ -193,6 +225,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
         cards: true,
         hasDefaultToken: false,
       },
+      wompi: wompiSnapshot,
     };
   }
 
@@ -258,6 +291,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       cards: true,
       hasDefaultToken: Boolean(account.defaultPaymentTokenRef),
     },
+    wompi: wompiSnapshot,
   };
 }
 

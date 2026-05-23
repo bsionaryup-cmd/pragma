@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { assertUsersShareOrganization } from "@/lib/platform/tenant-access";
 
 export class AccountOwnerProtectionError extends Error {
   constructor(message = "No se puede modificar al dueño principal de la cuenta") {
@@ -42,6 +43,8 @@ export async function assertAdminCanManageUser(
     throw new Error("Usuario no encontrado");
   }
 
+  await assertUsersShareOrganization(actorUserId, targetUserId);
+
   if (target.isAccountOwner) {
     throw new AccountOwnerProtectionError();
   }
@@ -70,6 +73,8 @@ export async function assertCanDeleteUser(
     throw new Error("Usuario no encontrado");
   }
 
+  await assertUsersShareOrganization(actorUserId, targetUserId);
+
   if (target.isAccountOwner) {
     throw new AccountOwnerProtectionError();
   }
@@ -81,7 +86,12 @@ export async function assertCanDeleteUser(
   }
 }
 
-export async function assertAdminCanChangeUserRole(userId: string) {
+export async function assertAdminCanChangeUserRole(
+  userId: string,
+  actorUserId: string,
+) {
+  await assertUsersShareOrganization(actorUserId, userId);
+
   const target = await db.user.findUnique({
     where: { id: userId },
     select: { isAccountOwner: true },

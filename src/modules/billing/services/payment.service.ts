@@ -7,10 +7,6 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
-  TENANT_SINGLETON,
-} from "@/modules/billing/domain/constants";
-import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
-import {
   hasPaymentLedgerDelegates,
   isPaymentSchemaMissing,
 } from "@/modules/billing/lib/billing-schema-guard";
@@ -28,6 +24,25 @@ import {
 } from "@/modules/billing/repositories/transaction.repository";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
 import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
+import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
+import { resolveOrganizationIdForBillingInvoice } from "@/modules/billing/services/wompi-org";
+
+async function resolvePaymentTenantId(
+  billingInvoiceId: string,
+): Promise<string> {
+  const invoice = await db.billingInvoice.findUnique({
+    where: { id: billingInvoiceId },
+    select: { billingAccountId: true },
+  });
+  if (!invoice) return "unknown";
+
+  const billingAccount = await db.billingAccount.findUnique({
+    where: { id: invoice.billingAccountId },
+    select: { organizationId: true, id: true },
+  });
+
+  return billingAccount?.organizationId ?? billingAccount?.id ?? "unknown";
+}
 
 export type InitiatePaymentInput = {
   billingInvoiceId: string;
@@ -71,10 +86,11 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
         };
       }
 
+      const tenantId = await resolvePaymentTenantId(input.billingInvoiceId);
       const transaction =
         existingTx ??
         (await createTransaction({
-          tenantId: TENANT_SINGLETON,
+          tenantId,
           invoice: { connect: { id: paymentInvoice.id } },
           amount: input.amountInCents / 100,
           currency: input.currency,
@@ -106,7 +122,12 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
   }
 
   const provider = getPaymentProvider("WOMPI");
+  const organizationId =
+    (await resolveOrganizationIdForBillingInvoice(input.billingInvoiceId)) ??
+    "unknown";
+
   const checkout = await provider.createCheckout({
+    organizationId,
     invoiceId: input.billingInvoiceId,
     paymentInvoiceId: paymentInvoiceId ?? input.billingInvoiceId,
     amountInCents: input.amountInCents,
@@ -151,8 +172,9 @@ export async function reconcileTransactionFromWebhook(input: {
     );
     if (paymentInvoice) {
       try {
+        const tenantId = await resolvePaymentTenantId(billingInvoice.id);
         await createTransaction({
-          tenantId: TENANT_SINGLETON,
+          tenantId,
           invoice: { connect: { id: paymentInvoice.id } },
           amount: Number(billingInvoice.amount),
           currency: billingInvoice.currency,

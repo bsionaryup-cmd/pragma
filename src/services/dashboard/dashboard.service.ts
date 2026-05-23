@@ -2,6 +2,10 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { startOfDay } from "@/lib/helpers/date";
+import {
+  mergeReservationScope,
+  type TenantDataScope,
+} from "@/lib/platform/tenant-data-scope";
 
 export type DashboardStats = {
   activeReservations: number;
@@ -155,46 +159,54 @@ export type PanelCounts = {
   current: number;
 };
 
-export async function getPanelCounts(): Promise<PanelCounts> {
+export async function getPanelCounts(scope: TenantDataScope): Promise<PanelCounts> {
   const today = startOfDay();
   const weekAhead = new Date(today);
   weekAhead.setDate(weekAhead.getDate() + 7);
 
   const [arrivals, departures, current] = await Promise.all([
     db.reservation.count({
-      where: withVisibleReservationsFilter({
-        checkIn: { gte: today, lte: weekAhead },
-        status: ReservationStatus.CONFIRMED,
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          checkIn: { gte: today, lte: weekAhead },
+          status: ReservationStatus.CONFIRMED,
+        }),
+      ),
     }),
     db.reservation.count({
-      where: withVisibleReservationsFilter({
-        checkOut: { gte: today, lte: weekAhead },
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          checkOut: { gte: today, lte: weekAhead },
+          status: {
+            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+          },
+        }),
+      ),
     }),
     db.reservation.count({
-      where: withVisibleReservationsFilter({
-        status: ReservationStatus.CHECKED_IN,
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: ReservationStatus.CHECKED_IN,
+        }),
+      ),
     }),
   ]);
 
   return { arrivals, departures, current };
 }
 
-export async function getUpcomingArrivals(limit = 20) {
+export async function getUpcomingArrivals(scope: TenantDataScope, limit = 20) {
   const today = startOfDay();
   const weekAhead = new Date(today);
   weekAhead.setDate(weekAhead.getDate() + 7);
 
   const reservations = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({
-      checkIn: { gte: today, lte: weekAhead },
-      status: ReservationStatus.CONFIRMED,
-    }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        checkIn: { gte: today, lte: weekAhead },
+        status: ReservationStatus.CONFIRMED,
+      }),
+    ),
     include: panelReservationInclude,
     orderBy: { checkIn: "asc" },
     take: limit,
@@ -202,18 +214,20 @@ export async function getUpcomingArrivals(limit = 20) {
   return attachPrimaryGuestNames(reservations);
 }
 
-export async function getUpcomingDepartures(limit = 20) {
+export async function getUpcomingDepartures(scope: TenantDataScope, limit = 20) {
   const today = startOfDay();
   const weekAhead = new Date(today);
   weekAhead.setDate(weekAhead.getDate() + 7);
 
   const reservations = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({
-      checkOut: { gte: today, lte: weekAhead },
-      status: {
-        in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-      },
-    }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        checkOut: { gte: today, lte: weekAhead },
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+        },
+      }),
+    ),
     include: panelReservationInclude,
     orderBy: { checkOut: "asc" },
     take: limit,
@@ -221,11 +235,13 @@ export async function getUpcomingDepartures(limit = 20) {
   return attachPrimaryGuestNames(reservations);
 }
 
-export async function getCurrentStays(limit = 20) {
+export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
   const reservations = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({
-      status: ReservationStatus.CHECKED_IN,
-    }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        status: ReservationStatus.CHECKED_IN,
+      }),
+    ),
     include: panelReservationInclude,
     orderBy: { checkOut: "asc" },
     take: limit,

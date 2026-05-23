@@ -9,6 +9,8 @@ import type { GuestRegistrationValues } from "@/features/guests/schemas/guest-re
 import { getPublicAppUrl } from "@/lib/app-url";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 
 export type GuestRegistrationReservation = {
@@ -111,11 +113,8 @@ export async function ensureGuestRegistrationForReservation(
 export async function regenerateGuestRegistrationToken(
   reservationId: string,
 ): Promise<string> {
-  const reservation = await db.reservation.findUnique({
-    where: { id: reservationId },
-    select: { id: true },
-  });
-  if (!reservation) throw new Error("Reserva no encontrada");
+  const scope = await requireTenantDataScope();
+  await assertReservationInScope(scope, reservationId);
 
   const token = randomBytes(24).toString("hex");
   await db.$transaction([
@@ -149,6 +148,9 @@ export async function regenerateGuestRegistrationToken(
 export async function revokeGuestRegistrationToken(
   reservationId: string,
 ): Promise<void> {
+  const scope = await requireTenantDataScope();
+  await assertReservationInScope(scope, reservationId);
+
   await db.$transaction([
     db.guestRegistrationToken.updateMany({
       where: {

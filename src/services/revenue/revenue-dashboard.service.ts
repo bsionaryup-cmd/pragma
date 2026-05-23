@@ -67,7 +67,7 @@ function classifyAttention(
   return null;
 }
 
-function buildAttentionItems(
+export function buildAttentionItems(
   properties: PriceLabsOverviewDto["properties"],
 ): SmartpriceAttentionItem[] {
   return properties

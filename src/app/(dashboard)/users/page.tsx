@@ -18,8 +18,6 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/helpers/date";
 import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import { listUsers } from "@/services/users/user.service";
-import { listRecentLoginActivities } from "@/services/users/login-activity.service";
-import { roleLabel } from "@/lib/auth/permissions";
 
 const roleBadgeVariant = {
   ADMIN: "default" as const,
@@ -32,10 +30,7 @@ export default async function UsersPage() {
   const canDelete = hasPermission(current.role, "users:delete");
   const isCurrentAccountOwner = current.isAccountOwner;
   const organizationId = await getEffectiveOrganizationIdForUser(current.dbUserId);
-  const [users, loginActivity] = await Promise.all([
-    listUsers({ organizationId }),
-    listRecentLoginActivities(40),
-  ]);
+  const users = await listUsers({ organizationId });
 
   return (
     <ModuleShellFlow className="bg-background">
@@ -46,7 +41,7 @@ export default async function UsersPage() {
               Equipo
             </h2>
             <p className="text-sm text-muted-foreground">
-              {users.length} usuarios registrados
+              {users.length} usuarios registrados · acceso solo con correo y contraseña
             </p>
           </div>
           {canWrite ? <CreateUserDialog /> : null}
@@ -141,58 +136,6 @@ export default async function UsersPage() {
           </Table>
           </div>
         </div>
-
-        <section className="mt-10 space-y-3">
-          <h2 className="text-lg font-semibold">Actividad de inicio de sesión</h2>
-          <p className="text-sm text-muted-foreground">
-            Últimos accesos, más recientes primero.
-          </p>
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="pragma-scrollbar overflow-x-auto">
-            <Table className="min-w-[520px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Usuario</TableHead>
-                  <TableHead>Dispositivo</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Fecha</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loginActivity.map((entry) => {
-                  const name =
-                    [entry.user.firstName, entry.user.lastName]
-                      .filter(Boolean)
-                      .join(" ") || entry.user.email;
-                  return (
-                    <TableRow key={entry.id}>
-                      <TableCell>
-                        <p className="font-medium">{name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {roleLabel(entry.user.role)}
-                        </p>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {entry.deviceLabel ?? "—"}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {entry.ipAddress ?? "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{entry.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(entry.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            </div>
-          </div>
-        </section>
       </main>
     </ModuleShellFlow>
   );

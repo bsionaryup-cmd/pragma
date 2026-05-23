@@ -5,6 +5,8 @@ import { UserRole } from "@prisma/client";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
+import { PasswordInput } from "@/components/auth/password-input";
+import { PasswordRequirements } from "@/components/auth/password-requirements";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +47,7 @@ const roleLabels: Record<UserRole, string> = {
 export function CreateUserDialog() {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const form = useForm<CreateUserValues>({
     resolver: zodResolver(createUserSchema),
@@ -53,14 +56,19 @@ export function CreateUserDialog() {
       firstName: "",
       lastName: "",
       role: UserRole.RECEPTIONIST,
+      password: "",
+      confirmPassword: "",
     },
   });
+
+  const password = form.watch("password");
+  const showPasswordRules = passwordFocused || password.length > 0;
 
   function onSubmit(values: CreateUserValues) {
     startTransition(async () => {
       try {
         await createUserAction(values);
-        toast.success("Usuario creado. Puede iniciar sesión con magic link.");
+        toast.success("Usuario creado. Ya puede iniciar sesión con su correo y contraseña.");
         form.reset();
         setOpen(false);
       } catch (error) {
@@ -76,11 +84,12 @@ export function CreateUserDialog() {
       <DialogTrigger asChild>
         <Button>Nuevo usuario</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Crear usuario</DialogTitle>
           <DialogDescription>
-            Se creará en Clerk y podrá acceder con magic link o contraseña.
+            Define correo y contraseña. El recepcionista accederá solo con esas
+            credenciales.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -146,6 +155,51 @@ export function CreateUserDialog() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="space-y-2">
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <PasswordInput
+                        id="create-user-password"
+                        label="Contraseña"
+                        value={field.value}
+                        onChange={field.onChange}
+                        onFocus={() => setPasswordFocused(true)}
+                        onBlur={() => setPasswordFocused(false)}
+                        autoComplete="new-password"
+                        placeholder="Contraseña inicial"
+                        required
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <PasswordRequirements password={password} visible={showPasswordRules} />
+            </div>
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <PasswordInput
+                      id="create-user-confirm-password"
+                      label="Confirmar contraseña"
+                      value={field.value}
+                      onChange={field.onChange}
+                      autoComplete="new-password"
+                      placeholder="Repite la contraseña"
+                      required
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

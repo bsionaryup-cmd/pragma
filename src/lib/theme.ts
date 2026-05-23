@@ -5,7 +5,7 @@ export function parseThemePreference(value: string | undefined): Theme {
   if (value === "light" || value === "dark" || value === "system") {
     return value;
   }
-  return "dark";
+  return "light";
 }
 
 export function resolveThemeFromCookies(

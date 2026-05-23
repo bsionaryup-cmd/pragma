@@ -5,11 +5,17 @@ import { useClerk } from "@clerk/nextjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { KeyRound, Lock, Mail } from "lucide-react";
+import { KeyRound, Mail } from "lucide-react";
+import { PasswordInput } from "@/components/auth/password-input";
+import { PasswordRequirements } from "@/components/auth/password-requirements";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getClerkAuthErrorMessage } from "@/lib/clerk-auth-errors";
+import {
+  PASSWORD_MIN_LENGTH,
+  validateNewAccountPassword,
+} from "@/lib/auth/password-rules";
 
 type Step = "register" | "verify";
 
@@ -22,10 +28,13 @@ export function EmailPasswordSignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordFocused, setPasswordFocused] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const showPasswordRules = passwordFocused || password.length > 0;
 
   async function completeSignUp(sessionId: string | null | undefined) {
     if (!sessionId) {
@@ -48,8 +57,9 @@ export function EmailPasswordSignUpForm() {
       return;
     }
 
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    const passwordError = validateNewAccountPassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -237,41 +247,32 @@ export function EmailPasswordSignUpForm() {
           </div>
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="sign-up-password">Contraseña</Label>
-          <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="sign-up-password"
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="pl-9"
-              placeholder="Mínimo 8 caracteres"
-              minLength={8}
-              required
-            />
-          </div>
+        <div className="space-y-2">
+          <PasswordInput
+            id="sign-up-password"
+            label="Contraseña"
+            value={password}
+            onChange={setPassword}
+            onFocus={() => setPasswordFocused(true)}
+            onBlur={() => setPasswordFocused(false)}
+            autoComplete="new-password"
+            placeholder="Crea tu contraseña"
+            minLength={PASSWORD_MIN_LENGTH}
+            required
+          />
+          <PasswordRequirements password={password} visible={showPasswordRules} />
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="sign-up-confirm-password">Confirmar contraseña</Label>
-          <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="sign-up-confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              className="pl-9"
-              placeholder="Repite tu contraseña"
-              minLength={8}
-              required
-            />
-          </div>
-        </div>
+        <PasswordInput
+          id="sign-up-confirm-password"
+          label="Confirmar contraseña"
+          value={confirmPassword}
+          onChange={setConfirmPassword}
+          autoComplete="new-password"
+          placeholder="Repite tu contraseña"
+          minLength={PASSWORD_MIN_LENGTH}
+          required
+        />
       </div>
 
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={pending}>

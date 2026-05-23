@@ -26,7 +26,7 @@ export const es = {
     reservations: "Reservas",
     properties: "Propiedades",
     calendar: "Calendario",
-    revenue: "Smart Price",
+    revenue: "Precio inteligente",
     integrations: "Integraciones",
     messages: "Mensajes",
     finance: "Finanzas",
@@ -204,7 +204,7 @@ export const es = {
     verdict: {
       attention: "{{count}} propiedades requieren revisión",
       balanced: "Precios alineados — sin alertas urgentes",
-      noData: "Conecta PriceLabs para recomendaciones de precio",
+      noData: "Aún no hay datos de precios para tus propiedades",
     },
     stats: {
       underpriced: "Subprecio",
@@ -248,6 +248,37 @@ export const es = {
     },
     billingLocked:
       "Modo restringido: puedes consultar métricas; sincronización y edición de precios están pausadas hasta regularizar el pago.",
+    setup: {
+      title: "Integración PriceLabs",
+      description:
+        "Pega la API key que PriceLabs te entrega para conectar listings y precios dinámicos.",
+      needsKeyHint:
+        "Guarda tu API key de PriceLabs y ejecuta una sincronización para ver recomendaciones.",
+      migrationTitle: "Migración pendiente",
+    },
+    pricing: {
+      title: "Ajuste de precios por propiedad",
+      description:
+        "Define mínimo, base y máximo. Los cambios se sincronizan con el motor de precios.",
+      property: "Propiedad",
+      min: "Mínimo",
+      base: "Base",
+      max: "Máximo",
+      recommended: "Recomendado",
+      revenue: "Revenue",
+      empty: "Agrega propiedades activas para configurar precios.",
+    },
+    sync: {
+      title: "Sincronización",
+      description: "Importa listings y precios desde PriceLabs.",
+      test: "Probar conexión",
+      listings: "Importar listings",
+      prices: "Importar precios",
+      full: "Pipeline completo",
+      refresh: "Forzar refresh",
+      needsKey: "Configura la API key antes de sincronizar.",
+      mode: "Modo API",
+    },
   },
   integrations: {
     title: "Integraciones",

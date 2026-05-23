@@ -8,6 +8,14 @@ import { GuestRegistrationStatus, PropertyStatus, ReservationStatus } from "@pri
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import {
+  assertPropertyInScope,
+  assertReservationInScope,
+} from "@/lib/platform/tenant-access";
+import {
+  mergeReservationScope,
+} from "@/lib/platform/tenant-data-scope";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
 import {
   buildGuestRegistrationUrl,
@@ -145,8 +153,9 @@ async function getRegistrationsByReservationIds(reservationIds: string[]) {
 }
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
+  const scope = await requireTenantDataScope();
   const rows = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({}),
+    where: withVisibleReservationsFilter(mergeReservationScope(scope, {})),
     select: {
       id: true,
       guestName: true,
@@ -227,8 +236,11 @@ function toDetailItem(
 export async function getReservationForInbox(
   id: string,
 ): Promise<ReservationDetailItem | null> {
+  const scope = await requireTenantDataScope();
   const row = await db.reservation.findFirst({
-    where: withVisibleReservationsFilter({ id }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, { id }),
+    ),
     include: {
       property: {
         select: { id: true, name: true, address: true, city: true },
@@ -238,13 +250,15 @@ export async function getReservationForInbox(
   if (!row) return null;
 
   const blockRows = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({
-      propertyId: row.propertyId,
-      id: { not: row.id },
-      status: ReservationStatus.BLOCKED,
-      checkIn: { lt: row.checkOut },
-      checkOut: { gt: row.checkIn },
-    }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        propertyId: row.propertyId,
+        id: { not: row.id },
+        status: ReservationStatus.BLOCKED,
+        checkIn: { lt: row.checkOut },
+        checkOut: { gt: row.checkIn },
+      }),
+    ),
     select: {
       id: true,
       guestName: true,
@@ -277,8 +291,17 @@ export async function getReservationForInbox(
 }
 
 export async function createReservation(data: ReservationWizardValues) {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, data.propertyId);
+
   const property = await db.property.findFirst({
-    where: { id: data.propertyId, status: PropertyStatus.ACTIVE },
+    where: {
+      id: data.propertyId,
+      status: PropertyStatus.ACTIVE,
+      ...scope.organizationId
+        ? { organizationId: scope.organizationId }
+        : { ownerId: scope.userId },
+    },
   });
   if (!property) throw new Error("Propiedad no encontrada");
 
@@ -325,13 +348,9 @@ export async function createReservation(data: ReservationWizardValues) {
 }
 
 export async function deleteReservation(id: string) {
-  const existing = await db.reservation.findUnique({
-    where: { id },
-    select: { propertyId: true },
-  });
+  const scope = await requireTenantDataScope();
+  const existing = await assertReservationInScope(scope, id);
   const deleted = await db.reservation.delete({ where: { id } });
-  if (existing) {
-    await touchPropertyIcalExport(existing.propertyId);
-  }
+  await touchPropertyIcalExport(existing.propertyId);
   return deleted;
 }

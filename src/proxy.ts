@@ -56,21 +56,27 @@ const clerkMiddlewareOptions = useClerkProxy
   ? { frontendApiProxy: { enabled: true as const } }
   : {};
 
+function forwardWithPathname(request: Request, pathname: string) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export default clerkMiddleware(
   async (auth, request) => {
+    const pathname = request.nextUrl.pathname;
+
     if (isPublicRoute(request)) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     if (isSelfAuthedApi(request)) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     if (isUnauthorizedPage(request)) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
-
-    const pathname = request.nextUrl.pathname;
 
     if (isOwnerRoute(request)) {
       const authState = await auth();
@@ -82,11 +88,11 @@ export default clerkMiddleware(
         loginUrl.searchParams.set("next", pathname);
         return NextResponse.redirect(loginUrl);
       }
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     if (isOwnerLoginRoute(request)) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     const authState = await auth();
@@ -96,13 +102,13 @@ export default clerkMiddleware(
     }
 
     if (!isProtectedDashboardPath(pathname)) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     const role = getRoleFromSessionClaims(authState.sessionClaims);
 
     if (!role) {
-      return;
+      return forwardWithPathname(request, pathname);
     }
 
     const permission = getRequiredPermissionForPath(pathname);
@@ -110,6 +116,8 @@ export default clerkMiddleware(
       const url = new URL("/unauthorized", request.url);
       return NextResponse.redirect(url);
     }
+
+    return forwardWithPathname(request, pathname);
   },
   clerkMiddlewareOptions,
 );

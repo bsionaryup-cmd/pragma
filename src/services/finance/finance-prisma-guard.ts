@@ -1,5 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
+import {
+  manualExpenseWhere,
+  otherIncomeWhere,
+} from "@/lib/platform/tenant-data-scope";
 
 export const FINANCE_SCHEMA_DRIFT_HINT =
   "Finanzas: ejecuta npx prisma generate y npm run db:migrate:deploy";
@@ -81,6 +86,7 @@ export function isFinanceSchemaDriftError(error: unknown): boolean {
 export async function listManualExpensesInRange(
   start: Date,
   end: Date,
+  scope: TenantDataScope,
 ): Promise<
   Array<{
     id: string;
@@ -97,7 +103,10 @@ export async function listManualExpensesInRange(
 
   try {
     return await manualExpense.findMany({
-      where: { expenseDate: { gte: start, lte: end } },
+      where: {
+        ...manualExpenseWhere(scope),
+        expenseDate: { gte: start, lte: end },
+      },
       select: { id: true, amount: true, category: true, expenseDate: true },
     });
   } catch (error) {
@@ -112,6 +121,7 @@ export async function listManualExpensesInRange(
 export async function listOtherIncomesInRange(
   start: Date,
   end: Date,
+  scope: TenantDataScope,
 ): Promise<
   Array<{
     id: string;
@@ -128,7 +138,10 @@ export async function listOtherIncomesInRange(
 
   try {
     return await otherIncome.findMany({
-      where: { incomeDate: { gte: start, lte: end } },
+      where: {
+        ...otherIncomeWhere(scope),
+        incomeDate: { gte: start, lte: end },
+      },
       select: { id: true, amount: true, incomeType: true, incomeDate: true },
     });
   } catch (error) {

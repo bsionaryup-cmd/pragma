@@ -25,6 +25,7 @@ import {
 function revalidatePriceLabs() {
   revalidatePath("/integrations");
   revalidatePath("/integrations/pricelabs");
+  revalidatePath("/revenue");
   revalidatePath("/calendar");
 }
 

@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import { requireDbUser } from "@/lib/auth";
 import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
+import {
+  isPlatformOwnerSelfServicePath,
+  platformOwnerCanUseOwnTenantSettings,
+} from "@/lib/platform/platform-owner-self-service";
 import { buildTenantContext } from "@/lib/platform/tenant-context";
 import { db } from "@/lib/db";
 import { OrganizationStatus } from "@prisma/client";
@@ -22,10 +26,20 @@ export async function PlatformImpersonationBanner() {
   return <ImpersonationBanner organizationName={org?.name ?? ""} />;
 }
 
-export async function enforceTenantDashboardAccess(user: Awaited<ReturnType<typeof requireDbUser>>) {
+export async function enforceTenantDashboardAccess(
+  user: Awaited<ReturnType<typeof requireDbUser>>,
+  pathname = "",
+) {
   if (isSuperAdminOwner(user)) {
     const ctx = await buildTenantContext(user);
     if (!ctx.isImpersonating) {
+      if (
+        platformOwnerCanUseOwnTenantSettings(user) &&
+        pathname &&
+        isPlatformOwnerSelfServicePath(pathname)
+      ) {
+        return ctx;
+      }
       redirect(resolvePostAuthHomePath(user));
     }
     return ctx;

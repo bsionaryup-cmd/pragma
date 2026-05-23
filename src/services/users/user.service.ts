@@ -23,6 +23,7 @@ import {
 } from "@/services/organizations/organization.service";
 import { resolvePlatformRoleForEmail } from "@/lib/platform/resolve-platform-role";
 import { isPlatformOwnerEmail } from "@/lib/platform/platform-owner";
+import { assertUsersShareOrganization } from "@/lib/platform/tenant-access";
 
 async function createSelfSignupUser(
   payload: ClerkUserPayload,
@@ -146,7 +147,7 @@ function buildUserCreateData(
       ? { organization: { connect: { id: options.organizationId } } }
       : {}),
     locale: "es",
-    theme: "system",
+    theme: "light",
     timezone: "America/Bogota",
     lastLoginAt: options?.touchLogin ? new Date() : null,
   };
@@ -346,8 +347,12 @@ export async function listUsers(options?: { organizationId?: string | null }) {
   });
 }
 
-export async function updateUserRole(userId: string, role: UserRole) {
-  await assertAdminCanChangeUserRole(userId);
+export async function updateUserRole(
+  userId: string,
+  role: UserRole,
+  actorUserId: string,
+) {
+  await assertAdminCanChangeUserRole(userId, actorUserId);
 
   const user = await db.user.update({
     where: { id: userId },
@@ -360,7 +365,13 @@ export async function updateUserRole(userId: string, role: UserRole) {
   return user;
 }
 
-export async function setUserActive(userId: string, isActive: boolean) {
+export async function setUserActive(
+  userId: string,
+  isActive: boolean,
+  actorUserId: string,
+) {
+  await assertUsersShareOrganization(actorUserId, userId);
+
   if (!isActive) {
     const target = await db.user.findUnique({
       where: { id: userId },
@@ -402,6 +413,7 @@ export async function createUserByAdmin(
     firstName?: string | null;
     lastName?: string | null;
     role: UserRole;
+    password: string;
   },
   adminUserId: string,
 ) {
@@ -427,18 +439,25 @@ export async function createUserByAdmin(
   }
 
   let clerkUser = await findClerkUserByEmail(email);
+  const client = await clerkClient();
 
   if (!clerkUser) {
-    const client = await clerkClient();
     clerkUser = await client.users.createUser({
       emailAddress: [email],
+      password: input.password,
       firstName: input.firstName?.trim() || undefined,
       lastName: input.lastName?.trim() || undefined,
-      skipPasswordRequirement: true,
+      skipPasswordRequirement: false,
       publicMetadata: {
         role: input.role,
         dbUserId: "pending",
       },
+    });
+  } else {
+    clerkUser = await client.users.updateUser(clerkUser.id, {
+      password: input.password,
+      firstName: input.firstName?.trim() || undefined,
+      lastName: input.lastName?.trim() || undefined,
     });
   }
 
@@ -513,7 +532,10 @@ export async function createUserByAdmin(
 export async function updateUserProfile(
   userId: string,
   input: { firstName?: string | null; lastName?: string | null },
+  actorUserId: string,
 ) {
+  await assertUsersShareOrganization(actorUserId, userId);
+
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new Error("Usuario no encontrado");
@@ -536,7 +558,9 @@ export async function updateUserProfile(
   return withUserPreferenceDefaults(updated);
 }
 
-export async function deleteUserByAdmin(userId: string) {
+export async function deleteUserByAdmin(userId: string, actorUserId: string) {
+  await assertUsersShareOrganization(actorUserId, userId);
+
   const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new Error("Usuario no encontrado");

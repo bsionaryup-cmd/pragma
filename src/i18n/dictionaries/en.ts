@@ -205,7 +205,7 @@ export const en = {
     verdict: {
       attention: "{{count}} properties need review",
       balanced: "Pricing aligned — no urgent alerts",
-      noData: "Connect PriceLabs for pricing recommendations",
+      noData: "No pricing data for your properties yet",
     },
     stats: {
       underpriced: "Underpriced",
@@ -249,6 +249,37 @@ export const en = {
     },
     billingLocked:
       "Restricted mode: you can view metrics; sync and price editing are paused until payment is regularized.",
+    setup: {
+      title: "PriceLabs integration",
+      description:
+        "Paste the API key from PriceLabs to connect listings and dynamic pricing.",
+      needsKeyHint:
+        "Save your PriceLabs API key and run a sync to see recommendations.",
+      migrationTitle: "Pending migration",
+    },
+    pricing: {
+      title: "Price adjustment per property",
+      description:
+        "Set minimum, base, and maximum. Changes sync with the pricing engine.",
+      property: "Property",
+      min: "Minimum",
+      base: "Base",
+      max: "Maximum",
+      recommended: "Recommended",
+      revenue: "Revenue",
+      empty: "Add active properties to configure pricing.",
+    },
+    sync: {
+      title: "Synchronization",
+      description: "Import listings and prices from PriceLabs.",
+      test: "Test connection",
+      listings: "Import listings",
+      prices: "Import prices",
+      full: "Full pipeline",
+      refresh: "Force refresh",
+      needsKey: "Configure the API key before syncing.",
+      mode: "API mode",
+    },
   },
   integrations: {
     title: "Integrations",

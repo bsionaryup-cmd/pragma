@@ -3,16 +3,15 @@
 import { useSignIn } from "@clerk/nextjs/legacy";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
-import { Lock, Mail } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Mail } from "lucide-react";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getClerkAuthErrorMessage } from "@/lib/clerk-auth-errors";
 
 export function EmailPasswordSignInForm() {
-  const router = useRouter();
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -22,15 +21,28 @@ export function EmailPasswordSignInForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const hadSessionOnArrivalRef = useRef<boolean | null>(null);
+  const loginSucceededRef = useRef(false);
 
   useEffect(() => {
     if (!authLoaded) return;
+
+    if (hadSessionOnArrivalRef.current === null) {
+      hadSessionOnArrivalRef.current = isSignedIn;
+    }
 
     if (!isSignedIn) {
       setReady(true);
       return;
     }
 
+    // Fresh login on this page — keep the new session and let handleSubmit redirect.
+    if (loginSucceededRef.current || !hadSessionOnArrivalRef.current) {
+      setReady(true);
+      return;
+    }
+
+    // Already signed in before opening /sign-in — clear stale session for a clean login.
     let cancelled = false;
     void signOut().then(() => {
       if (!cancelled) setReady(true);
@@ -83,9 +95,9 @@ export function EmailPasswordSignInForm() {
           return;
         }
 
+        loginSucceededRef.current = true;
         await setActive({ session: result.createdSessionId });
-        router.push("/panel");
-        router.refresh();
+        window.location.assign("/panel");
       } catch (err) {
         setError(
           getClerkAuthErrorMessage(
@@ -106,7 +118,7 @@ export function EmailPasswordSignInForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" onSubmit={handleSubmit} autoComplete="off">
       <div className="space-y-1 text-center">
         <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           Iniciar sesión
@@ -130,7 +142,7 @@ export function EmailPasswordSignInForm() {
             <Input
               id="sign-in-email"
               type="email"
-              autoComplete="email"
+              autoComplete="off"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="pl-9"
@@ -140,22 +152,15 @@ export function EmailPasswordSignInForm() {
           </div>
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="sign-in-password">Contraseña</Label>
-          <div className="relative">
-            <Lock className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="sign-in-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="pl-9"
-              placeholder="••••••••"
-              required
-            />
-          </div>
-        </div>
+        <PasswordInput
+          id="sign-in-password"
+          label="Contraseña"
+          value={password}
+          onChange={setPassword}
+          autoComplete="off"
+          placeholder="••••••••"
+          required
+        />
       </div>
 
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={pending}>

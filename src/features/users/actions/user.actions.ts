@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { UserRole } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
+import { validateNewAccountPassword } from "@/lib/auth/password-rules";
 import {
   createUserSchema,
   updateUserProfileSchema,
@@ -23,12 +24,18 @@ import {
 export async function createUserAction(input: unknown) {
   const admin = await requirePermission("users:write");
   const parsed = createUserSchema.parse(input);
+  const passwordError = validateNewAccountPassword(parsed.password);
+  if (passwordError) {
+    throw new Error(passwordError);
+  }
+
   await createUserByAdmin(
     {
       email: parsed.email,
       firstName: parsed.firstName || null,
       lastName: parsed.lastName || null,
       role: parsed.role,
+      password: parsed.password,
     },
     admin.dbUserId,
   );
@@ -44,14 +51,14 @@ export async function updateUserProfileAction(userId: string, input: unknown) {
   await updateUserProfile(userId, {
     firstName: parsed.firstName || null,
     lastName: parsed.lastName || null,
-  });
+  }, current.dbUserId);
   revalidatePath("/users");
 }
 
 export async function deleteUserAction(userId: string) {
   const current = await requirePermission("users:delete");
   await assertCanDeleteUser(userId, current.dbUserId);
-  await deleteUserByAdmin(userId);
+  await deleteUserByAdmin(userId, current.dbUserId);
   revalidatePath("/users");
 }
 
@@ -62,8 +69,8 @@ export async function updateUserRoleAction(userId: string, role: UserRole) {
     throw new Error("No puedes quitarte el rol de administrador");
   }
 
-  await assertAdminCanChangeUserRole(userId);
-  await updateUserRole(userId, role);
+  await assertAdminCanChangeUserRole(userId, current.dbUserId);
+  await updateUserRole(userId, role, current.dbUserId);
   revalidatePath("/users");
 }
 
@@ -78,6 +85,6 @@ export async function setUserActiveAction(userId: string, isActive: boolean) {
     await assertAdminCanManageUser(userId, current.dbUserId);
   }
 
-  await setUserActive(userId, isActive);
+  await setUserActive(userId, isActive, current.dbUserId);
   revalidatePath("/users");
 }

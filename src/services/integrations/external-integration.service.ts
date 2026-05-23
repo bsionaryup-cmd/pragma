@@ -1,22 +1,60 @@
 import type { ExternalIntegrationProvider } from "@prisma/client";
 import { db } from "@/lib/db";
+import {
+  assertIntegrationConfiguredByOrganization,
+  integrationVisibleToOrganization,
+} from "@/lib/platform/tenant-access";
 import { encryptTTLockSecret, decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+
+async function loadIntegrationWithConfigurator(
+  provider: ExternalIntegrationProvider,
+) {
+  return db.externalIntegration.findUnique({
+    where: { provider },
+    include: {
+      configuredBy: {
+        select: { organizationId: true },
+      },
+    },
+  });
+}
 
 export async function getExternalIntegration(
   provider: ExternalIntegrationProvider,
+  organizationId: string | null,
 ) {
-  return db.externalIntegration.findUnique({ where: { provider } });
+  const row = await loadIntegrationWithConfigurator(provider);
+  if (!row) return null;
+
+  if (
+    !integrationVisibleToOrganization(
+      row.configuredById,
+      row.configuredBy?.organizationId,
+      organizationId,
+    )
+  ) {
+    return null;
+  }
+
+  return row;
 }
 
 export async function saveExternalIntegration(input: {
   provider: ExternalIntegrationProvider;
   configuredById: string;
+  organizationId: string | null;
   apiKey?: string;
   token?: string;
   clientId?: string;
   clientSecret?: string;
   callbackUrl?: string;
 }) {
+  const existing = await loadIntegrationWithConfigurator(input.provider);
+  await assertIntegrationConfiguredByOrganization(
+    existing?.configuredById,
+    input.organizationId,
+  );
+
   return db.externalIntegration.upsert({
     where: { provider: input.provider },
     create: {
@@ -59,8 +97,9 @@ export async function saveExternalIntegration(input: {
 
 export async function testExternalIntegration(
   provider: ExternalIntegrationProvider,
+  organizationId: string | null,
 ) {
-  const row = await getExternalIntegration(provider);
+  const row = await getExternalIntegration(provider, organizationId);
   if (!row?.clientId && !row?.apiKeyEncrypted) {
     return { ok: false, message: "Configura credenciales antes de probar" };
   }

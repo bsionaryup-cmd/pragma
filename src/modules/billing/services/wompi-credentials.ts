@@ -4,7 +4,7 @@ import {
   type WompiEnvironment,
 } from "@/modules/billing/config/wompi.config";
 import {
-  getWompiIntegrationSafe,
+  getWompiIntegrationForOrganization,
   hasWompiIntegrationDelegate,
   resolveStoredWompiSecret,
 } from "@/modules/billing/services/wompi-persistence";
@@ -15,10 +15,12 @@ export type WompiCredentialStatus =
   | "missing"
   | "stored"
   | "environment"
-  | "both";
+  | "both"
+  | "disabled";
 
 export type WompiCredentialSnapshot = {
   configured: boolean;
+  enabled: boolean;
   webhookReady: boolean;
   source: WompiCredentialSource;
   status: WompiCredentialStatus;
@@ -32,6 +34,9 @@ export type WompiCredentialSnapshot = {
   integritySecretHint: string | null;
   schemaReady: boolean;
   webhookPath: string;
+  webhookUrl: string | null;
+  lastHealthCheckAt: string | null;
+  lastError: string | null;
 };
 
 function buildSecretHint(value: string | null | undefined): string | null {
@@ -52,7 +57,38 @@ function resolveEnv(raw: string | null | undefined): WompiEnvironment {
   return raw?.trim() === "production" ? "production" : "test";
 }
 
-function mergeWompiConfig(
+function buildConfigFromRow(
+  row: {
+    publicKey: string | null;
+    privateKeyEncrypted: string | null;
+    eventsSecretEncrypted: string | null;
+    integritySecretEncrypted: string | null;
+    env: string;
+    enabled: boolean;
+  },
+  envConfig: WompiConfig,
+): WompiConfig {
+  const publicKey = row.publicKey;
+  const privateKey = resolveStoredWompiSecret(row.privateKeyEncrypted);
+  const eventsSecret = resolveStoredWompiSecret(row.eventsSecretEncrypted);
+  const integritySecret = resolveStoredWompiSecret(row.integritySecretEncrypted);
+  const env = resolveEnv(row.env);
+  const configured = Boolean(
+    row.enabled && publicKey && privateKey && eventsSecret && integritySecret,
+  );
+
+  return {
+    ...envConfig,
+    publicKey,
+    privateKey,
+    eventsSecret,
+    integritySecret,
+    env,
+    configured,
+  };
+}
+
+function mergeLegacyWompiConfig(
   db: {
     publicKey: string | null;
     privateKey: string | null;
@@ -81,29 +117,45 @@ function mergeWompiConfig(
   };
 }
 
-/** Server-only: DB-stored credentials win over env per field. */
-export async function resolveWompiConfig(): Promise<WompiConfig> {
+function resolvePublicWebhookUrl(): string | null {
   const envConfig = getWompiConfigFromEnv();
-  const row = await getWompiIntegrationSafe();
+  if (envConfig.webhookUrl) return envConfig.webhookUrl;
 
-  if (!row) return envConfig;
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    process.env.VERCEL_URL?.trim();
+  if (!baseUrl) return null;
 
-  return mergeWompiConfig(
-    {
-      publicKey: row.publicKey,
-      privateKey: resolveStoredWompiSecret(row.privateKeyEncrypted),
-      eventsSecret: resolveStoredWompiSecret(row.eventsSecretEncrypted),
-      integritySecret: resolveStoredWompiSecret(row.integritySecretEncrypted),
-      env: resolveEnv(row.env),
-    },
-    envConfig,
-  );
+  const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+  return `${origin.replace(/\/$/, "")}/api/payments/wompi/webhook`;
 }
 
-export async function getWompiCredentialSnapshot(): Promise<WompiCredentialSnapshot> {
+/** Server-only: per-organization credentials (no cross-tenant env fallback). */
+export async function resolveWompiConfig(
+  organizationId: string,
+): Promise<WompiConfig> {
   const envConfig = getWompiConfigFromEnv();
-  const row = await getWompiIntegrationSafe();
-  const resolved = await resolveWompiConfig();
+  const row = await getWompiIntegrationForOrganization(organizationId);
+
+  if (!row) {
+    return { ...envConfig, configured: false };
+  }
+
+  return buildConfigFromRow(row, envConfig);
+}
+
+/** Legacy bootstrap when organization cannot be resolved (env vars only). */
+export async function resolveWompiConfigLegacy(): Promise<WompiConfig> {
+  return getWompiConfigFromEnv();
+}
+
+export async function getWompiCredentialSnapshot(
+  organizationId: string,
+): Promise<WompiCredentialSnapshot> {
+  const envConfig = getWompiConfigFromEnv();
+  const row = await getWompiIntegrationForOrganization(organizationId);
+  const resolved = await resolveWompiConfig(organizationId);
 
   const storedPrivate = row
     ? resolveStoredWompiSecret(row.privateKeyEncrypted)
@@ -134,25 +186,40 @@ export async function getWompiCredentialSnapshot(): Promise<WompiCredentialSnaps
     status = "environment";
   }
 
+  if (hasStoredCredentials && row && !row.enabled) {
+    status = "disabled";
+  }
+
   return {
     configured: resolved.configured,
+    enabled: row?.enabled ?? false,
     webhookReady: Boolean(resolved.eventsSecret),
     source,
     status,
     hasStoredCredentials,
     hasEnvCredentials,
     env: resolved.env,
-    publicKey: resolved.publicKey,
+    publicKey: null,
     publicKeyHint: buildPublicKeyHint(resolved.publicKey),
     privateKeyHint: buildSecretHint(resolved.privateKey),
     eventsSecretHint: buildSecretHint(resolved.eventsSecret),
     integritySecretHint: buildSecretHint(resolved.integritySecret),
     schemaReady: hasWompiIntegrationDelegate(),
     webhookPath: "/api/payments/wompi/webhook",
+    webhookUrl: resolvePublicWebhookUrl(),
+    lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null,
+    lastError: row?.lastError ?? null,
   };
 }
 
-export async function isWompiConfiguredAsync(): Promise<boolean> {
-  const config = await resolveWompiConfig();
+export async function isWompiConfiguredForOrganization(
+  organizationId: string,
+): Promise<boolean> {
+  const config = await resolveWompiConfig(organizationId);
   return config.configured;
+}
+
+/** @deprecated Use resolveWompiConfig(organizationId) */
+export async function resolveWompiConfigGlobal(): Promise<WompiConfig> {
+  return mergeLegacyWompiConfig(null, getWompiConfigFromEnv());
 }

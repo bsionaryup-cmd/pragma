@@ -6,6 +6,7 @@ import type {
 } from "@prisma/client";
 
 export type PaymentProviderCheckoutInput = {
+  organizationId: string;
   invoiceId: string;
   paymentInvoiceId: string;
   amountInCents: number;

@@ -62,6 +62,11 @@ export async function buildTenantContext(user: User): Promise<TenantContext> {
   const isImpersonating = Boolean(impersonation);
   const impersonatedOrganizationId = impersonation?.targetOrganizationId ?? null;
 
+  const effectiveRole: AppUserRole =
+    isImpersonating || (platformOwner && user.organizationId)
+      ? "ADMIN"
+      : (user.role as AppUserRole);
+
   return {
     userId: user.id,
     email: user.email,
@@ -72,7 +77,7 @@ export async function buildTenantContext(user: User): Promise<TenantContext> {
     isImpersonating,
     impersonationSessionId: impersonation?.id ?? null,
     impersonatedOrganizationId,
-    effectiveRole: isImpersonating ? "ADMIN" : user.role,
+    effectiveRole,
   };
 }
 

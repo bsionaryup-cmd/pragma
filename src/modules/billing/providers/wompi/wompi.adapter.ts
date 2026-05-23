@@ -40,7 +40,7 @@ export class WompiPaymentAdapter implements PaymentProviderAdapter {
   async createCheckout(
     input: PaymentProviderCheckoutInput,
   ): Promise<PaymentProviderCheckoutResult> {
-    const config = await assertWompiConfigured();
+    const config = await assertWompiConfigured(input.organizationId);
 
     try {
       const response = await fetch(`${config.baseUrl}/payment_links`, {
@@ -97,8 +97,14 @@ export class WompiPaymentAdapter implements PaymentProviderAdapter {
   async verifyWebhookSignatureAsync(input: {
     rawBody: string;
     signature: string;
+    organizationId?: string;
+    eventsSecret?: string | null;
   }): Promise<boolean> {
-    const secret = (await resolveWompiConfig()).eventsSecret;
+    const secret =
+      input.eventsSecret ??
+      (input.organizationId
+        ? (await resolveWompiConfig(input.organizationId)).eventsSecret
+        : null);
     if (!secret) return false;
     return verifyWompiEventChecksum({
       payload: input.rawBody,

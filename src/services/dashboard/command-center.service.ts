@@ -9,6 +9,14 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { startOfDay } from "@/lib/helpers/date";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import {
+  mergePropertyScope,
+  mergeReservationScope,
+  taskWhere,
+  ttLockIntegrationWhere,
+  type TenantDataScope,
+} from "@/lib/platform/tenant-data-scope";
 import type { Locale } from "@/i18n/types";
 import {
   getCurrentStays,
@@ -98,6 +106,7 @@ function sumDecimal(rows: { totalAmount: { toString(): string } }[]): number {
 }
 
 async function computeOccupancyMonthly(
+  scope: TenantDataScope,
   activeProperties: number,
   daysInMonth: number,
   rangeStart: Date,
@@ -106,13 +115,15 @@ async function computeOccupancyMonthly(
   if (activeProperties <= 0 || daysInMonth <= 0) return 0;
 
   const reservations = await db.reservation.findMany({
-    where: withVisibleReservationsFilter({
-      status: {
-        in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-      },
-      checkIn: { lte: rangeEnd },
-      checkOut: { gt: rangeStart },
-    }),
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        status: {
+          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+        },
+        checkIn: { lte: rangeEnd },
+        checkOut: { gt: rangeStart },
+      }),
+    ),
     select: { checkIn: true, checkOut: true },
   });
 
@@ -132,6 +143,7 @@ async function computeOccupancyMonthly(
 }
 
 export async function getCommandCenterData(locale: Locale = "es"): Promise<CommandCenterData> {
+  const scope = await requireTenantDataScope();
   const today = startOfDay();
   const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds(today);
 
@@ -150,11 +162,15 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     recentReservations,
     recentTasks,
   ] = await Promise.all([
-    db.property.count({ where: { status: PropertyStatus.ACTIVE } }),
+    db.property.count({
+      where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
+    }),
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: ReservationStatus.CHECKED_IN,
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: ReservationStatus.CHECKED_IN,
+        }),
+      ),
       select: {
         propertyId: true,
         adults: true,
@@ -163,18 +179,19 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         property: { select: { maxGuests: true } },
       },
     }),
-    getPanelCounts(),
-    getUpcomingArrivals(8),
-    getUpcomingDepartures(8),
-    getCurrentStays(8),
+    getPanelCounts(scope),
+    getUpcomingArrivals(scope, 8),
+    getUpcomingDepartures(scope, 8),
+    getCurrentStays(scope, 8),
     db.task.count({
       where: {
+        ...taskWhere(scope),
         type: TaskType.CLEANING,
         status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
       },
     }),
     db.property.count({
-      where: {
+      where: mergePropertyScope(scope, {
         status: PropertyStatus.ACTIVE,
         icalUrl: { not: null },
         OR: [
@@ -185,42 +202,50 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
             },
           },
         ],
-      },
+      }),
     }),
     db.tTLockIntegration.count({
       where: {
+        ...ttLockIntegrationWhere(scope),
         status: {
           in: [TTLockIntegrationStatus.CONNECTED, TTLockIntegrationStatus.READY],
         },
       },
     }),
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-        checkIn: { lte: end },
-        checkOut: { gte: start },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: {
+            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+          },
+          checkIn: { lte: end },
+          checkOut: { gte: start },
+        }),
+      ),
       select: {
         totalAmount: true,
         property: { select: { cleaningFee: true } },
       },
     }),
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: {
-          in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-        },
-        checkIn: { lte: prevEnd },
-        checkOut: { gte: prevStart },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: {
+            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+          },
+          checkIn: { lte: prevEnd },
+          checkOut: { gte: prevStart },
+        }),
+      ),
       select: {
         totalAmount: true,
         property: { select: { cleaningFee: true } },
       },
     }),
     db.reservation.findMany({
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {}),
+      ),
       orderBy: { createdAt: "desc" },
       take: 5,
       select: {
@@ -231,7 +256,10 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       },
     }),
     db.task.findMany({
-      where: { status: TaskStatus.COMPLETED },
+      where: {
+        ...taskWhere(scope),
+        status: TaskStatus.COMPLETED,
+      },
       orderBy: { completedAt: "desc" },
       take: 3,
       select: {
@@ -252,7 +280,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     0,
   );
   const portfolioCapacity = await db.property.aggregate({
-    where: { status: PropertyStatus.ACTIVE },
+    where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
     _sum: { maxGuests: true },
   });
   const guestsCapacity =
@@ -270,13 +298,13 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       : 0;
 
   const [occupancyMonthly, occupancyMonthlyPrev] = await Promise.all([
-    computeOccupancyMonthly(activeProperties, daysInMonth, start, end),
-    computeOccupancyMonthly(activeProperties, daysInMonth, prevStart, prevEnd),
+    computeOccupancyMonthly(scope, activeProperties, daysInMonth, start, end),
+    computeOccupancyMonthly(scope, activeProperties, daysInMonth, prevStart, prevEnd),
   ]);
 
   const [currentManual, previousManual] = await Promise.all([
-    getManualFinanceInRange(start, end),
-    getManualFinanceInRange(prevStart, prevEnd),
+    getManualFinanceInRange(start, end, scope),
+    getManualFinanceInRange(prevStart, prevEnd, scope),
   ]);
 
   const monthlyRevenue =

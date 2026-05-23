@@ -30,10 +30,12 @@ import {
 import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import type { PriceLabsCredentialStatus } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import {
+  getPropertyForPriceLabs,
   getPriceLabsIntegrationSafe,
   listActivePropertiesForPriceLabs,
   markPropertyPriceLabsError,
   markPriceLabsIntegrationReady,
+  resolvePriceLabsTenantScope,
   revokePriceLabsApiKey,
   saveNeighborhoodSnapshot,
   savePriceLabsApiKeyEncrypted,
@@ -42,6 +44,59 @@ import {
 } from "@/services/integrations/pricelabs/pricelabs-persistence";
 import { isPriceLabsSyncInProgress } from "@/services/integrations/pricelabs/pricelabs-sync-lock";
 import { isPriceLabsSchemaReady } from "@/services/integrations/pricelabs/pricelabs-schema";
+import { db } from "@/lib/db";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import {
+  assertPropertyInScope,
+  integrationVisibleToOrganization,
+} from "@/lib/platform/tenant-access";
+import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
+import { propertyWhere } from "@/lib/platform/tenant-data-scope";
+
+function readListingInsights(meta: unknown): {
+  minRate: string | null;
+  maxRate: string | null;
+  listingBase: string | null;
+  revenue: string | null;
+  occupancy: string | null;
+} {
+  const stored = meta as StoredPriceLabsMeta | null;
+  const listing = stored?.listing;
+  if (!listing) {
+    return {
+      minRate: null,
+      maxRate: null,
+      listingBase: null,
+      revenue: null,
+      occupancy: null,
+    };
+  }
+
+  const formatAmount = (value: number | undefined) =>
+    value != null && Number.isFinite(value) ? String(Math.round(value)) : null;
+
+  const occupancy =
+    listing.occupancy != null && Number.isFinite(listing.occupancy)
+      ? `${Math.round(listing.occupancy)}%`
+      : null;
+
+  return {
+    minRate: formatAmount(listing.min),
+    maxRate: formatAmount(listing.max),
+    listingBase: formatAmount(listing.base),
+    revenue: formatAmount(listing.revenue),
+    occupancy,
+  };
+}
+
+function parseOptionalRate(value: string | undefined): number | null {
+  if (value == null || value.trim() === "") return null;
+  const parsed = Number.parseFloat(value.replace(/,/g, "."));
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error("Precio inválido");
+  }
+  return Math.round(parsed);
+}
 
 function pickSummaryFromDays(days: PriceLabsDailyPrice[]) {
   const first = days.find((d) => d.recommended_price != null || d.price != null);
@@ -110,6 +165,11 @@ export type PriceLabsOverviewDto = {
     recommendedRate: string | null;
     priceDelta: string | null;
     weekendUpliftPct: string | null;
+    minRate: string | null;
+    maxRate: string | null;
+    listingBase: string | null;
+    revenue: string | null;
+    occupancy: string | null;
     lastSyncedAt: string | null;
     lastError: string | null;
   }>;
@@ -195,7 +255,8 @@ export async function syncPriceLabsOverrides(): Promise<{
     };
   }
 
-  const properties = await listActivePropertiesForPriceLabs();
+  const scope = await resolvePriceLabsTenantScope();
+  const properties = await listActivePropertiesForPriceLabs(scope);
   let updated = 0;
   let failed = 0;
 
@@ -360,7 +421,8 @@ export async function syncListings(): Promise<
     results: [],
   };
 
-  const properties = await listActivePropertiesForPriceLabs();
+  const scope = await resolvePriceLabsTenantScope();
+  const properties = await listActivePropertiesForPriceLabs(scope);
   if (properties.length === 0) {
     return { ok: true, message: "No hay propiedades activas", ...empty };
   }
@@ -512,9 +574,8 @@ export async function syncListings(): Promise<
 export async function syncSingleListing(
   propertyId: string,
 ): Promise<{ ok: boolean; message: string; listingId?: string }> {
-  const property = await listActivePropertiesForPriceLabs().then((rows) =>
-    rows.find((p) => p.id === propertyId),
-  );
+  const scope = await requireTenantDataScope();
+  const property = await getPropertyForPriceLabs(propertyId, scope);
   if (!property) {
     return { ok: false, message: "Propiedad no encontrada o inactiva" };
   }
@@ -534,7 +595,8 @@ export async function syncSingleListing(
 export async function fetchDynamicPrices(): Promise<
   PriceLabsPricesSummary & { ok: boolean; message: string }
 > {
-  const properties = await listActivePropertiesForPriceLabs();
+  const scope = await resolvePriceLabsTenantScope();
+  const properties = await listActivePropertiesForPriceLabs(scope);
   const empty: PriceLabsPricesSummary = {
     updated: 0,
     failed: 0,
@@ -719,19 +781,105 @@ export async function fetchDynamicPrices(): Promise<
   };
 }
 
+export async function savePropertyPriceBoundsFromPanel(input: {
+  propertyId: string;
+  baseRate?: string;
+  minRate?: string;
+  maxRate?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, input.propertyId);
+
+  const property = await getPropertyForPriceLabs(input.propertyId, scope);
+  if (!property) {
+    return { ok: false, message: "Propiedad no encontrada" };
+  }
+
+  const baseRate = parseOptionalRate(input.baseRate);
+  const minRate = parseOptionalRate(input.minRate);
+  const maxRate = parseOptionalRate(input.maxRate);
+
+  if (baseRate != null && minRate != null && baseRate < minRate) {
+    return { ok: false, message: "La tarifa base no puede ser menor al mínimo" };
+  }
+  if (baseRate != null && maxRate != null && baseRate > maxRate) {
+    return { ok: false, message: "La tarifa base no puede ser mayor al máximo" };
+  }
+  if (minRate != null && maxRate != null && minRate > maxRate) {
+    return { ok: false, message: "El mínimo no puede ser mayor al máximo" };
+  }
+
+  if (baseRate != null) {
+    await db.property.updateMany({
+      where: { id: input.propertyId, ...propertyWhere(scope) },
+      data: { baseRate },
+    });
+  }
+
+  const existingMeta = (property.priceLabs?.meta as StoredPriceLabsMeta | null) ?? {};
+  const listingId = property.priceLabs?.listingId ?? input.propertyId;
+  const listing = {
+    ...(existingMeta.listing ?? { id: listingId }),
+    id: listingId,
+  };
+
+  if (minRate != null) listing.min = minRate;
+  if (maxRate != null) listing.max = maxRate;
+  if (baseRate != null) listing.base = baseRate;
+
+  await upsertPropertyPriceLabsSync({
+    propertyId: input.propertyId,
+    listingId,
+    recommendedRate: property.priceLabs?.recommendedRate
+      ? Number.parseFloat(property.priceLabs.recommendedRate.toString())
+      : null,
+    baseRateAtSync: baseRate ?? (property.baseRate
+      ? Number.parseFloat(property.baseRate.toString())
+      : null),
+    priceDelta: property.priceLabs?.priceDelta
+      ? Number.parseFloat(property.priceLabs.priceDelta.toString())
+      : null,
+    weekendUpliftPct: property.priceLabs?.weekendUpliftPct
+      ? Number.parseFloat(property.priceLabs.weekendUpliftPct.toString())
+      : null,
+    syncStatus:
+      property.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
+    lastError: property.priceLabs?.lastError ?? null,
+    meta: {
+      ...existingMeta,
+      listing,
+    },
+  });
+
+  return { ok: true, message: "Límites de precio guardados" };
+}
+
 export async function getPriceLabsOverview(
   canManage: boolean,
 ): Promise<PriceLabsOverviewDto> {
+  const scope = await requireTenantDataScope();
   const schemaReady = await isPriceLabsSchemaReady();
   const credentials = await getPriceLabsCredentialSnapshot();
   const row = schemaReady ? await getPriceLabsIntegrationSafe() : null;
-  const properties = await listActivePropertiesForPriceLabs();
+  const configurator = row?.configuredById
+    ? await db.user.findUnique({
+        where: { id: row.configuredById },
+        select: { organizationId: true },
+      })
+    : null;
+  const integrationAccessible = integrationVisibleToOrganization(
+    row?.configuredById,
+    configurator?.organizationId,
+    scope.organizationId,
+  );
+  const properties = await listActivePropertiesForPriceLabs(scope);
 
   const integrationStatus =
-    row?.status ??
-    (credentials.configured
+    integrationAccessible && row?.status
+      ? row.status
+      : credentials.configured && integrationAccessible
       ? PriceLabsIntegrationStatus.PENDING_SETUP
-      : PriceLabsIntegrationStatus.NOT_CONNECTED);
+      : PriceLabsIntegrationStatus.NOT_CONNECTED;
 
   const syncedCount = properties.filter(
     (p) => p.priceLabs?.syncStatus === PropertyPriceLabsSyncStatus.SYNCED,
@@ -817,20 +965,28 @@ export async function getPriceLabsOverview(
       createdAt: log.createdAt.toISOString(),
     })),
     syncing,
-    properties: properties.map((p) => ({
-      id: p.id,
-      name: p.name,
-      city: p.city,
-      baseRate: p.baseRate?.toString() ?? null,
-      syncStatus:
-        p.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
-      listingId: p.priceLabs?.listingId ?? null,
-      recommendedRate: p.priceLabs?.recommendedRate?.toString() ?? null,
-      priceDelta: p.priceLabs?.priceDelta?.toString() ?? null,
-      weekendUpliftPct: p.priceLabs?.weekendUpliftPct?.toString() ?? null,
-      lastSyncedAt: p.priceLabs?.lastSyncedAt?.toISOString() ?? null,
-      lastError: p.priceLabs?.lastError ?? null,
-    })),
+    properties: properties.map((p) => {
+      const insights = readListingInsights(p.priceLabs?.meta ?? null);
+      return {
+        id: p.id,
+        name: p.name,
+        city: p.city,
+        baseRate: p.baseRate?.toString() ?? insights.listingBase,
+        syncStatus:
+          p.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
+        listingId: p.priceLabs?.listingId ?? null,
+        recommendedRate: p.priceLabs?.recommendedRate?.toString() ?? null,
+        priceDelta: p.priceLabs?.priceDelta?.toString() ?? null,
+        weekendUpliftPct: p.priceLabs?.weekendUpliftPct?.toString() ?? null,
+        minRate: insights.minRate,
+        maxRate: insights.maxRate,
+        listingBase: insights.listingBase,
+        revenue: insights.revenue,
+        occupancy: insights.occupancy,
+        lastSyncedAt: p.priceLabs?.lastSyncedAt?.toISOString() ?? null,
+        lastError: p.priceLabs?.lastError ?? null,
+      };
+    }),
     metrics: {
       propertyCount: properties.length,
       syncedCount,

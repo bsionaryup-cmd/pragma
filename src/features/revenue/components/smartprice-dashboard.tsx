@@ -10,18 +10,27 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { SmartpricePropertyPricingSection } from "@/features/revenue/components/smartprice-property-pricing-section";
 import { useI18n } from "@/components/providers/i18n-provider";
 import type {
   SmartpriceAttentionReason,
-  SmartpriceDashboardDto,
+  SmartpriceAttentionItem,
 } from "@/services/revenue/revenue-dashboard.service";
+import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 type SmartpriceDashboardProps = {
-  data: SmartpriceDashboardDto;
+  overview: PriceLabsOverviewDto;
+  attention: SmartpriceAttentionItem[];
+  finance: {
+    occupancyRate: string | null;
+    adr: string | null;
+  } | null;
+  billingLocked: boolean;
+  canEditPrices: boolean;
 };
 
 function formatDate(iso: string | null) {
@@ -67,22 +76,39 @@ const REASON_LABEL_KEYS: Record<
   pending_sync: "smartprice.reasons.pending_sync",
 };
 
-export function SmartpriceDashboard({ data }: SmartpriceDashboardProps) {
+export function SmartpriceDashboard({
+  overview,
+  attention,
+  finance,
+  billingLocked,
+  canEditPrices,
+}: SmartpriceDashboardProps) {
   const { t } = useI18n();
-  const { priceLabs, finance, billingLocked, attention } = data;
+  const { integration, metrics, revenue } = overview;
+
+  const priceLabs = {
+    syncedCount: metrics.syncedCount,
+    propertyCount: metrics.propertyCount,
+    lastPricesSyncAt: integration.lastPricesSyncAt,
+    underpricedCount: revenue.underpricedCount,
+    overpricedCount: revenue.overpricedCount,
+    neutralCount: revenue.neutralCount,
+    avgDelta: revenue.avgDelta,
+  };
 
   const hasPricingData =
-    priceLabs.configured &&
     priceLabs.propertyCount > 0 &&
     (priceLabs.underpricedCount > 0 ||
       priceLabs.overpricedCount > 0 ||
-      priceLabs.neutralCount > 0);
+      priceLabs.neutralCount > 0 ||
+      priceLabs.lastPricesSyncAt != null);
 
-  const verdictKey = !priceLabs.configured
-    ? "smartprice.verdict.noData"
-    : attention.length > 0
-      ? "smartprice.verdict.attention"
-      : "smartprice.verdict.balanced";
+  const verdictKey =
+    !hasPricingData
+      ? "smartprice.verdict.noData"
+      : attention.length > 0
+        ? "smartprice.verdict.attention"
+        : "smartprice.verdict.balanced";
 
   const verdictText =
     verdictKey === "smartprice.verdict.attention"
@@ -107,13 +133,6 @@ export function SmartpriceDashboard({ data }: SmartpriceDashboardProps) {
           <Button asChild variant="outline" size="sm">
             <Link href="/calendar">{t("smartprice.actions.calendar")}</Link>
           </Button>
-          {!billingLocked ? (
-            <Button asChild size="sm" className="bg-[#0E9F8D] hover:bg-[#0c8a7a]">
-              <Link href="/integrations/pricelabs">
-                {t("smartprice.pricelabs.open")}
-              </Link>
-            </Button>
-          ) : null}
         </div>
       </header>
 
@@ -175,6 +194,12 @@ export function SmartpriceDashboard({ data }: SmartpriceDashboardProps) {
         />
       </div>
 
+      <SmartpricePropertyPricingSection
+        properties={overview.properties}
+        canEditPrices={canEditPrices}
+        billingLocked={billingLocked}
+      />
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
@@ -233,54 +258,22 @@ export function SmartpriceDashboard({ data }: SmartpriceDashboardProps) {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <LineChart className="h-4 w-4 text-[#0E9F8D]" />
-              {t("smartprice.pricelabs.title")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Row
-              label={t("smartprice.pricelabs.status")}
-              value={
-                <Badge variant="outline">
-                  {priceLabs.configured
-                    ? priceLabs.connected
-                      ? t("smartprice.pricelabs.connected")
-                      : t("smartprice.pricelabs.configured")
-                    : t("smartprice.pricelabs.missing")}
-                </Badge>
-              }
-            />
-            <Row
-              label={t("smartprice.insight.avgDelta")}
-              value={formatMoney(priceLabs.avgDelta)}
-            />
-            <Row
-              label={t("smartprice.insight.lastSync")}
-              value={formatDate(priceLabs.lastPricesSyncAt)}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t("smartprice.context.title")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {finance ? (
-              <>
-                <Row label={t("smartprice.context.occupancy")} value={finance.occupancyRate ?? "—"} />
-                <Row label={t("smartprice.context.adr")} value={finance.adr ?? "—"} />
-              </>
-            ) : (
-              <p className="text-muted-foreground">{t("smartprice.context.empty")}</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <LineChart className="h-4 w-4 text-[#0E9F8D]" />
+            {t("smartprice.context.title")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3 text-sm">
+          <Row label={t("smartprice.context.occupancy")} value={finance?.occupancyRate ?? "—"} />
+          <Row label={t("smartprice.context.adr")} value={finance?.adr ?? "—"} />
+          <Row
+            label={t("smartprice.insight.avgDelta")}
+            value={formatMoney(priceLabs.avgDelta)}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -338,9 +331,9 @@ function Row({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="space-y-1">
       <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
+      <p className="font-medium tabular-nums">{value}</p>
     </div>
   );
 }

@@ -10,8 +10,14 @@ import { parseDailyPricesFromMeta } from "@/features/calendar/lib/daily-pricing"
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import { db } from "@/lib/db";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import {
+  mergePropertyScope,
+  mergeReservationScope,
+  type TenantDataScope,
+} from "@/lib/platform/tenant-data-scope";
 
-async function loadCalendarProperties() {
+async function loadCalendarProperties(scope: TenantDataScope) {
   const base = {
     id: true,
     name: true,
@@ -22,9 +28,12 @@ async function loadCalendarProperties() {
     coverImageUrl: true,
     baseRate: true,
   } as const;
+  const propertyFilter = mergePropertyScope(scope, {
+    status: PropertyStatus.ACTIVE,
+  });
   try {
     return await db.property.findMany({
-      where: { status: PropertyStatus.ACTIVE },
+      where: propertyFilter,
       select: {
         ...base,
         priceLabs: {
@@ -41,7 +50,7 @@ async function loadCalendarProperties() {
   } catch (error) {
     if (!isPriceLabsSchemaDriftError(error)) throw error;
     return await db.property.findMany({
-      where: { status: PropertyStatus.ACTIVE },
+      where: propertyFilter,
       select: base,
       orderBy: [{ name: "asc" }],
     });
@@ -84,18 +93,21 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
 }
 
 export async function getCalendarData(anchorKey: string): Promise<CalendarDataDto> {
+  const scope = await requireTenantDataScope();
   const viewport = buildRollingCalendarViewport(anchorKey);
   const rangeStart = dateKeyToPrismaDate(viewport.rangeStart);
   const rangeEnd = dateKeyToPrismaDate(viewport.rangeEnd);
 
   const [propertiesRaw, reservations] = await Promise.all([
-    loadCalendarProperties(),
+    loadCalendarProperties(scope),
     db.reservation.findMany({
-      where: withVisibleReservationsFilter({
-        status: { notIn: ["CANCELLED"] },
-        checkIn: { lte: rangeEnd },
-        checkOut: { gt: rangeStart },
-      }),
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: { notIn: ["CANCELLED"] },
+          checkIn: { lte: rangeEnd },
+          checkOut: { gt: rangeStart },
+        }),
+      ),
       select: {
         id: true,
         propertyId: true,

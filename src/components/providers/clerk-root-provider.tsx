@@ -13,6 +13,9 @@ export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
   return (
     <ClerkProvider
       dynamic
+      signInUrl="/sign-in"
+      signUpUrl="/sign-up"
+      afterSignOutUrl="/sign-in"
       allowedRedirectOrigins={getClerkAllowedDevOrigins()}
       appearance={pragmaClerkAppearance}
     >

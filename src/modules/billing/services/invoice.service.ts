@@ -45,10 +45,17 @@ export async function ensurePaymentInvoiceForBillingInvoice(
   });
   if (!billingInvoice) return null;
 
+  const billingAccount = await db.billingAccount.findUnique({
+    where: { id: billingInvoice.billingAccountId },
+    select: { organizationId: true, id: true },
+  });
+  const tenantId =
+    billingAccount?.organizationId ?? billingAccount?.id ?? TENANT_SINGLETON;
+
   try {
     const amount = Number(billingInvoice.amount);
     const paymentInvoice = await createPaymentInvoice({
-      tenantId: TENANT_SINGLETON,
+      tenantId,
       billingInvoice: { connect: { id: billingInvoiceId } },
       subtotal: amount,
       fees: 0,

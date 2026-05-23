@@ -26,6 +26,7 @@ model Organization {
 
   users          User[]
   billingAccount BillingAccount?
+  wompiIntegration WompiIntegration?
   properties     Property[]
   impersonationSessions PlatformImpersonationSession[]
 
@@ -47,7 +48,7 @@ model User {
   isActive    Boolean   @default(true)
   deletedAt   DateTime?
   locale      String    @default("es")
-  theme       String    @default("system")
+  theme       String    @default("light")
   timezone    String    @default("America/Bogota")
   lastLoginAt DateTime?
   onboardingCompletedAt DateTime?
@@ -68,7 +69,7 @@ model User {
   otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
   externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
   priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
-  wompiIntegration     WompiIntegration?        @relation("WompiConfigurator")
+  wompiIntegrations      WompiIntegration[]       @relation("WompiConfigurator")
   platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
   platformAuditLogs      PlatformAuditLog[]
 
@@ -673,17 +674,22 @@ enum BillingInvoiceStatus {
 // ─── Wompi (PSP Colombia) ─────────────────────────────────────
 
 model WompiIntegration {
-  id                       String   @id @default("singleton")
+  id                       String   @id @default(cuid())
+  organizationId           String   @unique
   publicKey                String?
   privateKeyEncrypted      String?
   eventsSecretEncrypted    String?
   integritySecretEncrypted String?
   env                      String   @default("test")
-  configuredById           String?  @unique
+  enabled                  Boolean  @default(true)
+  lastHealthCheckAt        DateTime?
+  lastError                String?
+  configuredById           String?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 
-  configuredBy User? @relation("WompiConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  configuredBy User?        @relation("WompiConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
 
   @@map("wompi_integrations")
 }

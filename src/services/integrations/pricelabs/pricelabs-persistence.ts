@@ -7,6 +7,11 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
+  mergePropertyScope,
+  propertyWhere,
+  type TenantDataScope,
+} from "@/lib/platform/tenant-data-scope";
+import {
   decryptTTLockSecret,
   encryptTTLockSecret,
 } from "@/services/integrations/ttlock/ttlock-crypto";
@@ -81,6 +86,28 @@ export async function ensurePriceLabsIntegration(): Promise<PriceLabsIntegration
 
 export async function getPriceLabsIntegration(): Promise<PriceLabsIntegration | null> {
   return getPriceLabsIntegrationSafe();
+}
+
+export async function resolvePriceLabsTenantScope(
+  scope?: TenantDataScope,
+): Promise<TenantDataScope> {
+  if (scope) return scope;
+
+  const row = await getPriceLabsIntegrationSafe();
+  if (!row?.configuredById) {
+    throw new Error("PriceLabs no configurado");
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: row.configuredById },
+    select: { id: true, organizationId: true },
+  });
+
+  if (!user) {
+    throw new Error("Configurador PriceLabs no encontrado");
+  }
+
+  return { userId: user.id, organizationId: user.organizationId };
 }
 
 const MIN_API_KEY_LENGTH = 8;
@@ -269,13 +296,16 @@ const propertyBaseSelect = {
   currency: true,
 } as const;
 
-export async function listActivePropertiesForPriceLabs() {
+export async function listActivePropertiesForPriceLabs(scope: TenantDataScope) {
   const includePriceLabs = await isPropertyPriceLabsSchemaReady();
+  const propertyFilter = mergePropertyScope(scope, {
+    status: PropertyStatus.ACTIVE,
+  });
 
   try {
     if (!includePriceLabs) {
       const rows = await db.property.findMany({
-        where: { status: PropertyStatus.ACTIVE },
+        where: propertyFilter,
         orderBy: { name: "asc" },
         select: propertyBaseSelect,
       });
@@ -283,7 +313,7 @@ export async function listActivePropertiesForPriceLabs() {
     }
 
     return await db.property.findMany({
-      where: { status: PropertyStatus.ACTIVE },
+      where: propertyFilter,
       orderBy: { name: "asc" },
       select: {
         ...propertyBaseSelect,
@@ -293,7 +323,7 @@ export async function listActivePropertiesForPriceLabs() {
   } catch (error) {
     if (isPriceLabsSchemaDriftError(error)) {
       const rows = await db.property.findMany({
-        where: { status: PropertyStatus.ACTIVE },
+        where: propertyFilter,
         orderBy: { name: "asc" },
         select: propertyBaseSelect,
       });
@@ -303,20 +333,28 @@ export async function listActivePropertiesForPriceLabs() {
   }
 }
 
-export async function getPropertyForPriceLabs(propertyId: string) {
+export async function getPropertyForPriceLabs(
+  propertyId: string,
+  scope: TenantDataScope,
+) {
   const includePriceLabs = await isPropertyPriceLabsSchemaReady();
+  const propertyFilter = {
+    id: propertyId,
+    status: PropertyStatus.ACTIVE,
+    ...propertyWhere(scope),
+  };
 
   try {
     if (!includePriceLabs) {
       const row = await db.property.findFirst({
-        where: { id: propertyId, status: PropertyStatus.ACTIVE },
+        where: propertyFilter,
         select: propertyBaseSelect,
       });
       return row ? { ...row, priceLabs: null } : null;
     }
 
     return await db.property.findFirst({
-      where: { id: propertyId, status: PropertyStatus.ACTIVE },
+      where: propertyFilter,
       select: {
         ...propertyBaseSelect,
         priceLabs: true,

@@ -1,6 +1,10 @@
 import { createHash } from "crypto";
 import { PaymentProviderCode, PaymentTransactionStatus } from "@prisma/client";
-import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import {
+  resolveWompiConfig,
+  resolveWompiConfigLegacy,
+} from "@/modules/billing/services/wompi-credentials";
+import { resolveOrganizationIdFromPaymentReference } from "@/modules/billing/services/wompi-org";
 import { wompiAdapter } from "@/modules/billing/providers/wompi/wompi.adapter";
 import {
   createWebhookLog,
@@ -44,20 +48,31 @@ function buildEventId(
   return createHash("sha256").update(rawBody).digest("hex").slice(0, 32);
 }
 
+async function resolveWebhookVerificationConfig(input: {
+  rawBody: string;
+}): Promise<{ eventsSecret: string | null; organizationId: string | null }> {
+  const parsed = parseWompiWebhookPayload(input.rawBody);
+  const reference = parsed?.data?.transaction?.reference;
+
+  if (reference) {
+    const organizationId = await resolveOrganizationIdFromPaymentReference(reference);
+    if (organizationId) {
+      const config = await resolveWompiConfig(organizationId);
+      if (config.eventsSecret) {
+        return { eventsSecret: config.eventsSecret, organizationId };
+      }
+    }
+  }
+
+  const legacy = await resolveWompiConfigLegacy();
+  return { eventsSecret: legacy.eventsSecret, organizationId: null };
+}
+
 export async function processWompiWebhook(input: {
   rawBody: string;
   signature: string | null;
   clientIp?: string;
 }): Promise<{ ok: boolean; message: string; status: number }> {
-  const config = await resolveWompiConfig();
-  if (!config.eventsSecret) {
-    return {
-      ok: false,
-      message: "Secreto de eventos Wompi no configurado",
-      status: 503,
-    };
-  }
-
   if (input.clientIp) {
     try {
       checkWebhookRateLimit(input.clientIp);
@@ -70,10 +85,24 @@ export async function processWompiWebhook(input: {
     return { ok: false, message: "Firma ausente", status: 401 };
   }
 
+  const verification = await resolveWebhookVerificationConfig({
+    rawBody: input.rawBody,
+  });
+
+  if (!verification.eventsSecret) {
+    return {
+      ok: false,
+      message: "Secreto de eventos Wompi no configurado",
+      status: 503,
+    };
+  }
+
   const provider = wompiAdapter;
   const signatureValid = await wompiAdapter.verifyWebhookSignatureAsync({
     rawBody: input.rawBody,
     signature: input.signature,
+    organizationId: verification.organizationId ?? undefined,
+    eventsSecret: verification.eventsSecret,
   });
 
   if (!signatureValid) {
