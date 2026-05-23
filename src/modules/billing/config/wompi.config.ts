@@ -46,12 +46,12 @@ export function getWompiConfig(): WompiConfig {
 }
 
 export async function assertWompiConfigured(
-  organizationId: string,
+  _organizationId?: string,
 ): Promise<WompiConfig> {
-  const { resolveWompiConfig } = await import(
+  const { resolvePlatformWompiConfig } = await import(
     "@/modules/billing/services/wompi-credentials"
   );
-  const config = await resolveWompiConfig(organizationId);
+  const config = await resolvePlatformWompiConfig();
   if (!config.configured) {
     throw new PaymentProviderNotConfiguredError("WOMPI");
   }

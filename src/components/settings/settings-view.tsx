@@ -72,7 +72,7 @@ export function SettingsView({
               href="/settings/billing"
               className="rounded-lg bg-pragma-soft-cyan px-3 py-1.5 text-sm font-medium text-pragma-electric ring-1 ring-pragma-cyan/20"
             >
-              Facturación & Wompi
+              Facturación
             </Link>
           ) : null}
           {canAccessIntegrations ? (
@@ -95,14 +95,14 @@ export function SettingsView({
       ) : null}
 
       {canManageBilling ? (
-        <Card className="border-pragma-cyan/20 bg-pragma-soft-cyan/20">
+        <Card className="border-pragma-soft-cyan/30 bg-pragma-soft-cyan/10">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div>
               <p className="text-sm font-semibold text-foreground">
-                Pagos y suscripción (Wompi)
+                Suscripción y facturas
               </p>
               <p className="text-xs text-muted-foreground">
-                Configura credenciales Wompi, revisa facturas y paga tu plan.
+                Consulta tu plan, paga tu suscripción y descarga facturas.
               </p>
             </div>
             <Button asChild size="sm">

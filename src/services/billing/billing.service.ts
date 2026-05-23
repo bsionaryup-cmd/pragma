@@ -24,9 +24,9 @@ import {
   resolveSubscriptionAmountForAccount,
   syncOpenInvoiceAmountForAccount,
 } from "@/modules/billing/domain/subscription-property-count";
-import { resolveWompiConfig, getWompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
+import { resolvePlatformWompiConfig, getPlatformWompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
 import type { WompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
-import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
+import { isPlatformOwnerUser } from "@/modules/billing/services/wompi-platform.service";
 import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
@@ -120,7 +120,8 @@ export type BillingOverviewDto = {
     cards: boolean;
     hasDefaultToken: boolean;
   };
-  wompi: WompiCredentialSnapshot;
+  wompi: WompiCredentialSnapshot | null;
+  canManageWompiSettings: boolean;
 };
 
 export async function activateBillingSubscription(): Promise<{
@@ -167,33 +168,11 @@ export async function activateBillingSubscription(): Promise<{
 export async function getBillingOverview(): Promise<BillingOverviewDto> {
   let account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
   const user = await requireDbUser();
-  const organizationId = account?.organizationId
-    ?? (await getEffectiveOrganizationIdForUser(user.id));
-  const wompi = organizationId
-    ? await resolveWompiConfig(organizationId)
-    : { configured: false, eventsSecret: null, env: "test" as const };
-  const wompiSnapshot = organizationId
-    ? await getWompiCredentialSnapshot(organizationId)
-    : {
-        configured: false,
-        enabled: false,
-        webhookReady: false,
-        source: "none" as const,
-        status: "missing" as const,
-        hasStoredCredentials: false,
-        hasEnvCredentials: false,
-        env: "test" as const,
-        publicKey: null,
-        publicKeyHint: null,
-        privateKeyHint: null,
-        eventsSecretHint: null,
-        integritySecretHint: null,
-        schemaReady: false,
-        webhookPath: "/api/payments/wompi/webhook",
-        webhookUrl: null,
-        lastHealthCheckAt: null,
-        lastError: null,
-      };
+  const canManageWompiSettings = isPlatformOwnerUser(user);
+  const wompi = await resolvePlatformWompiConfig();
+  const wompiSnapshot = canManageWompiSettings
+    ? await getPlatformWompiCredentialSnapshot()
+    : null;
 
   if (!account) {
     return {
@@ -226,6 +205,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
         hasDefaultToken: false,
       },
       wompi: wompiSnapshot,
+      canManageWompiSettings,
     };
   }
 
@@ -292,6 +272,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       hasDefaultToken: Boolean(account.defaultPaymentTokenRef),
     },
     wompi: wompiSnapshot,
+    canManageWompiSettings,
   };
 }
 

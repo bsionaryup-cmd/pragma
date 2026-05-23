@@ -58,7 +58,7 @@ export function BillingDashboard({
   data,
   showDevActivate = false,
 }: BillingDashboardProps) {
-  const { account, access, invoices, paymentMethods, wompi, ready } = data;
+  const { account, access, invoices, paymentMethods, wompi, canManageWompiSettings, ready } = data;
   const [pending, startTransition] = useTransition();
 
   const payableInvoice =
@@ -138,7 +138,9 @@ export function BillingDashboard({
 
         {ready ? (
           <>
-            <WompiCredentialsCard wompi={wompi} canManage />
+            {canManageWompiSettings && wompi ? (
+              <WompiCredentialsCard wompi={wompi} canManage />
+            ) : null}
 
             <Card className="mb-6">
               <CardHeader>

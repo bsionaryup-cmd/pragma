@@ -27,6 +27,7 @@ export const es = {
     properties: "Propiedades",
     calendar: "Calendario",
     revenue: "Precio inteligente",
+    smartAccess: "Llaves Inteligentes",
     integrations: "Integraciones",
     messages: "Mensajes",
     finance: "Finanzas",

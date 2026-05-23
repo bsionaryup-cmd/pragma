@@ -15,7 +15,8 @@ export type NavIconName =
   | "ribbon"
   | "wallet"
   | "line-chart"
-  | "settings";
+  | "settings"
+  | "key-round";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -56,6 +57,12 @@ const mainNavItems: NavItem[] = [
     href: "/revenue",
     icon: "line-chart",
     permission: "finance:revenue:read",
+  },
+  {
+    labelKey: "nav.smartAccess",
+    href: "/smart-access",
+    icon: "key-round",
+    permission: "access:read",
   },
   {
     labelKey: "nav.messages",

@@ -109,7 +109,12 @@ export async function ensureTTLockIntegration(userId: string) {
         userId,
         status: TTLockIntegrationStatus.NOT_CONNECTED,
         environment: TTLockEnvironment.PRODUCTION,
-        automationSettings: { create: {} },
+        automationSettings: {
+          create: {
+            generateAfterGuestRegistration: true,
+            requireManualApproval: false,
+          },
+        },
       },
       update: {},
       include: { automationSettings: true },

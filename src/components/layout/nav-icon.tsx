@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardList,
+  KeyRound,
   LayoutDashboard,
   MessageCircle,
   LineChart,
@@ -22,6 +23,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   "building-2": Building2,
   ribbon: Ribbon,
   "line-chart": LineChart,
+  "key-round": KeyRound,
   wallet: Wallet,
   settings: Settings,
 };

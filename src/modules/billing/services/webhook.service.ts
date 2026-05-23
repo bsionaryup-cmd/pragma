@@ -1,10 +1,9 @@
 import { createHash } from "crypto";
 import { PaymentProviderCode, PaymentTransactionStatus } from "@prisma/client";
 import {
-  resolveWompiConfig,
-  resolveWompiConfigLegacy,
+  resolvePlatformWompiConfig,
 } from "@/modules/billing/services/wompi-credentials";
-import { resolveOrganizationIdFromPaymentReference } from "@/modules/billing/services/wompi-org";
+import { resolvePlatformWompiOrganizationId } from "@/modules/billing/services/wompi-platform.service";
 import { wompiAdapter } from "@/modules/billing/providers/wompi/wompi.adapter";
 import {
   createWebhookLog,
@@ -48,24 +47,17 @@ function buildEventId(
   return createHash("sha256").update(rawBody).digest("hex").slice(0, 32);
 }
 
-async function resolveWebhookVerificationConfig(input: {
+async function resolveWebhookVerificationConfig(_input: {
   rawBody: string;
 }): Promise<{ eventsSecret: string | null; organizationId: string | null }> {
-  const parsed = parseWompiWebhookPayload(input.rawBody);
-  const reference = parsed?.data?.transaction?.reference;
+  const platformOrgId = await resolvePlatformWompiOrganizationId();
+  const config = await resolvePlatformWompiConfig();
 
-  if (reference) {
-    const organizationId = await resolveOrganizationIdFromPaymentReference(reference);
-    if (organizationId) {
-      const config = await resolveWompiConfig(organizationId);
-      if (config.eventsSecret) {
-        return { eventsSecret: config.eventsSecret, organizationId };
-      }
-    }
+  if (config.eventsSecret) {
+    return { eventsSecret: config.eventsSecret, organizationId: platformOrgId };
   }
 
-  const legacy = await resolveWompiConfigLegacy();
-  return { eventsSecret: legacy.eventsSecret, organizationId: null };
+  return { eventsSecret: null, organizationId: null };
 }
 
 export async function processWompiWebhook(input: {

@@ -28,6 +28,7 @@ export const en = {
     properties: "Properties",
     calendar: "Calendar",
     revenue: "Smart Price",
+    smartAccess: "Smart Keys",
     integrations: "Integrations",
     messages: "Messages",
     finance: "Finance",

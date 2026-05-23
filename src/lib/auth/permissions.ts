@@ -31,6 +31,8 @@ export type Permission =
   | "billing:manage"
   | "integrations:read"
   | "integrations:manage"
+  | "access:read"
+  | "access:manage"
   | "settings:read"
   | "pricing:read";
 
@@ -56,6 +58,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "billing:manage",
   "integrations:read",
   "integrations:manage",
+  "access:read",
+  "access:manage",
   "settings:read",
   "pricing:read",
 ];
@@ -89,6 +93,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/integrations/ttlock": "integrations:read",
   "/integrations/pricelabs": "integrations:read",
   "/integrations": "integrations:read",
+  "/smart-access": "access:read",
   "/settings/billing": "billing:manage",
   "/settings": "settings:read",
   "/tasks/new": "tasks:write",
@@ -104,6 +109,7 @@ export const PROTECTED_DASHBOARD_PREFIXES = [
   "/properties",
   "/finance",
   "/revenue",
+  "/smart-access",
   "/integrations",
   "/settings",
   "/users",

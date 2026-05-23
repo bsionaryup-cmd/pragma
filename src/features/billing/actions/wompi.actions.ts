@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requirePermission } from "@/lib/auth";
-import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import type { WompiEnvironment } from "@/modules/billing/config/wompi.config";
-import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import {
+  getOrCreatePlatformWompiOrganizationId,
+  requirePlatformOwnerForWompiSettings,
+} from "@/modules/billing/services/wompi-platform.service";
 import {
   revokeWompiCredentialsForOrganization,
   saveWompiCredentialsEncrypted,
@@ -14,15 +16,13 @@ import { testWompiConnection } from "@/modules/billing/services/wompi-test.servi
 
 function revalidateWompiPaths() {
   revalidatePath("/settings/billing");
+  revalidatePath("/owner-dashboard");
   revalidatePath("/panel");
 }
 
-async function requireBillingOrganizationId() {
-  const user = await requirePermission("billing:manage");
-  const organizationId = await getEffectiveOrganizationIdForUser(user.dbUserId);
-  if (!organizationId) {
-    throw new Error("Organización no encontrada");
-  }
+async function requirePlatformWompiScope() {
+  const user = await requirePlatformOwnerForWompiSettings();
+  const organizationId = await getOrCreatePlatformWompiOrganizationId();
   return { user, organizationId };
 }
 
@@ -33,11 +33,11 @@ export async function saveWompiCredentialsAction(input: {
   integritySecret?: string;
   env: WompiEnvironment;
 }) {
-  const { user, organizationId } = await requireBillingOrganizationId();
+  const { user, organizationId } = await requirePlatformWompiScope();
 
   const result = await saveWompiCredentialsEncrypted({
     organizationId,
-    configuredById: user.dbUserId,
+    configuredById: user.id,
     publicKey: input.publicKey,
     privateKey: input.privateKey,
     eventsSecret: input.eventsSecret,
@@ -50,22 +50,22 @@ export async function saveWompiCredentialsAction(input: {
 }
 
 export async function revokeWompiCredentialsAction() {
-  const { organizationId } = await requireBillingOrganizationId();
+  const { organizationId } = await requirePlatformWompiScope();
   const result = await revokeWompiCredentialsForOrganization(organizationId);
   revalidateWompiPaths();
   return result;
 }
 
 export async function setWompiEnabledAction(enabled: boolean) {
-  const { organizationId } = await requireBillingOrganizationId();
+  const { organizationId } = await requirePlatformWompiScope();
   const result = await setWompiIntegrationEnabled(organizationId, enabled);
   revalidateWompiPaths();
   return result;
 }
 
 export async function testWompiConnectionAction() {
-  const { organizationId } = await requireBillingOrganizationId();
-  const config = await resolveWompiConfig(organizationId);
+  const { organizationId } = await requirePlatformWompiScope();
+  const config = await resolvePlatformWompiConfig();
   const result = await testWompiConnection({ organizationId, config });
   revalidateWompiPaths();
   return result;

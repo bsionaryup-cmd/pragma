@@ -154,7 +154,7 @@ export function OwnerAccountMenu({
         <DropdownMenuItem asChild>
           <Link href="/settings/billing" className="cursor-pointer">
             <CreditCard className="mr-2 h-4 w-4" />
-            Pagos & Wompi
+            Pasarela Wompi (Owner)
           </Link>
         </DropdownMenuItem>
 

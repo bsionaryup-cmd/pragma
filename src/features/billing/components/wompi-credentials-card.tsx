@@ -182,7 +182,7 @@ export function WompiCredentialsCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <KeyRound className="h-4 w-4" />
-          Configuración de pagos (Wompi)
+          Configuración de pasarela Wompi (Plataforma)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -254,7 +254,7 @@ export function WompiCredentialsCard({
             <div>
               <p className="font-medium">Pagos en línea</p>
               <p className="text-xs text-muted-foreground">
-                Activa o desactiva Wompi para tu cuenta
+                Activa o desactiva los pagos de suscripción PRAGMA vía Wompi
               </p>
             </div>
             <Button
@@ -431,7 +431,7 @@ export function WompiCredentialsCard({
           </div>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Solo administradores con permiso de facturación pueden configurar Wompi.
+            Solo el Owner de plataforma puede configurar la pasarela Wompi.
           </p>
         )}
       </CardContent>

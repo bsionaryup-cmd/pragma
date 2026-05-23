@@ -40,7 +40,7 @@ export class WompiPaymentAdapter implements PaymentProviderAdapter {
   async createCheckout(
     input: PaymentProviderCheckoutInput,
   ): Promise<PaymentProviderCheckoutResult> {
-    const config = await assertWompiConfigured(input.organizationId);
+    const config = await assertWompiConfigured();
 
     try {
       const response = await fetch(`${config.baseUrl}/payment_links`, {

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
-import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import { assertWompiConfigured } from "@/modules/billing/config/wompi.config";
 import { PaymentProviderNotConfiguredError } from "@/modules/billing/domain/errors";
 import { prepareBillingInvoiceForPayment } from "@/modules/billing/services/billing-invoice.service";
@@ -26,13 +25,9 @@ function revalidateBilling() {
 
 export async function payOpenInvoiceAction(invoiceId: string) {
   const user = await requirePermission("billing:manage");
-  const organizationId = await getEffectiveOrganizationIdForUser(user.dbUserId);
-  if (!organizationId) {
-    return { ok: false, message: "Organización no encontrada" };
-  }
 
   try {
-    await assertWompiConfigured(organizationId);
+    await assertWompiConfigured();
   } catch (error) {
     if (error instanceof PaymentProviderNotConfiguredError) {
       return { ok: false, message: error.message };

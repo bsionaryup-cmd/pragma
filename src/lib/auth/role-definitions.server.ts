@@ -28,6 +28,7 @@ const TENANT_ADMIN_SCREENS = [
   "/properties",
   "/finance",
   "/revenue",
+  "/smart-access",
   "/integrations",
   "/settings",
   "/users",

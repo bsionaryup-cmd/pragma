@@ -1,7 +1,4 @@
-/**
- * Extension points for the future TTLock passcode flow.
- * No live TTLock code generation is performed here.
- */
+import { processReservationAccessAfterRegistration } from "@/services/integrations/ttlock/ttlock-access.service";
 
 export type TTLockReservationAccessContext = {
   reservationId: string;
@@ -29,29 +26,32 @@ export const TTLOCK_ACCESS_PIPELINE: TTLockAccessPipelineStep[] = [
   "access_code_delivered",
 ];
 
-/** Called when Airbnb/iCal confirms a reservation (hook placeholder). */
+/** Called when Airbnb/iCal confirms a reservation. */
 export async function onReservationConfirmedForTTLock(
   ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
 ): Promise<void> {
   void ctx;
-  // Future: ensure integration + automation pre-checks.
 }
 
-/** Called after guest registration completes (hook placeholder). */
+/** Triggers TTLock passcode flow once guest registration is complete. */
 export async function onGuestRegistrationCompletedForTTLock(
   ctx: Pick<
     TTLockReservationAccessContext,
     "reservationId" | "propertyId" | "ownerId" | "guestRegistrationCompleted"
   >,
 ): Promise<void> {
-  void ctx;
-  // Future: trigger passcode generation when automation is enabled.
+  if (!ctx.guestRegistrationCompleted) return;
+
+  await processReservationAccessAfterRegistration({
+    reservationId: ctx.reservationId,
+    propertyId: ctx.propertyId,
+    ownerId: ctx.ownerId,
+  });
 }
 
-/** Called before persisting AccessCredential (hook placeholder). */
+/** Validates lock mapping + token health before persisting credentials. */
 export async function beforeAccessCredentialPersist(
   ctx: TTLockReservationAccessContext,
 ): Promise<void> {
   void ctx;
-  // Future: validate lock mapping + token health.
 }

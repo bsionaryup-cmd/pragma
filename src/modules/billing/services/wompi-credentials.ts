@@ -8,6 +8,9 @@ import {
   hasWompiIntegrationDelegate,
   resolveStoredWompiSecret,
 } from "@/modules/billing/services/wompi-persistence";
+import {
+  resolvePlatformWompiOrganizationId,
+} from "@/modules/billing/services/wompi-platform.service";
 
 export type WompiCredentialSource = "environment" | "database" | "both" | "none";
 
@@ -129,6 +132,46 @@ function resolvePublicWebhookUrl(): string | null {
 
   const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
   return `${origin.replace(/\/$/, "")}/api/payments/wompi/webhook`;
+}
+
+/** Platform-wide Wompi credentials for SaaS subscription checkout (all tenants). */
+export async function resolvePlatformWompiConfig(): Promise<WompiConfig> {
+  const envConfig = getWompiConfigFromEnv();
+  const organizationId = await resolvePlatformWompiOrganizationId();
+  if (!organizationId) {
+    return envConfig.configured
+      ? envConfig
+      : { ...envConfig, configured: false };
+  }
+  return resolveWompiConfig(organizationId);
+}
+
+export async function getPlatformWompiCredentialSnapshot(): Promise<WompiCredentialSnapshot> {
+  const organizationId = await resolvePlatformWompiOrganizationId();
+  if (!organizationId) {
+    const envConfig = getWompiConfigFromEnv();
+    return {
+      configured: envConfig.configured,
+      enabled: envConfig.configured,
+      webhookReady: Boolean(envConfig.eventsSecret),
+      source: envConfig.configured ? "environment" : "none",
+      status: envConfig.configured ? "environment" : "missing",
+      hasStoredCredentials: false,
+      hasEnvCredentials: envConfig.configured,
+      env: envConfig.env,
+      publicKey: null,
+      publicKeyHint: buildPublicKeyHint(envConfig.publicKey),
+      privateKeyHint: buildSecretHint(envConfig.privateKey),
+      eventsSecretHint: buildSecretHint(envConfig.eventsSecret),
+      integritySecretHint: buildSecretHint(envConfig.integritySecret),
+      schemaReady: hasWompiIntegrationDelegate(),
+      webhookPath: "/api/payments/wompi/webhook",
+      webhookUrl: resolvePublicWebhookUrl(),
+      lastHealthCheckAt: null,
+      lastError: null,
+    };
+  }
+  return getWompiCredentialSnapshot(organizationId);
 }
 
 /** Server-only: per-organization credentials (no cross-tenant env fallback). */
