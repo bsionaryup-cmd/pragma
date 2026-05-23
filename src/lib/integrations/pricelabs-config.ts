@@ -9,8 +9,13 @@ export const PRICELABS_RATE_LIMIT_PER_HOUR = 1000;
 const DEFAULT_TIMEOUT_MS = 300_000;
 const DEFAULT_PMS = "other";
 
+/** Explicit dry-run only when PRICELABS_API_ENABLED=false. Otherwise live (key required at request time). */
+export function isPriceLabsDryRunForced(): boolean {
+  return process.env.PRICELABS_API_ENABLED?.trim().toLowerCase() === "false";
+}
+
 export function isPriceLabsLiveApiEnabled(): boolean {
-  return process.env.PRICELABS_API_ENABLED === "true";
+  return !isPriceLabsDryRunForced();
 }
 
 export function getPriceLabsApiBaseUrl(): string {

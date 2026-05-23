@@ -31,7 +31,7 @@ export function buildPriceLabsHeaders(apiKey: string): PriceLabsAuthHeaders {
 export function assertPriceLabsLiveOrThrow(): void {
   if (!isPriceLabsLiveApiEnabled()) {
     throw new PriceLabsConfigError(
-      "API PriceLabs deshabilitada. Define PRICELABS_API_ENABLED=true para llamadas live.",
+      "API PriceLabs en modo simulación. Quita PRICELABS_API_ENABLED=false del servidor para llamadas reales.",
     );
   }
 }

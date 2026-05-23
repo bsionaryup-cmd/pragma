@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   if (!(await isPriceLabsConfiguredAsync())) {
     return NextResponse.json({
       ok: false,
-      message: "PRICELABS_API_KEY no configurada",
+      message: "API key PriceLabs no configurada",
     });
   }
 

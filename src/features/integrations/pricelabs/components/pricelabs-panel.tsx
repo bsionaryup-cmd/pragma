@@ -5,7 +5,6 @@ import {
   Activity,
   CheckCircle2,
   LineChart,
-  RefreshCw,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -67,8 +66,8 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
   }
   if (!overview.config.liveApiEnabled) {
     return (
-      <Badge variant="outline" className={getSemanticBadgeClass("neutral")}>
-        Dry-run
+      <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
+        Modo simulación
       </Badge>
     );
   }
@@ -140,6 +139,39 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
           </div>
         ) : null}
 
+        {canManage && !config.configured ? (
+          <div className="rounded-xl border border-border bg-muted/30 px-4 py-4 text-sm">
+            <p className="font-medium text-foreground">Conectar PriceLabs</p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
+              <li>
+                En PriceLabs: Account Settings → API Details → copia tu Customer
+                API key.
+              </li>
+              <li>Pégala abajo y pulsa «Guardar y conectar».</li>
+              <li>
+                PRAGMA validará la key contra{" "}
+                <code className="rounded bg-muted px-1 text-xs">GET /v1/listings</code>.
+              </li>
+              <li>
+                Luego usa «Pipeline completo» para vincular listings e importar
+                precios.
+              </li>
+            </ol>
+          </div>
+        ) : null}
+
+        {canManage && config.configured && !config.liveApiEnabled ? (
+          <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
+            <p className="font-medium">Modo simulación activo</p>
+            <p className="mt-1">
+              El servidor tiene{" "}
+              <code className="rounded bg-warning/20 px-1">PRICELABS_API_ENABLED=false</code>.
+              Quita esa variable (o cámbiala) en Vercel para usar la API real de
+              PriceLabs.
+            </p>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 lg:grid-cols-3">
           <PriceLabsApiKeyCard overview={overview} canManage={canManage} />
 
@@ -152,7 +184,10 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <Row label="Estado" value={metrics.healthLabel} />
-              <Row label="Modo" value={config.liveApiEnabled ? "Live" : "Dry-run"} />
+              <Row
+                label="Modo"
+                value={config.liveApiEnabled ? "Live (API real)" : "Simulación"}
+              />
               <Row label="Health check" value={formatDate(integration.lastHealthCheckAt)} />
               <Row label="Listings sync" value={formatDate(integration.lastListingsSyncAt)} />
               {integration.lastError ? (
@@ -243,16 +278,6 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
               >
                 <Zap className="mr-2 h-4 w-4" />
                 Pipeline completo
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={pending || !canSync}
-                onClick={() => run(runPriceLabsFullSyncAction)}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Forzar refresh
               </Button>
               {statusMsg ? (
                 <p className="w-full text-sm text-[#6B7280]">{statusMsg}</p>

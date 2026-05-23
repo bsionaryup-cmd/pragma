@@ -97,7 +97,7 @@ export function PanelReservationsTable({
                   <div className="min-w-0 flex-1">
                     <ReservationPropertyLabel
                       property={row.property}
-                      badgeSize="md"
+                      showBadge={false}
                       className="text-sm"
                     />
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -204,7 +204,7 @@ export function PanelReservationsTable({
                         <div className="min-w-0">
                           <ReservationPropertyLabel
                             property={row.property}
-                            badgeSize="md"
+                            showBadge={false}
                             className="max-w-[260px] text-sm"
                           />
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">

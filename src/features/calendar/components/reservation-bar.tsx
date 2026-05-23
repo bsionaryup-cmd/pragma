@@ -49,8 +49,8 @@ function ReservationBarComponent({
     >
       <PlatformIcon
         platform={reservation.platform}
-        size="xs"
-        className="scale-[0.92]"
+        size="sm"
+        className="shrink-0"
       />
       <span className="truncate">{reservation.guestName}</span>
     </button>

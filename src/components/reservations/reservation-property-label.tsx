@@ -19,7 +19,7 @@ export function ReservationPropertyLabel({
   showBadge = true,
 }: ReservationPropertyLabelProps) {
   const unit = formatPropertyUnit(property.unitNumber);
-  const label = formatPropertyLabel(property);
+  const label = showBadge ? formatPropertyLabel(property) : property.name;
 
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)}>

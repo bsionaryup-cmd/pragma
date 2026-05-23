@@ -33,12 +33,12 @@ export async function runPriceLabsSyncPipeline(input?: {
     await appendPriceLabsSyncLog({
       action: "pipeline",
       result: "skipped",
-      message: "PRICELABS_API_KEY no configurada",
+      message: "API key PriceLabs no configurada",
       source,
     });
     return {
       ok: false,
-      message: "Configura PRICELABS_API_KEY en el entorno del servidor",
+      message: "Configura la API key de PriceLabs en Integraciones → PriceLabs",
     };
   }
 

@@ -25,7 +25,7 @@ function CalendarDayHeaderComponent({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[var(--cal-border)] bg-white [&::-webkit-scrollbar]:hidden"
+      className="shrink-0 overflow-x-auto overflow-y-hidden border-b-2 border-[var(--cal-border-strong)] bg-white [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: "none" }}
     >
       <div
@@ -36,7 +36,7 @@ function CalendarDayHeaderComponent({
           <div
             key={day.date}
             className={cn(
-              "flex shrink-0 flex-col items-center justify-center border-r border-[var(--cal-border)] text-center",
+              "flex shrink-0 flex-col items-center justify-center border-r border-[var(--cal-border-strong)] text-center",
               day.isWeekend && "bg-[var(--cal-bg-weekend)]",
               !day.isCurrentMonth && "text-[var(--cal-text-muted)]",
               day.isToday && "bg-[var(--cal-bg-today-header)]",

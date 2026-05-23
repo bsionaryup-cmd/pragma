@@ -152,7 +152,8 @@
 }
 
 .cal-module {
-  --cal-border: #d5dde6;
+  --cal-border: #c5ced8;
+  --cal-border-strong: #9aa8b8;
   --cal-bg-canvas: #f0f2f5;
   --cal-bg-alt: #eceef2;
   --cal-bg-weekend: #e4e8ed;

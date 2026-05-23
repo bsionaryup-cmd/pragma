@@ -8,7 +8,6 @@ import {
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
-import { formatPropertyLabel } from "@/lib/property-display";
 import { startOfDay } from "@/lib/helpers/date";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
@@ -25,7 +24,8 @@ import {
   getUpcomingArrivals,
   getUpcomingDepartures,
   toPanelReservationRow,
-  sortPanelRowsByProperty,
+  sortPanelRowsByCheckIn,
+  sortPanelRowsByCheckOut,
   type PanelReservationRow,
 } from "@/services/dashboard/dashboard.service";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
@@ -380,7 +380,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       id: `res-${r.id}`,
       type: "reservation" as const,
       title: r.guestName,
-      subtitle: formatPropertyLabel(r.property),
+      subtitle: r.property.name,
       at: r.createdAt.toISOString(),
     })),
     ...recentTasks
@@ -389,7 +389,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         id: `task-${t.id}`,
         type: "task" as const,
         title: t.title,
-        subtitle: t.property ? formatPropertyLabel(t.property) : "—",
+        subtitle: t.property ? t.property.name : "—",
         at: t.completedAt!.toISOString(),
       })),
   ]
@@ -424,9 +424,9 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     },
     alerts,
     activity,
-    arrivals: sortPanelRowsByProperty(arrivalsRaw.map(toPanelReservationRow)),
-    departures: sortPanelRowsByProperty(departuresRaw.map(toPanelReservationRow)),
-    currentStays: sortPanelRowsByProperty(currentRaw.map(toPanelReservationRow)),
+    arrivals: sortPanelRowsByCheckIn(arrivalsRaw.map(toPanelReservationRow)),
+    departures: sortPanelRowsByCheckOut(departuresRaw.map(toPanelReservationRow)),
+    currentStays: sortPanelRowsByCheckIn(currentRaw.map(toPanelReservationRow)),
     counts,
   };
 }

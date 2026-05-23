@@ -47,7 +47,7 @@ export async function revokePriceLabsApiKeyAction() {
 }
 
 export async function syncPriceLabsOverridesAction() {
-  await requirePermission("integrations:manage");
+  await requireIntegrationsManageUnlocked();
   const wrapped = await runWithPriceLabsSyncLock(() => syncPriceLabsOverrides());
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();

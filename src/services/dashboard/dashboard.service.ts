@@ -2,7 +2,6 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { startOfDay } from "@/lib/helpers/date";
-import { formatPropertyLabel, sortPropertiesByUnitNumber } from "@/lib/property-display";
 import {
   mergeReservationScope,
   type TenantDataScope,
@@ -157,11 +156,15 @@ export function toPanelReservationRow(
   };
 }
 
-function sortPanelRowsByProperty(rows: PanelReservationRow[]): PanelReservationRow[] {
-  return sortPropertiesByUnitNumber(rows, (row) => row.property);
+function sortPanelRowsByCheckIn(rows: PanelReservationRow[]): PanelReservationRow[] {
+  return [...rows].sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 }
 
-export { sortPanelRowsByProperty };
+function sortPanelRowsByCheckOut(rows: PanelReservationRow[]): PanelReservationRow[] {
+  return [...rows].sort((a, b) => a.checkOut.localeCompare(b.checkOut));
+}
+
+export { sortPanelRowsByCheckIn, sortPanelRowsByCheckOut };
 
 export type PanelCounts = {
   arrivals: number;

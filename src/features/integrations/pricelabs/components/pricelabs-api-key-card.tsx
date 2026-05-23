@@ -116,9 +116,9 @@ export function PriceLabsApiKeyCard({
         ) : null}
 
         <p className="text-xs text-[#9CA3AF]">
-          Header servidor:{" "}
-          <code className="rounded bg-[#F3F4F6] px-1">X-API-Key</code>. Nunca se
-          envía al navegador después de guardar.
+          Obtén la key en PriceLabs → Account Settings → API Details. Header:{" "}
+          <code className="rounded bg-[#F3F4F6] px-1">X-API-Key</code>. Se guarda
+          cifrada; nunca se envía al navegador después de guardar.
         </p>
 
         {canManage ? (
@@ -191,7 +191,7 @@ export function PriceLabsApiKeyCard({
                     disabled={pending || apiKey.trim().length < 8}
                     onClick={onSave}
                   >
-                    Guardar API key
+                    {credentials.hasStoredKey ? "Guardar y reconectar" : "Guardar y conectar"}
                   </Button>
                   {credentials.hasStoredKey ? (
                     <Button

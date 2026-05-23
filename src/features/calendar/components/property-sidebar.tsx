@@ -9,8 +9,6 @@ import {
   CALENDAR_SIDEBAR_WIDTH,
 } from "@/features/calendar/constants";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
-import { PropertyUnitBadge } from "@/components/properties/property-unit-badge";
-import { formatPropertyLabel } from "@/lib/property-display";
 
 const rowStyle: React.CSSProperties = {
   height: CALENDAR_ROW_HEIGHT,
@@ -30,7 +28,7 @@ type PropertySidebarProps = {
 function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
   return (
     <div
-      className="flex items-center gap-2.5 border-b border-[var(--cal-border)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
+      className="flex items-center gap-2.5 border-b-2 border-[var(--cal-border-strong)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
       style={rowStyle}
     >
       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[var(--cal-bg-thumbnail)] ring-1 ring-[var(--cal-border)]">
@@ -50,12 +48,9 @@ function PropertySidebarItem({ property }: { property: CalendarPropertyDto }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <PropertyUnitBadge unitNumber={property.unitNumber} size="sm" />
-          <p className="truncate text-sm font-semibold leading-tight text-[#111111]">
-            {formatPropertyLabel(property)}
-          </p>
-        </div>
+        <p className="truncate text-sm font-semibold leading-tight text-[#111111]">
+          {property.name}
+        </p>
         <p className="truncate text-xs text-[var(--cal-text-secondary)]">
           {property.city}
         </p>

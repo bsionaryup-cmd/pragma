@@ -210,7 +210,32 @@ export async function savePriceLabsApiKeyFromPanel(input: {
     message: "API key almacenada (cifrada)",
     source: "manual",
   });
-  return saved;
+
+  if (!isPriceLabsLiveApiEnabled()) {
+    return {
+      ok: true,
+      message:
+        "API key guardada. Modo simulación activo (PRICELABS_API_ENABLED=false).",
+    };
+  }
+
+  const health = await checkConnection();
+  if (!health.ok) {
+    return {
+      ok: false,
+      message: `API key guardada, pero PriceLabs rechazó la conexión: ${health.message}`,
+    };
+  }
+
+  const listingHint =
+    health.listingCount != null
+      ? `${health.listingCount} listing(s) detectado(s). `
+      : "";
+
+  return {
+    ok: true,
+    message: `${listingHint}Conexión verificada. Usa «Pipeline completo» para sincronizar precios.`,
+  };
 }
 
 export async function revokePriceLabsApiKeyFromPanel(): Promise<{
@@ -309,7 +334,7 @@ export async function markPriceLabsSetupFromPanel(input: {
   if (!(await isPriceLabsConfiguredAsync())) {
     return {
       ok: false,
-      message: "Guarda la API key de PriceLabs o define PRICELABS_API_KEY en el servidor",
+      message: "Guarda la API key de PriceLabs en el panel de integración",
     };
   }
   const result = await markPriceLabsIntegrationReady(input);
@@ -331,7 +356,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
   if (!configured) {
     return {
       ok: false,
-      message: "Configura PRICELABS_API_KEY en el servidor",
+      message: "Pega tu API key de PriceLabs en el panel de integración",
       liveApiEnabled,
       configured,
     };
@@ -345,7 +370,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
     });
     return {
       ok: true,
-      message: "API key detectada (dry-run — PRICELABS_API_ENABLED≠true)",
+      message: "API key detectada (modo simulación — PRICELABS_API_ENABLED=false)",
       healthy: true,
       liveApiEnabled,
       configured,

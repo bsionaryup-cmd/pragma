@@ -79,7 +79,7 @@ function CalendarPropertyRowComponent({
   return (
     <div
       className={cn(
-        "relative box-border border-b border-[var(--cal-border)] bg-white",
+        "relative box-border border-b-2 border-[var(--cal-border-strong)] bg-white",
         rowIndex % 2 === 1 && "bg-[var(--cal-bg-alt)]",
       )}
       style={{
@@ -100,7 +100,7 @@ function CalendarPropertyRowComponent({
             disabled={!canWrite}
             onClick={() => onDayClick(propertyId, day.date)}
             className={cn(
-              "absolute top-0 z-0 border-r border-[var(--cal-border)] bg-white transition-colors duration-150",
+              "absolute top-0 z-0 border-r border-[var(--cal-border-strong)] bg-white transition-colors duration-150",
               day.isWeekend && "bg-[var(--cal-bg-weekend)]",
               day.isToday &&
                 "z-[1] bg-[var(--cal-bg-today)] shadow-[inset_0_0_0_1px_rgba(14,159,141,0.35)]",
