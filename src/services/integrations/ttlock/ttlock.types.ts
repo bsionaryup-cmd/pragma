@@ -7,24 +7,23 @@ import type {
 } from "@prisma/client";
 import type { TTLockCallbackValidation } from "@/lib/integrations/ttlock-url";
 import type { TTLockOverviewMetrics } from "@/services/integrations/ttlock/ttlock-status";
+import type { TTLockRemoteLock } from "@/services/integrations/ttlock/ttlock-api.client";
 
 export type TTLockOverviewDto = {
   integration: {
     id: string;
     status: TTLockIntegrationStatus;
     environment: TTLockEnvironment;
-    clientId: string | null;
-    username: string | null;
     uid: string | null;
-    hasClientSecret: boolean;
-    hasPassword: boolean;
     hasAccessToken: boolean;
     hasRefreshToken: boolean;
     expiresAt: string | null;
     lastSyncedAt: string | null;
     lastTokenRefreshAt: string | null;
     lastError: string | null;
-    redirectUri: string | null;
+    accountConnected: boolean;
+    platformConfigured: boolean;
+    syncedLockCount: number;
     automationSettings: {
       generateAfterGuestRegistration: boolean;
       revokeAfterCheckout: boolean;
@@ -38,6 +37,7 @@ export type TTLockOverviewDto = {
   callbackSource: string;
   callbackValidation: TTLockCallbackValidation;
   canManage: boolean;
+  remoteLocks: TTLockRemoteLock[];
   properties: Array<{
     id: string;
     name: string;

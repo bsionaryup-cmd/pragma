@@ -3,6 +3,7 @@ import type {
   PropertyLock,
   TTLockIntegration,
 } from "@prisma/client";
+import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import type {
   AccessCodeSnapshot,
@@ -17,9 +18,9 @@ export function mapTTLockIntegrationSnapshot(
     clientSecretEncrypted?: string | null;
   },
 ): TTLockIntegrationSnapshot {
-  const configured = Boolean(
-    integration.clientId?.trim() && integration.clientSecretEncrypted,
-  );
+  const configured =
+    isPlatformTTLockConfigured() ||
+    Boolean(integration.clientId?.trim() && integration.clientSecretEncrypted);
   return {
     id: integration.id,
     organizationId: integration.organizationId,

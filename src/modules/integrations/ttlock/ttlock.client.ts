@@ -1,4 +1,5 @@
 import type { TTLockIntegration } from "@prisma/client";
+import { getPlatformTTLockClientId, isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import { TTLockIntegrationStatus } from "@prisma/client";
 import {
   requestTTLockAddKeyboardPwd,
@@ -25,6 +26,7 @@ function hasAppCredentials(integration: {
   clientId: string | null;
   clientSecretEncrypted: string | null;
 }): boolean {
+  if (isPlatformTTLockConfigured()) return true;
   return Boolean(integration.clientId?.trim() && integration.clientSecretEncrypted);
 }
 
@@ -37,10 +39,14 @@ export async function resolveTTLockApiSessionForIntegration(
   const accessToken = decryptTTLockSecret(integration.accessTokenEncrypted);
   if (!accessToken && isTTLockLiveApiEnabled()) return null;
 
+  const clientId =
+    getPlatformTTLockClientId() ?? integration.clientId?.trim() ?? null;
+  if (!clientId) return null;
+
   return {
     integrationId: integration.id,
     organizationId: integration.organizationId,
-    clientId: integration.clientId!,
+    clientId,
     accessToken: accessToken ?? "placeholder-token",
     environment: integration.environment,
   };

@@ -1,31 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Eye,
-  EyeOff,
-  Link2,
-  Loader2,
-  Plug,
-  ShieldCheck,
-  Unplug,
-} from "lucide-react";
-import { TTLockEnvironment } from "@prisma/client";
+import { KeyRound, Loader2, Plug, RefreshCw, Unplug } from "lucide-react";
 import {
   disconnectTTLockAction,
-  saveTTLockCredentialsAction,
-  testTTLockConnectionAction,
+  refreshTTLockTokenAction,
+  syncTTLockLocksAction,
 } from "@/features/integrations/ttlock/actions/ttlock.actions";
 import type { TTLockOverviewDto } from "@/services/integrations/ttlock/ttlock.types";
-import { PRAGMA_CANONICAL_TTLOCK_CALLBACK } from "@/lib/integrations/ttlock-url";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type TTLockConnectionCardProps = {
@@ -34,104 +19,120 @@ type TTLockConnectionCardProps = {
   flashConnected?: boolean;
 };
 
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Nunca";
+  return new Date(value).toLocaleString("es-CO", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 export function TTLockConnectionCard({
   overview,
   flashError,
   flashConnected,
 }: TTLockConnectionCardProps) {
-  const {
-    integration,
-    callbackUrl,
-    callbackSource,
-    callbackValidation,
-    canManage,
-    metrics,
-    liveApiEnabled,
-  } = overview;
-  const [showSecret, setShowSecret] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [testMessage, setTestMessage] = useState<string | null>(null);
-  const [testSteps, setTestSteps] = useState<string[] | null>(null);
+  const { integration, canManage, metrics } = overview;
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const callbackReady = callbackValidation.valid && Boolean(callbackUrl);
-  const displayCallback = callbackValidation.normalizedUrl ?? callbackUrl;
+  const isConnected =
+    integration.accountConnected &&
+    (integration.status === "CONNECTED" || integration.status === "READY");
+  const needsReconnect =
+    integration.status === "TOKEN_EXPIRED" ||
+    integration.status === "INVALID_CREDENTIALS" ||
+    metrics.tokenHealth === "expired";
+  const needsSync =
+    isConnected &&
+    (!integration.lastSyncedAt || integration.syncedLockCount === 0);
+
+  const statusVariant =
+    isConnected && !needsReconnect
+      ? "default"
+      : needsReconnect || integration.status === "SYNC_ERROR"
+        ? "destructive"
+        : "outline";
 
   if (!canManage) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Conexión TTLock</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Solo administradores pueden configurar esta integración.
-          </p>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-primary" />
+            TTLock
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
             <span className="text-muted-foreground">Estado</span>
             <Badge variant="outline">{metrics.integrationStatusLabel}</Badge>
           </div>
-          {displayCallback ? (
-            <div className="flex items-center justify-between rounded-xl bg-muted/40 p-3">
-              <span className="text-muted-foreground">Callback URL</span>
-              <code className="max-w-[60%] truncate text-xs">{displayCallback}</code>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
     );
   }
 
-  async function handleCopyCallback() {
-    if (!displayCallback) return;
-    try {
-      await navigator.clipboard.writeText(displayCallback);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
+  if (!integration.platformConfigured) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-primary" />
+            TTLock
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            La integración TTLock estará disponible pronto. Contacta al soporte de
+            PRAGMA si necesitas activarla.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
-  function handleTestConnection() {
-    setTestMessage(null);
-    setTestSteps(null);
+  function runSync() {
+    setActionMessage(null);
     startTransition(async () => {
-      const result = await testTTLockConnectionAction();
-      setTestMessage(result.message);
-      setTestSteps(result.steps ?? null);
+      try {
+        await syncTTLockLocksAction();
+        setActionMessage("Cerraduras sincronizadas correctamente.");
+      } catch (error) {
+        setActionMessage(
+          error instanceof Error ? error.message : "No se pudo sincronizar",
+        );
+      }
     });
   }
 
-  const statusVariant =
-    integration.status === "CONNECTED" || integration.status === "READY"
-      ? "default"
-      : !callbackValidation.valid ||
-          integration.status === "SYNC_ERROR" ||
-          integration.status === "INVALID_CREDENTIALS" ||
-          integration.status === "TOKEN_EXPIRED"
-        ? "destructive"
-        : "outline";
+  function runReconnect() {
+    window.location.href = "/api/integrations/ttlock/connect";
+  }
 
   return (
     <Card className="border-border shadow-pragma-soft">
-      <CardHeader>
+      <CardHeader className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-primary" />
-              Conexión TTLock
-            </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Registra la callback exacta en TTLock Open Platform (EU). Fuente:{" "}
-              <span className="font-medium text-foreground">{callbackSource}</span>
-            </p>
+          <div className="flex items-start gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <KeyRound className="h-6 w-6" />
+            </span>
+            <div>
+              <CardTitle>TTLock</CardTitle>
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                Conecta tu cuenta TTLock para gestionar cerraduras inteligentes
+                dentro de PRAGMA.
+              </p>
+            </div>
           </div>
           <Badge variant={statusVariant}>{metrics.integrationStatusLabel}</Badge>
         </div>
+
         {flashConnected ? (
           <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
-            TTLock conectado correctamente.
+            Cuenta TTLock conectada correctamente.
           </p>
         ) : null}
         {flashError ? (
@@ -144,196 +145,125 @@ export function TTLockConnectionCard({
             {integration.lastError}
           </p>
         ) : null}
-        {!callbackValidation.valid ? (
-          <div className="flex gap-2 rounded-xl border border-warning/40 bg-warning/15 px-3 py-2 text-sm text-warning">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <p className="font-medium">Callback no válida para TTLock</p>
-              <ul className="mt-1 list-inside list-disc text-xs opacity-90">
-                {callbackValidation.issues.map((issue) => (
-                  <li key={issue}>{issue}</li>
-                ))}
-              </ul>
-              <p className="mt-2 text-xs">
-                En producción usa{" "}
-                <code className="rounded bg-muted px-1 break-all">
-                  {PRAGMA_CANONICAL_TTLOCK_CALLBACK}
-                </code>
-              </p>
-            </div>
-          </div>
-        ) : null}
-        {!liveApiEnabled ? (
-          <p className="text-xs text-muted-foreground">
-            API en modo preparación. Activa{" "}
-            <code className="rounded bg-muted px-1">TTLOCK_API_ENABLED=true</code>{" "}
-            para OAuth y pruebas live.
+        {actionMessage ? (
+          <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground">
+            {actionMessage}
           </p>
         ) : null}
       </CardHeader>
-      <CardContent className="space-y-6">
-        <form action={saveTTLockCredentialsAction} className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="callbackUrl">Callback URL (registrar en TTLock)</Label>
-            <div className="flex gap-2">
-              <Input
-                id="callbackUrl"
-                readOnly
-                value={displayCallback || "—"}
-                className={cn(
-                  "font-mono text-xs",
-                  !callbackReady && "border-amber-500/50",
-                )}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={handleCopyCallback}
-                disabled={!displayCallback}
-                aria-label="Copiar callback URL"
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-primary" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-            {callbackReady ? (
-              <p className="text-xs text-muted-foreground">
-                Copia esta URL exacta en el portal TTLock → Redirect URI.
-              </p>
-            ) : null}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="clientId">Client ID</Label>
-            <Input
-              id="clientId"
-              name="clientId"
-              required
-              defaultValue={integration.clientId ?? ""}
-              placeholder="App ID del portal TTLock"
-            />
+      <CardContent className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl bg-muted/40 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Cuenta
+            </p>
+            <p className="mt-2 text-sm font-medium text-foreground">
+              {isConnected ? "Cuenta TTLock conectada" : "Sin conectar"}
+            </p>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="clientSecret">Client Secret</Label>
-            <div className="relative">
-              <Input
-                id="clientSecret"
-                name="clientSecret"
-                type={showSecret ? "text" : "password"}
-                placeholder={
-                  integration.hasClientSecret
-                    ? "Guardado (vacío = mantener)"
-                    : "App Secret del portal TTLock"
-                }
-                className="pr-10"
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret((v) => !v)}
-                className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
-                aria-label={showSecret ? "Ocultar secret" : "Mostrar secret"}
-              >
-                {showSecret ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
-            </div>
+          <div className="rounded-xl bg-muted/40 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Cerraduras
+            </p>
+            <p className="mt-2 text-sm font-medium text-foreground">
+              {integration.syncedLockCount} sincronizadas
+            </p>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="environment">Entorno</Label>
-            <select
-              id="environment"
-              name="environment"
-              defaultValue={integration.environment}
-              className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
-            >
-              <option value={TTLockEnvironment.PRODUCTION}>Producción (EU API)</option>
-              <option value={TTLockEnvironment.SANDBOX}>Sandbox / pruebas</option>
-            </select>
+          <div className="rounded-xl bg-muted/40 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Última sync
+            </p>
+            <p className="mt-2 text-sm font-medium text-foreground">
+              {formatDate(integration.lastSyncedAt)}
+            </p>
           </div>
-
-          <div className="space-y-2">
-            <Label>UID conectado</Label>
-            <Input readOnly value={integration.uid ?? "—"} className="bg-muted/30" />
+          <div className="rounded-xl bg-muted/40 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Estado
+            </p>
+            <p className="mt-2 text-sm font-medium text-foreground">
+              {needsReconnect
+                ? "Reconexión requerida"
+                : needsSync
+                  ? "Sync recomendada"
+                  : metrics.integrationStatusLabel}
+            </p>
           </div>
+        </div>
 
-          <div className="flex flex-wrap gap-2 sm:col-span-2">
-            <Button type="submit" disabled={isPending}>
-              Guardar credenciales
-            </Button>
-            <Button
-              asChild
-              variant="default"
-              disabled={!metrics.hasCredentials || !callbackReady}
-            >
-              <a href="/integrations/ttlock/connect">
-                <Plug className="h-4 w-4" />
-                Conectar cuenta
-              </a>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              disabled={!metrics.hasCredentials || !callbackReady}
-            >
-              <a href="/api/integrations/ttlock/connect">OAuth navegador</a>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending || !metrics.hasCredentials}
-              onClick={handleTestConnection}
-            >
+        <div className="flex flex-wrap gap-2">
+          {!isConnected || needsReconnect ? (
+            <Button type="button" onClick={runReconnect} disabled={isPending}>
               {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Link2 className="h-4 w-4" />
+                <Plug className="h-4 w-4" />
               )}
-              Probar conexión
+              {needsReconnect ? "Reconectar TTLock" : "Conectar TTLock"}
             </Button>
-          </div>
-        </form>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={runSync}
+              >
+                {isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Sincronizar cerraduras
+              </Button>
+              <form action={refreshTTLockTokenAction}>
+                <Button type="submit" variant="outline" disabled={isPending}>
+                  Refrescar sesión
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
 
-        <form action={disconnectTTLockAction}>
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={isPending}
-            className={cn(integration.status === "NOT_CONNECTED" && "opacity-60")}
-          >
-            <Unplug className="h-4 w-4" />
-            Desconectar
-          </Button>
-        </form>
-
-        {testMessage ? (
-          <div className="space-y-2">
-            <p
-              className={cn(
-                "rounded-xl px-3 py-2 text-sm",
-                testMessage.toLowerCase().includes("válida")
-                  ? "bg-primary/5 text-primary"
-                  : "bg-destructive/5 text-destructive",
-              )}
-            >
-              {testMessage}
-            </p>
-            {testSteps?.length ? (
-              <ul className="rounded-xl bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                {testSteps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ul>
-            ) : null}
+        {isConnected ? (
+          <div className="rounded-xl border border-border p-4">
+            {!confirmDisconnect ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => setConfirmDisconnect(true)}
+              >
+                <Unplug className="h-4 w-4" />
+                Desconectar
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  ¿Desconectar tu cuenta TTLock de esta organización? Los mapeos
+                  guardados se mantienen, pero dejarás de sincronizar cerraduras.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <form action={disconnectTTLockAction}>
+                    <Button
+                      type="submit"
+                      variant="destructive"
+                      disabled={isPending}
+                    >
+                      Confirmar desconexión
+                    </Button>
+                  </form>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setConfirmDisconnect(false)}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </CardContent>

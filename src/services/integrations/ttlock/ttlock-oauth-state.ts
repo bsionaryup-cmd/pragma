@@ -13,15 +13,21 @@ function signPayload(payload: string): string {
   return createHmac("sha256", secret).update(payload).digest("base64url");
 }
 
-export function createTTLockOAuthState(userId: string): string {
+export function createTTLockOAuthState(
+  userId: string,
+  organizationId: string | null = null,
+): string {
   const issuedAt = Date.now();
   const nonce = randomBytes(12).toString("hex");
-  const payload = `${userId}.${issuedAt}.${nonce}`;
+  const orgKey = organizationId ?? "_";
+  const payload = `${userId}.${orgKey}.${issuedAt}.${nonce}`;
   const signature = signPayload(payload);
   return Buffer.from(`${payload}.${signature}`).toString("base64url");
 }
 
-export function verifyTTLockOAuthState(state: string): { userId: string } | null {
+export function verifyTTLockOAuthState(
+  state: string,
+): { userId: string; organizationId: string | null } | null {
   try {
     const decoded = Buffer.from(state, "base64url").toString("utf8");
     const lastDot = decoded.lastIndexOf(".");
@@ -37,12 +43,24 @@ export function verifyTTLockOAuthState(state: string): { userId: string } | null
       return null;
     }
 
-    const [userId, issuedAtRaw] = payload.split(".");
+    const segments = payload.split(".");
+    let userId: string | undefined;
+    let organizationId: string | null = null;
+    let issuedAtRaw: string | undefined;
+
+    if (segments.length === 3) {
+      [userId, issuedAtRaw] = [segments[0], segments[1]];
+    } else if (segments.length >= 4) {
+      userId = segments[0];
+      organizationId = segments[1] === "_" ? null : segments[1];
+      issuedAtRaw = segments[2];
+    }
+
     const issuedAt = Number(issuedAtRaw);
     if (!userId || !Number.isFinite(issuedAt)) return null;
     if (Date.now() - issuedAt > STATE_TTL_MS) return null;
 
-    return { userId };
+    return { userId, organizationId };
   } catch {
     return null;
   }

@@ -104,10 +104,8 @@ export async function refreshTTLockTokenAction() {
 export async function syncTTLockLocksAction() {
   const user = await requireTTLockAdmin();
   await assertBillingUnlocked();
-  const { syncTTLockLocksPlaceholder } = await import(
-    "@/services/integrations/ttlock.service"
-  );
-  await syncTTLockLocksPlaceholder(user.dbUserId);
+  const { syncTTLockLocks } = await import("@/services/integrations/ttlock.service");
+  await syncTTLockLocks(user.dbUserId);
   revalidateTTLock();
 }
 

@@ -12,6 +12,7 @@ export {
   saveTTLockAutomationSettings,
   saveTTLockConnection,
   saveTTLockCredentials,
+  syncTTLockLocks,
   syncTTLockLocksPlaceholder,
   testTTLockConnection,
   type TTLockOverview,

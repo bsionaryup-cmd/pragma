@@ -85,8 +85,10 @@ export function deriveOverviewMetrics(input: {
       : `${input.mappedCount}/${input.propertyCount} mapeadas`;
 
   const lockSyncLabel = input.lastSyncedAt
-    ? "Sincronizado (preparado)"
-    : "Sin sync";
+    ? `${input.mappedCount} lock(s) sincronizados`
+    : input.hasAccessToken
+      ? "Sync pendiente"
+      : "Sin sync";
 
   let automationReadiness: TTLockOverviewMetrics["automationReadiness"] = "disabled";
   if (input.generateAfterGuestRegistration && input.mappedCount > 0 && input.hasAccessToken) {

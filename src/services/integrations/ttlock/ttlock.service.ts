@@ -8,6 +8,9 @@ import {
   PropertyStatus,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
+import { assertPropertyInScope } from "@/lib/platform/tenant-access";
+import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
 import {
   getTTLockOAuthAuthorizeUrl,
   isTTLockBrowserOAuthEnabled,
@@ -18,7 +21,11 @@ import {
   createTTLockOAuthState,
   verifyTTLockOAuthState,
 } from "@/services/integrations/ttlock/ttlock-oauth-state";
-import { requestTTLockLockList } from "@/services/integrations/ttlock/ttlock-api.client";
+import {
+  fetchAllTTLockRemoteLocks,
+  requestTTLockLockList,
+  type TTLockRemoteLock,
+} from "@/services/integrations/ttlock/ttlock-api.client";
 import {
   decryptTTLockSecret,
   encryptTTLockSecret,
@@ -36,12 +43,26 @@ import {
   rethrowUnlessTTLockSchemaDrift,
   TTLOCK_SCHEMA_DRIFT_HINT,
 } from "@/services/integrations/ttlock/ttlock-prisma-guard";
+import {
+  accessTokenNeedsRefresh,
+  ensureScopedTTLockIntegration,
+  integrationHasAppCredentials,
+  readIntegrationAccessToken,
+  resolveAppCredentials,
+  resolveTTLockScopeForUser,
+} from "@/services/integrations/ttlock/ttlock-session";
 import { deriveOverviewMetrics } from "@/services/integrations/ttlock/ttlock-status";
 import type {
   TTLockConnectionTestResult,
   TTLockOverviewDto,
   TTLockStatusPayload,
 } from "@/services/integrations/ttlock/ttlock.types";
+
+const REMOTE_LOCKS_CACHE_TTL_MS = 10 * 60 * 1000;
+const remoteLocksCache = new Map<
+  string,
+  { fetchedAt: number; locks: TTLockRemoteLock[] }
+>();
 
 function assertTTLockPrismaDelegates(): void {
   const delegate = db.tTLockIntegration;
@@ -63,7 +84,7 @@ function hasAppCredentials(integration: {
   clientId: string | null;
   clientSecretEncrypted: string | null;
 }): boolean {
-  return Boolean(integration.clientId?.trim() && integration.clientSecretEncrypted);
+  return integrationHasAppCredentials(integration);
 }
 
 function hasAccountCredentials(integration: {
@@ -101,53 +122,11 @@ async function getIntegrationSecrets(integration: {
 
 export async function ensureTTLockIntegration(userId: string) {
   assertTTLockPrismaDelegates();
-
   try {
-    const integration = await db.tTLockIntegration.upsert({
-      where: { userId },
-      create: {
-        userId,
-        status: TTLockIntegrationStatus.NOT_CONNECTED,
-        environment: TTLockEnvironment.PRODUCTION,
-        automationSettings: {
-          create: {
-            generateAfterGuestRegistration: true,
-            requireManualApproval: false,
-          },
-        },
-      },
-      update: {},
-      include: { automationSettings: true },
-    });
-
-    if (!integration.automationSettings) {
-      await db.tTLockAutomationSettings.create({
-        data: { integrationId: integration.id },
-      });
-      return db.tTLockIntegration.findUniqueOrThrow({
-        where: { id: integration.id },
-        include: { automationSettings: true },
-      });
-    }
-
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { organizationId: true },
-    });
-    if (user?.organizationId && !integration.organizationId) {
-      return db.tTLockIntegration.update({
-        where: { id: integration.id },
-        data: {
-          organizationId: user.organizationId,
-          configuredById: userId,
-        },
-        include: { automationSettings: true },
-      });
-    }
-
-    return integration;
+    return await ensureScopedTTLockIntegration(userId);
   } catch (error) {
     rethrowUnlessTTLockSchemaDrift(error);
+    throw error;
   }
 }
 
@@ -191,31 +170,29 @@ async function exchangeTokensForIntegration(
   },
 ) {
   if (!hasAppCredentials(integration)) {
-    throw new Error("Guarda Client ID y Client Secret antes de conectar TTLock");
+    throw new Error("TTLock no está configurado en la plataforma");
   }
 
-  const { clientSecret, refreshToken } = await getIntegrationSecrets({
+  const { clientId, clientSecret } = await resolveAppCredentials(integration);
+  const { refreshToken } = await getIntegrationSecrets({
     clientSecretEncrypted: integration.clientSecretEncrypted,
     refreshTokenEncrypted: integration.refreshTokenEncrypted,
     accessTokenEncrypted: null,
   });
-  if (!clientSecret) {
-    throw new Error("No se pudo descifrar el Client Secret TTLock");
-  }
 
   const redirectUri = getCanonicalRedirectUri(integration);
 
   const token = refreshToken
     ? await requestTTLockRefreshToken({
         environment: integration.environment,
-        clientId: integration.clientId!,
+        clientId,
         clientSecret,
         refreshToken,
         redirectUri,
       })
     : await requestTTLockPasswordToken({
         environment: integration.environment,
-        clientId: integration.clientId!,
+        clientId,
         clientSecret,
         username: integration.username!,
         passwordMd5: integration.passwordHash!,
@@ -227,6 +204,43 @@ async function exchangeTokensForIntegration(
     token,
     TTLockIntegrationStatus.CONNECTED,
   );
+}
+
+async function ensureFreshAccessToken(
+  integration: Awaited<ReturnType<typeof ensureTTLockIntegration>>,
+): Promise<{ integration: typeof integration; accessToken: string }> {
+  let current = integration;
+
+  if (accessTokenNeedsRefresh(integration) && integration.refreshTokenEncrypted) {
+    if (isTTLockLiveApiEnabled()) {
+      await exchangeTokensForIntegration(integration);
+      current = await db.tTLockIntegration.findUniqueOrThrow({
+        where: { id: integration.id },
+        include: { automationSettings: true },
+      });
+    }
+  }
+
+  const accessToken = await readIntegrationAccessToken(current);
+  if (!accessToken) {
+    throw new Error("Conecta tu cuenta TTLock antes de continuar");
+  }
+
+  return { integration: current, accessToken };
+}
+
+function getCachedRemoteLocks(integrationId: string): TTLockRemoteLock[] {
+  const cached = remoteLocksCache.get(integrationId);
+  if (!cached) return [];
+  if (Date.now() - cached.fetchedAt > REMOTE_LOCKS_CACHE_TTL_MS) {
+    remoteLocksCache.delete(integrationId);
+    return [];
+  }
+  return cached.locks;
+}
+
+function cacheRemoteLocks(integrationId: string, locks: TTLockRemoteLock[]) {
+  remoteLocksCache.set(integrationId, { fetchedAt: Date.now(), locks });
 }
 
 export async function getTTLockOverview(
@@ -250,17 +264,19 @@ async function loadTTLockOverview(
   options?: { request?: TTLockRequestContext; canManage?: boolean },
 ): Promise<TTLockOverviewDto> {
   assertTTLockPrismaDelegates();
+  const scope = await resolveTTLockScopeForUser(userId);
   const integration = await ensureTTLockIntegration(userId);
   const resolved = resolveIntegrationRedirect(integration);
   const callbackUrl =
     resolved.validation.normalizedUrl ?? resolved.redirectUri;
   const callbackSource = resolved.source;
   const callbackValidation = resolved.validation;
+  const remoteLocks = getCachedRemoteLocks(integration.id);
 
   const [properties, propertyLocks, accessCredentialCount, eventCount] =
     await Promise.all([
       db.property.findMany({
-        where: { ownerId: userId, status: PropertyStatus.ACTIVE },
+        where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
         select: { id: true, name: true, address: true, city: true },
         orderBy: { name: "asc" },
       }),
@@ -275,7 +291,7 @@ async function loadTTLockOverview(
       }),
       db.accessCredential.count({
         where: {
-          reservation: { property: { ownerId: userId } },
+          reservation: { property: mergePropertyScope(scope, {}) },
         },
       }),
       db.accessEvent.count({ where: { integrationId: integration.id } }),
@@ -303,18 +319,16 @@ async function loadTTLockOverview(
       id: integration.id,
       status: integration.status,
       environment: integration.environment,
-      clientId: integration.clientId,
-      username: integration.username,
       uid: integration.uid,
-      hasClientSecret: Boolean(integration.clientSecretEncrypted),
-      hasPassword: Boolean(integration.passwordHash),
       hasAccessToken: Boolean(integration.accessTokenEncrypted),
       hasRefreshToken: Boolean(integration.refreshTokenEncrypted),
       expiresAt: toIso(integration.expiresAt),
       lastSyncedAt: toIso(integration.lastSyncedAt),
       lastTokenRefreshAt: toIso(integration.lastTokenRefreshAt),
       lastError: integration.lastError,
-      redirectUri: integration.redirectUri,
+      accountConnected: Boolean(integration.accessTokenEncrypted && integration.uid),
+      platformConfigured: isPlatformTTLockConfigured() || hasAppCredentials(integration),
+      syncedLockCount: remoteLocks.length,
       automationSettings: settings
         ? {
             generateAfterGuestRegistration: settings.generateAfterGuestRegistration,
@@ -330,6 +344,7 @@ async function loadTTLockOverview(
     callbackSource,
     callbackValidation,
     canManage: options?.canManage ?? false,
+    remoteLocks,
     properties,
     propertyLocks,
     accessCredentialCount,
@@ -348,6 +363,11 @@ export async function saveTTLockCredentials(
   },
   _request?: TTLockRequestContext,
 ) {
+  if (isPlatformTTLockConfigured()) {
+    await ensureTTLockIntegration(userId);
+    return;
+  }
+
   const integration = await ensureTTLockIntegration(userId);
   const clientId = input.clientId.trim() || integration.clientId;
   const clientSecretEncrypted = input.clientSecret.trim()
@@ -420,8 +440,9 @@ export async function saveTTLockConnection(
   }
 }
 
-export function buildTTLockConnectSession(userId: string) {
-  const state = createTTLockOAuthState(userId);
+export async function buildTTLockConnectSession(userId: string) {
+  const scope = await resolveTTLockScopeForUser(userId);
+  const state = createTTLockOAuthState(userId, scope.organizationId);
   return { state };
 }
 
@@ -437,7 +458,9 @@ export async function beginTTLockConnect(
   const integration = await ensureTTLockIntegration(userId);
 
   if (!hasAppCredentials(integration)) {
-    throw new Error("Guarda Client ID y Client Secret antes de conectar");
+    throw new Error(
+      "TTLock no está disponible todavía. Contacta al administrador de PRAGMA.",
+    );
   }
 
   const resolved = resolveIntegrationRedirect(integration);
@@ -446,13 +469,15 @@ export async function beginTTLockConnect(
   }
 
   const redirectUri = resolved.redirectUri;
-  const { state } = buildTTLockConnectSession(userId);
+  const { state } = await buildTTLockConnectSession(userId);
+  const { clientId } = await resolveAppCredentials(integration);
 
   await db.tTLockIntegration.update({
     where: { id: integration.id },
     data: {
       status: TTLockIntegrationStatus.CONNECTING,
       redirectUri,
+      configuredById: userId,
       lastError: null,
     },
   });
@@ -469,7 +494,7 @@ export async function beginTTLockConnect(
   }
 
   const authorizeUrl = getTTLockOAuthAuthorizeUrl(integration.environment, {
-    clientId: integration.clientId!,
+    clientId,
     redirectUri,
     state,
   });
@@ -585,6 +610,16 @@ export async function handleTTLockOAuthCallback(input: {
 
   const integration = await ensureTTLockIntegration(verified.userId);
 
+  if (
+    verified.organizationId &&
+    integration.organizationId &&
+    verified.organizationId !== integration.organizationId
+  ) {
+    return {
+      redirectPath: `${basePath}?error=${encodeURIComponent("La organización no coincide con la sesión OAuth")}`,
+    };
+  }
+
   if (!input.code?.trim()) {
     return {
       redirectPath: `${basePath}/connect?state=${encodeURIComponent(state)}`,
@@ -593,14 +628,17 @@ export async function handleTTLockOAuthCallback(input: {
 
   if (!hasAppCredentials(integration)) {
     return {
-      redirectPath: `${basePath}?error=${encodeURIComponent("Configura credenciales TTLock primero")}`,
+      redirectPath: `${basePath}?error=${encodeURIComponent("TTLock no está configurado en la plataforma")}`,
     };
   }
 
-  const clientSecret = decryptTTLockSecret(integration.clientSecretEncrypted);
-  if (!clientSecret) {
+  let clientId: string;
+  let clientSecret: string;
+  try {
+    ({ clientId, clientSecret } = await resolveAppCredentials(integration));
+  } catch {
     return {
-      redirectPath: `${basePath}?error=${encodeURIComponent("Client Secret no disponible")}`,
+      redirectPath: `${basePath}?error=${encodeURIComponent("TTLock no está configurado en la plataforma")}`,
     };
   }
 
@@ -616,7 +654,7 @@ export async function handleTTLockOAuthCallback(input: {
     const redirectUri = getCanonicalRedirectUri(integration);
     const token = await requestTTLockAuthorizationCodeToken({
       environment: integration.environment,
-      clientId: integration.clientId!,
+      clientId,
       clientSecret,
       code: input.code.trim(),
       redirectUri,
@@ -630,7 +668,12 @@ export async function handleTTLockOAuthCallback(input: {
 
     await db.tTLockIntegration.update({
       where: { id: integration.id },
-      data: { redirectUri },
+      data: {
+        redirectUri,
+        configuredById: verified.userId,
+        passwordHash: null,
+        username: null,
+      },
     });
 
     await db.accessEvent.create({
@@ -669,7 +712,7 @@ export async function testTTLockConnection(
   if (!hasAppCredentials(integration)) {
     return {
       ok: false,
-      message: "Configura Client ID y Client Secret",
+      message: "TTLock no está configurado en la plataforma",
       checkedAt,
       steps,
     };
@@ -731,10 +774,24 @@ export async function testTTLockConnection(
   }
 
   const secrets = await getIntegrationSecrets(integration);
-  if (!secrets.clientSecret) {
+  let clientId: string;
+  let clientSecret: string;
+  try {
+    ({ clientId, clientSecret } = await resolveAppCredentials(integration));
+  } catch {
     return {
       ok: false,
-      message: "No se pudo descifrar el Client Secret",
+      message: "TTLock no está configurado en la plataforma",
+      checkedAt,
+      callbackValid: resolved.validation.valid,
+      steps,
+    };
+  }
+
+  if (!clientSecret && !secrets.clientSecret) {
+    return {
+      ok: false,
+      message: "No se pudo resolver el Client Secret de la plataforma",
       checkedAt,
       callbackValid: resolved.validation.valid,
       steps,
@@ -786,7 +843,7 @@ export async function testTTLockConnection(
 
   const apiResult = await requestTTLockLockList({
     environment: integration.environment,
-    clientId: integration.clientId!,
+    clientId,
     accessToken,
   });
 
@@ -844,18 +901,22 @@ export async function getTTLockStatusPayload(
 
 export async function disconnectTTLock(userId: string) {
   const integration = await ensureTTLockIntegration(userId);
+  remoteLocksCache.delete(integration.id);
+
+  const platformManaged = isPlatformTTLockConfigured();
+
   await db.tTLockIntegration.update({
     where: { id: integration.id },
     data: {
-      clientId: null,
-      clientSecretEncrypted: null,
+      ...(platformManaged
+        ? {}
+        : { clientId: null, clientSecretEncrypted: null, redirectUri: null }),
       username: null,
       passwordHash: null,
       accessTokenEncrypted: null,
       refreshTokenEncrypted: null,
       uid: null,
       expiresAt: null,
-      redirectUri: null,
       lastError: null,
       status: TTLockIntegrationStatus.NOT_CONNECTED,
       lastTokenRefreshAt: null,
@@ -913,29 +974,113 @@ export async function refreshTTLockToken(
   });
 }
 
-export async function syncTTLockLocksPlaceholder(userId: string) {
+export async function syncTTLockLocks(userId: string) {
   const integration = await ensureTTLockIntegration(userId);
 
-  await db.tTLockIntegration.update({
-    where: { id: integration.id },
-    data: {
-      lastSyncedAt: new Date(),
-      status:
-        integration.status === TTLockIntegrationStatus.SYNC_ERROR
-          ? integration.status
-          : integration.status === TTLockIntegrationStatus.NOT_CONNECTED
+  if (!integration.accessTokenEncrypted && !integration.refreshTokenEncrypted) {
+    throw new Error("Conecta tu cuenta TTLock antes de sincronizar cerraduras");
+  }
+
+  if (!isTTLockLiveApiEnabled()) {
+    await db.tTLockIntegration.update({
+      where: { id: integration.id },
+      data: {
+        lastSyncedAt: new Date(),
+        status:
+          integration.status === TTLockIntegrationStatus.NOT_CONNECTED
             ? TTLockIntegrationStatus.PENDING_SETUP
             : TTLockIntegrationStatus.READY,
-    },
-  });
+      },
+    });
+    return { lockCount: 0, mode: "prepared_without_live_api" as const };
+  }
 
-  await db.accessEvent.create({
-    data: {
-      integrationId: integration.id,
-      eventType: AccessEventType.LOCK_SYNCED,
-      payload: { mode: "placeholder_ready_for_api" },
-    },
-  });
+  try {
+    const { integration: freshIntegration, accessToken } =
+      await ensureFreshAccessToken(integration);
+    const { clientId } = await resolveAppCredentials(freshIntegration);
+
+    const remote = await fetchAllTTLockRemoteLocks({
+      environment: freshIntegration.environment,
+      clientId,
+      accessToken,
+    });
+
+    if (!remote.ok) {
+      await db.tTLockIntegration.update({
+        where: { id: freshIntegration.id },
+        data: {
+          status: TTLockIntegrationStatus.SYNC_ERROR,
+          lastError: remote.message,
+        },
+      });
+      throw new Error(remote.message);
+    }
+
+    cacheRemoteLocks(freshIntegration.id, remote.locks);
+
+    const propertyLocks = await db.propertyLock.findMany({
+      where: { integrationId: freshIntegration.id },
+      select: { id: true, ttlockLockId: true },
+    });
+
+    for (const propertyLock of propertyLocks) {
+      if (!propertyLock.ttlockLockId) continue;
+      const remoteLock = remote.locks.find(
+        (lock) => lock.lockId === propertyLock.ttlockLockId,
+      );
+      if (!remoteLock) continue;
+
+      await db.propertyLock.update({
+        where: { id: propertyLock.id },
+        data: {
+          alias: remoteLock.lockAlias ?? remoteLock.lockName,
+          batteryLevel: remoteLock.electricQuantity,
+          onlineState:
+            remoteLock.electricQuantity != null && remoteLock.electricQuantity > 0
+              ? TTLockOnlineState.ONLINE
+              : TTLockOnlineState.UNKNOWN,
+          lockStatus: TTLockLockStatus.SYNCED,
+          lastSyncAt: new Date(),
+        },
+      });
+    }
+
+    await db.tTLockIntegration.update({
+      where: { id: freshIntegration.id },
+      data: {
+        lastSyncedAt: new Date(),
+        status: TTLockIntegrationStatus.READY,
+        lastError: null,
+      },
+    });
+
+    await db.accessEvent.create({
+      data: {
+        integrationId: freshIntegration.id,
+        eventType: AccessEventType.LOCK_SYNCED,
+        payload: { mode: "live_api", lockCount: remote.locks.length },
+      },
+    });
+
+    return { lockCount: remote.locks.length, mode: "live_api" as const };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Error al sincronizar cerraduras TTLock";
+    await db.tTLockIntegration.update({
+      where: { id: integration.id },
+      data: {
+        status: TTLockIntegrationStatus.SYNC_ERROR,
+        lastError: message,
+      },
+    });
+    throw error;
+  }
+}
+
+/** @deprecated */
+export async function syncTTLockLocksPlaceholder(userId: string) {
+  return syncTTLockLocks(userId);
 }
 
 export async function savePropertyLockMapping(
@@ -948,30 +1093,46 @@ export async function savePropertyLockMapping(
   },
 ) {
   const integration = await ensureTTLockIntegration(userId);
-  const property = await db.property.findFirst({
-    where: { id: input.propertyId, ownerId: userId },
-    select: { id: true },
-  });
-  if (!property) throw new Error("Propiedad no encontrada");
+  const scope = await resolveTTLockScopeForUser(userId);
+  await assertPropertyInScope(scope, input.propertyId);
+
+  const trimmedLockId = input.ttlockLockId.trim();
+  if (trimmedLockId) {
+    const duplicate = await db.propertyLock.findFirst({
+      where: {
+        integrationId: integration.id,
+        ttlockLockId: trimmedLockId,
+        NOT: { propertyId: input.propertyId },
+      },
+      select: { propertyId: true },
+    });
+    if (duplicate) {
+      throw new Error("Esta cerradura ya está asignada a otra propiedad");
+    }
+  }
+
+  const remoteLock = getCachedRemoteLocks(integration.id).find(
+    (lock) => lock.lockId === trimmedLockId,
+  );
 
   await db.propertyLock.upsert({
-    where: { propertyId: property.id },
+    where: { propertyId: input.propertyId },
     create: {
       integrationId: integration.id,
-      propertyId: property.id,
-      ttlockLockId: input.ttlockLockId.trim() || null,
-      alias: input.alias.trim() || null,
-      timezone: input.timezone.trim() || null,
-      lockStatus: input.ttlockLockId.trim()
+      propertyId: input.propertyId,
+      ttlockLockId: trimmedLockId || null,
+      alias: (input.alias.trim() || remoteLock?.lockName || null),
+      timezone: input.timezone.trim() || "America/Bogota",
+      lockStatus: trimmedLockId
         ? TTLockLockStatus.MAPPED
         : TTLockLockStatus.UNMAPPED,
       onlineState: TTLockOnlineState.UNKNOWN,
     },
     update: {
-      ttlockLockId: input.ttlockLockId.trim() || null,
-      alias: input.alias.trim() || null,
-      timezone: input.timezone.trim() || null,
-      lockStatus: input.ttlockLockId.trim()
+      ttlockLockId: trimmedLockId || null,
+      alias: input.alias.trim() || remoteLock?.lockName || null,
+      timezone: input.timezone.trim() || "America/Bogota",
+      lockStatus: trimmedLockId
         ? TTLockLockStatus.MAPPED
         : TTLockLockStatus.UNMAPPED,
     },
