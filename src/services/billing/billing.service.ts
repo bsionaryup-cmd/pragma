@@ -19,7 +19,11 @@ import {
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_TRIAL_DAYS,
 } from "@/modules/billing/domain/subscription-pricing";
-import { getPlanMonthlyAmount } from "@/modules/billing/domain/plan-catalog";
+import { calculateSubscriptionAmount, getPlanPricePerProperty } from "@/modules/billing/domain/plan-catalog";
+import {
+  resolveSubscriptionAmountForAccount,
+  syncOpenInvoiceAmountForAccount,
+} from "@/modules/billing/domain/subscription-property-count";
 import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
 import {
   reconcileBillingLifecycle,
@@ -90,6 +94,8 @@ export type BillingOverviewDto = {
     nextRenewalLabel: string | null;
     monthlyAmount: number;
     monthlyCurrency: string;
+    propertyCount: number;
+    pricePerProperty: number;
   };
   invoices: Array<{
     id: string;
@@ -173,8 +179,10 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
         trialEndsAt: null,
         currentPeriodEnd: null,
         nextRenewalLabel: null,
-        monthlyAmount: getPlanMonthlyAmount("STARTER"),
+        monthlyAmount: calculateSubscriptionAmount("STARTER", 1),
         monthlyCurrency: SUBSCRIPTION_CURRENCY,
+        propertyCount: 1,
+        pricePerProperty: getPlanPricePerProperty("STARTER"),
       },
       invoices: [],
       paymentMethods: {
@@ -189,6 +197,13 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
   }
 
   account = await reconcileBillingLifecycle(account);
+  await syncOpenInvoiceAmountForAccount(account.id);
+
+  const subscriptionPricing = await resolveSubscriptionAmountForAccount({
+    plan: account.plan,
+    organizationId: account.organizationId,
+    metadata: account.metadata,
+  });
 
   const locked = resolveBillingLocked({
     status: account.status,
@@ -219,8 +234,10 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
             dateStyle: "medium",
           })
         : null,
-      monthlyAmount: getPlanMonthlyAmount(account?.plan ?? "STARTER"),
+      monthlyAmount: subscriptionPricing.amount,
       monthlyCurrency: SUBSCRIPTION_CURRENCY,
+      propertyCount: subscriptionPricing.propertyCount,
+      pricePerProperty: getPlanPricePerProperty(account.plan),
     },
     invoices: invoices.map((inv) => ({
       id: inv.id,

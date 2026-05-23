@@ -8,7 +8,7 @@ import {
   SUBSCRIPTION_CURRENCY,
   SUBSCRIPTION_GRACE_DAYS,
 } from "@/modules/billing/domain/subscription-pricing";
-import { getPlanMonthlyAmount } from "@/modules/billing/domain/plan-catalog";
+import { resolveSubscriptionAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
 import { ensurePaymentInvoiceForBillingInvoice } from "@/modules/billing/services/invoice.service";
 
 export async function ensureOpenSubscriptionInvoice(
@@ -27,15 +27,33 @@ export async function ensureOpenSubscriptionInvoice(
 
   const account = await db.billingAccount.findUnique({
     where: { id: billingAccountId },
+    include: {
+      organization: {
+        select: {
+          users: {
+            where: { isAccountOwner: true, deletedAt: null },
+            take: 1,
+            select: { propertyCount: true },
+          },
+        },
+      },
+    },
+  });
+
+  const { amount, propertyCount } = await resolveSubscriptionAmountForAccount({
+    plan: account?.plan ?? "STARTER",
+    organizationId: account?.organizationId,
+    metadata: account?.metadata,
+    userPropertyCount: account?.organization?.users[0]?.propertyCount ?? null,
   });
 
   const created = await db.billingInvoice.create({
     data: {
       billingAccountId,
-      amount: getPlanMonthlyAmount(account?.plan ?? "STARTER"),
+      amount,
       currency: SUBSCRIPTION_CURRENCY,
       status: BillingInvoiceStatus.OPEN,
-      description,
+      description: `${description} · ${propertyCount} propiedad${propertyCount === 1 ? "" : "es"}`,
       dueAt: new Date(Date.now() + dueInDays * 24 * 60 * 60 * 1000),
     },
   });

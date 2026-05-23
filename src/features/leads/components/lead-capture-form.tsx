@@ -8,6 +8,7 @@ import { submitLeadAction } from "@/features/leads/actions/lead.actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 
 type LeadCaptureFormProps = {
@@ -86,11 +87,10 @@ export function LeadCaptureForm({ source = "landing", compact = false }: LeadCap
         </div>
         <div className="space-y-2">
           <Label htmlFor="lead-phone">Teléfono</Label>
-          <Input
+          <PhoneInput
             id="lead-phone"
-            type="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={setPhone}
             disabled={pending}
           />
         </div>

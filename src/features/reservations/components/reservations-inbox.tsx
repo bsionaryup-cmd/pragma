@@ -112,7 +112,7 @@ export function ReservationsInbox({
     <>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-white dark:bg-background">
         {/* Panel lista de reservas */}
-        <aside className="relative flex h-full w-full max-w-[420px] shrink-0 flex-col border-r border-border bg-white dark:bg-background">
+        <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-white md:max-w-[420px] lg:max-w-[420px] dark:bg-background">
           <header className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-3">
             <div className="min-w-0 flex-1">
               <h2 className="font-heading text-base font-semibold tracking-tight">

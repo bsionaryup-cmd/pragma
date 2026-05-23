@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 
 export const documentTypes = ["CC", "CE", "PASSPORT", "DNI", "OTHER"] as const;
 
@@ -30,10 +31,10 @@ export const guestRegistrationSchema = z
             path: ["guests", index, "email"],
           });
         }
-        if (!guest.phone?.trim()) {
+        if (!guest.phone?.trim() || !isValidPhoneNumber(guest.phone)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Teléfono requerido para huésped principal",
+            message: "Teléfono inválido. Selecciona el código de país.",
             path: ["guests", index, "phone"],
           });
         }

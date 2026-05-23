@@ -7,9 +7,13 @@ export class AccountOwnerProtectionError extends Error {
   }
 }
 
-export async function getAccountOwnerUserId(): Promise<string | null> {
+export async function getAccountOwnerUserId(
+  organizationId?: string | null,
+): Promise<string | null> {
+  if (!organizationId) return null;
+
   const owner = await db.user.findFirst({
-    where: { isAccountOwner: true },
+    where: { isAccountOwner: true, organizationId },
     select: { id: true },
   });
   return owner?.id ?? null;

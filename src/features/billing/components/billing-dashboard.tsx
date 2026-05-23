@@ -12,6 +12,7 @@ import { PlanSelector } from "@/features/billing/components/plan-selector";
 import { BankTransferPanel } from "@/features/billing/components/bank-transfer-panel";
 import type { BillingDashboardDto } from "@/modules/billing/services/dashboard.service";
 import type { BillingPlanCode } from "@prisma/client";
+import { getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,10 +151,20 @@ export function BillingDashboard({
                   </div>
                   <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
                     <dt className="text-muted-foreground">Plan</dt>
-                    <dd className="font-medium">{account.plan}</dd>
+                    <dd className="font-medium">{getPlanDefinition(account.plan as BillingPlanCode).name}</dd>
                   </div>
                   <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
-                    <dt className="text-muted-foreground">Precio mensual</dt>
+                    <dt className="text-muted-foreground">Propiedades</dt>
+                    <dd className="font-medium tabular-nums">{account.propertyCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
+                    <dt className="text-muted-foreground">Precio por propiedad</dt>
+                    <dd className="font-semibold tabular-nums">
+                      {formatAmount(account.pricePerProperty, account.monthlyCurrency)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
+                    <dt className="text-muted-foreground">Total mensual</dt>
                     <dd className="font-semibold tabular-nums">
                       {formatAmount(account.monthlyAmount, account.monthlyCurrency)}
                     </dd>
@@ -179,6 +190,7 @@ export function BillingDashboard({
                     </p>
                     <PlanSelector
                       currentPlan={account.plan as BillingPlanCode}
+                      propertyCount={account.propertyCount}
                       disabled={false}
                     />
                   </div>

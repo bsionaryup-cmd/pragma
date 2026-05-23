@@ -21,7 +21,7 @@ export function InboxConversationList({
   onSelect,
 }: InboxConversationListProps) {
   return (
-    <section className="flex h-full w-[min(100%,380px)] shrink-0 flex-col border-r border-border bg-card">
+    <section className="flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-card md:w-[min(100%,380px)] md:max-w-[380px]">
       <header className="border-b border-border px-5 pb-4 pt-5">
         <h1 className="text-xl font-bold text-foreground">Bandeja de entrada</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
@@ -47,6 +47,11 @@ export function InboxConversationList({
       </header>
 
       <ul className="flex-1 overflow-y-auto">
+        {conversations.length === 0 ? (
+          <li className="px-5 py-8 text-center text-sm text-muted-foreground">
+            Sin conversaciones todavía.
+          </li>
+        ) : null}
         {conversations.map((conversation) => {
           const isSelected = conversation.id === selectedId;
           return (

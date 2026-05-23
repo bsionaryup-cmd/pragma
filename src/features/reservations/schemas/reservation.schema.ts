@@ -1,5 +1,6 @@
 import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import { z } from "zod";
+import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida");
 
@@ -81,6 +82,13 @@ export const reservationWizardSchema = reservationWizardBaseSchema.superRefine(
   (data, ctx) => {
     validateStayDates(data, ctx);
     validateGuestCounts(data, ctx);
+    if (data.guestPhone?.trim() && !isValidPhoneNumber(data.guestPhone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Teléfono inválido. Selecciona el código de país.",
+        path: ["guestPhone"],
+      });
+    }
   },
 );
 

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 type OnboardingWizardProps = {
   displayName: string;
@@ -84,13 +85,12 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Teléfono</Label>
-              <Input
+              <PhoneInput
                 id="phone"
-                type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+57 300 000 0000"
+                onChange={setPhone}
                 disabled={pending}
+                required
               />
             </div>
             <div className="space-y-2">

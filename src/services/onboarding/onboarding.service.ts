@@ -1,4 +1,7 @@
 import { db } from "@/lib/db";
+import { isValidPhoneNumber } from "@/lib/phone/phone-number";
+import { clampPropertyCount } from "@/modules/billing/domain/plan-catalog";
+import { parseBillingAccountMetadata } from "@/modules/billing/domain/subscription-property-count";
 import { ensureBillingAccount } from "@/services/billing/billing.service";
 
 export type OnboardingProfileInput = {
@@ -18,13 +21,16 @@ export async function completeOnboarding(
   input: OnboardingProfileInput,
 ): Promise<{ ok: boolean; message: string }> {
   const companyName = input.companyName.trim();
-  const phone = input.phone.trim().replace(/\s+/g, " ");
+  const phone = input.phone.trim();
 
   if (companyName.length < 2) {
     return { ok: false, message: "Indica el nombre de tu empresa o negocio" };
   }
-  if (phone.length < 7) {
-    return { ok: false, message: "Indica un teléfono de contacto válido" };
+  if (!isValidPhoneNumber(phone)) {
+    return {
+      ok: false,
+      message: "Indica un teléfono válido con código de país",
+    };
   }
   if (!Number.isFinite(input.propertyCount) || input.propertyCount < 1) {
     return { ok: false, message: "Indica cuántas propiedades administras (mínimo 1)" };
@@ -45,7 +51,19 @@ export async function completeOnboarding(
       where: { id: user.organizationId },
       data: { name: companyName },
     });
-    await ensureBillingAccount(user.organizationId);
+    const billingAccount = await ensureBillingAccount(user.organizationId);
+    if (billingAccount) {
+      const propertySlots = clampPropertyCount(input.propertyCount);
+      await db.billingAccount.update({
+        where: { id: billingAccount.id },
+        data: {
+          metadata: {
+            ...parseBillingAccountMetadata(billingAccount.metadata),
+            propertySlots,
+          },
+        },
+      });
+    }
   } else {
     await ensureBillingAccount();
   }

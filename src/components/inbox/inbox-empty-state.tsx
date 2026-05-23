@@ -8,8 +8,8 @@ export function InboxEmptyState() {
       </div>
       <h2 className="text-2xl font-bold text-foreground">Bandeja de entrada</h2>
       <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-        Para ver el historial de mensajes, selecciona una conversación o busca el
-        nombre, número de reserva o canal de adquisición de tu huésped.
+        Cuando conectes tus canales de reserva o recibas mensajes de huéspedes,
+        las conversaciones aparecerán aquí. Por ahora no hay mensajes pendientes.
       </p>
     </div>
   );

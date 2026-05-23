@@ -1,3 +1,5 @@
+import "server-only";
+
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";

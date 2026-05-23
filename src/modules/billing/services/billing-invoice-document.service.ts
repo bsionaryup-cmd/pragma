@@ -10,6 +10,7 @@ import {
   type BillingInvoiceDocument,
 } from "@/modules/billing/domain/invoice-document";
 import { getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
+import { resolveSubscriptionAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
 import type { BillingReceiptPaymentMethod } from "@/modules/billing/services/billing-receipt-email.service";
 
 function paymentMethodLabel(method: BillingReceiptPaymentMethod) {
@@ -55,10 +56,13 @@ function buildDocumentFromParts(input: {
     email: string;
   };
   isPreview: boolean;
+  propertyCount?: number;
 }): BillingInvoiceDocument {
   const planDef = getPlanDefinition(input.plan);
   const total = Number(input.invoice.amount);
   const { subtotal, taxAmount } = splitTaxIncludedTotal(total);
+  const propertyCount = Math.max(1, input.propertyCount ?? 1);
+  const unitSubtotal = subtotal / propertyCount;
   const periodLabel = formatInvoicePeriod(input.periodStart, input.periodEnd);
   const payment = resolvePaymentMeta(input.invoice);
   const paid = input.invoice.status === "PAID";
@@ -81,8 +85,8 @@ function buildDocumentFromParts(input: {
     lineItems: [
       {
         description: `Suscripción ${planDef.name} — Software PMS (${periodLabel})`,
-        quantity: 1,
-        unitPrice: subtotal,
+        quantity: propertyCount,
+        unitPrice: unitSubtotal,
         total: subtotal,
       },
     ],
@@ -187,6 +191,12 @@ export async function getBillingInvoiceDocument(
     account?.currentPeriodEnd ??
     new Date(paidAt.getTime() + 30 * 24 * 60 * 60 * 1000);
 
+  const { propertyCount } = await resolveSubscriptionAmountForAccount({
+    plan: account?.plan ?? "STARTER",
+    organizationId: account?.organizationId,
+    metadata: account?.metadata,
+  });
+
   return buildDocumentFromParts({
     invoice,
     plan: account?.plan ?? "STARTER",
@@ -194,6 +204,7 @@ export async function getBillingInvoiceDocument(
     periodEnd,
     customer,
     isPreview: false,
+    propertyCount,
   });
 }
 
@@ -235,11 +246,16 @@ export async function getCurrentPlanInvoiceDocument(): Promise<BillingInvoiceDoc
     account.currentPeriodEnd ??
     new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
   const planDef = getPlanDefinition(account.plan);
+  const { amount, propertyCount } = await resolveSubscriptionAmountForAccount({
+    plan: account.plan,
+    organizationId: account.organizationId,
+    metadata: account.metadata,
+  });
 
   const previewInvoice: BillingInvoice = {
     id: "clpreview00000001",
     billingAccountId,
-    amount: new Prisma.Decimal(planDef.monthlyAmountCop),
+    amount: new Prisma.Decimal(amount),
     currency: planDef.currency,
     status: "PAID",
     description: `Suscripción ${planDef.name} — PRAGMA PMS`,
@@ -263,5 +279,6 @@ export async function getCurrentPlanInvoiceDocument(): Promise<BillingInvoiceDoc
     periodEnd,
     customer,
     isPreview: true,
+    propertyCount,
   });
 }

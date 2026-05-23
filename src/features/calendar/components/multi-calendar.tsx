@@ -8,6 +8,7 @@ import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-h
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
 import { CalendarToolbar } from "@/features/calendar/components/calendar-toolbar";
 import { PropertySidebar } from "@/features/calendar/components/property-sidebar";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { groupReservationsByProperty } from "@/features/calendar/lib/reservation-span";
 import type {
   CalendarDataDto,
@@ -55,6 +56,7 @@ export function MultiCalendar({
     checkIn: string;
     checkOut: string;
   } | null>(null);
+  const [propertyPanelOpen, setPropertyPanelOpen] = useState(false);
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
@@ -239,16 +241,23 @@ export function MultiCalendar({
 
   return (
     <div className="cal-module flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--cal-bg-canvas)]">
-      <CalendarToolbar viewport={viewport} canSyncAirbnb={canSyncAirbnb} />
+      <CalendarToolbar
+        viewport={viewport}
+        canSyncAirbnb={canSyncAirbnb}
+        showPropertiesToggle
+        onToggleProperties={() => setPropertyPanelOpen(true)}
+      />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
-        <PropertySidebar
-          properties={filteredProperties}
-          search={search}
-          onSearchChange={setSearch}
-          scrollRef={sidebarScrollRef}
-          onScroll={syncFromSidebar}
-        />
+        <div className="hidden h-full shrink-0 lg:flex">
+          <PropertySidebar
+            properties={filteredProperties}
+            search={search}
+            onSearchChange={setSearch}
+            scrollRef={sidebarScrollRef}
+            onScroll={syncFromSidebar}
+          />
+        </div>
 
         <div className="calendar-workspace flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="sticky top-0 z-20 shrink-0 border-b border-[var(--cal-border)] bg-white">
@@ -277,7 +286,7 @@ export function MultiCalendar({
       </div>
 
       {canWrite ? (
-        <div className="shrink-0 border-t border-[var(--cal-border)] bg-white px-4 py-2 text-[11px] text-[var(--cal-text-secondary)]">
+        <div className="shrink-0 border-t border-[var(--cal-border)] bg-white px-3 py-2 text-[11px] text-[var(--cal-text-secondary)] sm:px-4">
           {selection?.checkOut === null ? (
             <span>
               1.er clic: entrada ({selection.checkIn}). Elige la fecha de salida
@@ -304,6 +313,19 @@ export function MultiCalendar({
         onCreated={handleCreated}
         onDeleted={handleDeleted}
       />
+
+      <Sheet open={propertyPanelOpen} onOpenChange={setPropertyPanelOpen}>
+        <SheetContent side="left" className="w-[min(100vw,300px)] gap-0 p-0 sm:max-w-[300px]">
+          <SheetTitle className="sr-only">Propiedades del calendario</SheetTitle>
+          <PropertySidebar
+            properties={filteredProperties}
+            search={search}
+            onSearchChange={setSearch}
+            scrollRef={sidebarScrollRef}
+            onScroll={syncFromSidebar}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

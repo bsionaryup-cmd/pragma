@@ -1,5 +1,14 @@
 import type { AppUserRole } from "@/types/auth";
 
+/**
+ * RBAC dentro del tenant (organización).
+ * - ADMIN: administrador con acceso completo al panel del tenant.
+ * - RECEPTIONIST: operación diaria con permisos limitados.
+ *
+ * El rol SUPER_ADMIN_OWNER vive en User.platformRole (fuera del tenant).
+ * Ver src/lib/auth/role-definitions.server.ts para pantallas por tipo de cuenta.
+ */
+
 export type Permission =
   | "dashboard:read"
   | "properties:read"

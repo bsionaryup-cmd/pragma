@@ -67,10 +67,11 @@ export async function payOpenInvoiceAction(invoiceId: string) {
   return result;
 }
 
-export async function selectPlanAction(plan: BillingPlanCode) {
+export async function selectPlanAction(plan: BillingPlanCode, propertyCount: number) {
   const user = await requirePermission("billing:manage");
   const result = await selectSubscriptionPlan({
     plan,
+    propertyCount,
     actorId: user.dbUserId,
   });
   revalidateBilling();

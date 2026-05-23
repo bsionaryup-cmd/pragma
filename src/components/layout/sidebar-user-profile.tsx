@@ -13,6 +13,7 @@ export type SidebarUser = {
   email: string;
   imageUrl: string | null;
   role?: "ADMIN" | "RECEPTIONIST";
+  roleLabel?: string;
 };
 
 type SidebarUserProfileProps = {
@@ -58,7 +59,7 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
             {displayName}
           </p>
           <p className="truncate text-xs leading-tight text-[#6B7280]">
-            {user.email}
+            {user.roleLabel ?? user.email}
           </p>
         </div>
       ) : null}

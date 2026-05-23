@@ -1,3 +1,5 @@
+import "server-only";
+
 import { cache } from "react";
 import type { User } from "@prisma/client";
 import { PlatformImpersonationStatus } from "@prisma/client";

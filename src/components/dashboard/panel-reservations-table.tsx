@@ -56,6 +56,87 @@ export function PanelReservationsTable({
 
   return (
     <div>
+      <div className="space-y-3 px-4 py-4 md:hidden">
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={Clock}
+            title={t("common.noRecords")}
+            description={t("common.noRecordsDetail")}
+          />
+        ) : (
+          rows.map((row) => {
+            const time = timeLabel(row, tab);
+            const totalGuests = guestTotal(row);
+            const guestLabel =
+              totalGuests === 1
+                ? `1 ${t("common.guest")}`
+                : `${totalGuests} ${t("common.guests")}`;
+
+            return (
+              <article
+                key={row.id}
+                className="rounded-xl border border-border bg-card p-4 shadow-pragma-soft"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
+                    {row.property.coverImageUrl ? (
+                      <Image
+                        src={row.property.coverImageUrl}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
+                        {row.property.name.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {row.property.name}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {row.property.neighborhood || t("table.noNeighborhood")}
+                    </p>
+                  </div>
+                  <PlatformBadge platform={row.platform} />
+                </div>
+                <div className="mt-3 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {dateColumn}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {dateLabel(row, tab)}
+                      {time ? ` · ${time}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t("table.guests")}
+                    </span>
+                    <span className="truncate font-medium text-foreground">
+                      {row.guestName} · {guestLabel}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 h-10 w-full rounded-full border-border bg-card text-xs font-semibold shadow-none hover:bg-accent"
+                >
+                  {t("common.contact")}
+                </Button>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden md:block">
       <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
         <Table className="min-w-[760px]">
           <TableHeader>
@@ -167,6 +248,7 @@ export function PanelReservationsTable({
             )}
           </TableBody>
         </Table>
+      </div>
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

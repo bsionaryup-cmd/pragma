@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requirePlatformOwnerUser, platformOwnerErrorResponse } from "@/lib/platform/require-platform-owner";
 import {
   getOwnerDashboardAnalytics,
+  getOwnerDashboardSnapshot,
   listOwnerClients,
   type OwnerClientsQuery,
 } from "@/services/platform/owner-dashboard.service";
@@ -23,12 +24,16 @@ export async function GET(request: Request) {
       pageSize: Number(url.searchParams.get("pageSize") ?? "20"),
     };
 
-    const [clients, analytics] = await Promise.all([
+    const [clients, snapshot] = await Promise.all([
       listOwnerClients(query),
-      getOwnerDashboardAnalytics(),
+      getOwnerDashboardSnapshot(),
     ]);
 
-    return NextResponse.json({ clients, analytics });
+    return NextResponse.json({
+      clients,
+      analytics: snapshot.analytics,
+      snapshot,
+    });
   } catch (error) {
     return platformOwnerErrorResponse(error);
   }

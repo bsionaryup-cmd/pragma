@@ -217,8 +217,8 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                     onChange={(e) => setPlan(e.target.value as "STARTER" | "PRO")}
                     className="h-10 rounded-xl border border-input bg-white px-3 dark:bg-card"
                   >
-                    <option value="STARTER">Starter</option>
-                    <option value="PRO">Pro</option>
+                    <option value="STARTER">Básico ($79.999/prop.)</option>
+                    <option value="PRO">Pro ($89.999/prop.) — Recomendado</option>
                   </select>
                 </label>
                 <label className="grid gap-1.5 text-sm">

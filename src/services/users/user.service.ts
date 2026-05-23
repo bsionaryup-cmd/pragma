@@ -18,24 +18,52 @@ import { clerkUserPayloadSchema } from "@/lib/validations/user";
 import type { ClerkUserPayload } from "@/types/auth";
 import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
 import { clerkClient } from "@clerk/nextjs/server";
-import { createOrganizationWithTrial } from "@/services/organizations/organization.service";
+import {
+  createOrganizationWithTrialInTransaction,
+} from "@/services/organizations/organization.service";
 import { resolvePlatformRoleForEmail } from "@/lib/platform/resolve-platform-role";
+import { isPlatformOwnerEmail } from "@/lib/platform/platform-owner";
 
-async function resolveSelfSignupContext(payload: ClerkUserPayload): Promise<{
-  role: UserRole;
-  isAccountOwner: boolean;
-  organizationId: string;
-}> {
-  const organization = await createOrganizationWithTrial({
-    email: payload.email,
-    firstName: payload.firstName,
+async function createSelfSignupUser(
+  payload: ClerkUserPayload,
+  options?: {
+    touchLogin?: boolean;
+  },
+): Promise<User> {
+  if (isPlatformOwnerEmail(payload.email)) {
+    return db.user.create({
+      data: buildUserCreateData(payload, "ADMIN", {
+        touchLogin: options?.touchLogin,
+        isAccountOwner: false,
+        organizationId: null,
+      }),
+    });
+  }
+
+  return db.$transaction(async (tx) => {
+    const organization = await createOrganizationWithTrialInTransaction(tx, {
+      email: payload.email,
+      firstName: payload.firstName,
+    });
+
+    return tx.user.create({
+      data: buildUserCreateData(payload, "ADMIN", {
+        touchLogin: options?.touchLogin,
+        isAccountOwner: true,
+        organizationId: organization.id,
+      }),
+    });
   });
+}
 
-  return {
-    role: "ADMIN",
-    isAccountOwner: true,
-    organizationId: organization.id,
-  };
+async function ensurePlatformOwnerTenancy(user: User): Promise<User> {
+  if (!isPlatformOwnerEmail(user.email)) return user;
+  if (user.organizationId === null && !user.isAccountOwner) return user;
+
+  return db.user.update({
+    where: { id: user.id },
+    data: { organizationId: null, isAccountOwner: false },
+  });
 }
 
 function mapWebhookToPayload(data: ClerkWebhookUserData): ClerkUserPayload {
@@ -190,27 +218,62 @@ export async function upsertUserFromClerk(
         dbUserId: updated.id,
       });
     }
-    return withUserPreferenceDefaults(updated);
+    const normalized = await ensurePlatformOwnerTenancy(updated);
+    return withUserPreferenceDefaults(normalized);
   }
 
-  const signupContext = options?.organizationId
-    ? {
-        role: options.role ?? ("RECEPTIONIST" as UserRole),
-        isAccountOwner: options.isAccountOwner ?? false,
-        organizationId: options.organizationId,
+  if (options?.organizationId) {
+    let created: User;
+    try {
+      created = await db.user.create({
+        data: buildUserCreateData(validated, options.role ?? "RECEPTIONIST", {
+          ...options,
+          isAccountOwner: options.isAccountOwner ?? false,
+          organizationId: options.organizationId,
+        }),
+      });
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "P2002"
+      ) {
+        const raced = await db.user.findUnique({
+          where: { clerkId: validated.id },
+        });
+        if (raced) {
+          return withUserPreferenceDefaults(raced);
+        }
       }
-    : await resolveSelfSignupContext(validated);
+      rethrowUnlessUserSchemaDrift(error);
+    }
+
+    await syncClerkPublicMetadata(validated.id, {
+      role: created.role,
+      dbUserId: created.id,
+    });
+
+    return withUserPreferenceDefaults(created);
+  }
 
   let created: User;
   try {
-    created = await db.user.create({
-      data: buildUserCreateData(validated, signupContext.role, {
-        ...options,
-        isAccountOwner: signupContext.isAccountOwner,
-        organizationId: signupContext.organizationId,
-      }),
-    });
+    created = await createSelfSignupUser(validated, options);
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002"
+    ) {
+      const raced = await db.user.findUnique({
+        where: { clerkId: validated.id },
+      });
+      if (raced) {
+        return withUserPreferenceDefaults(raced);
+      }
+    }
     rethrowUnlessUserSchemaDrift(error);
   }
 
@@ -271,9 +334,14 @@ export async function getUserById(id: string) {
   }
 }
 
-export async function listUsers() {
+export async function listUsers(options?: { organizationId?: string | null }) {
+  const organizationId = options?.organizationId;
+  if (!organizationId) {
+    return [];
+  }
+
   return db.user.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, organizationId },
     orderBy: { createdAt: "desc" },
   });
 }

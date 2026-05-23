@@ -5,39 +5,58 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
-import { getPlanMonthlyAmount } from "@/modules/billing/domain/plan-catalog";
+import { clampPropertyCount } from "@/modules/billing/domain/plan-catalog";
+import {
+  parseBillingAccountMetadata,
+  resolveSubscriptionAmountForAccount,
+  syncOpenInvoiceAmountForAccount,
+} from "@/modules/billing/domain/subscription-property-count";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
 import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
 
 export async function selectSubscriptionPlan(input: {
   plan: BillingPlanCode;
+  propertyCount: number;
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
   const billingAccountId = await requireBillingAccountId();
-  const amount = getPlanMonthlyAmount(input.plan);
+  const propertySlots = clampPropertyCount(input.propertyCount);
+  const account = await db.billingAccount.findUnique({
+    where: { id: billingAccountId },
+  });
+  const metadata = {
+    ...parseBillingAccountMetadata(account?.metadata),
+    propertySlots,
+  };
 
   await db.billingAccount.update({
     where: { id: billingAccountId },
-    data: { plan: input.plan },
+    data: {
+      plan: input.plan,
+      metadata,
+    },
   });
 
-  await db.billingInvoice.updateMany({
-    where: {
-      billingAccountId,
-      status: BillingInvoiceStatus.OPEN,
-    },
-    data: { amount },
+  const { amount } = await resolveSubscriptionAmountForAccount({
+    plan: input.plan,
+    organizationId: account?.organizationId,
+    metadata,
   });
+
+  await syncOpenInvoiceAmountForAccount(billingAccountId);
 
   await writePaymentAuditLog({
     entityType: "billing_account",
     entityId: billingAccountId,
     action: "plan_selected",
     actorId: input.actorId,
-    after: { plan: input.plan, amount },
+    after: { plan: input.plan, propertySlots, amount },
   });
 
-  return { ok: true, message: `Plan ${input.plan} seleccionado` };
+  return {
+    ok: true,
+    message: `Plan ${input.plan} · ${propertySlots} propiedad${propertySlots === 1 ? "" : "es"}`,
+  };
 }
 
 export async function submitManualPaymentProof(input: {

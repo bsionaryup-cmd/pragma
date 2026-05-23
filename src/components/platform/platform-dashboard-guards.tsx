@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireDbUser } from "@/lib/auth";
+import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { buildTenantContext } from "@/lib/platform/tenant-context";
 import { db } from "@/lib/db";
@@ -25,7 +26,7 @@ export async function enforceTenantDashboardAccess(user: Awaited<ReturnType<type
   if (isSuperAdminOwner(user)) {
     const ctx = await buildTenantContext(user);
     if (!ctx.isImpersonating) {
-      redirect("/owner-dashboard");
+      redirect(resolvePostAuthHomePath(user));
     }
     return ctx;
   }

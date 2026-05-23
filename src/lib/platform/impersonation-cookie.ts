@@ -1,4 +1,6 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import "server-only";
+
+import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { PLATFORM_IMPERSONATION_COOKIE } from "@/lib/platform/constants";
 

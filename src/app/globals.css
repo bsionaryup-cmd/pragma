@@ -311,6 +311,10 @@
   .pragma-scrollbar::-webkit-scrollbar-corner {
     background: transparent;
   }
+
+  .pragma-auth-shell :is(.cl-footer, .cl-footerPages, .cl-footerAction) {
+    display: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

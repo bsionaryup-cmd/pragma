@@ -1,5 +1,6 @@
 /**
- * Garantiza una factura PAID de muestra para probar descarga PDF en /settings/billing.
+ * DEV ONLY — Garantiza una factura PAID de muestra para probar descarga PDF en /settings/billing.
+ * No ejecutar en producción. Prefer purge: node scripts/purge-demo-artifacts.mjs
  * Uso: npx tsx scripts/ensure-billing-preview-invoice.ts
  */
 import { config } from "dotenv";

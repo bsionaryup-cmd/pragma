@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import {
   APP_DEMO_CTA,
   APP_LOGIN_CTA,
+  APP_SIGN_IN_PATH,
   SUBSCRIPTION_TRIAL_LABEL,
 } from "@/lib/constants";
 import {
   getLandingPrimaryCta,
-  getLandingSecondaryCta,
   type LandingSession,
 } from "@/lib/landing-session";
 
@@ -91,7 +91,7 @@ type LogInButtonProps = {
 
 /** CTA secundario — acceso para cuentas existentes. */
 export function LogInButton({
-  href = "/sign-in",
+  href = APP_SIGN_IN_PATH,
   label = APP_LOGIN_CTA,
   size = "md",
   className,
@@ -117,7 +117,6 @@ type AuthCtaPairProps = {
   size?: CtaSize;
   className?: string;
   layout?: "row" | "column";
-  showLoginWhenSignedIn?: boolean;
 };
 
 /** Par de CTAs alineado con el estado de sesión (landing / marketing). */
@@ -126,31 +125,40 @@ export function AuthCtaPair({
   size = "md",
   className,
   layout = "row",
-  showLoginWhenSignedIn = false,
 }: AuthCtaPairProps) {
   const primary = getLandingPrimaryCta(session);
-  const secondary = getLandingSecondaryCta(session);
-  const showLogin = !session.signedIn || showLoginWhenSignedIn;
+  const isRow = layout === "row";
+
+  const loginButton = <LogInButton size={size} />;
+
+  const trialButton = (
+    <FreeTrialButton
+      href={primary.href}
+      label={primary.label}
+      size={size}
+      showBadge={!session.signedIn || session.needsTrialSetup}
+    />
+  );
 
   return (
     <div
       className={cn(
-        "flex gap-3",
-        layout === "row" ? "flex-col sm:flex-row sm:flex-wrap sm:items-center" : "flex-col",
+        "flex gap-2 sm:gap-3",
+        isRow ? "flex-row flex-wrap items-center" : "flex-col",
         className,
       )}
     >
-      <FreeTrialButton
-        href={primary.href}
-        label={primary.label}
-        size={size}
-        showBadge={!session.signedIn || session.needsTrialSetup}
-      />
-      {showLogin && secondary ? (
-        <LogInButton href={secondary.href} label={secondary.label} size={size} />
-      ) : showLogin ? (
-        <LogInButton size={size} />
-      ) : null}
+      {isRow && loginButton ? (
+        <>
+          {loginButton}
+          {trialButton}
+        </>
+      ) : (
+        <>
+          {trialButton}
+          {loginButton}
+        </>
+      )}
     </div>
   );
 }
@@ -163,7 +171,7 @@ type AuthPageCtaProps = {
 export function AuthPageCta({ mode }: AuthPageCtaProps) {
   if (mode === "sign-in") {
     return (
-      <div className="mt-8 space-y-4 border-t border-border pt-8 text-center">
+      <div className="mt-6 space-y-3 border-t border-border pt-6 text-center">
         <p className="text-sm text-muted-foreground">
           ¿Aún no tienes cuenta?{" "}
           <span className="font-medium text-foreground">{SUBSCRIPTION_TRIAL_LABEL}</span>
@@ -176,9 +184,11 @@ export function AuthPageCta({ mode }: AuthPageCtaProps) {
   }
 
   return (
-    <div className="mt-8 space-y-3 border-t border-border pt-8 text-center">
+    <div className="mt-6 space-y-3 border-t border-border pt-6 text-center">
       <p className="text-sm text-muted-foreground">¿Ya tienes cuenta?</p>
-      <LogInButton size="md" className="w-full max-w-[280px]" />
+      <div className="flex flex-col items-center gap-3">
+        <LogInButton size="md" className="w-full max-w-[280px]" />
+      </div>
     </div>
   );
 }

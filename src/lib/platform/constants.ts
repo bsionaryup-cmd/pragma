@@ -16,4 +16,6 @@ export const PLATFORM_IMPERSONATION_COOKIE = "pragma_platform_impersonation";
 
 export const OWNER_DASHBOARD_PATH = "/owner-dashboard";
 
+export const OWNER_LOGIN_PATH = "/owner-login";
+
 export const PLATFORM_OWNER_API_PREFIX = "/api/owner";

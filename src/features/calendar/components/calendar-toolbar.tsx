@@ -1,9 +1,8 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, PanelLeft } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
-import { CALENDAR_TOOLBAR_HEIGHT } from "@/features/calendar/constants";
 import {
   formatViewportRangeLabel,
   getTodayKey,
@@ -19,11 +18,15 @@ const NAV_SHIFT_DAYS = 21;
 type CalendarToolbarProps = {
   viewport: CalendarViewport;
   canSyncAirbnb?: boolean;
+  onToggleProperties?: () => void;
+  showPropertiesToggle?: boolean;
 };
 
 function CalendarToolbarComponent({
   viewport,
   canSyncAirbnb = false,
+  onToggleProperties,
+  showPropertiesToggle = false,
 }: CalendarToolbarProps) {
   const label = formatViewportRangeLabel(viewport);
   const today = getTodayKey();
@@ -32,11 +35,20 @@ function CalendarToolbarComponent({
   const isOnToday = viewport.anchor === today;
 
   return (
-    <div
-      className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--cal-border)] bg-white px-5 shadow-pragma-soft"
-      style={{ height: CALENDAR_TOOLBAR_HEIGHT }}
-    >
-      <div className="flex items-center gap-1.5">
+    <div className="flex min-h-[var(--cal-toolbar-height,3rem)] shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[var(--cal-border)] bg-white px-3 py-2 shadow-pragma-soft sm:gap-3 sm:px-5 sm:py-0">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
+        {showPropertiesToggle ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0 rounded-lg border-[var(--cal-border)] bg-white hover:bg-[var(--cal-bg-hover)] lg:hidden"
+            onClick={onToggleProperties}
+            aria-label="Ver propiedades"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
+        ) : null}
         <Button
           variant="outline"
           size="icon"
@@ -81,11 +93,11 @@ function CalendarToolbarComponent({
         </Button>
       </div>
 
-      <h2 className="text-sm font-semibold tracking-tight text-[#111111]">
+      <h2 className="order-3 w-full truncate text-center text-sm font-semibold tracking-tight text-[#111111] sm:order-none sm:w-auto sm:flex-1 sm:px-2">
         {label}
       </h2>
 
-      <div className="flex flex-col items-end gap-1">
+      <div className="flex shrink-0 flex-col items-end gap-1 sm:min-w-[7rem]">
         {canSyncAirbnb ? (
           <AirbnbSyncStatus canSync compact className="justify-end" />
         ) : (

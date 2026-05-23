@@ -9,6 +9,7 @@ import {
   PlatformImpersonationBanner,
 } from "@/components/platform/platform-dashboard-guards";
 import { hasPermission, requireDbUser } from "@/lib/auth";
+import { displayRoleLabel } from "@/lib/auth/role-labels";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { getServerLocale } from "@/i18n/locale.server";
 import {
@@ -52,6 +53,7 @@ export default async function DashboardLayout({
           email: user.email,
           imageUrl: user.imageUrl,
           role,
+          roleLabel: displayRoleLabel(user, role),
         }}
       >
         <Suspense fallback={null}>

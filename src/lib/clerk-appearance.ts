@@ -3,6 +3,10 @@ export const pragmaClerkAppearance = {
   layout: {
     // El logo de marca lo renderiza PragmaAuthLayout — evita flash del logo del dashboard Clerk
     logoImageUrl: "",
+    unsafe_disableDevelopmentModeWarnings: true,
+  },
+  options: {
+    unsafe_disableDevelopmentModeWarnings: true,
   },
   variables: {
     colorPrimary: "#0066FF",
@@ -16,8 +20,8 @@ export const pragmaClerkAppearance = {
   },
   elements: {
     rootBox: "w-full",
-    card: "shadow-none border-0 p-0 bg-transparent",
-    cardBox: "shadow-none",
+    card: "shadow-none border-0 p-0 bg-transparent gap-4",
+    cardBox: "shadow-none bg-transparent",
     logoBox: "hidden",
     logoImage: "hidden",
     headerTitle: "font-heading text-xl text-foreground",
@@ -34,8 +38,11 @@ export const pragmaClerkAppearance = {
     passwordFieldInput: "rounded-xl border-border",
     formButtonPrimary:
       "rounded-xl bg-pragma-electric hover:bg-pragma-electric/90 text-sm font-semibold shadow-pragma-soft",
-    footerActionLink: "text-pragma-electric font-medium hover:text-pragma-mid-blue",
-    footerActionText: "text-muted-foreground",
+    footer: "hidden",
+    footerAction: "hidden",
+    footerActionLink: "hidden",
+    footerActionText: "hidden",
+    footerPages: "hidden",
     identityPreviewEditButton: "text-pragma-electric",
     formResendCodeLink: "text-pragma-electric",
     alertText: "text-sm",

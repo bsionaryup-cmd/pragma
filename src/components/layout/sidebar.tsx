@@ -17,6 +17,9 @@ type SidebarProps = {
   items: NavItem[];
   settingsItem: NavItem | null;
   user: SidebarUser;
+  className?: string;
+  forceExpanded?: boolean;
+  onNavigate?: () => void;
 };
 
 function SidebarNavLink({
@@ -24,17 +27,20 @@ function SidebarNavLink({
   isActive,
   collapsed,
   title,
+  onNavigate,
 }: {
   item: NavItem;
   isActive: boolean;
   collapsed: boolean;
   title: string;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={item.href}
       prefetch={true}
       title={collapsed ? title : undefined}
+      onClick={() => onNavigate?.()}
       className={cn(
         "group flex items-center rounded-xl text-[14px] font-medium transition-all duration-200",
         collapsed
@@ -95,9 +101,17 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-export function Sidebar({ items, settingsItem, user }: SidebarProps) {
+export function Sidebar({
+  items,
+  settingsItem,
+  user,
+  className,
+  forceExpanded = false,
+  onNavigate,
+}: SidebarProps) {
   const pathname = usePathname();
-  const { collapsed, toggle, ready } = useSidebarCollapsed();
+  const { collapsed: storedCollapsed, toggle, ready } = useSidebarCollapsed();
+  const collapsed = forceExpanded ? false : storedCollapsed;
   const { t } = useI18n();
 
   const widthClass = collapsed ? "w-[72px]" : "w-[248px]";
@@ -107,6 +121,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
       className={cn(
         "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-pragma-soft transition-[width] duration-200 ease-in-out dark:shadow-none",
         ready ? widthClass : "w-[248px]",
+        className,
       )}
     >
       <div
@@ -119,7 +134,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
       >
         <BrandMark collapsed={collapsed} />
 
-        {!collapsed ? (
+        {!collapsed && !forceExpanded ? (
           <button
             type="button"
             onClick={toggle}
@@ -131,7 +146,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
         ) : null}
       </div>
 
-      {collapsed ? (
+      {collapsed && !forceExpanded ? (
         <div className="flex justify-center px-2 pb-2 pt-2">
           <button
             type="button"
@@ -158,6 +173,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
             collapsed={collapsed}
             title={t(item.labelKey)}
             isActive={isNavPathActive(pathname, item.href)}
+            onNavigate={onNavigate}
           />
         ))}
       </nav>
@@ -174,6 +190,7 @@ export function Sidebar({ items, settingsItem, user }: SidebarProps) {
             collapsed={collapsed}
             title={t(settingsItem.labelKey)}
             isActive={isNavPathActive(pathname, settingsItem.href)}
+            onNavigate={onNavigate}
           />
         ) : null}
 

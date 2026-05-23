@@ -1,3 +1,5 @@
+import { ClerkAuthFooterCleanup } from "@/components/auth/clerk-auth-footer-cleanup";
+import { PragmaAuthBrand } from "@/components/brand/pragma-auth-brand";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { BRAND } from "@/lib/brand";
 
@@ -8,44 +10,54 @@ type PragmaAuthLayoutProps = {
 
 export function PragmaAuthLayout({ children, hint }: PragmaAuthLayoutProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-pragma-gradient-subtle lg:flex-row">
-      <div className="relative hidden flex-1 flex-col justify-between overflow-hidden bg-pragma-navy p-10 lg:flex">
+    <div className="pragma-auth-shell flex h-dvh flex-col overflow-hidden bg-pragma-gradient-subtle lg:flex-row">
+      <ClerkAuthFooterCleanup />
+
+      <div className="relative hidden min-h-0 flex-1 overflow-hidden bg-pragma-navy lg:flex lg:flex-col">
         <div
           aria-hidden
           className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-pragma-electric/20 blur-3xl"
         />
-        <div className="relative flex flex-col items-center gap-8 text-center">
-          <PragmaLogo
-            variant="full"
-            tone="dark"
-            priority
-            fullClassName="h-28 w-full max-w-[min(100%,36rem)] md:h-32"
-          />
-          <p className="max-w-md text-sm leading-7 text-white/75">
-            {BRAND.positioning}
-          </p>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-pragma-cyan/10 blur-3xl"
+        />
+
+        <div className="relative flex flex-1 items-center justify-center px-10 py-16">
+          <div className="flex max-w-md flex-col items-center gap-8 text-center">
+            <PragmaAuthBrand />
+            <p className="text-sm leading-7 text-white/75">{BRAND.positioning}</p>
+          </div>
         </div>
-        <p className="relative text-center text-xs text-white/50">
+
+        <p className="relative shrink-0 px-10 pb-10 text-center text-xs text-white/50">
           {BRAND.productName} · {BRAND.tagline}
         </p>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 sm:px-8">
-        <div className="mb-10 flex w-full max-w-md justify-center lg:hidden">
-          <PragmaLogo
-            variant="full"
-            tone="light"
-            priority
-            fullClassName="h-24 w-full max-w-[min(100%,26rem)] sm:h-28"
-          />
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-10">
+        <div className="mx-auto flex w-full max-w-[420px] flex-col items-center gap-4 py-2 sm:gap-5">
+          <div className="flex w-full justify-center lg:hidden">
+            <PragmaLogo
+              variant="full"
+              tone="light"
+              priority
+              fullClassName="h-20 w-auto max-w-[min(100%,20rem)] sm:h-24"
+            />
+          </div>
+
+          {hint ? (
+            <div className="w-full text-center [&_p]:mx-auto [&_p]:max-w-md">{hint}</div>
+          ) : null}
+
+          <div className="w-full rounded-2xl border border-border bg-card p-5 shadow-pragma-soft sm:p-6">
+            {children}
+          </div>
+
+          <p className="w-full text-center text-xs text-muted-foreground lg:hidden">
+            {BRAND.tagline}
+          </p>
         </div>
-        {hint}
-        <div className="w-full max-w-[420px] rounded-2xl border border-border bg-card p-6 shadow-pragma-soft sm:p-8">
-          {children}
-        </div>
-        <p className="mt-6 text-center text-xs text-muted-foreground lg:hidden">
-          {BRAND.tagline}
-        </p>
       </div>
     </div>
   );

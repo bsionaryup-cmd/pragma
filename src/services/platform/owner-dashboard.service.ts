@@ -1,13 +1,19 @@
 import type { Prisma } from "@prisma/client";
-import { BillingSubscriptionStatus } from "@prisma/client";
+import { BillingPlanCode, BillingSubscriptionStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { calculateSubscriptionAmount, getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
+import {
+  parseBillingAccountMetadata,
+  resolveBillablePropertyCount,
+} from "@/modules/billing/domain/subscription-property-count";
 
 export type OwnerClientSortField =
   | "createdAt"
   | "name"
   | "properties"
   | "users"
-  | "reservations";
+  | "reservations"
+  | "revenue";
 
 export type OwnerClientsQuery = {
   search?: string;
@@ -46,11 +52,80 @@ export type OwnerDashboardAnalytics = {
   suspendedTenants: number;
   trialTenants: number;
   activeSubscriptions: number;
+  pastDueCount: number;
+  lockedCount: number;
+  canceledCount: number;
+  trialsExpiring7d: number;
+  starterActiveCount: number;
+  proActiveCount: number;
   totalProperties: number;
   totalUsers: number;
   totalReservations: number;
   mrrEstimateCop: number;
+  arrEstimateCop: number;
+  openInvoicesTotalCop: number;
+  openInvoicesCount: number;
+  paidRevenue30dCop: number;
+  paidRevenueAllTimeCop: number;
+  platformReservationRevenueCop: number;
 };
+
+export type OwnerUpcomingRenewal = {
+  organizationId: string;
+  organizationName: string;
+  mainEmail: string | null;
+  plan: string;
+  billingStatus: string;
+  renewsAt: string;
+  amountCop: number;
+};
+
+export type OwnerInvoiceRow = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  amount: number;
+  currency: string;
+  status: string;
+  dueAt: string;
+  paidAt: string | null;
+  description: string | null;
+};
+
+export type OwnerStatusBreakdown = {
+  status: string;
+  count: number;
+};
+
+export type OwnerPlanBreakdown = {
+  plan: string;
+  count: number;
+  mrrCop: number;
+};
+
+export type OwnerDashboardSnapshot = {
+  analytics: OwnerDashboardAnalytics;
+  subscriptionByStatus: OwnerStatusBreakdown[];
+  subscriptionByPlan: OwnerPlanBreakdown[];
+  upcomingRenewals: OwnerUpcomingRenewal[];
+  openInvoices: OwnerInvoiceRow[];
+  recentPayments: OwnerInvoiceRow[];
+};
+
+function planMrr(
+  plan: BillingPlanCode | string | null | undefined,
+  activePropertyCount: number,
+  metadata?: unknown,
+  userPropertyCount?: number | null,
+): number {
+  if (plan !== BillingPlanCode.STARTER && plan !== BillingPlanCode.PRO) return 0;
+  const propertyCount = resolveBillablePropertyCount({
+    propertySlots: parseBillingAccountMetadata(metadata).propertySlots,
+    activePropertyCount,
+    userPropertyCount,
+  });
+  return calculateSubscriptionAmount(plan, propertyCount);
+}
 
 function buildOrderBy(
   sortBy: OwnerClientSortField,
@@ -119,6 +194,7 @@ export async function listOwnerClients(
             email: true,
             isAccountOwner: true,
             createdAt: true,
+            propertyCount: true,
           },
         },
         _count: {
@@ -183,8 +259,6 @@ export async function listOwnerClients(
     );
   }
 
-  const planPrices: Record<string, number> = { STARTER: 199_000, PRO: 399_000 };
-
   let items: OwnerClientRow[] = organizations.map((org) => {
     const owner = org.users.find((u) => u.isAccountOwner) ?? org.users[0];
     const billing = org.billingAccount;
@@ -209,7 +283,12 @@ export async function listOwnerClients(
       reservationRevenueCop: revenueByOrg.get(org.id) ?? 0,
       estimatedMrrCop:
         billing?.status === BillingSubscriptionStatus.ACTIVE && billing.plan
-          ? (planPrices[billing.plan] ?? null)
+          ? planMrr(
+              billing.plan,
+              org._count.properties,
+              billing.metadata,
+              owner?.propertyCount,
+            )
           : null,
     };
   });
@@ -229,6 +308,12 @@ export async function listOwnerClients(
       sortDir === "asc"
         ? a.reservationCount - b.reservationCount
         : b.reservationCount - a.reservationCount,
+    );
+  } else if (sortBy === "revenue") {
+    items = items.sort((a, b) =>
+      sortDir === "asc"
+        ? a.reservationRevenueCop - b.reservationRevenueCop
+        : b.reservationRevenueCop - a.reservationRevenueCop,
     );
   }
 
@@ -330,46 +415,257 @@ export async function getOwnerClientDetail(organizationId: string) {
 }
 
 export async function getOwnerDashboardAnalytics(): Promise<OwnerDashboardAnalytics> {
+  const snapshot = await getOwnerDashboardSnapshot();
+  return snapshot.analytics;
+}
+
+export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapshot> {
+  const now = new Date();
+  const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
   const [
     totalTenants,
     activeTenants,
     suspendedTenants,
     trialTenants,
     activeSubscriptions,
+    pastDueCount,
+    lockedCount,
+    canceledCount,
+    trialsExpiring7d,
+    starterActiveCount,
+    proActiveCount,
     totalProperties,
     totalUsers,
     totalReservations,
-    billingAccounts,
+    activeBillingAccounts,
+    openInvoicesAgg,
+    openInvoicesList,
+    paid30dAgg,
+    paidAllTimeAgg,
+    reservationRevenueAgg,
+    statusGroups,
+    upcomingBillingAccounts,
+    recentPaidInvoices,
   ] = await Promise.all([
     db.organization.count(),
     db.organization.count({ where: { status: "ACTIVE" } }),
     db.organization.count({ where: { status: "SUSPENDED" } }),
     db.billingAccount.count({ where: { status: BillingSubscriptionStatus.TRIAL } }),
     db.billingAccount.count({ where: { status: BillingSubscriptionStatus.ACTIVE } }),
+    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.PAST_DUE } }),
+    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.LOCKED } }),
+    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.CANCELED } }),
+    db.billingAccount.count({
+      where: {
+        status: BillingSubscriptionStatus.TRIAL,
+        trialEndsAt: { lte: in7Days, gte: now },
+      },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "STARTER" },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "PRO" },
+    }),
     db.property.count(),
     db.user.count({ where: { deletedAt: null } }),
     db.reservation.count({ where: { status: { not: "CANCELLED" } } }),
     db.billingAccount.findMany({
       where: { status: BillingSubscriptionStatus.ACTIVE },
-      select: { plan: true },
+      select: {
+        plan: true,
+        metadata: true,
+        organization: {
+          select: {
+            _count: { select: { properties: true } },
+            users: {
+              where: { isAccountOwner: true, deletedAt: null },
+              take: 1,
+              select: { propertyCount: true },
+            },
+          },
+        },
+      },
+    }),
+    db.billingInvoice.aggregate({
+      where: { status: "OPEN" },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+    db.billingInvoice.findMany({
+      where: { status: "OPEN" },
+      orderBy: { dueAt: "asc" },
+      take: 15,
+      include: {
+        account: {
+          include: {
+            organization: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    db.billingInvoice.aggregate({
+      where: { status: "PAID", paidAt: { gte: thirtyDaysAgo } },
+      _sum: { amount: true },
+    }),
+    db.billingInvoice.aggregate({
+      where: { status: "PAID" },
+      _sum: { amount: true },
+    }),
+    db.reservation.aggregate({
+      where: { status: { not: "CANCELLED" } },
+      _sum: { totalAmount: true },
+    }),
+    db.billingAccount.groupBy({
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    db.billingAccount.findMany({
+      where: {
+        OR: [
+          { currentPeriodEnd: { lte: in7Days, gte: now } },
+          { trialEndsAt: { lte: in7Days, gte: now } },
+        ],
+      },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            _count: { select: { properties: true } },
+            users: {
+              where: { isAccountOwner: true, deletedAt: null },
+              take: 1,
+              select: { email: true, propertyCount: true },
+            },
+          },
+        },
+      },
+      orderBy: { currentPeriodEnd: "asc" },
+      take: 12,
+    }),
+    db.billingInvoice.findMany({
+      where: { status: "PAID" },
+      orderBy: { paidAt: "desc" },
+      take: 12,
+      include: {
+        account: {
+          include: {
+            organization: { select: { id: true, name: true } },
+          },
+        },
+      },
     }),
   ]);
 
-  const planPrices: Record<string, number> = { STARTER: 199_000, PRO: 399_000 };
-  const mrrEstimateCop = billingAccounts.reduce(
-    (sum, acc) => sum + (planPrices[acc.plan] ?? 199_000),
-    0,
-  );
+  const mrrEstimateCop = activeBillingAccounts.reduce((sum, acc) => {
+    return (
+      sum +
+      planMrr(
+        acc.plan,
+        acc.organization?._count.properties ?? 0,
+        acc.metadata,
+        acc.organization?.users[0]?.propertyCount,
+      )
+    );
+  }, 0);
 
-  return {
+  const analytics: OwnerDashboardAnalytics = {
     totalTenants,
     activeTenants,
     suspendedTenants,
     trialTenants,
     activeSubscriptions,
+    pastDueCount,
+    lockedCount,
+    canceledCount,
+    trialsExpiring7d,
+    starterActiveCount,
+    proActiveCount,
     totalProperties,
     totalUsers,
     totalReservations,
     mrrEstimateCop,
+    arrEstimateCop: mrrEstimateCop * 12,
+    openInvoicesTotalCop: Number(openInvoicesAgg._sum.amount ?? 0),
+    openInvoicesCount: openInvoicesAgg._count._all,
+    paidRevenue30dCop: Number(paid30dAgg._sum.amount ?? 0),
+    paidRevenueAllTimeCop: Number(paidAllTimeAgg._sum.amount ?? 0),
+    platformReservationRevenueCop: Number(reservationRevenueAgg._sum.totalAmount ?? 0),
+  };
+
+  return {
+    analytics,
+    subscriptionByStatus: statusGroups.map((g) => ({
+      status: g.status,
+      count: g._count._all,
+    })),
+    subscriptionByPlan: (["STARTER", "PRO"] as const)
+      .map((plan) => {
+        const accounts = activeBillingAccounts.filter((acc) => acc.plan === plan);
+        return {
+          plan,
+          count: accounts.length,
+          mrrCop: accounts.reduce(
+            (sum, acc) =>
+              sum +
+              planMrr(
+                acc.plan,
+                acc.organization?._count.properties ?? 0,
+                acc.metadata,
+                acc.organization?.users[0]?.propertyCount,
+              ),
+            0,
+          ),
+        };
+      })
+      .filter((entry) => entry.count > 0),
+    upcomingRenewals: upcomingBillingAccounts
+      .filter((acc) => acc.organization)
+      .map((acc) => {
+        const renewsAt = acc.currentPeriodEnd ?? acc.trialEndsAt ?? now;
+        return {
+          organizationId: acc.organization!.id,
+          organizationName: acc.organization!.name,
+          mainEmail: acc.organization!.users[0]?.email ?? null,
+          plan: acc.plan,
+          billingStatus: acc.status,
+          renewsAt: renewsAt.toISOString(),
+          amountCop: planMrr(
+            acc.plan,
+            acc.organization!._count.properties,
+            acc.metadata,
+            acc.organization!.users[0]?.propertyCount,
+          ),
+        };
+      }),
+    openInvoices: openInvoicesList
+      .filter((inv) => inv.account.organization)
+      .map((inv) => ({
+        id: inv.id,
+        organizationId: inv.account.organization!.id,
+        organizationName: inv.account.organization!.name,
+        amount: Number(inv.amount),
+        currency: inv.currency,
+        status: inv.status,
+        dueAt: inv.dueAt.toISOString(),
+        paidAt: inv.paidAt?.toISOString() ?? null,
+        description: inv.description,
+      })),
+    recentPayments: recentPaidInvoices
+      .filter((inv) => inv.account.organization)
+      .map((inv) => ({
+        id: inv.id,
+        organizationId: inv.account.organization!.id,
+        organizationName: inv.account.organization!.name,
+        amount: Number(inv.amount),
+        currency: inv.currency,
+        status: inv.status,
+        dueAt: inv.dueAt.toISOString(),
+        paidAt: inv.paidAt?.toISOString() ?? null,
+        description: inv.description,
+      })),
   };
 }

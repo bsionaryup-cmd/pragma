@@ -3,17 +3,17 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
-import { AuthCtaPair, FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
 import {
-  getLandingPrimaryCta,
-  type LandingSession,
-} from "@/lib/landing-session";
+  FreeTrialButton,
+  LogInButton,
+} from "@/components/brand/auth-cta-buttons";
+import { APP_DEMO_CTA } from "@/lib/constants";
+import { type LandingSession } from "@/lib/landing-session";
 
 const links = [
   { href: "#solution", label: "Solución" },
   { href: "#product", label: "Producto" },
   { href: "#pricing", label: "Precios" },
-  { href: "/demo", label: "Demo" },
   { href: "#contact", label: "Contacto" },
 ];
 
@@ -21,9 +21,7 @@ type LandingNavProps = {
   session: LandingSession;
 };
 
-export function LandingNav({ session }: LandingNavProps) {
-  const primary = getLandingPrimaryCta(session);
-
+export function LandingNav({ session: _session }: LandingNavProps) {
   return (
     <motion.header
       initial={{ opacity: 0, y: -12 }}
@@ -58,19 +56,13 @@ export function LandingNav({ session }: LandingNavProps) {
         </ul>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-          {!session.signedIn ? (
-            <>
-              <LogInButton size="sm" className="hidden sm:inline-flex" />
-              <FreeTrialButton
-                href={primary.href}
-                label={primary.label}
-                size="sm"
-                className="max-sm:[&_.trial-badge]:hidden"
-              />
-            </>
-          ) : (
-            <AuthCtaPair session={session} size="sm" layout="row" />
-          )}
+          <LogInButton size="sm" className="whitespace-nowrap" />
+          <FreeTrialButton
+            href="/sign-up"
+            label={APP_DEMO_CTA}
+            size="sm"
+            className="max-sm:[&_.trial-badge]:hidden"
+          />
         </div>
       </nav>
     </motion.header>

@@ -3,6 +3,7 @@
 import { ClerkProvider } from "@clerk/nextjs";
 import { ClerkErrorBoundary } from "@/components/providers/clerk-error-boundary";
 import { getClerkAllowedDevOrigins } from "@/lib/clerk-dev-origins";
+import { pragmaClerkAppearance } from "@/lib/clerk-appearance";
 
 type ClerkRootProviderProps = {
   children: React.ReactNode;
@@ -10,7 +11,11 @@ type ClerkRootProviderProps = {
 
 export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
   return (
-    <ClerkProvider dynamic allowedRedirectOrigins={getClerkAllowedDevOrigins()}>
+    <ClerkProvider
+      dynamic
+      allowedRedirectOrigins={getClerkAllowedDevOrigins()}
+      appearance={pragmaClerkAppearance}
+    >
       <ClerkErrorBoundary>{children}</ClerkErrorBoundary>
     </ClerkProvider>
   );

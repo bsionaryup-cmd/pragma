@@ -12,6 +12,7 @@ import type { GuestRegistrationReservation } from "@/services/guests/guest-regis
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 type GuestFormRow = GuestRegistrationValues["guests"][number];
 
@@ -233,12 +234,10 @@ export function GuestRegistrationForm({
                   </div>
                   <div className="space-y-2">
                     <Label>Teléfono</Label>
-                    <Input
+                    <PhoneInput
                       required
-                      value={guest.phone}
-                      onChange={(e) =>
-                        updateGuest(index, { phone: e.target.value })
-                      }
+                      value={guest.phone ?? ""}
+                      onChange={(phone) => updateGuest(index, { phone })}
                     />
                   </div>
                 </>

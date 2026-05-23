@@ -16,6 +16,7 @@ import { UserRoleSelect } from "@/features/users/components/user-role-select";
 import { requirePermission } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
 import { formatDate } from "@/lib/helpers/date";
+import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import { listUsers } from "@/services/users/user.service";
 import { listRecentLoginActivities } from "@/services/users/login-activity.service";
 import { roleLabel } from "@/lib/auth/permissions";
@@ -30,8 +31,9 @@ export default async function UsersPage() {
   const canWrite = hasPermission(current.role, "users:write");
   const canDelete = hasPermission(current.role, "users:delete");
   const isCurrentAccountOwner = current.isAccountOwner;
+  const organizationId = await getEffectiveOrganizationIdForUser(current.dbUserId);
   const [users, loginActivity] = await Promise.all([
-    listUsers(),
+    listUsers({ organizationId }),
     listRecentLoginActivities(40),
   ]);
 
@@ -49,8 +51,9 @@ export default async function UsersPage() {
           </div>
           {canWrite ? <CreateUserDialog /> : null}
         </div>
-        <div className="rounded-xl border border-border">
-          <Table>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <div className="pragma-scrollbar overflow-x-auto">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Usuario</TableHead>
@@ -136,6 +139,7 @@ export default async function UsersPage() {
               })}
             </TableBody>
           </Table>
+          </div>
         </div>
 
         <section className="mt-10 space-y-3">
@@ -143,8 +147,9 @@ export default async function UsersPage() {
           <p className="text-sm text-muted-foreground">
             Últimos accesos, más recientes primero.
           </p>
-          <div className="rounded-xl border border-border">
-            <Table>
+          <div className="overflow-hidden rounded-xl border border-border">
+            <div className="pragma-scrollbar overflow-x-auto">
+            <Table className="min-w-[520px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Usuario</TableHead>
@@ -185,6 +190,7 @@ export default async function UsersPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         </section>
       </main>

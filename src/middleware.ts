@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/permissions";
 import {
   OWNER_DASHBOARD_PATH,
+  OWNER_LOGIN_PATH,
   PLATFORM_OWNER_API_PREFIX,
 } from "@/lib/platform/constants";
 
@@ -18,6 +19,8 @@ const isOwnerRoute = createRouteMatcher([
   `${PLATFORM_OWNER_API_PREFIX}(.*)`,
 ]);
 
+const isOwnerLoginRoute = createRouteMatcher([`${OWNER_LOGIN_PATH}(.*)`]);
+
 const isPublicRoute = createRouteMatcher([
   "/",
   "/pricing",
@@ -25,6 +28,8 @@ const isPublicRoute = createRouteMatcher([
   "/demo",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  `${OWNER_LOGIN_PATH}(.*)`,
+  "/account-suspended",
   "/api/webhooks(.*)",
   "/api/payments/wompi/webhook",
   "/api/ical/export",
@@ -63,12 +68,6 @@ export default clerkMiddleware(
       return;
     }
 
-    const authState = await auth();
-    if (!authState.userId) {
-      await auth.protect();
-      return;
-    }
-
     if (isUnauthorizedPage(request)) {
       return;
     }
@@ -76,7 +75,25 @@ export default clerkMiddleware(
     const pathname = request.nextUrl.pathname;
 
     if (isOwnerRoute(request)) {
-      // Platform owner RBAC is enforced in route handlers via DB role + email.
+      const authState = await auth();
+      if (!authState.userId) {
+        if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        const loginUrl = new URL(OWNER_LOGIN_PATH, request.url);
+        loginUrl.searchParams.set("next", pathname);
+        return NextResponse.redirect(loginUrl);
+      }
+      return;
+    }
+
+    if (isOwnerLoginRoute(request)) {
+      return;
+    }
+
+    const authState = await auth();
+    if (!authState.userId) {
+      await auth.protect();
       return;
     }
 
@@ -86,8 +103,6 @@ export default clerkMiddleware(
 
     let role = getRoleFromSessionClaims(authState.sessionClaims);
 
-    // RBAC without role in JWT is enforced in Server Components (requirePermission).
-    // Skipping the Clerk users.getUser() fallback saves ~400–900ms per navigation.
     if (!role) {
       return;
     }

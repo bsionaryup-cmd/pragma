@@ -300,7 +300,7 @@ export function CommandCenterView({
           >
             <div className="border-b border-border px-4 py-3 sm:px-6">
               <div
-                className="flex gap-1 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1"
+                className="flex snap-x snap-mandatory gap-1 overflow-x-auto rounded-xl border border-border bg-muted/40 p-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 role="tablist"
               >
                 {tabs.map((tab) => {
@@ -313,7 +313,7 @@ export function CommandCenterView({
                       aria-selected={isActive}
                       onClick={() => setActiveTab(tab.id)}
                       className={cn(
-                        "inline-flex h-9 shrink-0 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-all",
+                        "inline-flex h-10 shrink-0 snap-start items-center gap-2 rounded-lg px-3 text-sm font-medium transition-all sm:h-9",
                         isActive
                           ? "bg-card text-foreground shadow-pragma-soft ring-1 ring-pragma-cyan/20"
                           : "text-muted-foreground hover:bg-card/80",

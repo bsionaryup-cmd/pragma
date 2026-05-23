@@ -18,7 +18,12 @@ export {
 } from "@/modules/billing/services/billing-lifecycle.service";
 export { prepareBillingInvoiceForPayment } from "@/modules/billing/services/billing-invoice.service";
 export {
-  SUBSCRIPTION_MONTHLY_AMOUNT_COP,
   SUBSCRIPTION_CURRENCY,
+  SUBSCRIPTION_TRIAL_DAYS,
 } from "@/modules/billing/domain/subscription-pricing";
+export {
+  calculateSubscriptionAmount,
+  getPlanPricePerProperty,
+  PLAN_CATALOG,
+} from "@/modules/billing/domain/plan-catalog";
 export { hasPaymentLedgerDelegates, PAYMENT_LEDGER_HINT } from "@/modules/billing/lib/billing-schema-guard";

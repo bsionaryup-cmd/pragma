@@ -1,4 +1,4 @@
-import { APP_DEMO_CTA, APP_LOGIN_CTA } from "@/lib/constants";
+import { APP_DEMO_CTA, APP_LOGIN_CTA, APP_SIGN_IN_PATH } from "@/lib/constants";
 
 export type LandingSession = {
   signedIn: boolean;
@@ -28,7 +28,7 @@ export function getLandingSecondaryCta(session: LandingSession): {
   label: string;
 } | null {
   if (!session.signedIn) {
-    return { href: "/sign-in", label: APP_LOGIN_CTA };
+    return { href: APP_SIGN_IN_PATH, label: APP_LOGIN_CTA };
   }
   if (session.needsTrialSetup) {
     return { href: "/panel", label: "Explorar panel" };

@@ -2,10 +2,19 @@
 
 import { FadeIn } from "@/components/landing/motion";
 
-const stats = [
-  { label: "Anfitriones en Colombia", value: "500+" },
-  { label: "Reservas gestionadas", value: "12k+" },
-  { label: "Propiedades conectadas", value: "800+" },
+const highlights = [
+  {
+    title: "Multi-propiedad",
+    description: "Gestiona varias unidades desde un solo panel.",
+  },
+  {
+    title: "Reservas centralizadas",
+    description: "Calendario, check-in y operación en un solo lugar.",
+  },
+  {
+    title: "Hecho para Colombia",
+    description: "Facturación, pagos y flujos locales integrados.",
+  },
 ];
 
 export function LandingSocialProof() {
@@ -14,16 +23,16 @@ export function LandingSocialProof() {
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <p className="text-center text-xs font-semibold uppercase tracking-[0.18em] text-pragma-mid-gray">
-            Operadores que confían en PRAGMA
+            Diseñado para operadores profesionales
           </p>
           <div className="mt-10 grid gap-6 sm:grid-cols-3">
-            {stats.map((item) => (
+            {highlights.map((item) => (
               <div
-                key={item.label}
+                key={item.title}
                 className="rounded-2xl border border-pragma-border bg-white px-6 py-8 text-center shadow-sm"
               >
-                <p className="font-heading text-3xl font-bold tabular-nums">{item.value}</p>
-                <p className="mt-2 text-sm text-pragma-mid-gray">{item.label}</p>
+                <p className="font-heading text-lg font-bold">{item.title}</p>
+                <p className="mt-2 text-sm text-pragma-mid-gray">{item.description}</p>
               </div>
             ))}
           </div>

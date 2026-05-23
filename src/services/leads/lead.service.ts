@@ -1,5 +1,6 @@
 import { LeadStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 
 export type CreateLeadInput = {
   fullName: string;
@@ -22,6 +23,10 @@ export async function createLead(
   const fullName = input.fullName.trim();
   const email = input.email.trim().toLowerCase();
   const phone = input.phone?.trim() || null;
+
+  if (phone && !isValidPhoneNumber(phone)) {
+    return { ok: false, message: "Indica un teléfono válido con código de país" };
+  }
 
   if (fullName.length < 2) {
     return { ok: false, message: "Indica tu nombre completo" };

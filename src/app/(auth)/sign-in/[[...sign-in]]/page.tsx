@@ -1,7 +1,5 @@
-import { SignIn } from "@clerk/nextjs";
-import { AuthPageCta } from "@/components/brand/auth-cta-buttons";
+import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
 import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
-import { pragmaClerkAppearance } from "@/lib/clerk-appearance";
 
 type SignInPageProps = {
   searchParams: Promise<{
@@ -21,25 +19,17 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     <PragmaAuthLayout
       hint={
         showInactiveHint ? (
-          <p className="mb-4 max-w-sm text-center text-sm text-destructive">
+          <p className="text-sm text-destructive">
             Tu cuenta fue desactivada. Contacta al administrador de PRAGMA.
           </p>
         ) : showRecoveryHint ? (
-          <p className="mb-4 max-w-sm text-center text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             La sesión anterior no pudo renovarse. Inicia sesión de nuevo.
           </p>
         ) : null
       }
     >
-      <SignIn
-        routing="path"
-        path="/sign-in"
-        signUpUrl="/sign-up"
-        forceRedirectUrl="/panel"
-        fallbackRedirectUrl="/panel"
-        appearance={pragmaClerkAppearance}
-      />
-      <AuthPageCta mode="sign-in" />
+      <EmailPasswordSignInForm />
     </PragmaAuthLayout>
   );
 }
