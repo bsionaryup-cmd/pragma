@@ -5,6 +5,7 @@ import type {
 } from "@prisma/client";
 import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import { formatAccessCode } from "@/lib/access-code";
 import type {
   AccessCodeSnapshot,
   SmartLockSnapshot,
@@ -56,7 +57,7 @@ export function mapAccessCodeSnapshot(
   options?: { revealCode?: boolean },
 ): AccessCodeSnapshot {
   const code = options?.revealCode
-    ? decryptTTLockSecret(credential.codeEncrypted)
+    ? formatAccessCode(decryptTTLockSecret(credential.codeEncrypted))
     : null;
   const hint =
     code && code.length >= 2 ? `••••${code.slice(-2)}` : null;

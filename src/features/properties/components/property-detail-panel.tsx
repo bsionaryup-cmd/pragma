@@ -27,7 +27,9 @@ import {
   DetailSection,
   DetailStatCard,
 } from "@/components/detail/detail-section";
+import { PropertyUnitBadge } from "@/components/properties/property-unit-badge";
 import { Button } from "@/components/ui/button";
+import { formatPropertyLabel } from "@/lib/property-display";
 import {
   propertyStatusLabels,
   propertyTypeLabels,
@@ -127,9 +129,12 @@ export function PropertyDetailPanel({
           >
             {propertyStatusLabels[property.status]}
           </span>
-          <h3 className="mt-2 text-lg font-semibold leading-tight">
-            {property.name}
-          </h3>
+          <div className="mt-2 flex items-center gap-2">
+            <PropertyUnitBadge unitNumber={property.unitNumber} size="md" />
+            <h3 className="text-lg font-semibold leading-tight">
+              {formatPropertyLabel(property)}
+            </h3>
+          </div>
           {locationLabel ? (
             <p className="text-sm text-muted-foreground">{locationLabel}</p>
           ) : null}

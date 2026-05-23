@@ -180,7 +180,7 @@ export function FinanceView({
           </>
         ) : (
           <>
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <KpiCard
               label={t("finance.kpi.revenue")}
@@ -211,6 +211,11 @@ export function FinanceView({
             label={t("finance.kpi.netProfit")}
             value={kpis.netProfitFormatted}
             icon={Wallet}
+          />
+          <KpiCard
+            label="Ingresos pendientes"
+            value={kpis.pendingIncomeFormatted}
+            icon={TrendingUp}
           />
         </section>
 
@@ -296,7 +301,9 @@ export function FinanceView({
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="text-xs uppercase">{t("finance.flows.source")}</TableHead>
+                    <TableHead className="text-xs uppercase">Huésped</TableHead>
                     <TableHead className="text-xs uppercase">{t("finance.flows.property")}</TableHead>
+                    <TableHead className="text-xs uppercase">Estado</TableHead>
                     <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
                     <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
                   </TableRow>
@@ -304,7 +311,7 @@ export function FinanceView({
                 <TableBody>
                   {data.revenueFlow.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
                         {t("finance.empty")}
                       </TableCell>
                     </TableRow>
@@ -312,7 +319,11 @@ export function FinanceView({
                     data.revenueFlow.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="font-medium">{row.source}</TableCell>
+                        <TableCell>{row.guestName ?? "—"}</TableCell>
                         <TableCell>{row.propertyName}</TableCell>
+                        <TableCell>
+                          {row.status === "confirmed" ? "Confirmado" : "Pendiente"}
+                        </TableCell>
                         <TableCell>{formatPanelDate(row.date)}</TableCell>
                         <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
                       </TableRow>
@@ -331,13 +342,14 @@ export function FinanceView({
                     <TableHead className="text-xs uppercase">{t("finance.flows.category")}</TableHead>
                     <TableHead className="text-xs uppercase">{t("finance.flows.property")}</TableHead>
                     <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
+                    <TableHead className="text-xs uppercase">Detalle</TableHead>
                     <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.expenseFlow.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                      <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                         {t("finance.empty")}
                       </TableCell>
                     </TableRow>
@@ -347,6 +359,9 @@ export function FinanceView({
                         <TableCell>{row.category}</TableCell>
                         <TableCell>{row.propertyName}</TableCell>
                         <TableCell>{formatPanelDate(row.date)}</TableCell>
+                        <TableCell className="max-w-[180px] truncate text-muted-foreground">
+                          {row.detail ?? "—"}
+                        </TableCell>
                         <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
                       </TableRow>
                     ))

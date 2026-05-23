@@ -25,6 +25,7 @@ export type CalendarDayPricingDto = {
 export type CalendarPropertyDto = {
   id: string;
   name: string;
+  unitNumber?: string | null;
   address: string;
   city: string;
   propertyType: PropertyType;

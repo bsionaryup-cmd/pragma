@@ -118,6 +118,7 @@ model Property {
   ownerId            String
   organizationId     String?
   name               String
+  unitNumber         String?
   description        String?
   address            String
   neighborhood       String?
@@ -453,6 +454,7 @@ enum AccessCredentialStatus {
   GENERATED
   SENT
   ACTIVE
+  SUSPENDED
   EXPIRED
   REVOKED
 }

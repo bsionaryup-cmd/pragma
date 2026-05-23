@@ -8,6 +8,7 @@ import type {
 export type ReservationPropertyDto = {
   id: string;
   name: string;
+  unitNumber?: string | null;
   address: string;
   city: string;
 };
@@ -91,6 +92,8 @@ export type ReservationDetailItem = ReservationInboxItem & {
 export type PropertyOption = {
   id: string;
   name: string;
+  unitNumber?: string | null;
   address: string;
   city: string;
+  maxGuests?: number;
 };

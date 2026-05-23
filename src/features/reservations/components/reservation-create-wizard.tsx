@@ -39,7 +39,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import { formatCurrency } from "@/lib/helpers";
-import { platformLabels } from "@/lib/labels";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -109,8 +109,9 @@ export function ReservationCreateWizard({
     form,
   ]);
 
-  const values = form.getValues();
+  const values = form.watch();
   const selectedProperty = properties.find((p) => p.id === values.propertyId);
+  const maxGuests = selectedProperty?.maxGuests;
   const nights =
     step === 3 && values.checkIn && values.checkOut
       ? countNights(values.checkIn, values.checkOut)
@@ -125,10 +126,19 @@ export function ReservationCreateWizard({
         "adults",
         "children",
         "infants",
-        "platform",
       ]);
       if (!ok) return;
-      const parsed = reservationStep1Schema.safeParse(form.getValues());
+      const stepValues = form.getValues();
+      if (
+        maxGuests &&
+        stepValues.adults + stepValues.children + stepValues.infants > maxGuests
+      ) {
+        form.setError("adults", {
+          message: `Máximo ${maxGuests} persona${maxGuests === 1 ? "" : "s"} según la propiedad`,
+        });
+        return;
+      }
+      const parsed = reservationStep1Schema.safeParse(stepValues);
       if (!parsed.success) return;
       setStep(2);
       return;
@@ -181,7 +191,10 @@ export function ReservationCreateWizard({
 
     setIsSubmitting(true);
     try {
-      const result = await createReservationAction(data);
+      const result = await createReservationAction({
+        ...data,
+        maxGuests,
+      });
       if (!result.success) {
         toast.error(result.error);
         return;
@@ -242,7 +255,8 @@ export function ReservationCreateWizard({
                       <SelectContent>
                         {properties.map((p) => (
                           <SelectItem key={p.id} value={p.id}>
-                            {p.name}
+                            {formatPropertyLabel(p)}
+                            {p.maxGuests ? ` (máx. ${p.maxGuests})` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -279,6 +293,12 @@ export function ReservationCreateWizard({
                   )}
                 />
               </div>
+              {maxGuests ? (
+                <p className="text-xs text-muted-foreground">
+                  Capacidad máxima: {maxGuests} persona
+                  {maxGuests === 1 ? "" : "s"}
+                </p>
+              ) : null}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <FormField
                   control={form.control}
@@ -290,6 +310,7 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={1}
+                          max={maxGuests ?? undefined}
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                         />
@@ -308,6 +329,7 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={0}
+                          max={maxGuests ? Math.max(0, maxGuests - 1) : undefined}
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                         />
@@ -326,6 +348,7 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={0}
+                          max={maxGuests ? Math.max(0, maxGuests - 1) : undefined}
                           value={field.value}
                           onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                         />
@@ -335,32 +358,6 @@ export function ReservationCreateWizard({
                   )}
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="platform"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Origen</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {[BookingPlatform.DIRECT, BookingPlatform.BOOKING].map(
-                          (p) => (
-                            <SelectItem key={p} value={p}>
-                              {platformLabels[p]}
-                            </SelectItem>
-                          ),
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="internalNotes"
@@ -472,7 +469,9 @@ export function ReservationCreateWizard({
               <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm space-y-2">
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Propiedad</span>
-                  <span className="font-medium text-right">{selectedProperty?.name ?? "—"}</span>
+                  <span className="font-medium text-right">
+                    {selectedProperty ? formatPropertyLabel(selectedProperty) : "—"}
+                  </span>
                 </div>
                 <div className="flex justify-between gap-2">
                   <span className="text-muted-foreground">Fechas</span>

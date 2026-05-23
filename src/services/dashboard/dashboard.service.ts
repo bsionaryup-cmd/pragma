@@ -2,6 +2,7 @@ import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { startOfDay } from "@/lib/helpers/date";
+import { formatPropertyLabel, sortPropertiesByUnitNumber } from "@/lib/property-display";
 import {
   mergeReservationScope,
   type TenantDataScope,
@@ -68,6 +69,7 @@ const panelReservationInclude = {
   property: {
     select: {
       name: true,
+      unitNumber: true,
       coverImageUrl: true,
       checkInTime: true,
       checkOutTime: true,
@@ -92,6 +94,7 @@ export type PanelReservationRow = {
   platform: PanelReservation["platform"];
   property: {
     name: string;
+    unitNumber: string | null;
     coverImageUrl: string | null;
     checkInTime: string | null;
     checkOutTime: string | null;
@@ -145,6 +148,7 @@ export function toPanelReservationRow(
     platform: reservation.platform,
     property: {
       name: reservation.property.name,
+      unitNumber: reservation.property.unitNumber,
       coverImageUrl: reservation.property.coverImageUrl,
       checkInTime: reservation.property.checkInTime,
       checkOutTime: reservation.property.checkOutTime,
@@ -152,6 +156,12 @@ export function toPanelReservationRow(
     },
   };
 }
+
+function sortPanelRowsByProperty(rows: PanelReservationRow[]): PanelReservationRow[] {
+  return sortPropertiesByUnitNumber(rows, (row) => row.property);
+}
+
+export { sortPanelRowsByProperty };
 
 export type PanelCounts = {
   arrivals: number;

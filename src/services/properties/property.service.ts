@@ -23,6 +23,8 @@ import {
   ReservationStatus,
 } from "@prisma/client";
 import { isOrphanAirbnbReservation } from "@/services/airbnb/airbnb-ical-orphan.service";
+import { sortPropertiesByUnitNumber } from "@/lib/property-display";
+import { formatAccessCode } from "@/lib/access-code";
 import {
   hasActiveAirbnbIcalImport,
   withVisibleReservationsFilter,
@@ -80,6 +82,7 @@ function mapPropertyRow(
   property: {
     id: string;
     name: string;
+    unitNumber?: string | null;
     city: string;
     country: string;
     neighborhood: string | null;
@@ -129,6 +132,7 @@ function mapPropertyRow(
   return {
     id: property.id,
     name: property.name,
+    unitNumber: property.unitNumber ?? null,
     city: property.city,
     country: property.country,
     neighborhood: property.neighborhood,
@@ -162,6 +166,7 @@ export async function listPropertiesForGrid(
     select: {
       id: true,
       name: true,
+      unitNumber: true,
       city: true,
       country: true,
       neighborhood: true,
@@ -212,16 +217,19 @@ export async function listPropertiesForGrid(
     reservationsByProperty.set(reservation.propertyId, list);
   }
 
-  return properties.map((property) =>
-    mapPropertyRow(
-      {
-        ...property,
-        reservations: reservationsByProperty.get(property.id) ?? [],
-      },
-      today,
-      monthStart,
-      monthEnd,
+  return sortPropertiesByUnitNumber(
+    properties.map((property) =>
+      mapPropertyRow(
+        {
+          ...property,
+          reservations: reservationsByProperty.get(property.id) ?? [],
+        },
+        today,
+        monthStart,
+        monthEnd,
+      ),
     ),
+    (item) => item,
   );
 }
 
@@ -324,7 +332,7 @@ export async function getPropertyDetail(
     address: property.address,
     checkInTime: property.checkInTime,
     checkOutTime: property.checkOutTime,
-    accessCode: property.accessCode,
+    accessCode: formatAccessCode(property.accessCode),
     accessInstructions: property.accessInstructions,
     wifiName: property.wifiName,
     wifiPassword: property.wifiPassword,
@@ -357,20 +365,20 @@ export async function getPropertyDetail(
 /** Para selects en reservas/tareas — solo activas y reservables */
 export async function listPropertiesForSelect(userId: string) {
   const scope = await resolvePropertyScope(userId);
-  return db.property.findMany({
+  const rows = await db.property.findMany({
     where: { ...scope, status: PropertyStatus.ACTIVE },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
+    select: { id: true, name: true, unitNumber: true, maxGuests: true },
   });
+  return sortPropertiesByUnitNumber(rows, (p) => p);
 }
 
 export async function listPropertiesForInbox(userId: string) {
   const scope = await resolvePropertyScope(userId);
-  return db.property.findMany({
+  const rows = await db.property.findMany({
     where: { ...scope, status: PropertyStatus.ACTIVE },
-    select: { id: true, name: true, address: true, city: true },
-    orderBy: { name: "asc" },
+    select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
   });
+  return sortPropertiesByUnitNumber(rows, (p) => p);
 }
 
 export async function getPropertyById(id: string, userId: string) {
@@ -389,6 +397,7 @@ function normalizeTime(value: string | undefined, fallback: string): string {
 function normalizeFormData(data: PropertyFormValues) {
   return {
     name: data.name.trim(),
+    unitNumber: data.unitNumber?.trim() || null,
     description: data.description?.trim() || null,
     address: data.address.trim(),
     neighborhood: data.neighborhood?.trim() || null,
@@ -401,7 +410,9 @@ function normalizeFormData(data: PropertyFormValues) {
     bathrooms: data.bathrooms,
     checkInTime: normalizeTime(data.checkInTime, "15:00"),
     checkOutTime: normalizeTime(data.checkOutTime, "13:00"),
-    accessCode: data.accessCode?.trim() || null,
+    accessCode: data.accessCode?.trim()
+      ? formatAccessCode(data.accessCode)
+      : null,
     accessInstructions: data.accessInstructions?.trim() || null,
     wifiName: data.wifiName?.trim() || null,
     wifiPassword: data.wifiPassword?.trim() || null,

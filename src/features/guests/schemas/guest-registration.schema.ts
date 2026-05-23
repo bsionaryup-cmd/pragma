@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { guestDocumentTypes } from "@/lib/guest-document-types";
 import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 
-export const documentTypes = ["CC", "CE", "PASSPORT", "DNI", "OTHER"] as const;
+export const documentTypes = guestDocumentTypes;
 
 export const guestStepSchema = z.object({
   token: z.string().min(16),

@@ -16,6 +16,7 @@ type ManualExpenseDelegate = {
       amount: { toString(): string };
       category: string;
       expenseDate: Date;
+      description?: string | null;
     }>
   >;
 };
@@ -107,7 +108,7 @@ export async function listManualExpensesInRange(
         ...manualExpenseWhere(scope),
         expenseDate: { gte: start, lte: end },
       },
-      select: { id: true, amount: true, category: true, expenseDate: true },
+      select: { id: true, amount: true, category: true, expenseDate: true, description: true },
     });
   } catch (error) {
     if (isFinanceSchemaDriftError(error)) {

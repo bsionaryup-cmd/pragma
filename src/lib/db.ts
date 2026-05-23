@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260523150000_guest_registration_step_flow";
+const PRISMA_SCHEMA_VERSION = "20260523200000_access_credential_suspended";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -68,7 +68,19 @@ function getPrismaClient(): PrismaClient {
     globalForPrisma.prismaSchemaVersion !== PRISMA_SCHEMA_VERSION;
 
   if (stale) {
-    void disconnectAll();
+    const oldPrisma = globalForPrisma.prisma;
+    const oldPool = globalForPrisma.pool;
+    globalForPrisma.prisma = undefined;
+    globalForPrisma.pool = undefined;
+    globalForPrisma.prismaSchemaVersion = undefined;
+    void (async () => {
+      try {
+        await oldPrisma?.$disconnect();
+        await oldPool?.end();
+      } catch (err) {
+        console.error("[db] Error al reciclar cliente Prisma:", err);
+      }
+    })();
   }
 
   if (!globalForPrisma.prisma) {

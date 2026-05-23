@@ -56,18 +56,25 @@ export function DetailDrawerHero({
   badge,
   title,
   subtitle,
+  action,
 }: {
   badge: React.ReactNode;
   title: string;
   subtitle?: string | null;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="border-b border-border px-5 py-4">
-      {badge}
-      <h3 className="mt-2 text-lg font-semibold leading-tight">{title}</h3>
-      {subtitle ? (
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
-      ) : null}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          {badge}
+          <h3 className="mt-2 text-lg font-semibold leading-tight">{title}</h3>
+          {subtitle ? (
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
+          ) : null}
+        </div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
     </div>
   );
 }

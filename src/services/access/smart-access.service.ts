@@ -2,6 +2,8 @@ import {
   AccessCredentialStatus,
   ReservationStatus,
 } from "@prisma/client";
+import { formatPropertyLabel, sortPropertiesByUnitNumber } from "@/lib/property-display";
+import { formatAccessCode } from "@/lib/access-code";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
@@ -18,6 +20,7 @@ export type SmartAccessStage =
   | "pending_approval"
   | "ready_to_generate"
   | "generated"
+  | "suspended"
   | "revoked"
   | "expired";
 
@@ -64,6 +67,7 @@ const STAGE_LABELS: Record<SmartAccessStage, string> = {
   pending_approval: "Pendiente de aprobación",
   ready_to_generate: "Listo para generar código",
   generated: "Código generado",
+  suspended: "Código suspendido",
   revoked: "Código revocado",
   expired: "Código expirado",
 };
@@ -85,6 +89,8 @@ function resolveStage(input: {
     case AccessCredentialStatus.SENT:
     case AccessCredentialStatus.ACTIVE:
       return "generated";
+    case AccessCredentialStatus.SUSPENDED:
+      return "suspended";
     case AccessCredentialStatus.REVOKED:
       return "revoked";
     case AccessCredentialStatus.EXPIRED:
@@ -127,6 +133,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
       property: {
         select: {
           name: true,
+          unitNumber: true,
           maxGuests: true,
           propertyLock: { select: { id: true } },
         },
@@ -160,7 +167,12 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     },
   });
 
-  const items: SmartAccessItem[] = reservations.map((reservation) => {
+  const sortedReservations = sortPropertiesByUnitNumber(
+    reservations,
+    (reservation) => reservation.property,
+  );
+
+  const items: SmartAccessItem[] = sortedReservations.map((reservation) => {
     const credentialRow = reservation.accessCredentials[0] ?? null;
     const lockMapped = Boolean(reservation.property.propertyLock);
     const registrationComplete = Boolean(reservation.guestRegistrationCompletedAt);
@@ -179,7 +191,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     return {
       id: reservation.id,
       guestName: reservation.guestName?.trim() || "Sin registrar",
-      propertyName: reservation.property.name,
+      propertyName: formatPropertyLabel(reservation.property),
       checkIn: prismaDateToKey(reservation.checkIn),
       checkOut: prismaDateToKey(reservation.checkOut),
       status: reservation.status,
@@ -193,7 +205,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         ? {
             id: credentialRow.id,
             status: credentialRow.status,
-            code: decryptTTLockSecret(credentialRow.codeEncrypted),
+            code: formatAccessCode(decryptTTLockSecret(credentialRow.codeEncrypted)),
             validFrom: credentialRow.validFrom?.toISOString() ?? null,
             validTo: credentialRow.validTo?.toISOString() ?? null,
             ttlockCodeId: credentialRow.ttlockCodeId,
@@ -214,7 +226,9 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         (i) =>
           i.stage === "ready_to_generate" || i.stage === "pending_approval",
       ).length,
-      codesActive: items.filter((i) => i.stage === "generated").length,
+      codesActive: items.filter(
+        (i) => i.stage === "generated" || i.stage === "suspended",
+      ).length,
       integrationConnected,
       locksMapped,
     },

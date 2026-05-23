@@ -20,6 +20,7 @@ import {
   enforceOwnerDisconnectedAirbnbImports,
   enforcePropertyAirbnbIcalIsolation,
 } from "@/services/airbnb/airbnb-ical-orphan.service";
+import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import {
@@ -240,7 +241,7 @@ export async function syncPropertyIcalCalendarInner(
 ): Promise<PropertyIcalSyncResult> {
   const property = await db.property.findFirst({
     where: { id: propertyId, ownerId },
-    select: { id: true, name: true, icalUrl: true, currency: true },
+    select: { id: true, name: true, icalUrl: true, currency: true, organizationId: true },
   });
 
   if (!property) {
@@ -457,6 +458,11 @@ export async function syncPropertyIcalCalendarInner(
     await db.property.update({
       where: { id: property.id },
       data: { lastIcalSyncedAt: new Date() },
+    });
+
+    await purgeGhostReservations({
+      userId: ownerId,
+      organizationId: property.organizationId ?? null,
     });
 
     icalSyncLog.info("property_sync_done", {

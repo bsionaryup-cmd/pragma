@@ -17,6 +17,7 @@ export type PropertyUpcomingReservation = {
 export type PropertyGridItem = {
   id: string;
   name: string;
+  unitNumber: string | null;
   city: string;
   country: string;
   neighborhood: string | null;

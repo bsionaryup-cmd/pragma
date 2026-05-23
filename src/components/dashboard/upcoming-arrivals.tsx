@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/helpers";
 import { formatDate } from "@/lib/helpers/date";
+import { formatPropertyLabel } from "@/lib/property-display";
 import type { getUpcomingArrivals } from "@/services/dashboard/dashboard.service";
 
 type Arrival = Awaited<ReturnType<typeof getUpcomingArrivals>>[number];
@@ -33,7 +34,7 @@ export function UpcomingArrivals({ arrivals }: { arrivals: Arrival[] }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{a.guestName}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {a.property.name} · {formatDate(a.checkIn)}
+                  {formatPropertyLabel(a.property)} · {formatDate(a.checkIn)}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">

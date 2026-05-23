@@ -11,16 +11,19 @@ import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.typ
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import {
   mergePropertyScope,
   mergeReservationScope,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
+import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
 
 async function loadCalendarProperties(scope: TenantDataScope) {
   const base = {
     id: true,
     name: true,
+    unitNumber: true,
     address: true,
     city: true,
     propertyType: true,
@@ -72,6 +75,7 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
   return {
     id: p.id,
     name: p.name,
+    unitNumber: p.unitNumber,
     address: p.address,
     city: p.city,
     propertyType: p.propertyType,
@@ -94,6 +98,7 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
 
 export async function getCalendarData(anchorKey: string): Promise<CalendarDataDto> {
   const scope = await requireTenantDataScope();
+  await purgeGhostReservations(scope);
   const viewport = buildRollingCalendarViewport(anchorKey);
   const rangeStart = dateKeyToPrismaDate(viewport.rangeStart);
   const rangeEnd = dateKeyToPrismaDate(viewport.rangeEnd);
@@ -153,7 +158,10 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
   }));
 
   return {
-    properties: propertiesRaw.map(mapCalendarProperty),
+    properties: sortPropertiesByUnitNumber(
+      propertiesRaw.map(mapCalendarProperty),
+      (p) => p,
+    ),
     reservations: reservationDtos,
     viewport,
   };

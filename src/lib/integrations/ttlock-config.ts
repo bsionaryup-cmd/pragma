@@ -110,6 +110,10 @@ export function getTTLockKeyboardPwdDeleteUrl(environment: TTLockEnvironment): s
   return `${getTTLockApiBaseUrl(environment)}/v3/keyboardPwd/delete`;
 }
 
+export function getTTLockKeyboardPwdChangeUrl(environment: TTLockEnvironment): string {
+  return `${getTTLockApiBaseUrl(environment)}/v3/keyboardPwd/change`;
+}
+
 export function isTTLockBrowserOAuthEnabled(): boolean {
   if (process.env.TTLOCK_BROWSER_OAUTH === "false") return false;
   if (process.env.TTLOCK_BROWSER_OAUTH === "true") return true;

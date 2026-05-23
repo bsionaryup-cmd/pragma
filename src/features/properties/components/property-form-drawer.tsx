@@ -58,6 +58,7 @@ function FormSection({
 function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
   return {
     name: property.name,
+    unitNumber: property.unitNumber ?? "",
     description: property.description ?? "",
     propertyType: property.propertyType,
     maxGuests: property.maxGuests,
@@ -84,6 +85,7 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
 
 const defaultCreateValues: PropertyFormValues = {
   name: "",
+  unitNumber: "",
   description: "",
   propertyType: PropertyType.APARTMENT,
   maxGuests: 2,
@@ -169,6 +171,19 @@ export function PropertyFormDrawer({
                   <FormLabel>Nombre</FormLabel>
                   <FormControl>
                     <Input placeholder="Loft Chapinero" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="unitNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Número de apartamento</FormLabel>
+                  <FormControl>
+                    <Input placeholder="801, 802, 803…" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

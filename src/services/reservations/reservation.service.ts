@@ -1,10 +1,11 @@
 import type { ReservationWizardValues } from "@/features/reservations/schemas/reservation.schema";
+import type { ReservationEditValues } from "@/features/reservations/schemas/reservation.schema";
 import type {
   ReservationDetailItem,
   ReservationInboxItem,
   ReservationRelatedBlock,
 } from "@/features/reservations/types/reservation.types";
-import { GuestRegistrationStatus, PropertyStatus, ReservationGuestStatus, ReservationStatus } from "@prisma/client";
+import { GuestRegistrationStatus, PropertyStatus, ReservationGuestStatus, ReservationStatus, BookingPlatform } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -26,8 +27,10 @@ import {
   isGuestRegistrationEligibleStatus,
 } from "@/services/guests/guest-registration.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import { formatAccessCode } from "@/lib/access-code";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
+import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -117,6 +120,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     property: {
       id: r.property.id,
       name: r.property.name,
+      unitNumber: r.property.unitNumber ?? null,
       address: r.property.address,
       city: r.property.city,
       maxGuests: r.property.maxGuests,
@@ -189,6 +193,7 @@ const INBOX_RESERVATION_LIMIT = 1000;
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const scope = await requireTenantDataScope();
+  await purgeGhostReservations(scope);
   const rows = await db.reservation.findMany({
     where: withVisibleReservationsFilter(mergeReservationScope(scope, {})),
     take: INBOX_RESERVATION_LIMIT,
@@ -214,10 +219,10 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       guestRegistrationToken: true,
       guestRegistrationCompletedAt: true,
       property: {
-        select: { id: true, name: true, address: true, city: true, maxGuests: true },
+        select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
       },
     },
-    orderBy: [{ createdAt: "desc" }, { checkIn: "desc" }],
+    orderBy: [{ checkIn: "asc" }],
   });
 
   const ids = rows.map((row) => row.id);
@@ -280,7 +285,7 @@ export async function getReservationForInbox(
     ),
     include: {
       property: {
-        select: { id: true, name: true, address: true, city: true, maxGuests: true },
+        select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
       },
     },
   });
@@ -325,7 +330,7 @@ export async function getReservationForInbox(
   const accessCode = accessCredential
     ? {
         status: accessCredential.status,
-        code: decryptTTLockSecret(accessCredential.codeEncrypted),
+        code: formatAccessCode(decryptTTLockSecret(accessCredential.codeEncrypted)),
         isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
           accessCredential.status,
         ),
@@ -358,15 +363,25 @@ export async function createReservation(data: ReservationWizardValues) {
   });
   if (!property) throw new Error("Propiedad no encontrada");
 
+  if (data.platform !== BookingPlatform.DIRECT) {
+    throw new Error(
+      "Solo se permiten reservas directas. Las reservas de Airbnb se importan desde el calendario sincronizado.",
+    );
+  }
+
+  const guestTotal = data.adults + data.children + data.infants;
+  if (guestTotal > property.maxGuests) {
+    throw new Error(
+      `La propiedad permite máximo ${property.maxGuests} persona${property.maxGuests === 1 ? "" : "s"}`,
+    );
+  }
+
   const checkIn = dateKeyToPrismaDate(data.checkIn);
   const checkOut = dateKeyToPrismaDate(data.checkOut);
   await assertNoReservationOverlap(data.propertyId, checkIn, checkOut);
 
   const guestName = buildGuestName(data.guestFirstName, data.guestLastName);
-  const status =
-    data.platform === "DIRECT" || data.platform === "BOOKING"
-      ? deriveReservationStatusFromDates(checkIn, checkOut)
-      : data.status;
+  const status = deriveReservationStatusFromDates(checkIn, checkOut);
 
   const created = await db.reservation.create({
     data: {
@@ -383,14 +398,14 @@ export async function createReservation(data: ReservationWizardValues) {
       infants: data.infants,
       checkIn,
       checkOut,
-      platform: data.platform,
+      platform: BookingPlatform.DIRECT,
       status,
       totalAmount: data.totalAmount,
       internalNotes: data.internalNotes?.trim() || null,
     },
     include: {
       property: {
-        select: { id: true, name: true, address: true, city: true, ownerId: true },
+        select: { id: true, name: true, unitNumber: true, address: true, city: true, ownerId: true },
       },
     },
   });
@@ -411,6 +426,73 @@ export async function createReservation(data: ReservationWizardValues) {
   }
 
   return created;
+}
+
+export async function updateReservation(
+  id: string,
+  data: ReservationEditValues,
+) {
+  const scope = await requireTenantDataScope();
+  const existing = await assertReservationInScope(scope, id);
+  await assertPropertyInScope(scope, data.propertyId);
+
+  const property = await db.property.findFirst({
+    where: {
+      id: data.propertyId,
+      status: PropertyStatus.ACTIVE,
+      ...scope.organizationId
+        ? { organizationId: scope.organizationId }
+        : { ownerId: scope.userId },
+    },
+    select: { id: true, maxGuests: true },
+  });
+  if (!property) throw new Error("Propiedad no encontrada");
+
+  const guestTotal = data.adults + data.children + data.infants;
+  if (guestTotal > property.maxGuests) {
+    throw new Error(
+      `La propiedad permite máximo ${property.maxGuests} persona${property.maxGuests === 1 ? "" : "s"}`,
+    );
+  }
+
+  const checkIn = dateKeyToPrismaDate(data.checkIn);
+  const checkOut = dateKeyToPrismaDate(data.checkOut);
+  await assertNoReservationOverlap(data.propertyId, checkIn, checkOut, id);
+
+  const guestName = buildGuestName(data.guestFirstName, data.guestLastName);
+
+  const updated = await db.reservation.update({
+    where: { id },
+    data: {
+      propertyId: data.propertyId,
+      guestName,
+      guestFirstName: data.guestFirstName.trim(),
+      guestLastName: data.guestLastName?.trim() || null,
+      guestEmail: data.guestEmail?.trim() || null,
+      guestPhone: data.guestPhone?.trim() || null,
+      guestCountry: data.guestCountry?.trim() || null,
+      guestLanguage: data.guestLanguage?.trim() || null,
+      adults: data.adults,
+      children: data.children,
+      infants: data.infants,
+      checkIn,
+      checkOut,
+      totalAmount: data.totalAmount,
+      internalNotes: data.internalNotes?.trim() || null,
+    },
+    include: {
+      property: {
+        select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
+      },
+    },
+  });
+
+  if (existing.propertyId !== data.propertyId) {
+    await touchPropertyIcalExport(existing.propertyId);
+  }
+  await touchPropertyIcalExport(data.propertyId);
+
+  return updated;
 }
 
 export async function deleteReservation(id: string) {

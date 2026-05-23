@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const propertyFormSchema = z.object({
   name: z.string().min(2, "Mínimo 2 caracteres"),
+  unitNumber: z.string().optional(),
   description: z.string().optional(),
   propertyType: z.nativeEnum(PropertyType),
   maxGuests: z.number().int().min(1, "Mínimo 1 huésped"),

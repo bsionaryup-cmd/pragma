@@ -12,12 +12,16 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AccessCodeDisplay } from "@/components/access/access-code-display";
 import {
+  activateAccessCodeAction,
   approveAccessCodeAction,
   generateAccessCodeAction,
   revokeAccessCodeAction,
+  suspendAccessCodeAction,
 } from "@/features/smart-access/actions/smart-access.actions";
 import type { SmartAccessOverview } from "@/services/access/smart-access.service";
+import { AccessCredentialStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +72,14 @@ function formatDate(iso: string) {
   return new Date(iso + "T12:00:00").toLocaleDateString("es-CO", {
     dateStyle: "medium",
   });
+}
+
+function credentialIsActive(status: AccessCredentialStatus) {
+  return (
+    status === AccessCredentialStatus.GENERATED ||
+    status === AccessCredentialStatus.SENT ||
+    status === AccessCredentialStatus.ACTIVE
+  );
 }
 
 export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardProps) {
@@ -154,97 +166,142 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
               TTLock
             </Badge>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {items.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 No hay reservas activas con acceso inteligente en este momento.
               </p>
             ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border px-4 py-4 sm:px-5"
-                >
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{item.guestName}</p>
-                        <Badge
-                          variant="outline"
-                          className={cn("text-xs", stageBadgeClass(item.stage))}
-                        >
-                          {item.stageLabel}
-                        </Badge>
+              items.map((item) => {
+                const hasCode = Boolean(item.credential?.code);
+                const codeIsActive = item.credential
+                  ? credentialIsActive(item.credential.status)
+                  : false;
+                const canToggleCode =
+                  item.stage === "generated" || item.stage === "suspended";
+
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-border/80 px-3 py-2.5 sm:px-4"
+                  >
+                    <div className="space-y-2">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-foreground">
+                            {item.guestName}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px]", stageBadgeClass(item.stage))}
+                          >
+                            {item.stageLabel}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {item.propertyName}
+                          <span className="mx-1.5" aria-hidden>
+                            ·
+                          </span>
+                          {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
+                        </p>
+                        {item.registrationProgress ? (
+                          <p className="mt-0.5 text-[11px] font-medium text-warning">
+                            Registro: {item.registrationProgress} huéspedes
+                          </p>
+                        ) : null}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {item.propertyName}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
-                      </p>
-                      {item.registrationProgress ? (
-                        <p className="text-xs font-medium text-warning">
-                          Registro: {item.registrationProgress} huéspedes
-                        </p>
+
+                      {hasCode ? (
+                        <AccessCodeDisplay
+                          variant="inline"
+                          code={item.credential!.code}
+                          status={item.credential!.status}
+                          isActive={codeIsActive}
+                        />
                       ) : null}
-                      {item.credential?.code ? (
-                        <p className="pt-1 font-mono text-sm font-semibold tracking-widest">
-                          Código: {item.credential.code}
-                        </p>
+
+                      {canManage ? (
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {item.stage === "pending_approval" && item.credential ? (
+                            <Button
+                              size="xs"
+                              disabled={pending}
+                              onClick={() =>
+                                runAction(() =>
+                                  approveAccessCodeAction(item.credential!.id),
+                                )
+                              }
+                            >
+                              Aprobar y generar
+                            </Button>
+                          ) : null}
+
+                          {(item.stage === "ready_to_generate" ||
+                            item.stage === "awaiting_lock" ||
+                            item.stage === "revoked") &&
+                          item.registrationComplete ? (
+                            <Button
+                              size="xs"
+                              disabled={pending}
+                              onClick={() =>
+                                runAction(() => generateAccessCodeAction(item.id))
+                              }
+                            >
+                              <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                              Generar código
+                            </Button>
+                          ) : null}
+
+                          {canToggleCode && item.credential ? (
+                            <>
+                              {item.stage === "generated" ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  disabled={pending}
+                                  onClick={() =>
+                                    runAction(() =>
+                                      suspendAccessCodeAction(item.id),
+                                    )
+                                  }
+                                >
+                                  Desactivar
+                                </Button>
+                              ) : null}
+                              {item.stage === "suspended" ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  disabled={pending}
+                                  onClick={() =>
+                                    runAction(() =>
+                                      activateAccessCodeAction(item.id),
+                                    )
+                                  }
+                                >
+                                  Activar
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                className="border-danger/20 text-danger/70 hover:border-danger/30 hover:bg-danger/5 hover:text-danger"
+                                disabled={pending}
+                                onClick={() =>
+                                  runAction(() => revokeAccessCodeAction(item.id))
+                                }
+                              >
+                                Revocar
+                              </Button>
+                            </>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
-
-                    {canManage ? (
-                      <div className="flex flex-wrap gap-2">
-                        {item.stage === "pending_approval" && item.credential ? (
-                          <Button
-                            size="sm"
-                            disabled={pending}
-                            onClick={() =>
-                              runAction(() =>
-                                approveAccessCodeAction(item.credential!.id),
-                              )
-                            }
-                          >
-                            Aprobar y generar
-                          </Button>
-                        ) : null}
-
-                        {(item.stage === "ready_to_generate" ||
-                          item.stage === "awaiting_lock" ||
-                          item.stage === "revoked") &&
-                        item.registrationComplete ? (
-                          <Button
-                            size="sm"
-                            disabled={pending}
-                            onClick={() =>
-                              runAction(() =>
-                                generateAccessCodeAction(item.id),
-                              )
-                            }
-                          >
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                            Generar código
-                          </Button>
-                        ) : null}
-
-                        {item.stage === "generated" && item.credential ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            onClick={() =>
-                              runAction(() => revokeAccessCodeAction(item.id))
-                            }
-                          >
-                            Revocar
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </CardContent>
         </Card>

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Clock, Download } from "lucide-react";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
+import { ReservationPropertyLabel } from "@/components/reservations/reservation-property-label";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -89,14 +90,16 @@ export function PanelReservationsTable({
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
-                        {row.property.name.slice(0, 2).toUpperCase()}
+                        {(row.property.unitNumber ?? row.property.name).slice(0, 2).toUpperCase()}
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">
-                      {row.property.name}
-                    </p>
+                    <ReservationPropertyLabel
+                      property={row.property}
+                      badgeSize="md"
+                      className="text-sm"
+                    />
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {row.property.neighborhood || t("table.noNeighborhood")}
                     </p>
@@ -194,14 +197,16 @@ export function PanelReservationsTable({
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
-                              {row.property.name.slice(0, 2).toUpperCase()}
+                              {(row.property.unitNumber ?? row.property.name).slice(0, 2).toUpperCase()}
                             </div>
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="max-w-[260px] truncate text-sm font-semibold text-foreground">
-                            {row.property.name}
-                          </p>
+                          <ReservationPropertyLabel
+                            property={row.property}
+                            badgeSize="md"
+                            className="max-w-[260px] text-sm"
+                          />
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
                             {row.property.neighborhood || t("table.noNeighborhood")}
                           </p>

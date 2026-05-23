@@ -19,6 +19,10 @@ import {
   documentTypes,
   type GuestStepValues,
 } from "@/features/guests/schemas/guest-registration.schema";
+import {
+  getGuestDocumentTypeLabel,
+  guestDocumentTypeLabels,
+} from "@/lib/guest-document-types";
 import type { GuestRegistrationReservation } from "@/services/guests/guest-registration.service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,14 +30,6 @@ import { Label } from "@/components/ui/label";
 import { PhoneInput } from "@/components/ui/phone-input";
 
 type WizardStep = "intro" | "register" | "hub" | "confirm" | "success";
-
-const documentLabels: Record<(typeof documentTypes)[number], string> = {
-  CC: "Cédula",
-  CE: "Cédula extranjería",
-  PASSPORT: "Pasaporte",
-  DNI: "DNI",
-  OTHER: "Otro",
-};
 
 function emptyGuestForm(): Omit<GuestStepValues, "token"> {
   return {
@@ -211,7 +207,7 @@ export function GuestRegistrationForm({
                     {guest.fullName}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {guest.documentType} · {guest.documentNumber}
+                    {getGuestDocumentTypeLabel(guest.documentType)} · {guest.documentNumber}
                   </p>
                 </div>
                 {guest.isReservationOwner ? (
@@ -353,7 +349,7 @@ export function GuestRegistrationForm({
             >
               {documentTypes.map((type) => (
                 <option key={type} value={type}>
-                  {documentLabels[type]}
+                  {guestDocumentTypeLabels[type]}
                 </option>
               ))}
             </select>

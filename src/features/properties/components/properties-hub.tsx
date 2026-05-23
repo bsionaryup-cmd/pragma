@@ -129,6 +129,7 @@ export function PropertiesHub({
       const gridItem: PropertyGridItem = {
         id: property.id,
         name: property.name,
+        unitNumber: property.unitNumber,
         city: property.city,
         country: property.country,
         neighborhood: property.neighborhood,

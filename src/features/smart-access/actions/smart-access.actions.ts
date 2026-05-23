@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
 import {
   approvePendingAccessCode,
+  activateAccessCodeForReservation,
   generateAccessCodeForReservation,
   revokeAccessCodeForReservation,
+  suspendAccessCodeForReservation,
 } from "@/services/integrations/ttlock/ttlock-access.service";
 
 function revalidateSmartAccess() {
@@ -32,6 +34,20 @@ export async function approveAccessCodeAction(credentialId: string) {
 export async function revokeAccessCodeAction(reservationId: string) {
   await requirePermission("access:manage");
   const result = await revokeAccessCodeForReservation(reservationId);
+  revalidateSmartAccess();
+  return result;
+}
+
+export async function suspendAccessCodeAction(reservationId: string) {
+  await requirePermission("access:manage");
+  const result = await suspendAccessCodeForReservation(reservationId);
+  revalidateSmartAccess();
+  return result;
+}
+
+export async function activateAccessCodeAction(reservationId: string) {
+  await requirePermission("access:manage");
+  const result = await activateAccessCodeForReservation(reservationId);
   revalidateSmartAccess();
   return result;
 }

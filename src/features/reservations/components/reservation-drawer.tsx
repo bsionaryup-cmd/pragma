@@ -1,34 +1,18 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { Loader2 } from "lucide-react";
-import { ReservationDetailPanel } from "@/features/reservations/components/reservation-detail-panel";
-import type {
-  PropertyOption,
-  ReservationDetailItem,
-  ReservationInboxItem,
-} from "@/features/reservations/types/reservation.types";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import type {
+  PropertyOption,
+  ReservationDetailItem,
+  ReservationInboxItem,
+} from "@/features/reservations/types/reservation.types";
+import { ReservationSidePanel } from "@/features/reservations/components/reservation-side-panel";
 import { cn } from "@/lib/utils";
-
-const ReservationCreateWizard = dynamic(
-  () =>
-    import("@/features/reservations/components/reservation-create-wizard").then(
-      (m) => ({ default: m.ReservationCreateWizard }),
-    ),
-  {
-    loading: () => (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-      </div>
-    ),
-  },
-);
 
 export type ReservationDrawerMode = "create" | "detail" | null;
 
@@ -49,6 +33,7 @@ type ReservationDrawerProps = {
   initialCreateValues?: ReservationCreateInitialValues;
   onClose: () => void;
   onCreated: (reservation: ReservationInboxItem) => void;
+  onUpdated?: (reservation: ReservationDetailItem) => void;
   onDeleted: (id: string) => void;
   detailLoading?: boolean;
   refreshAfterDelete?: boolean;
@@ -65,6 +50,7 @@ export function ReservationDrawer({
   initialCreateValues,
   onClose,
   onCreated,
+  onUpdated,
   onDeleted,
   detailLoading = false,
   refreshAfterDelete = true,
@@ -80,39 +66,29 @@ export function ReservationDrawer({
           "data-[state=open]:duration-300 data-[state=closed]:duration-200",
         )}
       >
-        <SheetHeader className="shrink-0 space-y-0 border-b border-border px-5 py-4 text-left">
-          <SheetTitle className="text-base font-semibold">
+        <SheetHeader className="sr-only">
+          <SheetTitle>
             {mode === "create" ? "Nueva reserva" : "Detalle de reserva"}
           </SheetTitle>
         </SheetHeader>
 
-        <div className="min-h-0 flex-1 overflow-hidden">
-          {mode === "create" ? (
-            <ReservationCreateWizard
-              properties={properties}
-              initialValues={initialCreateValues}
-              onSuccess={onCreated}
-              onCancel={onClose}
-            />
-          ) : null}
-          {mode === "detail" && detailLoading ? (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
-              <span className="sr-only">Cargando reserva…</span>
-            </div>
-          ) : null}
-          {mode === "detail" && !detailLoading && reservation ? (
-            <ReservationDetailPanel
-              reservation={reservation}
-              canWrite={canWrite}
-              canManageGuestRegistration={canManageGuestRegistration}
-              canDelete={canDelete}
-              onDeleted={onDeleted}
-              onClose={onClose}
-              refreshAfterDelete={refreshAfterDelete}
-            />
-          ) : null}
-        </div>
+        <ReservationSidePanel
+          mode={mode}
+          reservation={reservation}
+          properties={properties}
+          canWrite={canWrite}
+          canManageGuestRegistration={canManageGuestRegistration}
+          canDelete={canDelete}
+          initialCreateValues={initialCreateValues}
+          onClose={onClose}
+          onCreated={onCreated}
+          onUpdated={onUpdated}
+          onDeleted={onDeleted}
+          detailLoading={detailLoading}
+          refreshAfterDelete={refreshAfterDelete}
+          showHeader={mode === "create"}
+          className="h-full"
+        />
       </SheetContent>
     </Sheet>
   );

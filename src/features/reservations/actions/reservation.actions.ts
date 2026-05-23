@@ -3,17 +3,20 @@
 import { revalidatePath } from "next/cache";
 import {
   reservationWizardSchema,
+  reservationEditSchema,
   type ReservationWizardValues,
+  type ReservationEditValues,
 } from "@/features/reservations/schemas/reservation.schema";
-import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
+import type { ReservationInboxItem, ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
-import { requirePermission } from "@/lib/auth";
+import { requirePermission, requireAnyPermission } from "@/lib/auth";
 import { ReservationConflictError } from "@/services/reservations/reservation-conflicts";
 import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.service";
 import {
   createReservation,
   deleteReservation,
   getReservationForInbox,
+  updateReservation,
 } from "@/services/reservations/reservation.service";
 import { prismaDateToKey } from "@/lib/dates";
 import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
@@ -45,6 +48,7 @@ function toInboxFromCreated(
     property: {
       id: r.property.id,
       name: r.property.name,
+      unitNumber: r.property.unitNumber ?? null,
       address: r.property.address,
       city: r.property.city,
     },
@@ -78,17 +82,54 @@ export async function createReservationAction(data: ReservationWizardValues) {
     if (error instanceof ReservationConflictError) {
       return { success: false as const, error: error.message };
     }
+    if (error instanceof Error) {
+      return { success: false as const, error: error.message };
+    }
     throw error;
   }
 }
 
 export async function getReservationInboxItemAction(id: string) {
-  await requirePermission("calendar:read");
+  await requireAnyPermission("reservations:read", "calendar:read");
   const reservation = await getReservationForInbox(id);
   if (!reservation) {
     return { success: false as const, error: "Reserva no encontrada" };
   }
   return { success: true as const, reservation };
+}
+
+export async function updateReservationAction(
+  id: string,
+  data: ReservationEditValues,
+) {
+  await requirePermission("reservations:write");
+  await assertBillingUnlocked();
+  const parsed = reservationEditSchema.parse(data);
+
+  try {
+    await updateReservation(id, parsed);
+    schedulePriceLabsRefresh("reservation");
+
+    revalidatePath("/reservations");
+    revalidatePath("/calendar");
+    revalidatePath("/properties");
+    revalidatePath("/");
+    revalidatePath("/smart-access");
+
+    const reservation = await getReservationForInbox(id);
+    if (!reservation) {
+      return { success: false as const, error: "Reserva no encontrada" };
+    }
+    return { success: true as const, reservation };
+  } catch (error) {
+    if (error instanceof ReservationConflictError) {
+      return { success: false as const, error: error.message };
+    }
+    if (error instanceof Error) {
+      return { success: false as const, error: error.message };
+    }
+    throw error;
+  }
 }
 
 export async function deleteReservationAction(id: string) {

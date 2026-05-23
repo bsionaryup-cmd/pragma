@@ -50,7 +50,7 @@ const reservationWizardBaseSchema = reservationStep1BaseSchema
   .merge(reservationStep3BaseSchema);
 
 function validateStayDates(
-  data: z.infer<typeof reservationWizardBaseSchema>,
+  data: { checkIn: string; checkOut: string },
   ctx: z.RefinementCtx,
 ) {
   if (!data.checkIn || !data.checkOut) return;
@@ -64,7 +64,7 @@ function validateStayDates(
 }
 
 function validateGuestCounts(
-  data: z.infer<typeof reservationWizardBaseSchema>,
+  data: { adults: number; children: number; infants: number },
   ctx: z.RefinementCtx,
 ) {
   const total = data.adults + data.children + data.infants;
@@ -77,11 +77,36 @@ function validateGuestCounts(
   }
 }
 
+function validateMaxGuests(
+  data: { adults: number; children: number; infants: number; maxGuests?: number },
+  ctx: z.RefinementCtx,
+) {
+  const max = data.maxGuests;
+  if (!max || max < 1) return;
+  const total = data.adults + data.children + data.infants;
+  if (total > max) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Máximo ${max} persona${max === 1 ? "" : "s"} según capacidad de la propiedad`,
+      path: ["adults"],
+    });
+  }
+}
+
 /** Schema final del wizard — refine/superRefine solo aquí */
-export const reservationWizardSchema = reservationWizardBaseSchema.superRefine(
-  (data, ctx) => {
+export const reservationWizardSchema = reservationWizardBaseSchema
+  .extend({ maxGuests: z.number().int().min(1).optional() })
+  .superRefine((data, ctx) => {
     validateStayDates(data, ctx);
     validateGuestCounts(data, ctx);
+    validateMaxGuests(data, ctx);
+    if (data.platform !== BookingPlatform.DIRECT) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Solo se permiten reservas directas desde el panel",
+        path: ["platform"],
+      });
+    }
     if (data.guestPhone?.trim() && !isValidPhoneNumber(data.guestPhone)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -89,10 +114,37 @@ export const reservationWizardSchema = reservationWizardBaseSchema.superRefine(
         path: ["guestPhone"],
       });
     }
-  },
-);
+  });
 
-export type ReservationWizardValues = z.infer<typeof reservationWizardBaseSchema>;
+export type ReservationWizardValues = z.infer<typeof reservationWizardBaseSchema> & {
+  maxGuests?: number;
+};
+
+/** Edición de reserva (administradores) */
+export const reservationEditSchema = reservationStep1BaseSchema
+  .omit({ platform: true })
+  .merge(reservationStep2BaseSchema)
+  .merge(
+    z.object({
+      totalAmount: z.number().min(0, "Valor inválido"),
+      internalNotes: z.string().optional(),
+      maxGuests: z.number().int().min(1).optional(),
+    }),
+  )
+  .superRefine((data, ctx) => {
+    validateStayDates(data, ctx);
+    validateGuestCounts(data, ctx);
+    validateMaxGuests(data, ctx);
+    if (data.guestPhone?.trim() && !isValidPhoneNumber(data.guestPhone)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Teléfono inválido. Selecciona el código de país.",
+        path: ["guestPhone"],
+      });
+    }
+  });
+
+export type ReservationEditValues = z.infer<typeof reservationEditSchema>;
 
 /** @deprecated Usar reservationWizardSchema */
 export const reservationFormSchema = reservationWizardSchema;

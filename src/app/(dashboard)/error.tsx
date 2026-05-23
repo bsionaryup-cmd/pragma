@@ -13,7 +13,12 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
     console.error("[dashboard]", error);
   }, [error]);
 
+  const isSchemaDrift =
+    /P2022|ColumnNotFound|does not exist in the current database/i.test(
+      error.message,
+    );
   const isDb =
+    isSchemaDrift ||
     /database|prisma|P1001|ECONNREFUSED|timeout|OperationTimeout/i.test(
       error.message,
     );
@@ -21,12 +26,18 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
       <h1 className="text-xl font-semibold text-foreground">
-        {isDb ? "No se pudo conectar con la base de datos" : "Algo salió mal"}
+        {isSchemaDrift
+          ? "Base de datos desactualizada"
+          : isDb
+            ? "No se pudo conectar con la base de datos"
+            : "Algo salió mal"}
       </h1>
       <p className="max-w-md text-sm text-muted-foreground">
-        {isDb
-          ? "Comprueba que PostgreSQL esté en marcha y que DATABASE_URL en .env.local sea correcta. Luego recarga la página."
-          : "Prueba de nuevo. Si el problema continúa, reinicia el servidor con npm run dev:clean y npm run dev."}
+        {isSchemaDrift
+          ? "Falta aplicar una migración reciente. En la terminal del proyecto ejecuta: npm run db:migrate:deploy && npm run dev:clean && npm run dev"
+          : isDb
+            ? "Comprueba que PostgreSQL esté en marcha y que DATABASE_URL en .env.local sea correcta. Luego recarga la página."
+            : "Prueba de nuevo. Si el problema continúa, reinicia el servidor con npm run dev:clean y npm run dev."}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button

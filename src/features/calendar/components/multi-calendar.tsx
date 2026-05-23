@@ -89,6 +89,7 @@ export function MultiCalendar({
     return data.properties.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
+        (p.unitNumber?.toLowerCase().includes(q) ?? false) ||
         p.address.toLowerCase().includes(q) ||
         p.city.toLowerCase().includes(q),
     );
@@ -358,6 +359,7 @@ export function MultiCalendar({
         onClose={closeDrawer}
         onCreated={handleCreated}
         onDeleted={handleDeleted}
+        onUpdated={(updated) => setSelectedReservation(updated)}
       />
 
       <Sheet open={propertyPanelOpen} onOpenChange={setPropertyPanelOpen}>

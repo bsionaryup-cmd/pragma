@@ -5,9 +5,11 @@ import {
   TTLockIntegrationStatus,
 } from "@prisma/client";
 import { prismaDateToKey } from "@/lib/dates";
+import { formatAccessCode, formatAccessCodeForLockApi } from "@/lib/access-code";
 import { db } from "@/lib/db";
 import {
   requestTTLockAddKeyboardPwd,
+  requestTTLockChangeKeyboardPwd,
   requestTTLockDeleteKeyboardPwd,
 } from "@/services/integrations/ttlock/ttlock-api.client";
 import {
@@ -85,6 +87,76 @@ async function resolveAccessTokenForProperty(
     accessToken: session.accessToken,
     environment: session.environment,
   };
+}
+
+const MANAGEABLE_CREDENTIAL_STATUSES: AccessCredentialStatus[] = [
+  AccessCredentialStatus.PENDING,
+  AccessCredentialStatus.GENERATED,
+  AccessCredentialStatus.ACTIVE,
+  AccessCredentialStatus.SENT,
+  AccessCredentialStatus.SUSPENDED,
+];
+
+async function loadManagedAccessCredential(reservationId: string) {
+  return db.accessCredential.findFirst({
+    where: {
+      reservationId,
+      status: { in: MANAGEABLE_CREDENTIAL_STATUSES },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      propertyLock: { select: { ttlockLockId: true } },
+      reservation: {
+        select: {
+          propertyId: true,
+          property: { select: { ownerId: true } },
+        },
+      },
+    },
+  });
+}
+
+async function syncCredentialWindowOnLock(input: {
+  credential: NonNullable<Awaited<ReturnType<typeof loadManagedAccessCredential>>>;
+  validFrom: Date;
+  validTo: Date;
+}): Promise<{ ok: boolean; message?: string }> {
+  const { credential, validFrom, validTo } = input;
+
+  if (
+    !credential.ttlockCodeId ||
+    !credential.propertyLock?.ttlockLockId ||
+    !isTTLockLiveApiEnabled()
+  ) {
+    return { ok: true };
+  }
+
+  const apiSession = await resolveAccessTokenForProperty(
+    credential.reservation.propertyId,
+  );
+  if (!apiSession) {
+    return { ok: true };
+  }
+
+  const lockId = Number.parseInt(credential.propertyLock.ttlockLockId, 10);
+  const keyboardPwdId = Number.parseInt(credential.ttlockCodeId, 10);
+  if (!Number.isFinite(lockId) || !Number.isFinite(keyboardPwdId)) {
+    return { ok: false, message: "ID de cerradura o código TTLock inválido" };
+  }
+
+  const result = await requestTTLockChangeKeyboardPwd({
+    environment: apiSession.environment,
+    clientId: apiSession.clientId,
+    accessToken: apiSession.accessToken,
+    lockId,
+    keyboardPwdId,
+    startDate: validFrom.getTime(),
+    endDate: validTo.getTime(),
+    changeType: 2,
+  });
+
+  if (!result.ok) return result;
+  return { ok: true };
 }
 
 export async function tryGenerateAccessCodeForReservation(
@@ -172,7 +244,7 @@ export type GenerateAccessCodeResult = {
 
 export async function generateAccessCodeForReservation(
   reservationId: string,
-  options?: { force?: boolean },
+  options?: { force?: boolean; skipManualApproval?: boolean },
 ): Promise<GenerateAccessCodeResult> {
   const reservation = await db.reservation.findUnique({
     where: { id: reservationId },
@@ -233,7 +305,7 @@ export async function generateAccessCodeForReservation(
       existing.status === AccessCredentialStatus.ACTIVE ||
       existing.status === AccessCredentialStatus.SENT)
   ) {
-    const code = decryptTTLockSecret(existing.codeEncrypted);
+    const code = formatAccessCode(decryptTTLockSecret(existing.codeEncrypted));
     return {
       ok: true,
       message: "Ya existe un código activo para esta reserva",
@@ -267,7 +339,7 @@ export async function generateAccessCodeForReservation(
     reservation.propertyId,
   );
 
-  if (settings?.requireManualApproval && !options?.force) {
+  if (settings?.requireManualApproval && !options?.force && !options?.skipManualApproval) {
     const organizationId =
       reservation.property.organizationId ??
       (await resolveOrganizationIdForProperty(reservation.propertyId));
@@ -333,6 +405,7 @@ export async function generateAccessCodeForReservation(
   });
 
   const passcode = generatePasscode();
+  const lockPasscode = formatAccessCodeForLockApi(passcode);
   const apiSession = await resolveAccessTokenForProperty(reservation.propertyId);
   let ttlockCodeId: string | null = null;
   let apiMessage: string | null = null;
@@ -348,7 +421,7 @@ export async function generateAccessCodeForReservation(
       clientId: apiSession.clientId,
       accessToken: apiSession.accessToken,
       lockId,
-      keyboardPwd: passcode,
+      keyboardPwd: lockPasscode,
       keyboardPwdName: guestLabel.slice(0, 50),
       startDate: validFrom.getTime(),
       endDate: validTo.getTime(),
@@ -385,7 +458,7 @@ export async function generateAccessCodeForReservation(
       organizationId,
       propertyLockId: propertyLock.id,
       ttlockCodeId,
-      codeEncrypted: encryptTTLockSecret(passcode),
+      codeEncrypted: encryptTTLockSecret(lockPasscode),
       validFrom,
       validTo,
       status: AccessCredentialStatus.GENERATED,
@@ -413,7 +486,7 @@ export async function generateAccessCodeForReservation(
     ok: true,
     message: apiMessage ?? "Código generado",
     credentialId: credential.id,
-    code: passcode,
+    code: formatAccessCode(lockPasscode) ?? undefined,
   };
 }
 
@@ -442,29 +515,7 @@ export async function approvePendingAccessCode(
 export async function revokeAccessCodeForReservation(
   reservationId: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const credential = await db.accessCredential.findFirst({
-    where: {
-      reservationId,
-      status: {
-        in: [
-          AccessCredentialStatus.PENDING,
-          AccessCredentialStatus.GENERATED,
-          AccessCredentialStatus.ACTIVE,
-          AccessCredentialStatus.SENT,
-        ],
-      },
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      propertyLock: { select: { ttlockLockId: true } },
-      reservation: {
-        select: {
-          propertyId: true,
-          property: { select: { ownerId: true } },
-        },
-      },
-    },
-  });
+  const credential = await loadManagedAccessCredential(reservationId);
 
   if (!credential) {
     return { ok: true, message: "No había código activo" };
@@ -510,6 +561,79 @@ export async function revokeAccessCodeForReservation(
   return { ok: true, message: "Código revocado" };
 }
 
+export async function suspendAccessCodeForReservation(
+  reservationId: string,
+): Promise<{ ok: boolean; message: string }> {
+  const credential = await loadManagedAccessCredential(reservationId);
+
+  if (!credential) {
+    return { ok: false, message: "No hay código para desactivar" };
+  }
+
+  if (
+    credential.status !== AccessCredentialStatus.GENERATED &&
+    credential.status !== AccessCredentialStatus.ACTIVE &&
+    credential.status !== AccessCredentialStatus.SENT
+  ) {
+    return { ok: false, message: "Este código no se puede desactivar" };
+  }
+
+  if (!credential.validFrom || !credential.validTo) {
+    return { ok: false, message: "Faltan fechas de validez del código" };
+  }
+
+  const now = new Date();
+  const sync = await syncCredentialWindowOnLock({
+    credential,
+    validFrom: credential.validFrom,
+    validTo: now,
+  });
+  if (!sync.ok) {
+    return { ok: false, message: sync.message ?? "No se pudo desactivar en TTLock" };
+  }
+
+  await db.accessCredential.update({
+    where: { id: credential.id },
+    data: { status: AccessCredentialStatus.SUSPENDED },
+  });
+
+  return { ok: true, message: "Código desactivado temporalmente" };
+}
+
+export async function activateAccessCodeForReservation(
+  reservationId: string,
+): Promise<{ ok: boolean; message: string }> {
+  const credential = await loadManagedAccessCredential(reservationId);
+
+  if (!credential) {
+    return { ok: false, message: "No hay código para activar" };
+  }
+
+  if (credential.status !== AccessCredentialStatus.SUSPENDED) {
+    return { ok: false, message: "Este código no está suspendido" };
+  }
+
+  if (!credential.validFrom || !credential.validTo) {
+    return { ok: false, message: "Faltan fechas de validez del código" };
+  }
+
+  const sync = await syncCredentialWindowOnLock({
+    credential,
+    validFrom: credential.validFrom,
+    validTo: credential.validTo,
+  });
+  if (!sync.ok) {
+    return { ok: false, message: sync.message ?? "No se pudo activar en TTLock" };
+  }
+
+  await db.accessCredential.update({
+    where: { id: credential.id },
+    data: { status: AccessCredentialStatus.ACTIVE },
+  });
+
+  return { ok: true, message: "Código activado" };
+}
+
 export async function processReservationAccessAfterRegistration(input: {
   reservationId: string;
   propertyId: string;
@@ -534,9 +658,11 @@ export async function processReservationAccessAfterRegistration(input: {
     });
   }
 
-  if (settings && !settings.generateAfterGuestRegistration) {
+  if (settings && settings.generateAfterGuestRegistration === false) {
     return;
   }
 
-  await generateAccessCodeForReservation(input.reservationId);
+  await generateAccessCodeForReservation(input.reservationId, {
+    skipManualApproval: true,
+  });
 }

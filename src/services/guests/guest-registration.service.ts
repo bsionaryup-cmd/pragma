@@ -18,6 +18,7 @@ import type {
 import { getPublicAppUrl } from "@/lib/app-url";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
@@ -263,7 +264,7 @@ async function buildGuestRegistrationReservationView(input: {
     adults: number;
     children: number;
     infants: number;
-    property: { name: string; maxGuests: number };
+    property: { name: string; unitNumber?: string | null; maxGuests: number };
   };
   guests: Parameters<typeof mapGuestRecord>[0][];
 }): Promise<GuestRegistrationReservation> {
@@ -276,7 +277,7 @@ async function buildGuestRegistrationReservationView(input: {
     id: input.reservation.id,
     token: input.token,
     status: input.registration.status,
-    propertyName: input.reservation.property.name,
+    propertyName: formatPropertyLabel(input.reservation.property),
     checkIn: prismaDateToKey(input.reservation.checkIn),
     checkOut: prismaDateToKey(input.reservation.checkOut),
     guestCount: getReservationGuestCount(input.reservation),
@@ -552,7 +553,7 @@ export async function getGuestRegistrationLookupResult(
       adults: true,
       children: true,
       infants: true,
-      property: { select: { name: true, maxGuests: true } },
+      property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
   });
   if (!reservation) return { state: "invalid" };
@@ -608,7 +609,7 @@ export async function registerGuestStep(
       children: true,
       infants: true,
       guestRegistrationCompletedAt: true,
-      property: { select: { name: true, maxGuests: true } },
+      property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
   });
 
@@ -755,7 +756,7 @@ export async function completeGuestRegistration(
       adults: true,
       children: true,
       infants: true,
-      property: { select: { name: true, maxGuests: true } },
+      property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
   });
   if (!reservation) {

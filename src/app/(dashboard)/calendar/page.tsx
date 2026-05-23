@@ -45,6 +45,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const propertyOptions = data.properties.map((property) => ({
     id: property.id,
     name: property.name,
+    unitNumber: property.unitNumber,
     address: property.address,
     city: property.city,
   }));

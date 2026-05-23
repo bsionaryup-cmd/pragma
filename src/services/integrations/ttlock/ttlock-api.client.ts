@@ -1,6 +1,7 @@
 import type { TTLockEnvironment } from "@prisma/client";
 import {
   getTTLockKeyboardPwdAddUrl,
+  getTTLockKeyboardPwdChangeUrl,
   getTTLockKeyboardPwdDeleteUrl,
   getTTLockLockListUrl,
 } from "@/lib/integrations/ttlock-config";
@@ -197,6 +198,52 @@ export async function requestTTLockDeleteKeyboardPwd(input: {
   body.set("date", String(date));
 
   const response = await fetch(getTTLockKeyboardPwdDeleteUrl(input.environment), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  > & TTLockApiError;
+
+  if (typeof payload.errcode === "number" && payload.errcode !== 0) {
+    return {
+      ok: false,
+      message:
+        typeof payload.errmsg === "string"
+          ? payload.errmsg
+          : `TTLock API error (${payload.errcode})`,
+    };
+  }
+
+  return { ok: true };
+}
+
+export async function requestTTLockChangeKeyboardPwd(input: {
+  environment: TTLockEnvironment;
+  clientId: string;
+  accessToken: string;
+  lockId: number;
+  keyboardPwdId: number;
+  startDate: number;
+  endDate: number;
+  changeType?: 1 | 2 | 3;
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const date = Date.now();
+  const body = new URLSearchParams();
+  body.set("clientId", input.clientId);
+  body.set("accessToken", input.accessToken);
+  body.set("lockId", String(input.lockId));
+  body.set("keyboardPwdId", String(input.keyboardPwdId));
+  body.set("startDate", String(input.startDate));
+  body.set("endDate", String(input.endDate));
+  body.set("changeType", String(input.changeType ?? 2));
+  body.set("date", String(date));
+
+  const response = await fetch(getTTLockKeyboardPwdChangeUrl(input.environment), {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),

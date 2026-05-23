@@ -1,6 +1,5 @@
 "use client";
 
-import { Building2 } from "lucide-react";
 import { memo } from "react";
 import {
   formatStayRange,
@@ -13,6 +12,7 @@ import {
 } from "@/features/reservations/lib/reservation-status";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { formatCurrency } from "@/lib/helpers";
 import { cn } from "@/lib/utils";
 
@@ -42,46 +42,47 @@ function ReservationCardComponent({
       type="button"
       onClick={onSelect}
       className={cn(
-        "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",
-        "hover:bg-muted/50",
-        isActive && "bg-muted/70 ring-1 ring-inset ring-border",
+        "group flex w-full flex-col gap-2.5 rounded-xl border border-border bg-card px-3.5 py-3 text-left shadow-pragma-soft transition-colors duration-150",
+        "hover:border-primary/15 hover:bg-muted/20",
+        isActive && "border-primary/25 bg-primary/[0.03] ring-1 ring-primary/15",
       )}
     >
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted">
-        <Building2 className="h-5 w-5 text-muted-foreground" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium leading-tight text-foreground">
+            {reservation.guestName}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {formatPropertyLabel(reservation.property)}
+          </p>
+        </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
+            getStatusBadgeClass(displayStatus),
+          )}
+        >
+          {displayStatusLabels[displayStatus]}
+        </span>
       </div>
 
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-start justify-between gap-2">
-          <span
-            className={cn(
-              "rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-              getStatusBadgeClass(displayStatus),
-            )}
-          >
-            {displayStatusLabels[displayStatus]}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <span className="tabular-nums">
+            {formatStayRange(reservation.checkIn, reservation.checkOut)}
           </span>
-          <span className="shrink-0 text-xs font-semibold tabular-nums">
-            {formatCurrency(Number(reservation.totalAmount), reservation.currency)}
+          <span aria-hidden>·</span>
+          <span>
+            {guests} huésped{guests === 1 ? "" : "es"}
           </span>
+          <ReservationSourceBadge
+            platform={reservation.platform}
+            showLabel={false}
+          />
         </div>
-
-        <p className="truncate text-sm font-semibold leading-tight">
-          {reservation.guestName}
-        </p>
-
-        <p className="truncate text-xs text-muted-foreground">
-          {formatStayRange(reservation.checkIn, reservation.checkOut)}
-          <span className="mx-1">·</span>
-          {guests} huésped{guests === 1 ? "" : "es"}
-        </p>
-
-        <div className="flex min-w-0 items-center gap-2">
-          <ReservationSourceBadge platform={reservation.platform} />
-          <span className="truncate text-[11px] text-muted-foreground">
-            {reservation.property.name}
-          </span>
-        </div>
+        <span className="shrink-0 text-xs font-medium tabular-nums text-foreground">
+          {formatCurrency(Number(reservation.totalAmount), reservation.currency)}
+        </span>
       </div>
     </button>
   );

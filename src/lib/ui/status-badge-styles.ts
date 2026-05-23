@@ -44,6 +44,8 @@ export function getAccessStageBadgeClass(
   switch (stage) {
     case "generated":
       return getSemanticBadgeClass("success");
+    case "suspended":
+      return getSemanticBadgeClass("warning");
     case "awaiting_registration":
       return getSemanticBadgeClass("warning");
     case "pending_approval":
