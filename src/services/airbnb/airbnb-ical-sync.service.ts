@@ -22,7 +22,10 @@ import {
 } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
-import { ensureGuestRegistrationForReservation } from "@/services/guests/guest-registration.service";
+import {
+  ensureGuestRegistrationForReservation,
+  isGuestRegistrationEligibleStatus,
+} from "@/services/guests/guest-registration.service";
 import {
   emitBookingCancelled,
   emitBookingCheckedOut,
@@ -344,7 +347,7 @@ export async function syncPropertyIcalCalendarInner(
               }
             : payload,
         });
-        if (!blocked && status === ReservationStatus.CONFIRMED) {
+        if (!blocked && isGuestRegistrationEligibleStatus(status)) {
           await ensureGuestRegistrationForReservation(existing.id);
         }
 
@@ -387,7 +390,7 @@ export async function syncPropertyIcalCalendarInner(
             where: { id: overlap.id },
             data: payload,
           });
-          if (!blocked && status === ReservationStatus.CONFIRMED) {
+          if (!blocked && isGuestRegistrationEligibleStatus(status)) {
             await ensureGuestRegistrationForReservation(overlap.id);
           }
           updated += 1;
@@ -415,7 +418,7 @@ export async function syncPropertyIcalCalendarInner(
             : "Sincronizado desde iCal Airbnb",
         },
       });
-      if (!blocked && status === ReservationStatus.CONFIRMED) {
+      if (!blocked && isGuestRegistrationEligibleStatus(status)) {
         await ensureGuestRegistrationForReservation(createdReservation.id);
       }
       await emitBookingConfirmed({

@@ -29,6 +29,7 @@ type ReservationsInboxProps = {
   properties: PropertyOption[];
   canCreate: boolean;
   canWrite: boolean;
+  canManageGuestRegistration?: boolean;
   canDelete?: boolean;
   openCreateOnMount?: boolean;
   initialSelectedId?: string | null;
@@ -40,6 +41,7 @@ export function ReservationsInbox({
   properties,
   canCreate,
   canWrite,
+  canManageGuestRegistration = canWrite,
   canDelete = false,
   openCreateOnMount = false,
   initialSelectedId = null,
@@ -216,6 +218,7 @@ export function ReservationsInbox({
         reservation={selected}
         properties={properties}
         canWrite={canWrite}
+        canManageGuestRegistration={canManageGuestRegistration}
         canDelete={canDelete}
         initialCreateValues={initialCreateValues}
         onClose={closeDrawer}

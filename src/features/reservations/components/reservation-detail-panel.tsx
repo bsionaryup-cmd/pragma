@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
+  generateGuestRegistrationLinkAction,
   regenerateGuestRegistrationTokenAction,
   revokeGuestRegistrationTokenAction,
 } from "@/features/guests/actions/guest-registration.actions";
@@ -35,6 +36,7 @@ import { cn } from "@/lib/utils";
 type ReservationDetailPanelProps = {
   reservation: ReservationDetailItem;
   canWrite: boolean;
+  canManageGuestRegistration?: boolean;
   canDelete?: boolean;
   onDeleted: (id: string) => void;
   onClose: () => void;
@@ -72,6 +74,7 @@ function formatDateTime(iso: string | null | undefined): string {
 export function ReservationDetailPanel({
   reservation,
   canWrite,
+  canManageGuestRegistration = canWrite,
   canDelete = false,
   onDeleted,
   onClose,
@@ -114,37 +117,58 @@ export function ReservationDetailPanel({
   async function copyRegistrationLink() {
     const url = registration?.url ?? reservation.guestRegistrationUrl;
     if (!url) return;
-    await navigator.clipboard.writeText(url);
-    toast.success("Link de registro copiado");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link de registro copiado");
+    } catch {
+      toast.error("No se pudo copiar el link");
+    }
+  }
+
+  async function copyRegistrationUrl(url: string, successMessage: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(successMessage);
+    } catch {
+      toast.success(successMessage.replace(" y copiado", ""));
+      toast.message("Copia el link manualmente desde el detalle de la reserva");
+    }
+  }
+
+  function generateRegistrationLink() {
+    startTokenTransition(async () => {
+      const result = await generateGuestRegistrationLinkAction(reservation.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      await copyRegistrationUrl(result.url, "Link generado y copiado");
+      router.refresh();
+    });
   }
 
   function regenerateRegistrationLink() {
     startTokenTransition(async () => {
-      try {
-        const result = await regenerateGuestRegistrationTokenAction(reservation.id);
-        await navigator.clipboard.writeText(result.url);
-        toast.success("Nuevo link generado y copiado");
-        router.refresh();
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "No se pudo regenerar el link",
-        );
+      const result = await regenerateGuestRegistrationTokenAction(reservation.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
       }
+      await copyRegistrationUrl(result.url, "Nuevo link generado y copiado");
+      router.refresh();
     });
   }
 
   function revokeRegistrationLink() {
     if (!confirm("¿Revocar el link de registro de huéspedes?")) return;
     startTokenTransition(async () => {
-      try {
-        await revokeGuestRegistrationTokenAction(reservation.id);
-        toast.success("Link de registro revocado");
-        router.refresh();
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "No se pudo revocar el link",
-        );
+      const result = await revokeGuestRegistrationTokenAction(reservation.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
       }
+      toast.success("Link de registro revocado");
+      router.refresh();
     });
   }
 
@@ -273,7 +297,7 @@ export function ReservationDetailPanel({
                       <Copy className="h-3.5 w-3.5" />
                       Copiar
                     </Button>
-                    {canWrite ? (
+                    {canManageGuestRegistration ? (
                       <>
                         <Button
                           type="button"
@@ -306,12 +330,12 @@ export function ReservationDetailPanel({
               <DetailEmptyState>
                 Esta reserva todavía no tiene link activo de registro.
               </DetailEmptyState>
-              {canWrite ? (
+              {canManageGuestRegistration ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={regenerateRegistrationLink}
+                  onClick={generateRegistrationLink}
                   disabled={isTokenPending}
                 >
                   <RefreshCw className="h-3.5 w-3.5" />

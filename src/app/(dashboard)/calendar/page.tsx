@@ -32,6 +32,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const canWrite =
     !billing.locked &&
     hasPermission(auth.role as AppUserRole, "reservations:write");
+  const canManageGuestRegistration =
+    !billing.locked &&
+    (hasPermission(auth.role as AppUserRole, "reservations:write") ||
+      hasPermission(auth.role as AppUserRole, "properties:write"));
   const canSyncAirbnb = hasPermission(
     auth.role as AppUserRole,
     "properties:write",
@@ -57,6 +61,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <MultiCalendar
         data={data}
         canWrite={canWrite}
+        canManageGuestRegistration={canManageGuestRegistration}
         canSyncAirbnb={canSyncAirbnb}
         propertyOptions={propertyOptions}
         initialReservationId={initialReservationId}

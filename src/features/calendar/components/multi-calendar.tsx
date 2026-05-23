@@ -36,6 +36,7 @@ const ReservationDrawer = dynamic(
 type MultiCalendarProps = {
   data: CalendarDataDto;
   canWrite: boolean;
+  canManageGuestRegistration?: boolean;
   canSyncAirbnb: boolean;
   propertyOptions: PropertyOption[];
   /** Abre detalle al montar (p. ej. /calendar?reservation=id) sin ir a /reservations */
@@ -45,6 +46,7 @@ type MultiCalendarProps = {
 export function MultiCalendar({
   data,
   canWrite,
+  canManageGuestRegistration = canWrite,
   canSyncAirbnb,
   propertyOptions,
   initialReservationId = null,
@@ -314,6 +316,7 @@ export function MultiCalendar({
         reservation={drawerMode === "detail" ? selectedReservation : null}
         properties={propertyOptions}
         canWrite={canWrite}
+        canManageGuestRegistration={canManageGuestRegistration}
         initialCreateValues={createDefaults ?? undefined}
         detailLoading={detailLoading}
         refreshAfterDelete={false}

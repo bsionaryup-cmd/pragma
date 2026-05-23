@@ -13,6 +13,116 @@ import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 
+export class GuestRegistrationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GuestRegistrationError";
+  }
+}
+
+const GUEST_REGISTRATION_ELIGIBLE_STATUSES: ReservationStatus[] = [
+  ReservationStatus.CONFIRMED,
+  ReservationStatus.CHECKED_IN,
+  ReservationStatus.CHECKOUT_TODAY,
+];
+
+export function isGuestRegistrationEligibleStatus(
+  status: ReservationStatus,
+): boolean {
+  return GUEST_REGISTRATION_ELIGIBLE_STATUSES.includes(status);
+}
+
+type GuestRegistrationReservationSnapshot = {
+  platform: BookingPlatform;
+  status: ReservationStatus;
+  adults: number;
+  children: number;
+  infants: number;
+  guestRegistrationCompletedAt: Date | null;
+};
+
+function assertGuestRegistrationEligible(
+  reservation: GuestRegistrationReservationSnapshot,
+): void {
+  if (reservation.platform !== BookingPlatform.AIRBNB) {
+    throw new GuestRegistrationError(
+      "El registro de huéspedes solo aplica a reservas de Airbnb.",
+    );
+  }
+
+  if (
+    reservation.status === ReservationStatus.CANCELLED ||
+    reservation.status === ReservationStatus.BLOCKED
+  ) {
+    throw new GuestRegistrationError(
+      "No se puede generar link para reservas canceladas o bloqueadas.",
+    );
+  }
+
+  if (!GUEST_REGISTRATION_ELIGIBLE_STATUSES.includes(reservation.status)) {
+    throw new GuestRegistrationError(
+      "Esta reserva ya finalizó; no se puede generar un nuevo link de registro.",
+    );
+  }
+
+  if (reservation.guestRegistrationCompletedAt) {
+    throw new GuestRegistrationError(
+      "El registro ya fue completado por el huésped.",
+    );
+  }
+
+  if (getReservationGuestCount(reservation) <= 0) {
+    throw new GuestRegistrationError(
+      "La reserva no tiene huéspedes configurados.",
+    );
+  }
+}
+
+async function loadGuestRegistrationReservation(
+  reservationId: string,
+): Promise<GuestRegistrationReservationSnapshot> {
+  const reservation = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: {
+      platform: true,
+      status: true,
+      adults: true,
+      children: true,
+      infants: true,
+      guestRegistrationCompletedAt: true,
+    },
+  });
+
+  if (!reservation) {
+    throw new GuestRegistrationError("Reserva no encontrada");
+  }
+
+  return reservation;
+}
+
+async function createGuestRegistrationTokenRecord(
+  reservationId: string,
+): Promise<string> {
+  const token = randomBytes(24).toString("hex");
+
+  await db.$transaction([
+    db.guestRegistrationToken.create({
+      data: {
+        reservationId,
+        token,
+        expiresAt: null,
+        createdBySystem: true,
+      },
+    }),
+    db.reservation.update({
+      where: { id: reservationId },
+      data: { guestRegistrationToken: token },
+    }),
+  ]);
+
+  return token;
+}
+
 export type GuestRegistrationReservation = {
   id: string;
   token: string;
@@ -68,17 +178,17 @@ export async function ensureGuestRegistrationForReservation(
       children: true,
       infants: true,
       guestRegistrationToken: true,
+      guestRegistrationCompletedAt: true,
     },
   });
 
   if (!reservation) return null;
-  const guestCount = getReservationGuestCount(reservation);
-  const eligible =
-    reservation.platform === BookingPlatform.AIRBNB &&
-    reservation.status === ReservationStatus.CONFIRMED &&
-    guestCount > 0;
+  try {
+    assertGuestRegistrationEligible(reservation);
+  } catch {
+    return null;
+  }
 
-  if (!eligible) return null;
   const activeToken = await db.guestRegistrationToken.findFirst({
     where: {
       reservationId: reservation.id,
@@ -91,22 +201,32 @@ export async function ensureGuestRegistrationForReservation(
     return buildGuestRegistrationUrl(activeToken.token);
   }
 
-  const token = randomBytes(24).toString("hex");
-  await db.$transaction([
-    db.guestRegistrationToken.create({
-      data: {
-        reservationId: reservation.id,
-        token,
-        expiresAt: null,
-        createdBySystem: true,
-      },
-    }),
-    db.reservation.update({
-      where: { id: reservation.id },
-      data: { guestRegistrationToken: token },
-    }),
-  ]);
+  const token = await createGuestRegistrationTokenRecord(reservation.id);
+  return buildGuestRegistrationUrl(token);
+}
 
+export async function generateGuestRegistrationLink(
+  reservationId: string,
+): Promise<string> {
+  const scope = await requireTenantDataScope();
+  await assertReservationInScope(scope, reservationId);
+
+  const reservation = await loadGuestRegistrationReservation(reservationId);
+  assertGuestRegistrationEligible(reservation);
+
+  const activeToken = await db.guestRegistrationToken.findFirst({
+    where: {
+      reservationId,
+      status: GuestRegistrationStatus.ACTIVE,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (activeToken) {
+    return buildGuestRegistrationUrl(activeToken.token);
+  }
+
+  const token = await createGuestRegistrationTokenRecord(reservationId);
   return buildGuestRegistrationUrl(token);
 }
 
@@ -115,6 +235,9 @@ export async function regenerateGuestRegistrationToken(
 ): Promise<string> {
   const scope = await requireTenantDataScope();
   await assertReservationInScope(scope, reservationId);
+
+  const reservation = await loadGuestRegistrationReservation(reservationId);
+  assertGuestRegistrationEligible(reservation);
 
   const token = randomBytes(24).toString("hex");
   await db.$transaction([
