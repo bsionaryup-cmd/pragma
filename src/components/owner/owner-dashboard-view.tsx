@@ -34,7 +34,6 @@ import type {
 import type { PlatformAuditLog } from "@prisma/client";
 import { formatDate } from "@/lib/helpers/date";
 import { OwnerDashboardTableSkeleton } from "@/components/owner/owner-dashboard-skeletons";
-import { OwnerSignOutButton } from "@/components/owner/owner-sign-out-button";
 import {
   billingStatusBadge,
   formatOwnerCop,
@@ -164,7 +163,7 @@ export function OwnerDashboardView({
 
   return (
     <div className="mx-auto w-full max-w-[1680px] px-4 py-6 pb-16 sm:px-6">
-      <header className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <header className="mb-6">
         <div>
           <div className="mb-2 flex items-center gap-2 text-pragma-electric">
             <Shield className="h-5 w-5" />
@@ -177,17 +176,16 @@ export function OwnerDashboardView({
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Suscripciones, ingresos de plataforma, cartera por cobrar y operación de
-            todos los clientes.
+            todos los clientes. Usa el menú de cuenta Owner para configuración, pagos
+            Wompi e integraciones.
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
           {isImpersonating ? (
-            <Button asChild variant="brandOutline">
-              <Link href="/panel">Volver al PMS (impersonación)</Link>
-            </Button>
-          ) : (
-            <OwnerSignOutButton />
-          )}
+            <div className="mt-4">
+              <Button asChild variant="brandOutline" size="sm">
+                <Link href="/panel">Volver al PMS (impersonación)</Link>
+              </Button>
+            </div>
+          ) : null}
         </div>
       </header>
 

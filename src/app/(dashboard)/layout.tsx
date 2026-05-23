@@ -1,8 +1,10 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
 import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
+import { OwnerShellHeader } from "@/components/owner/owner-shell-header";
 import { I18nProvider } from "@/components/providers/i18n-provider";
 import {
   enforceTenantDashboardAccess,
@@ -31,7 +33,14 @@ export default async function DashboardLayout({
     getServerLocale().then((l) => getDictionary(l)),
   ]);
 
-  const tenantContext = await enforceTenantDashboardAccess(user);
+  const headerStore = await headers();
+  const pathname =
+    headerStore.get("x-pathname") ??
+    headerStore.get("x-invoke-path") ??
+    headerStore.get("next-url") ??
+    "";
+
+  const tenantContext = await enforceTenantDashboardAccess(user, pathname);
 
   if (!isSuperAdminOwner(user) && userNeedsOnboarding(user)) {
     redirect("/onboarding");
@@ -41,30 +50,55 @@ export default async function DashboardLayout({
   const navItems = getMainNavigationForRole(role);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb = hasPermission(role, "properties:write");
+  const isPlatformOwnerSession =
+    isSuperAdminOwner(user) && Boolean(user.organizationId);
 
   return (
     <I18nProvider locale={locale} dictionary={dictionary}>
-      <AppShell
-        navItems={navItems}
-        settingsItem={settingsItem}
-        user={{
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          imageUrl: user.imageUrl,
-          role,
-          roleLabel: displayRoleLabel(user, role),
-        }}
+      <div
+        className={
+          isPlatformOwnerSession
+            ? "flex h-dvh flex-col overflow-hidden"
+            : undefined
+        }
       >
-        <Suspense fallback={null}>
-          <PlatformImpersonationBanner />
-        </Suspense>
-        <Suspense fallback={null}>
-          <DashboardBanners user={user} />
-        </Suspense>
-        <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
-        {children}
-      </AppShell>
+        {isPlatformOwnerSession ? (
+          <OwnerShellHeader
+            user={{
+              firstName: user.firstName,
+              lastName: user.lastName,
+              email: user.email,
+              imageUrl: user.imageUrl,
+            }}
+            hasOwnOrganization
+            context="tenant-self"
+          />
+        ) : null}
+        <AppShell
+          className={
+            isPlatformOwnerSession ? "min-h-0 flex-1 max-h-none" : undefined
+          }
+          navItems={navItems}
+          settingsItem={settingsItem}
+          user={{
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            imageUrl: user.imageUrl,
+            role,
+            roleLabel: displayRoleLabel(user, role),
+          }}
+        >
+          <Suspense fallback={null}>
+            <PlatformImpersonationBanner />
+          </Suspense>
+          <Suspense fallback={null}>
+            <DashboardBanners user={user} />
+          </Suspense>
+          <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
+          {children}
+        </AppShell>
+      </div>
     </I18nProvider>
   );
 }

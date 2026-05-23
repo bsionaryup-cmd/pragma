@@ -3,12 +3,14 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { ThemedMainContent } from "@/components/layout/themed-main-content";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import type { NavItem } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   children: React.ReactNode;
   navItems: NavItem[];
   settingsItem: NavItem | null;
   user: SidebarUser;
+  className?: string;
 };
 
 export function AppShell({
@@ -16,9 +18,15 @@ export function AppShell({
   navItems,
   settingsItem,
   user,
+  className,
 }: AppShellProps) {
   return (
-    <div className="flex h-dvh max-h-dvh overflow-hidden bg-pragma-soft-gray">
+    <div
+      className={cn(
+        "flex h-dvh max-h-dvh overflow-hidden bg-pragma-soft-gray",
+        className,
+      )}
+    >
       <Sidebar
         items={navItems}
         settingsItem={settingsItem}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { OwnerShellHeader } from "@/components/owner/owner-shell-header";
 import { requireDbUser } from "@/lib/auth";
-import { getRoleScreenDefinition } from "@/lib/auth/role-definitions.server";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { OWNER_LOGIN_PATH } from "@/lib/platform/constants";
 
@@ -20,13 +20,18 @@ export default async function OwnerDashboardLayout({
     redirect(`${OWNER_LOGIN_PATH}?error=forbidden`);
   }
 
-  const roleDef = getRoleScreenDefinition(user);
-
   return (
     <div className="min-h-dvh bg-pragma-soft-gray text-foreground">
-      <div className="border-b border-border bg-card px-4 py-2 text-center text-xs text-muted-foreground sm:px-6">
-        {roleDef.label} — {roleDef.description}
-      </div>
+      <OwnerShellHeader
+        user={{
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          imageUrl: user.imageUrl,
+        }}
+        hasOwnOrganization={Boolean(user.organizationId)}
+        context="platform"
+      />
       {children}
     </div>
   );
