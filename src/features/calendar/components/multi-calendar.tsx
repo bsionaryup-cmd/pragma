@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
+import { subscribeDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import { CALENDAR_DAY_WIDTH } from "@/features/calendar/constants";
 import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-header";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
@@ -74,6 +75,13 @@ export function MultiCalendar({
   const syncingRef = useRef(false);
   const scrolledRef = useRef<string | null>(null);
   const openedInitialReservationRef = useRef(false);
+  const drawerModeRef = useRef<ReservationDrawerMode>(null);
+  const selectedReservationIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    drawerModeRef.current = drawerMode;
+    selectedReservationIdRef.current = selectedReservation?.id ?? null;
+  }, [drawerMode, selectedReservation?.id]);
 
   const filteredProperties = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -87,6 +95,18 @@ export function MultiCalendar({
   }, [data.properties, search]);
 
   const visibleReservations = calendarReservations ?? data.reservations;
+
+  const serverReservationsKey = useMemo(
+    () =>
+      data.reservations
+        .map((r) => `${r.id}:${r.guestName}:${r.status}:${r.checkIn}`)
+        .join("|"),
+    [data.reservations],
+  );
+
+  useEffect(() => {
+    setCalendarReservations(null);
+  }, [serverReservationsKey]);
 
   const reservationsByProperty = useMemo(
     () => groupReservationsByProperty(visibleReservations),
@@ -219,6 +239,21 @@ export function MultiCalendar({
     openedInitialReservationRef.current = true;
     void openReservationDetail(initialReservationId);
   }, [initialReservationId, openReservationDetail]);
+
+  useEffect(() => {
+    return subscribeDashboardDataRefresh(() => {
+      if (drawerModeRef.current !== "detail") return;
+      const reservationId = selectedReservationIdRef.current;
+      if (!reservationId) return;
+
+      void (async () => {
+        const result = await getReservationInboxItemAction(reservationId);
+        if (result.success) {
+          setSelectedReservation(result.reservation);
+        }
+      })();
+    });
+  }, []);
 
   function inboxToCalendarBar(
     reservation: ReservationInboxItem,

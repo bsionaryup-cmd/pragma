@@ -15,6 +15,12 @@ import {
   dispatchAirbnbSyncComplete,
   dispatchAirbnbSyncFailed,
 } from "@/lib/airbnb-sync";
+import {
+  canRunDashboardRefresh,
+  dispatchDashboardDataRefresh,
+  isLiveDashboardPath,
+  markDashboardRefresh,
+} from "@/lib/dashboard-refresh";
 
 type AirbnbAutoSyncProps = {
   enabled: boolean;
@@ -55,18 +61,13 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         changes.created + changes.updated + changes.cancelled > 0;
       if (!hasChanges) return;
 
-      const reservationViews =
-        currentPath.startsWith("/calendar") ||
-        currentPath.startsWith("/reservations") ||
-        currentPath.startsWith("/panel") ||
-        currentPath.startsWith("/inbox");
+      if (!isLiveDashboardPath(currentPath)) return;
+      if (!canRunDashboardRefresh()) return;
 
-      if (reservationViews) {
-        const elapsed = Date.now() - lastRefreshAtRef.current;
-        if (elapsed < 5000) return;
-        lastRefreshAtRef.current = Date.now();
-        routerRef.current.refresh();
-      }
+      markDashboardRefresh();
+      lastRefreshAtRef.current = Date.now();
+      routerRef.current.refresh();
+      dispatchDashboardDataRefresh();
     }
 
     async function runSync(trigger: string) {

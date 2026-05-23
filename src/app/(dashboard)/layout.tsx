@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
+import { DashboardDataRefreshLazy } from "@/components/dashboard/dashboard-data-refresh-lazy";
 import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
 import { OwnerShellHeader } from "@/components/owner/owner-shell-header";
@@ -104,6 +105,7 @@ export default async function DashboardLayout({
             <DashboardBanners user={user} />
           </Suspense>
           <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
+          <DashboardDataRefreshLazy />
           {children}
         </AppShell>
       </div>

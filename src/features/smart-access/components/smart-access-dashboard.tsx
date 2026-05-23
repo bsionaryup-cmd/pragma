@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import {
   KeyRound,
@@ -70,6 +71,7 @@ function formatDate(iso: string) {
 }
 
 export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardProps) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const { items, metrics } = data;
 
@@ -77,8 +79,12 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
     startTransition(async () => {
       try {
         const result = await action();
-        if (result.ok) toast.success(result.message);
-        else toast.error(result.message);
+        if (result.ok) {
+          toast.success(result.message);
+          router.refresh();
+        } else {
+          toast.error(result.message);
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Error inesperado");
       }

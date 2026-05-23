@@ -10,6 +10,7 @@ import {
   revokeGuestRegistrationTokenAction,
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
+import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import {
   countNights,
   formatStayRange,
@@ -154,6 +155,7 @@ export function ReservationDetailPanel({
       }
       await copyRegistrationUrl(result.url, "Link generado y copiado");
       router.refresh();
+      dispatchDashboardDataRefresh();
     });
   }
 
@@ -166,6 +168,7 @@ export function ReservationDetailPanel({
       }
       await copyRegistrationUrl(result.url, "Nuevo link generado y copiado");
       router.refresh();
+      dispatchDashboardDataRefresh();
     });
   }
 
@@ -179,6 +182,7 @@ export function ReservationDetailPanel({
       }
       toast.success("Link de registro revocado");
       router.refresh();
+      dispatchDashboardDataRefresh();
     });
   }
 
