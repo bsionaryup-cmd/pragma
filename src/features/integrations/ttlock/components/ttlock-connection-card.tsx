@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { KeyRound, Loader2, Plug, RefreshCw, Unplug } from "lucide-react";
 import {
   disconnectTTLockAction,
-  refreshTTLockTokenAction,
   syncTTLockLocksAction,
 } from "@/features/integrations/ttlock/actions/ttlock.actions";
 import type { TTLockOverviewDto } from "@/services/integrations/ttlock/ttlock.types";
@@ -203,26 +202,19 @@ export function TTLockConnectionCard({
               {needsReconnect ? "Reconectar TTLock" : "Conectar TTLock"}
             </Button>
           ) : (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isPending}
-                onClick={runSync}
-              >
-                {isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Sincronizar cerraduras
-              </Button>
-              <form action={refreshTTLockTokenAction}>
-                <Button type="submit" variant="outline" disabled={isPending}>
-                  Refrescar sesión
-                </Button>
-              </form>
-            </>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={runSync}
+            >
+              {isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sincronizar cerraduras
+            </Button>
           )}
         </div>
 

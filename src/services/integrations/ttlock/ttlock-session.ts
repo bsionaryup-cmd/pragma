@@ -61,9 +61,7 @@ async function syncPlatformCredentialsOnIntegration(
 
   const clientId = getPlatformTTLockClientId()!;
   const clientSecretEncrypted = encryptTTLockSecret(getPlatformTTLockClientSecret()!);
-  const resolved = resolveTTLockRedirectUri({
-    storedRedirectUri: integration.redirectUri,
-  });
+  const resolved = resolveTTLockRedirectUri();
   const redirectUri = resolved.redirectUri ?? integration.redirectUri;
   const nextStatus =
     integration.status === TTLockIntegrationStatus.NOT_CONNECTED &&

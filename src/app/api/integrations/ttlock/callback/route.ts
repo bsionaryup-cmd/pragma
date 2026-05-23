@@ -1,9 +1,13 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { handleTTLockOAuthCallback } from "@/services/integrations/ttlock/ttlock.service";
 import {
   PRAGMA_CANONICAL_TTLOCK_CALLBACK,
+  PRAGMA_TTLOCK_COOKIE_DOMAIN,
+  resolveTTLockAppRedirectUrl,
   TTLOCK_CALLBACK_PATH,
 } from "@/lib/integrations/ttlock-url";
+import { handleTTLockOAuthCallback } from "@/services/integrations/ttlock/ttlock.service";
+import { TTLOCK_OAUTH_STATE_COOKIE } from "@/services/integrations/ttlock/ttlock-oauth-state";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -168,6 +172,20 @@ async function handleCallbackRequest(request: Request): Promise<NextResponse> {
     return ttlockHealthResponse();
   }
 
+  const cookieStore = await cookies();
+  const cookieState = cookieStore.get(TTLOCK_OAUTH_STATE_COOKIE)?.value?.trim();
+  if (
+    params.state?.trim() &&
+    cookieState &&
+    cookieState !== params.state.trim()
+  ) {
+    const redirectUrl = resolveTTLockAppRedirectUrl(
+      `/integrations/ttlock?error=${encodeURIComponent("Sesión OAuth inválida")}`,
+      request.url,
+    );
+    return NextResponse.redirect(redirectUrl);
+  }
+
   const { redirectPath } = await handleTTLockOAuthCallback({
     code: params.code,
     state: params.state,
@@ -175,19 +193,34 @@ async function handleCallbackRequest(request: Request): Promise<NextResponse> {
     errorDescription: params.errorDescription,
   });
 
+  if (cookieState) {
+    cookieStore.set(TTLOCK_OAUTH_STATE_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+      ...(PRAGMA_TTLOCK_COOKIE_DOMAIN
+        ? { domain: PRAGMA_TTLOCK_COOKIE_DOMAIN }
+        : {}),
+    });
+  }
+
+  const redirectUrl = resolveTTLockAppRedirectUrl(redirectPath, request.url);
+
   if (request.method === "POST") {
     return NextResponse.json(
       {
         ok: true,
         provider: "ttlock",
         callback: "oauth_processed",
-        redirect: redirectPath,
+        redirect: redirectUrl,
       },
       { status: 200 },
     );
   }
 
-  return NextResponse.redirect(new URL(redirectPath, request.url));
+  return NextResponse.redirect(redirectUrl);
 }
 
 export async function GET(request: Request) {

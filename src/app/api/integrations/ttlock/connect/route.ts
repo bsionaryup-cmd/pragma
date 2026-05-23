@@ -4,6 +4,7 @@ import {
   isAuthErrorResponse,
   requireTTLockApiAdmin,
 } from "@/lib/integrations/ttlock-api-auth";
+import { PRAGMA_TTLOCK_COOKIE_DOMAIN, resolveTTLockAppRedirectUrl } from "@/lib/integrations/ttlock-config";
 import { beginTTLockConnect } from "@/services/integrations/ttlock/ttlock.service";
 import { TTLOCK_OAUTH_STATE_COOKIE } from "@/services/integrations/ttlock/ttlock-oauth-state";
 
@@ -26,14 +27,19 @@ export async function GET(request: Request) {
       sameSite: "lax",
       path: "/",
       maxAge: 15 * 60,
+      ...(PRAGMA_TTLOCK_COOKIE_DOMAIN
+        ? { domain: PRAGMA_TTLOCK_COOKIE_DOMAIN }
+        : {}),
     });
 
     return NextResponse.redirect(session.redirectUrl);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "No se pudo iniciar la conexión";
-    const url = new URL("/integrations/ttlock", request.url);
-    url.searchParams.set("error", message);
-    return NextResponse.redirect(url);
+    const redirectUrl = resolveTTLockAppRedirectUrl(
+      `/integrations/ttlock?error=${encodeURIComponent(message)}`,
+      request.url,
+    );
+    return NextResponse.redirect(redirectUrl);
   }
 }

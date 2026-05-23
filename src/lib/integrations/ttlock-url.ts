@@ -1,8 +1,12 @@
 export const TTLOCK_CALLBACK_PATH = "/api/integrations/ttlock/callback";
 
-/** Canonical production callback — source of truth for TTLock Open Platform. */
-export const PRAGMA_CANONICAL_APP_ORIGIN = "https://pragmapms.com";
+/** Canonical production origin — TTLock Open Platform requires www. */
+export const PRAGMA_CANONICAL_APP_ORIGIN = "https://www.pragmapms.com";
 export const PRAGMA_CANONICAL_TTLOCK_CALLBACK = `${PRAGMA_CANONICAL_APP_ORIGIN}${TTLOCK_CALLBACK_PATH}`;
+
+/** Shared cookie domain so OAuth state survives www ↔ apex during connect. */
+export const PRAGMA_TTLOCK_COOKIE_DOMAIN =
+  process.env.NODE_ENV === "production" ? ".pragmapms.com" : undefined;
 
 function shouldNormalizeToCanonicalCallback(hostname: string): boolean {
   const host = hostname.trim().toLowerCase();
@@ -90,15 +94,24 @@ export function normalizeTTLockCallbackUri(uri: string): string {
 
   try {
     const url = new URL(trimmed);
+    url.pathname = TTLOCK_CALLBACK_PATH;
+    url.search = "";
+    url.hash = "";
+
+    const host = url.hostname.toLowerCase();
+    if (host === "pragmapms.com" || host === "www.pragmapms.com") {
+      url.hostname = "www.pragmapms.com";
+      url.protocol = "https:";
+      return url.toString();
+    }
+
     if (
       isProductionRuntime() &&
       shouldNormalizeToCanonicalCallback(url.hostname)
     ) {
       return PRAGMA_CANONICAL_TTLOCK_CALLBACK;
     }
-    url.pathname = TTLOCK_CALLBACK_PATH;
-    url.search = "";
-    url.hash = "";
+
     return url.toString();
   } catch {
     return joinOriginAndPath(trimmed, TTLOCK_CALLBACK_PATH);
@@ -108,18 +121,14 @@ export function normalizeTTLockCallbackUri(uri: string): string {
 export function buildTTLockCallbackFromOrigin(origin: string): string {
   try {
     const url = new URL(origin.trim());
-    if (
-      isProductionRuntime() &&
-      shouldNormalizeToCanonicalCallback(url.hostname)
-    ) {
-      return PRAGMA_CANONICAL_TTLOCK_CALLBACK;
-    }
     url.pathname = TTLOCK_CALLBACK_PATH;
     url.search = "";
     url.hash = "";
-    return url.toString();
+    return normalizeTTLockCallbackUri(url.toString());
   } catch {
-    return joinOriginAndPath(origin, TTLOCK_CALLBACK_PATH);
+    return normalizeTTLockCallbackUri(
+      joinOriginAndPath(origin, TTLOCK_CALLBACK_PATH),
+    );
   }
 }
 
@@ -190,11 +199,7 @@ export function validateTTLockCallbackUrl(uri: string): TTLockCallbackValidation
       valid: issues.length === 0,
       isPublic: !isEphemeralOAuthHost(url.hostname),
       issues,
-      normalizedUrl:
-        issues.length === 0 &&
-        shouldNormalizeToCanonicalCallback(url.hostname)
-          ? PRAGMA_CANONICAL_TTLOCK_CALLBACK
-          : normalized,
+      normalizedUrl: issues.length === 0 ? normalized : null,
     };
   } catch {
     return {
@@ -209,25 +214,9 @@ export function validateTTLockCallbackUrl(uri: string): TTLockCallbackValidation
 function resolvePublicCallbackFromEnv(): { uri: string; source: string } | null {
   const explicit = process.env.TTLOCK_REDIRECT_URI?.trim();
   if (explicit) {
-    const uri = buildTTLockCallbackFromInput(explicit);
+    const uri = normalizeTTLockCallbackUri(buildTTLockCallbackFromInput(explicit));
     if (isAcceptableEnvCallbackSource(uri)) {
       return { uri, source: "TTLOCK_REDIRECT_URI" };
-    }
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (appUrl) {
-    const uri = buildTTLockCallbackFromInput(appUrl);
-    if (isAcceptableEnvCallbackSource(uri)) {
-      return { uri, source: "NEXT_PUBLIC_APP_URL" };
-    }
-  }
-
-  const legacyAppUrl = process.env.APP_URL?.trim();
-  if (legacyAppUrl) {
-    const uri = buildTTLockCallbackFromInput(legacyAppUrl);
-    if (isAcceptableEnvCallbackSource(uri)) {
-      return { uri, source: "APP_URL" };
     }
   }
 
@@ -248,10 +237,35 @@ export type ResolvedTTLockRedirect = {
 };
 
 /**
- * Canonical redirect_uri for TTLock OAuth (authorize + token + UI).
- * Production default: https://pragmapms.com/api/integrations/ttlock/callback
+ * Build a post-OAuth dashboard redirect on the canonical www origin in production.
  */
-export function resolveTTLockRedirectUri(options?: {
+export function resolveTTLockAppRedirectUrl(
+  path: string,
+  requestUrl?: string,
+): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (isProductionRuntime()) {
+    return new URL(normalizedPath, PRAGMA_CANONICAL_APP_ORIGIN).toString();
+  }
+
+  if (requestUrl) {
+    try {
+      return new URL(normalizedPath, requestUrl).toString();
+    } catch {
+      // fall through
+    }
+  }
+
+  return normalizedPath;
+}
+
+/**
+ * Canonical redirect_uri for TTLock OAuth (authorize + token + callback).
+ * Single source of truth: TTLOCK_REDIRECT_URI (www callback in production).
+ */
+export function resolveTTLockRedirectUri(_options?: {
+  /** @deprecated Ignored — redirect URI comes from TTLOCK_REDIRECT_URI only. */
   storedRedirectUri?: string | null;
 }): ResolvedTTLockRedirect {
   const fromEnv = resolvePublicCallbackFromEnv();
@@ -264,24 +278,6 @@ export function resolveTTLockRedirectUri(options?: {
     };
   }
 
-  const stored = options?.storedRedirectUri?.trim();
-  if (stored) {
-    const redirectUri = normalizeTTLockCallbackUri(stored);
-    const validation = validateTTLockCallbackUrl(redirectUri);
-    if (validation.valid) {
-      return { redirectUri, source: "stored", validation };
-    }
-  }
-
-  if (isProductionRuntime()) {
-    const validation = validateTTLockCallbackUrl(PRAGMA_CANONICAL_TTLOCK_CALLBACK);
-    return {
-      redirectUri: PRAGMA_CANONICAL_TTLOCK_CALLBACK,
-      source: "canonical_production",
-      validation,
-    };
-  }
-
   return {
     redirectUri: "",
     source: "unconfigured",
@@ -289,9 +285,18 @@ export function resolveTTLockRedirectUri(options?: {
       valid: false,
       isPublic: false,
       issues: [
-        `Configura TTLOCK_REDIRECT_URI o NEXT_PUBLIC_APP_URL (${PRAGMA_CANONICAL_APP_ORIGIN}).`,
+        `Configura TTLOCK_REDIRECT_URI (${PRAGMA_CANONICAL_TTLOCK_CALLBACK}).`,
       ],
       normalizedUrl: null,
     },
   };
+}
+
+/** OAuth redirect_uri used in authorize + token exchange. */
+export function getTTLockOAuthRedirectUri(): string {
+  const resolved = resolveTTLockRedirectUri();
+  if (!resolved.redirectUri?.trim()) {
+    throw new Error(resolved.validation.issues.join(" "));
+  }
+  return resolved.redirectUri;
 }

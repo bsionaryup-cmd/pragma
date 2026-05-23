@@ -1,15 +1,19 @@
 import type { TTLockEnvironment } from "@prisma/client";
 import {
   buildTTLockCallbackFromInput,
+  getTTLockOAuthRedirectUri,
   normalizeTTLockCallbackUri,
   PRAGMA_CANONICAL_TTLOCK_CALLBACK,
+  PRAGMA_TTLOCK_COOKIE_DOMAIN,
+  resolveTTLockAppRedirectUrl,
   resolveTTLockRedirectUri,
   type ResolvedTTLockRedirect,
   type TTLockCallbackValidation,
   validateTTLockCallbackUrl,
 } from "@/lib/integrations/ttlock-url";
 
-export { PRAGMA_CANONICAL_TTLOCK_CALLBACK };
+export { PRAGMA_CANONICAL_TTLOCK_CALLBACK, PRAGMA_TTLOCK_COOKIE_DOMAIN };
+export { getTTLockOAuthRedirectUri, resolveTTLockAppRedirectUrl };
 
 export type { TTLockCallbackValidation, ResolvedTTLockRedirect };
 export {
@@ -81,9 +85,9 @@ export function getTTLockOAuthTokenUrl(environment: TTLockEnvironment): string {
 
 export function getTTLockOAuthAuthorizeUrl(
   environment: TTLockEnvironment,
-  params: { clientId: string; redirectUri: string; state: string },
+  params: { clientId: string; state: string },
 ): string {
-  const redirectUri = normalizeTTLockCallbackUri(params.redirectUri);
+  const redirectUri = getTTLockOAuthRedirectUri();
   const base = getTTLockOAuthWebBaseUrl(environment);
   const search = new URLSearchParams();
   search.set("client_id", params.clientId.trim());

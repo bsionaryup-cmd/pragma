@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { completeTTLockConnectAction } from "@/features/integrations/ttlock/actions/ttlock.actions";
 import { requireTTLockAdmin } from "@/lib/auth/ttlock-admin";
-import { resolveTTLockRedirectUri } from "@/lib/integrations/ttlock-config";
-import { ensureTTLockIntegration } from "@/services/integrations/ttlock.service";
 
 type TTLockConnectPageProps = {
   searchParams: Promise<{ state?: string; error?: string }>;
@@ -16,17 +14,10 @@ type TTLockConnectPageProps = {
 export default async function TTLockConnectPage({
   searchParams,
 }: TTLockConnectPageProps) {
-  const user = await requireTTLockAdmin();
+  await requireTTLockAdmin();
   const params = await searchParams;
   const state = params.state?.trim() ?? "";
   const error = params.error?.trim();
-
-  const integration = await ensureTTLockIntegration(user.dbUserId);
-  const resolved = resolveTTLockRedirectUri({
-    storedRedirectUri: integration.redirectUri,
-  });
-  const callbackUrl =
-    resolved.validation.normalizedUrl ?? resolved.redirectUri;
 
   return (
     <ModuleShellFlow className="bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -38,19 +29,9 @@ export default async function TTLockConnectPage({
           </p>
           <h1 className="mt-2 text-2xl font-semibold">Autorizar cuenta TTLock</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Usa la cuenta de la app TTLock (no la de desarrollador). El{" "}
-            <code className="rounded bg-muted px-1 text-xs">redirect_uri</code> debe
-            coincidir con el portal:
+            Inicia sesión con la cuenta de la app TTLock (no la de desarrollador)
+            para vincular tus cerraduras a PRAGMA.
           </p>
-          {callbackUrl ? (
-            <code className="mt-2 block break-all rounded-lg bg-muted px-3 py-2 text-xs">
-              {callbackUrl}
-            </code>
-          ) : (
-            <p className="mt-2 text-sm text-destructive">
-              Configura TTLOCK_REDIRECT_URI o APP_URL pública antes de conectar.
-            </p>
-          )}
         </div>
 
         {error ? (
@@ -86,9 +67,7 @@ export default async function TTLockConnectPage({
                   autoComplete="current-password"
                 />
               </div>
-                <Button type="submit" disabled={!resolved.validation.valid}>
-                  Completar conexión
-                </Button>
+              <Button type="submit">Completar conexión</Button>
             </form>
           </CardContent>
         </Card>

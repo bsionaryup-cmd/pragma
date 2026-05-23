@@ -3,7 +3,7 @@
  * Uso: node scripts/validate-ttlock-callback.mjs
  */
 const CANONICAL =
-  "https://pragmapms.com/api/integrations/ttlock/callback";
+  "https://www.pragmapms.com/api/integrations/ttlock/callback";
 
 async function probe(method) {
   const init = { method, signal: AbortSignal.timeout(15_000) };

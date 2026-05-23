@@ -13,6 +13,7 @@ import { assertPropertyInScope } from "@/lib/platform/tenant-access";
 import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
 import {
   getTTLockOAuthAuthorizeUrl,
+  getTTLockOAuthRedirectUri,
   isTTLockBrowserOAuthEnabled,
   resolveTTLockRedirectUri,
   type TTLockRequestContext,
@@ -94,18 +95,8 @@ function hasAccountCredentials(integration: {
   return Boolean(integration.username?.trim() && integration.passwordHash);
 }
 
-function resolveIntegrationRedirect(integration: {
-  redirectUri: string | null;
-}) {
-  return resolveTTLockRedirectUri({ storedRedirectUri: integration.redirectUri });
-}
-
-function getCanonicalRedirectUri(integration: { redirectUri: string | null }): string {
-  const resolved = resolveIntegrationRedirect(integration);
-  if (!resolved.validation.valid || !resolved.redirectUri) {
-    throw new Error(resolved.validation.issues.join(" "));
-  }
-  return resolved.redirectUri;
+function resolveIntegrationRedirect() {
+  return resolveTTLockRedirectUri();
 }
 
 async function getIntegrationSecrets(integration: {
@@ -180,7 +171,7 @@ async function exchangeTokensForIntegration(
     accessTokenEncrypted: null,
   });
 
-  const redirectUri = getCanonicalRedirectUri(integration);
+  const redirectUri = getTTLockOAuthRedirectUri();
 
   const token = refreshToken
     ? await requestTTLockRefreshToken({
@@ -266,14 +257,14 @@ async function loadTTLockOverview(
   assertTTLockPrismaDelegates();
   const scope = await resolveTTLockScopeForUser(userId);
   const integration = await ensureTTLockIntegration(userId);
-  const resolved = resolveIntegrationRedirect(integration);
+  const resolved = resolveIntegrationRedirect();
   const callbackUrl =
     resolved.validation.normalizedUrl ?? resolved.redirectUri;
   const callbackSource = resolved.source;
   const callbackValidation = resolved.validation;
   const remoteLocks = getCachedRemoteLocks(integration.id);
 
-  const [properties, propertyLocks, accessCredentialCount, eventCount] =
+  const [properties, propertyLocks, accessCredentialCount, eventCount, lastLockSyncEvent] =
     await Promise.all([
       db.property.findMany({
         where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
@@ -295,7 +286,26 @@ async function loadTTLockOverview(
         },
       }),
       db.accessEvent.count({ where: { integrationId: integration.id } }),
+      db.accessEvent.findFirst({
+        where: {
+          integrationId: integration.id,
+          eventType: AccessEventType.LOCK_SYNCED,
+        },
+        orderBy: { createdAt: "desc" },
+        select: { payload: true },
+      }),
     ]);
+
+  const lastSyncedLockCount =
+    lastLockSyncEvent?.payload &&
+    typeof lastLockSyncEvent.payload === "object" &&
+    lastLockSyncEvent.payload !== null &&
+    "lockCount" in lastLockSyncEvent.payload &&
+    typeof (lastLockSyncEvent.payload as { lockCount?: unknown }).lockCount ===
+      "number"
+      ? (lastLockSyncEvent.payload as { lockCount: number }).lockCount
+      : 0;
+  const syncedLockCount = Math.max(remoteLocks.length, lastSyncedLockCount);
 
   const mappedCount = propertyLocks.filter((lock) => lock.ttlockLockId).length;
   const settings = integration.automationSettings;
@@ -328,7 +338,7 @@ async function loadTTLockOverview(
       lastError: integration.lastError,
       accountConnected: Boolean(integration.accessTokenEncrypted && integration.uid),
       platformConfigured: isPlatformTTLockConfigured() || hasAppCredentials(integration),
-      syncedLockCount: remoteLocks.length,
+      syncedLockCount: syncedLockCount,
       automationSettings: settings
         ? {
             generateAfterGuestRegistration: settings.generateAfterGuestRegistration,
@@ -373,7 +383,7 @@ export async function saveTTLockCredentials(
   const clientSecretEncrypted = input.clientSecret.trim()
     ? encryptTTLockSecret(input.clientSecret)
     : integration.clientSecretEncrypted;
-  const resolved = resolveTTLockRedirectUri({ storedRedirectUri: null });
+  const resolved = resolveTTLockRedirectUri();
 
   if (!resolved.validation.valid || !resolved.redirectUri) {
     throw new Error(resolved.validation.issues.join(" "));
@@ -463,7 +473,7 @@ export async function beginTTLockConnect(
     );
   }
 
-  const resolved = resolveIntegrationRedirect(integration);
+  const resolved = resolveIntegrationRedirect();
   if (!resolved.validation.valid || !resolved.redirectUri) {
     throw new Error(resolved.validation.issues.join(" "));
   }
@@ -495,7 +505,6 @@ export async function beginTTLockConnect(
 
   const authorizeUrl = getTTLockOAuthAuthorizeUrl(integration.environment, {
     clientId,
-    redirectUri,
     state,
   });
 
@@ -524,7 +533,7 @@ export async function completeTTLockConnect(
     throw new Error("Usuario y contraseña TTLock son obligatorios");
   }
 
-  const resolved = resolveIntegrationRedirect(integration);
+  const resolved = resolveIntegrationRedirect();
   if (!resolved.validation.valid || !resolved.redirectUri) {
     throw new Error(resolved.validation.issues.join(" "));
   }
@@ -632,6 +641,16 @@ export async function handleTTLockOAuthCallback(input: {
     };
   }
 
+  const alreadyConnected =
+    Boolean(integration.accessTokenEncrypted) &&
+    integration.status !== TTLockIntegrationStatus.CONNECTING &&
+    (integration.status === TTLockIntegrationStatus.CONNECTED ||
+      integration.status === TTLockIntegrationStatus.READY);
+
+  if (alreadyConnected) {
+    return { redirectPath: `${basePath}?connected=1` };
+  }
+
   let clientId: string;
   let clientSecret: string;
   try {
@@ -651,7 +670,7 @@ export async function handleTTLockOAuthCallback(input: {
   }
 
   try {
-    const redirectUri = getCanonicalRedirectUri(integration);
+    const redirectUri = getTTLockOAuthRedirectUri();
     const token = await requestTTLockAuthorizationCodeToken({
       environment: integration.environment,
       clientId,
@@ -718,7 +737,7 @@ export async function testTTLockConnection(
     };
   }
 
-  const resolved = resolveIntegrationRedirect(integration);
+  const resolved = resolveIntegrationRedirect();
   steps.push(
     resolved.validation.valid
       ? `Callback OK: ${resolved.redirectUri}`
