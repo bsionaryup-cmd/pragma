@@ -176,6 +176,11 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                       <p className="text-xs text-muted-foreground">
                         {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
                       </p>
+                      {item.registrationProgress ? (
+                        <p className="text-xs font-medium text-warning">
+                          Registro: {item.registrationProgress} huéspedes
+                        </p>
+                      ) : null}
                       {item.credential?.code ? (
                         <p className="pt-1 font-mono text-sm font-semibold tracking-widest">
                           Código: {item.credential.code}

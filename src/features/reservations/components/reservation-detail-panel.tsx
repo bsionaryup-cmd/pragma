@@ -63,6 +63,14 @@ const registrationStatusLabels = {
   REVOKED: "Revocado",
 } as const;
 
+const guestStatusLabels = {
+  PENDING_REGISTRATION: "Pendiente",
+  REGISTERED: "Registrado",
+  VERIFIED: "Verificado",
+  CHECKED_IN: "Check-in",
+  CHECKED_OUT: "Check-out",
+} as const;
+
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("es-CO", {
@@ -96,6 +104,8 @@ export function ReservationDetailPanel({
   const relatedBlocks = reservation.relatedBlocks ?? [];
   const registeredGuests = reservation.guests ?? [];
   const registration = reservation.guestRegistration;
+  const registrationProgress = reservation.guestRegistrationProgress;
+  const accessCode = reservation.accessCode;
   const reservationCode = formatReservationCode(reservation);
 
   async function handleDelete() {
@@ -258,6 +268,33 @@ export function ReservationDetailPanel({
         </DetailSection>
 
         <DetailSection title="Registro de huéspedes">
+          {registrationProgress ? (
+            <div className="mb-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+              <p className="text-sm font-semibold text-foreground">
+                Progreso: {registrationProgress.registered} /{" "}
+                {registrationProgress.capacity} huéspedes
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Capacidad de la propiedad: {registrationProgress.capacity}{" "}
+                huésped{registrationProgress.capacity === 1 ? "" : "es"}
+                {!reservation.guestRegistrationCompletedAt &&
+                registrationProgress.registered < registrationProgress.capacity
+                  ? " · Faltan registros por completar"
+                  : null}
+              </p>
+            </div>
+          ) : null}
+          {accessCode ? (
+            <div className="mb-3 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2.5">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Código de acceso
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {accessCode.isActive ? "Activo" : accessCode.status}
+                {accessCode.code ? ` · ${accessCode.code}` : ""}
+              </p>
+            </div>
+          ) : null}
           {registration ? (
             <div className="space-y-3 rounded-lg border border-border bg-muted/30 px-3 py-3">
               <div className="flex items-center justify-between gap-3">
@@ -363,12 +400,19 @@ export function ReservationDetailPanel({
                         {guest.documentType} · {guest.documentNumber}
                       </p>
                     </div>
-                    {guest.isPrimary ? (
+                    {guest.isReservationOwner ? (
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                        Titular
+                      </span>
+                    ) : guest.isPrimary ? (
                       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-primary">
                         Principal
                       </span>
                     ) : null}
                   </div>
+                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {guestStatusLabels[guest.status]}
+                  </p>
                 </li>
               ))}
             </ul>

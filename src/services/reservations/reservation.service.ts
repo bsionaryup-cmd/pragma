@@ -4,7 +4,7 @@ import type {
   ReservationInboxItem,
   ReservationRelatedBlock,
 } from "@/features/reservations/types/reservation.types";
-import { GuestRegistrationStatus, PropertyStatus, ReservationStatus } from "@prisma/client";
+import { GuestRegistrationStatus, PropertyStatus, ReservationGuestStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -22,8 +22,21 @@ import {
   buildGuestRegistrationUrl,
   getActiveGuestRegistrationForReservation,
 } from "@/services/guests/guest-registration.service";
+import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
+
+function computeGuestRegistrationProgress(input: {
+  guests?: ReservationDetailItem["guests"];
+  propertyMaxGuests?: number;
+}) {
+  const capacity = Math.max(1, input.propertyMaxGuests ?? 1);
+  const registered =
+    input.guests?.filter(
+      (guest) => guest.status !== ReservationGuestStatus.PENDING_REGISTRATION,
+    ).length ?? 0;
+  return { registered, capacity };
+}
 
 function buildGuestName(firstName: string, lastName?: string | null): string {
   return [firstName.trim(), lastName?.trim()].filter(Boolean).join(" ");
@@ -53,12 +66,20 @@ type ReservationRow = {
   property: ReservationInboxItem["property"];
   guests?: ReservationDetailItem["guests"];
   guestRegistration?: ReservationInboxItem["guestRegistration"];
+  guestRegistrationProgress?: ReservationInboxItem["guestRegistrationProgress"];
+  accessCode?: ReservationDetailItem["accessCode"];
 };
 
 function toInboxItem(r: ReservationRow): ReservationInboxItem {
-  const primaryGuest = r.guests?.find((guest) => guest.isPrimary);
+  const ownerGuest =
+    r.guests?.find((guest) => guest.isReservationOwner) ??
+    r.guests?.find((guest) => guest.isPrimary);
   const visibleGuestName =
-    primaryGuest?.fullName.trim() || r.guestName.trim() || "Registro pendiente";
+    ownerGuest?.fullName.trim() || r.guestName.trim() || "Registro pendiente";
+  const progress = computeGuestRegistrationProgress({
+    guests: r.guests,
+    propertyMaxGuests: r.property.maxGuests,
+  });
 
   return {
     id: r.id,
@@ -89,11 +110,13 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       r.guestRegistrationCompletedAt?.toISOString() ??
       null,
     guestRegistration: r.guestRegistration ?? null,
+    guestRegistrationProgress: progress,
     property: {
       id: r.property.id,
       name: r.property.name,
       address: r.property.address,
       city: r.property.city,
+      maxGuests: r.property.maxGuests,
     },
   };
 }
@@ -103,7 +126,7 @@ async function getGuestsByReservationIds(reservationIds: string[]) {
 
   const guests = await db.reservationGuest.findMany({
     where: { reservationId: { in: reservationIds } },
-    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    orderBy: [{ isReservationOwner: "desc" }, { createdAt: "asc" }],
   });
 
   const byReservation = new Map<string, ReservationDetailItem["guests"]>();
@@ -112,6 +135,8 @@ async function getGuestsByReservationIds(reservationIds: string[]) {
     list.push({
       id: guest.id,
       isPrimary: guest.isPrimary,
+      isReservationOwner: guest.isReservationOwner,
+      status: guest.status,
       firstName: guest.firstName,
       lastName: guest.lastName,
       fullName: guest.fullName,
@@ -119,6 +144,10 @@ async function getGuestsByReservationIds(reservationIds: string[]) {
       documentNumber: guest.documentNumber,
       email: guest.email,
       phone: guest.phone,
+      nationality: guest.nationality,
+      dateOfBirth: guest.dateOfBirth
+        ? prismaDateToKey(guest.dateOfBirth)
+        : null,
     });
     byReservation.set(guest.reservationId, list);
   }
@@ -182,7 +211,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       guestRegistrationToken: true,
       guestRegistrationCompletedAt: true,
       property: {
-        select: { id: true, name: true, address: true, city: true },
+        select: { id: true, name: true, address: true, city: true, maxGuests: true },
       },
     },
     orderBy: [{ createdAt: "desc" }, { checkIn: "desc" }],
@@ -233,6 +262,7 @@ function toDetailItem(
     icalUid: row.icalUid,
     guests: row.guests ?? [],
     relatedBlocks,
+    accessCode: row.accessCode ?? null,
   };
 }
 
@@ -247,7 +277,7 @@ export async function getReservationForInbox(
     ),
     include: {
       property: {
-        select: { id: true, name: true, address: true, city: true },
+        select: { id: true, name: true, address: true, city: true, maxGuests: true },
       },
     },
   });
@@ -279,16 +309,32 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  const [guestsByReservation, registration] = await Promise.all([
+  const [guestsByReservation, registration, accessCredential] = await Promise.all([
     getGuestsByReservationIds([row.id]),
     getActiveGuestRegistrationForReservation(row.id),
+    db.accessCredential.findFirst({
+      where: { reservationId: row.id },
+      orderBy: { createdAt: "desc" },
+      select: { status: true, codeEncrypted: true },
+    }),
   ]);
+
+  const accessCode = accessCredential
+    ? {
+        status: accessCredential.status,
+        code: decryptTTLockSecret(accessCredential.codeEncrypted),
+        isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
+          accessCredential.status,
+        ),
+      }
+    : null;
 
   return toDetailItem(
     {
       ...row,
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registration,
+      accessCode,
     },
     relatedBlocks,
   );

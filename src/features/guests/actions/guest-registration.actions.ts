@@ -2,13 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
-import { guestRegistrationSchema } from "@/features/guests/schemas/guest-registration.schema";
-import type { GuestRegistrationValues } from "@/features/guests/schemas/guest-registration.schema";
+import {
+  completeGuestRegistrationSchema,
+  guestRegistrationSchema,
+  guestStepSchema,
+} from "@/features/guests/schemas/guest-registration.schema";
+import type {
+  CompleteGuestRegistrationValues,
+  GuestRegistrationValues,
+  GuestStepValues,
+} from "@/features/guests/schemas/guest-registration.schema";
 import { requireAnyPermission } from "@/lib/auth";
 import { TenantAccessError } from "@/lib/platform/tenant-access";
 import {
+  completeGuestRegistration,
   generateGuestRegistrationLink,
   GuestRegistrationError,
+  registerGuestStep,
   regenerateGuestRegistrationToken,
   revokeGuestRegistrationToken,
   submitGuestRegistration,
@@ -19,6 +29,7 @@ function revalidateGuestRegistrationPaths() {
   revalidatePath("/calendar");
   revalidatePath("/panel");
   revalidatePath("/inbox");
+  revalidatePath("/smart-access");
 }
 
 function toGuestRegistrationActionError(error: unknown): string {
@@ -35,13 +46,53 @@ async function requireGuestRegistrationPermission() {
 export async function submitGuestRegistrationAction(
   values: GuestRegistrationValues,
 ) {
-  const parsed = guestRegistrationSchema.parse(values);
-  await submitGuestRegistration(parsed);
+  try {
+    const parsed = guestRegistrationSchema.parse(values);
+    await submitGuestRegistration(parsed);
+    revalidateGuestRegistrationPaths();
+    revalidatePath(`/guest-registration/${parsed.token}`);
+    return { success: true as const };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      error: toGuestRegistrationActionError(error),
+    };
+  }
+}
 
-  revalidateGuestRegistrationPaths();
-  revalidatePath(`/guest-registration/${parsed.token}`);
+export async function registerGuestStepAction(values: GuestStepValues) {
+  try {
+    const parsed = guestStepSchema.parse(values);
+    const reservation = await registerGuestStep(parsed);
+    revalidateGuestRegistrationPaths();
+    revalidatePath(`/guest-registration/${parsed.token}`);
+    return { success: true as const, reservation };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      error: toGuestRegistrationActionError(error),
+    };
+  }
+}
 
-  return { success: true as const };
+export async function completeGuestRegistrationAction(
+  values: CompleteGuestRegistrationValues,
+) {
+  try {
+    const parsed = completeGuestRegistrationSchema.parse(values);
+    const reservation = await completeGuestRegistration(parsed);
+    revalidateGuestRegistrationPaths();
+    revalidatePath(`/guest-registration/${parsed.token}`);
+    return { success: true as const, reservation };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      error: toGuestRegistrationActionError(error),
+    };
+  }
 }
 
 export async function generateGuestRegistrationLinkAction(

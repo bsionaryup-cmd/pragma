@@ -1,6 +1,7 @@
 import type {
   BookingPlatform,
   GuestRegistrationStatus,
+  ReservationGuestStatus,
   ReservationStatus,
 } from "@prisma/client";
 
@@ -21,6 +22,8 @@ export type ReservationRelatedBlock = {
 export type ReservationGuestDto = {
   id: string;
   isPrimary: boolean;
+  isReservationOwner: boolean;
+  status: ReservationGuestStatus;
   firstName: string;
   lastName: string;
   fullName: string;
@@ -28,6 +31,14 @@ export type ReservationGuestDto = {
   documentNumber: string;
   email: string | null;
   phone: string | null;
+  nationality: string | null;
+  dateOfBirth: string | null;
+};
+
+export type ReservationAccessCodeDto = {
+  status: string;
+  code: string | null;
+  isActive: boolean;
 };
 
 export type ReservationGuestRegistrationDto = {
@@ -61,7 +72,12 @@ export type ReservationInboxItem = {
   guestRegistrationUrl?: string | null;
   guestRegistrationCompletedAt?: string | null;
   guestRegistration?: ReservationGuestRegistrationDto | null;
-  property: ReservationPropertyDto;
+  guestRegistrationProgress?: {
+    registered: number;
+    capacity: number;
+  } | null;
+  accessCode?: ReservationAccessCodeDto | null;
+  property: ReservationPropertyDto & { maxGuests?: number };
 };
 
 /** Detalle ampliado (calendario / drawer) con metadatos y bloqueos relacionados. */

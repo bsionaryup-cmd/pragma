@@ -223,25 +223,38 @@ model Reservation {
 }
 
 model ReservationGuest {
-  id             String   @id @default(cuid())
-  reservationId  String
-  isPrimary      Boolean  @default(false)
-  firstName      String
-  lastName       String
-  fullName       String
-  documentType   String
-  documentNumber String
-  email          String?
-  phone          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                 String                 @id @default(cuid())
+  reservationId      String
+  isPrimary          Boolean                @default(false)
+  isReservationOwner Boolean                @default(false)
+  status             ReservationGuestStatus @default(REGISTERED)
+  firstName          String
+  lastName           String
+  fullName           String
+  documentType       String
+  documentNumber     String
+  email              String?
+  phone              String?
+  nationality        String?
+  dateOfBirth        DateTime?              @db.Date
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
 
   reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
   @@unique([reservationId, documentType, documentNumber])
   @@unique([reservationId, documentNumber])
   @@index([reservationId, isPrimary])
+  @@index([reservationId, status])
   @@map("reservation_guests")
+}
+
+enum ReservationGuestStatus {
+  PENDING_REGISTRATION
+  REGISTERED
+  VERIFIED
+  CHECKED_IN
+  CHECKED_OUT
 }
 
 model GuestRegistrationToken {

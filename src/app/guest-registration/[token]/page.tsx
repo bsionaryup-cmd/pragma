@@ -62,7 +62,7 @@ export default async function GuestRegistrationPage({
             Completa los datos de todas las personas que ingresarán a la
             propiedad. Este registro está vinculado a tu reserva.
           </p>
-          <div className="mt-5 grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-3">
+          <div className="mt-5 grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 Propiedad
@@ -81,7 +81,22 @@ export default async function GuestRegistrationPage({
               </p>
               <p className="mt-1 font-medium">{reservation.checkOut}</p>
             </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                Capacidad máxima
+              </p>
+              <p className="mt-1 font-medium">
+                {reservation.maxCapacity} huésped
+                {reservation.maxCapacity === 1 ? "" : "es"}
+              </p>
+            </div>
           </div>
+          {reservation.registeredCount > 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">
+              Progreso actual: {reservation.registeredCount} /{" "}
+              {reservation.maxCapacity} huéspedes registrados
+            </p>
+          ) : null}
         </header>
 
         <GuestRegistrationForm reservation={reservation} />

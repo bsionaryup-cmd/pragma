@@ -30,6 +30,7 @@ export type SmartAccessItem = {
   status: ReservationStatus;
   registrationComplete: boolean;
   registrationCompletedAt: string | null;
+  registrationProgress?: string | null;
   stage: SmartAccessStage;
   stageLabel: string;
   credential: {
@@ -126,8 +127,17 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
       property: {
         select: {
           name: true,
+          maxGuests: true,
           propertyLock: { select: { id: true } },
         },
+      },
+      guests: {
+        where: {
+          status: {
+            in: ["REGISTERED", "VERIFIED", "CHECKED_IN", "CHECKED_OUT"],
+          },
+        },
+        select: { id: true },
       },
       accessCredentials: {
         orderBy: { createdAt: "desc" },
@@ -154,6 +164,11 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     const credentialRow = reservation.accessCredentials[0] ?? null;
     const lockMapped = Boolean(reservation.property.propertyLock);
     const registrationComplete = Boolean(reservation.guestRegistrationCompletedAt);
+    const capacity = Math.max(1, reservation.property.maxGuests);
+    const registeredCount = reservation.guests.length;
+    const registrationProgress = registrationComplete
+      ? null
+      : `${registeredCount}/${capacity}`;
     const stage = resolveStage({
       registrationComplete,
       integrationConnected,
@@ -171,6 +186,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
       registrationComplete,
       registrationCompletedAt:
         reservation.guestRegistrationCompletedAt?.toISOString() ?? null,
+      registrationProgress,
       stage,
       stageLabel: STAGE_LABELS[stage],
       credential: credentialRow
