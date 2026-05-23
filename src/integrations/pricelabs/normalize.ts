@@ -43,9 +43,14 @@ export function normalizeListingRecord(raw: unknown): PriceLabsListingRecord | n
     id,
     pms: pickString(record, ["pms", "PMS"]),
     name: pickString(record, ["name", "listing_name", "title"]),
-    city: pickString(record, ["city"]),
+    city: pickString(record, ["city", "city_name", "cityName"]),
     country: pickString(record, ["country"]),
-    bedrooms: pickNumber(record, ["bedrooms", "bedroom"]),
+    bedrooms: pickNumber(record, [
+      "bedrooms",
+      "bedroom",
+      "no_of_bedrooms",
+      "noOfBedrooms",
+    ]),
     min: pickNumber(record, ["min", "min_price", "minimum"]),
     base: pickNumber(record, ["base", "base_price", "base_rate"]),
     max: pickNumber(record, ["max", "max_price", "maximum"]),
@@ -197,6 +202,7 @@ export function isBenignListingError(code?: string, message?: string): boolean {
   const hay = `${code ?? ""} ${message ?? ""}`.toUpperCase();
   return (
     hay.includes("LISTING_NO_DATA") ||
+    hay.includes("LISTING_NOT_PRESENT") ||
     hay.includes("LISTING_TOGGLE_OFF") ||
     hay.includes("TOGGLE_OFF") ||
     hay.includes("NO_DATA")

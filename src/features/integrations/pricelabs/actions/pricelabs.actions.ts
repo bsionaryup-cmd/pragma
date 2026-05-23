@@ -70,8 +70,15 @@ export async function disconnectPriceLabsAction() {
 
 export async function syncPriceLabsOverridesAction() {
   await requireIntegrationsManageUnlocked();
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    return { ok: false, message: "Organización no disponible" };
+  }
   const wrapped = await withPriceLabsOrg(() =>
-    runWithPriceLabsSyncLock(() => syncPriceLabsOverrides()),
+    runWithPriceLabsSyncLock(
+      () => syncPriceLabsOverrides(),
+      scope.organizationId!,
+    ),
   );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
@@ -103,8 +110,15 @@ export async function testPriceLabsConnectionAction() {
 
 export async function syncPriceLabsListingsAction() {
   await requireIntegrationsManageUnlocked();
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    return { ok: false, message: "Organización no disponible" };
+  }
   const wrapped = await withPriceLabsOrg(() =>
-    runWithPriceLabsSyncLock(() => syncListings()),
+    runWithPriceLabsSyncLock(
+      () => syncListings(),
+      scope.organizationId!,
+    ),
   );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();
@@ -113,8 +127,15 @@ export async function syncPriceLabsListingsAction() {
 
 export async function fetchPriceLabsPricesAction() {
   await requireIntegrationsManageUnlocked();
+  const scope = await requireTenantDataScope();
+  if (!scope.organizationId) {
+    return { ok: false, message: "Organización no disponible" };
+  }
   const wrapped = await withPriceLabsOrg(() =>
-    runWithPriceLabsSyncLock(() => fetchDynamicPrices()),
+    runWithPriceLabsSyncLock(
+      () => fetchDynamicPrices(),
+      scope.organizationId!,
+    ),
   );
   if (!wrapped.ok) return { ok: false, message: wrapped.message };
   revalidatePriceLabs();

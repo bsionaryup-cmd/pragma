@@ -325,7 +325,9 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                   <tr className="border-b text-xs uppercase text-[#9CA3AF]">
                     <th className="py-2 pr-4">Propiedad</th>
                     <th className="py-2 pr-4">Listing</th>
-                    <th className="py-2 pr-4">Base</th>
+                    <th className="py-2 pr-4">Base PL</th>
+                    <th className="py-2 pr-4">Mín</th>
+                    <th className="py-2 pr-4">Máx</th>
                     <th className="py-2 pr-4">Recomendado</th>
                     <th className="py-2 pr-4">Delta</th>
                     <th className="py-2">Sync</th>
@@ -336,15 +338,27 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                     <tr key={p.id} className="border-b border-[#F3F4F6]">
                       <td className="py-3 pr-4 font-medium">{p.name}</td>
                       <td className="py-3 pr-4 text-xs text-[#6B7280]">
-                        {p.listingId ?? "—"}
+                        {p.listingId
+                          ? p.listingId.length > 12
+                            ? `…${p.listingId.slice(-8)}`
+                            : p.listingId
+                          : "—"}
                       </td>
-                      <td className="py-3 pr-4">{formatMoney(p.baseRate)}</td>
+                      <td className="py-3 pr-4">
+                        {formatMoney(p.listingBase ?? p.baseRate)}
+                      </td>
+                      <td className="py-3 pr-4">{formatMoney(p.minRate)}</td>
+                      <td className="py-3 pr-4">{formatMoney(p.maxRate)}</td>
                       <td className="py-3 pr-4 text-success">
                         {formatMoney(p.recommendedRate)}
                       </td>
                       <td className="py-3 pr-4">{formatMoney(p.priceDelta)}</td>
                       <td className="py-3 text-xs text-[#6B7280]">
-                        {formatDate(p.lastSyncedAt)}
+                        {p.lastError ? (
+                          <span className="text-red-600">{p.lastError}</span>
+                        ) : (
+                          formatDate(p.lastSyncedAt)
+                        )}
                       </td>
                     </tr>
                   ))}

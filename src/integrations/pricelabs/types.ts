@@ -109,7 +109,7 @@ export type PropertyListingMatch = {
   propertyId: string;
   listingId: string;
   listing: PriceLabsListingRecord;
-  matchReason: "listing_id" | "property_id" | "name_city";
+  matchReason: "listing_id" | "property_id" | "name_city" | "fuzzy";
 };
 
 export type PriceLabsSyncListingResult = {

@@ -84,6 +84,13 @@ function isRetryableStatus(status: number): boolean {
 
 function recordSuccess(): void {
   consecutiveFailures = 0;
+  circuitOpenUntil = 0;
+}
+
+/** Clears in-memory circuit breaker (e.g. before a manual sync). */
+export function resetPriceLabsCircuitBreaker(): void {
+  consecutiveFailures = 0;
+  circuitOpenUntil = 0;
 }
 
 function recordFailure(): void {

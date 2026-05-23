@@ -12,13 +12,14 @@ import {
   isSkippedListingPriceRow,
 } from "@/integrations/pricelabs/pricing";
 import { checkPriceLabsReachability } from "@/integrations/pricelabs/status";
+import { resetPriceLabsCircuitBreaker } from "@/integrations/pricelabs/client";
 import type {
   PriceLabsDailyPrice,
   PriceLabsPricesSummary,
   PriceLabsSyncSummary,
   StoredPriceLabsMeta,
 } from "@/integrations/pricelabs/types";
-import { isPriceLabsLiveApiEnabled } from "@/lib/integrations/pricelabs-config";
+import { isPriceLabsLiveApiEnabled, getPriceLabsPmsName } from "@/lib/integrations/pricelabs-config";
 import {
   getPriceLabsCredentialSnapshot,
   isPriceLabsConfiguredAsync,
@@ -105,6 +106,24 @@ function pickSummaryFromDays(days: PriceLabsDailyPrice[]) {
   const delta =
     recommended != null && base != null ? recommended - base : null;
   return { recommended, base, delta, days };
+}
+
+function resolveListingPms(
+  listingId: string,
+  property: Awaited<ReturnType<typeof listActivePropertiesForPriceLabs>>[number],
+  pmsByListingId: Map<string, string>,
+): string {
+  const meta = property.priceLabs?.meta as StoredPriceLabsMeta | null;
+  const fromMeta = meta?.listing?.pms?.trim();
+  if (fromMeta) return fromMeta;
+  const fromMap = pmsByListingId.get(listingId)?.trim();
+  if (fromMap) return fromMap;
+  return getPriceLabsPmsName();
+}
+
+function isValidPriceLabsListingId(id: string | null | undefined): boolean {
+  if (!id?.trim()) return false;
+  return !/^c[a-z0-9]{20,}$/i.test(id.trim());
 }
 
 export type PriceLabsConnectionCheck = {
@@ -283,6 +302,7 @@ export async function syncPriceLabsOverrides(): Promise<{
     };
   }
 
+  resetPriceLabsCircuitBreaker();
   const scope = await resolvePriceLabsTenantScope();
   const properties = await listActivePropertiesForPriceLabs(scope);
   let updated = 0;
@@ -290,7 +310,7 @@ export async function syncPriceLabsOverrides(): Promise<{
 
   for (const property of properties) {
     const listingId = property.priceLabs?.listingId;
-    if (!listingId) continue;
+    if (!listingId || !isValidPriceLabsListingId(listingId)) continue;
 
     const ov = await fetchPriceLabsOverrides(listingId);
     if (!ov.ok) {
@@ -383,6 +403,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
 
   try {
     assertPriceLabsLiveOrThrow();
+    resetPriceLabsCircuitBreaker();
     const result = await checkPriceLabsReachability();
     if (!result.ok) {
       const invalidKey =
@@ -506,6 +527,7 @@ export async function syncListings(): Promise<
     return { ok: false, message, ...empty };
   }
 
+  resetPriceLabsCircuitBreaker();
   const api = await fetchPriceLabsListings();
   if (!api.ok) {
     await updatePriceLabsIntegrationState({
@@ -550,12 +572,18 @@ export async function syncListings(): Promise<
       propertyId: match.propertyId,
       listingId: match.listingId,
       syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-      recommendedRate: match.listing.recommended_base_price ?? null,
+      recommendedRate:
+        match.listing.recommended_base_price ??
+        match.listing.base ??
+        null,
       baseRateAtSync: base,
       priceDelta:
         match.listing.recommended_base_price != null && base != null
           ? match.listing.recommended_base_price - base
-          : null,
+          : match.listing.base != null && property?.baseRate
+            ? match.listing.base -
+              Number.parseFloat(property.baseRate.toString())
+            : null,
       lastError: null,
       meta: {
         listing: match.listing,
@@ -598,6 +626,17 @@ export async function syncListings(): Promise<
       summary.failed > 0
         ? `${summary.failed} propiedad(es) sin match en PriceLabs`
         : null,
+  });
+
+  await appendPriceLabsSyncLog({
+    action: "sync_listings",
+    result: summary.failed === 0 ? "success" : "failure",
+    message:
+      summary.failed === 0
+        ? `Listings vinculados (${summary.synced})`
+        : `Sync parcial: ${summary.synced} ok, ${summary.failed} sin match`,
+    source: "manual",
+    meta: { synced: summary.synced, failed: summary.failed },
   });
 
   return {
@@ -643,11 +682,15 @@ export async function fetchDynamicPrices(): Promise<
     results: [],
   };
 
-  const withListing = properties.filter(
-    (p) => p.priceLabs?.listingId ?? p.id,
+  const withListing = properties.filter((p) =>
+    isValidPriceLabsListingId(p.priceLabs?.listingId),
   );
   if (withListing.length === 0) {
-    return { ok: false, message: "No hay listings vinculados", ...empty };
+    return {
+      ok: false,
+      message: "No hay listings vinculados. Ejecuta «Sync listings» primero.",
+      ...empty,
+    };
   }
 
   if (!isPriceLabsLiveApiEnabled()) {
@@ -698,16 +741,37 @@ export async function fetchDynamicPrices(): Promise<
     return { ok: false, message, ...empty };
   }
 
+  resetPriceLabsCircuitBreaker();
+  const listingsApi = await fetchPriceLabsListings();
+  const pmsByListingId = new Map<string, string>();
+  if (listingsApi.ok) {
+    for (const listing of listingsApi.data) {
+      if (listing.pms?.trim()) {
+        pmsByListingId.set(listing.id, listing.pms.trim());
+      }
+    }
+  }
+
   const { dateFrom, dateTo } = buildPricingDateRange(90);
-  const listingIds = withListing.map(
-    (p) => p.priceLabs?.listingId ?? p.id,
-  );
+  const listingIds = withListing.map((p) => p.priceLabs!.listingId!);
 
   const BATCH = 10;
   for (let i = 0; i < listingIds.length; i += BATCH) {
     const chunk = listingIds.slice(i, i + BATCH);
     const api = await fetchPriceLabsListingPrices({
-      listings: chunk.map((id) => ({ id, dateFrom, dateTo })),
+      listings: chunk.map((id) => {
+        const property = withListing.find(
+          (row) => row.priceLabs?.listingId === id,
+        );
+        return {
+          id,
+          dateFrom,
+          dateTo,
+          pms: property
+            ? resolveListingPms(id, property, pmsByListingId)
+            : pmsByListingId.get(id),
+        };
+      }),
     });
 
     if (!api.ok) {
@@ -720,7 +784,7 @@ export async function fetchDynamicPrices(): Promise<
     }
 
     for (const property of withListing) {
-      const listingId = property.priceLabs?.listingId ?? property.id;
+      const listingId = property.priceLabs!.listingId!;
       if (!chunk.includes(listingId)) continue;
 
       const row = api.data.find(
@@ -808,6 +872,21 @@ export async function fetchDynamicPrices(): Promise<
       empty.failed > 0
         ? `${empty.failed} propiedad(es) sin precios`
         : null,
+  });
+
+  await appendPriceLabsSyncLog({
+    action: "fetch_prices",
+    result: empty.failed === 0 ? "success" : "failure",
+    message:
+      empty.failed === 0
+        ? `Precios importados (${empty.updated}, ${empty.skipped} omitidos)`
+        : `Sync parcial: ${empty.updated} ok, ${empty.failed} error`,
+    source: "manual",
+    meta: {
+      updated: empty.updated,
+      failed: empty.failed,
+      skipped: empty.skipped,
+    },
   });
 
   return {

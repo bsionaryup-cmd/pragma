@@ -10,12 +10,12 @@ import type {
 
 /** POST /v1/listing_prices — dynamic calendar pricing. */
 export async function fetchPriceLabsListingPrices(input: {
-  listings: Array<{ id: string; dateFrom: string; dateTo: string }>;
+  listings: Array<{ id: string; dateFrom: string; dateTo: string; pms?: string }>;
 }): Promise<PriceLabsResult<PriceLabsListingPricesRow[]>> {
   const body: PriceLabsListingPricesRequest = {
     listings: input.listings.map((l) => ({
       id: l.id,
-      pms: getPriceLabsPmsName(),
+      pms: l.pms?.trim() || getPriceLabsPmsName(),
       date_from: l.dateFrom,
       date_to: l.dateTo,
       reason: true,

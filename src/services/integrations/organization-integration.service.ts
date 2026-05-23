@@ -79,7 +79,17 @@ async function migrateLegacyPriceLabsRow(
   try {
     const legacy = await db.priceLabsIntegration.findUnique({
       where: { id: LEGACY_SINGLETON_ID },
-      include: {
+      select: {
+        integrationTokenEncrypted: true,
+        status: true,
+        updatedAt: true,
+        lastListingsSyncAt: true,
+        lastPricesSyncAt: true,
+        lastHealthCheckAt: true,
+        syncInProgressAt: true,
+        lastError: true,
+        configuredById: true,
+        createdAt: true,
         configuredBy: { select: { organizationId: true } },
       },
     });
@@ -118,10 +128,6 @@ async function migrateLegacyPriceLabsRow(
         syncInProgressAt: legacy.syncInProgressAt,
         status: mapLegacyPriceLabsStatus(legacy.status),
         lastError: legacy.lastError,
-        neighborhoodSnapshot:
-          legacy.neighborhoodSnapshot === null
-            ? undefined
-            : (legacy.neighborhoodSnapshot as Prisma.InputJsonValue),
         configuredById: legacy.configuredById,
       },
       update: {},
