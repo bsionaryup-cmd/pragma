@@ -46,7 +46,7 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
             className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E6F7F5] text-sm font-semibold text-[#0E9F8D]">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pragma-soft-cyan text-sm font-semibold text-pragma-electric">
             {initials}
           </div>
         )}

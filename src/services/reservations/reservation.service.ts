@@ -17,6 +17,7 @@ import {
   mergeReservationScope,
 } from "@/lib/platform/tenant-data-scope";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
+import { emitBookingCancelled, emitBookingConfirmed } from "@/modules/integrations/ttlock/ttlock.events";
 import {
   buildGuestRegistrationUrl,
   getActiveGuestRegistrationForReservation,
@@ -337,12 +338,18 @@ export async function createReservation(data: ReservationWizardValues) {
     },
     include: {
       property: {
-        select: { id: true, name: true, address: true, city: true },
+        select: { id: true, name: true, address: true, city: true, ownerId: true },
       },
     },
   });
 
   await touchPropertyIcalExport(data.propertyId);
+
+  await emitBookingConfirmed({
+    reservationId: created.id,
+    propertyId: created.propertyId,
+    ownerId: created.property.ownerId,
+  });
 
   return created;
 }
@@ -350,6 +357,17 @@ export async function createReservation(data: ReservationWizardValues) {
 export async function deleteReservation(id: string) {
   const scope = await requireTenantDataScope();
   const existing = await assertReservationInScope(scope, id);
+  const property = await db.property.findUnique({
+    where: { id: existing.propertyId },
+    select: { ownerId: true },
+  });
+  if (property) {
+    await emitBookingCancelled({
+      reservationId: id,
+      propertyId: existing.propertyId,
+      ownerId: property.ownerId,
+    });
+  }
   const deleted = await db.reservation.delete({ where: { id } });
   await touchPropertyIcalExport(existing.propertyId);
   return deleted;

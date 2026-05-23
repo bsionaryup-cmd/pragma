@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/ui/page-header";
+import { getAccessStageBadgeClass } from "@/lib/ui/status-badge-styles";
 import { cn } from "@/lib/utils";
 
 type SmartAccessDashboardProps = {
@@ -49,7 +50,7 @@ function MetricCard({
           </p>
           <p className="mt-2 text-xl font-semibold text-foreground">{value}</p>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pragma-soft-cyan text-pragma-electric">
           <Icon className="h-5 w-5" />
         </span>
       </div>
@@ -59,20 +60,7 @@ function MetricCard({
 }
 
 function stageBadgeClass(stage: SmartAccessOverview["items"][number]["stage"]) {
-  switch (stage) {
-    case "generated":
-      return "border-emerald-200 bg-emerald-50 text-emerald-800";
-    case "awaiting_registration":
-      return "border-amber-200 bg-amber-50 text-amber-900";
-    case "pending_approval":
-    case "ready_to_generate":
-      return "border-sky-200 bg-sky-50 text-sky-900";
-    case "revoked":
-    case "expired":
-      return "border-border bg-muted text-muted-foreground";
-    default:
-      return "border-orange-200 bg-orange-50 text-orange-900";
-  }
+  return getAccessStageBadgeClass(stage);
 }
 
 function formatDate(iso: string) {
@@ -107,7 +95,7 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
         />
 
         {!metrics.integrationConnected ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mb-6 rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
             <p className="font-medium">TTLock no está conectado</p>
             <p className="mt-1">
               Conecta tu cuenta en{" "}

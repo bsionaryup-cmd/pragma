@@ -18,7 +18,7 @@ export default async function SmartpricePage() {
   ]);
 
   return (
-    <ModuleShellFlow>
+    <ModuleShellFlow className="bg-background">
       <SmartpriceDashboard
         overview={overview}
         attention={buildAttentionItems(overview.properties)}

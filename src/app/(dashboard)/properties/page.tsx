@@ -18,6 +18,10 @@ export default async function PropertiesPage({
     authPromise.then((a) => listPropertiesForGrid(a.dbUserId)),
   ]);
   const canWrite = hasPermission(auth.role as AppUserRole, "properties:write");
+  const canManageIntegrations = hasPermission(
+    auth.role as AppUserRole,
+    "integrations:manage",
+  );
 
   const propertyId = params.property ?? null;
   const validPropertyId =
@@ -30,6 +34,7 @@ export default async function PropertiesPage({
       <PropertiesHub
         initialProperties={properties}
         canWrite={canWrite}
+        canManageIntegrations={canManageIntegrations}
         openCreateOnMount={params.create === "true" && canWrite}
         initialPropertyId={validPropertyId}
       />

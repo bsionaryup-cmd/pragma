@@ -38,7 +38,7 @@ export async function BillingLockBanner({
           </span>
         </p>
         {canManageBilling ? (
-          <Button asChild size="sm" variant="default" className="shrink-0 bg-[#0E9F8D] hover:bg-[#0c8a7a]">
+          <Button asChild size="sm" variant="default" className="shrink-0">
             <Link href="/settings/billing">Ir al centro de facturación</Link>
           </Button>
         ) : null}

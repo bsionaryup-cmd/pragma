@@ -144,7 +144,7 @@ export function TTLockConnectionCard({
           </p>
         ) : null}
         {!callbackValidation.valid ? (
-          <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          <div className="flex gap-2 rounded-xl border border-warning/40 bg-warning/15 px-3 py-2 text-sm text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               <p className="font-medium">Callback no válida para TTLock</p>

@@ -1,4 +1,8 @@
-import { processReservationAccessAfterRegistration } from "@/services/integrations/ttlock/ttlock-access.service";
+import {
+  revokeAccessCodeForReservation,
+  syncAccessCodeDatesForReservation,
+  tryGenerateAccessCodeForReservation,
+} from "@/services/integrations/ttlock/ttlock-access.service";
 
 export type TTLockReservationAccessContext = {
   reservationId: string;
@@ -26,11 +30,41 @@ export const TTLOCK_ACCESS_PIPELINE: TTLockAccessPipelineStep[] = [
   "access_code_delivered",
 ];
 
-/** Called when Airbnb/iCal confirms a reservation. */
+/** booking.confirmed — prepare access; generate only if registration already complete. */
 export async function onReservationConfirmedForTTLock(
   ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
 ): Promise<void> {
-  void ctx;
+  await tryGenerateAccessCodeForReservation(ctx.reservationId);
+}
+
+/** booking.modified — sync code validity when dates change. */
+export async function onReservationModifiedForTTLock(
+  ctx: Pick<
+    TTLockReservationAccessContext,
+    | "reservationId"
+    | "propertyId"
+    | "ownerId"
+    | "checkIn"
+    | "checkOut"
+    | "guestRegistrationCompleted"
+  >,
+): Promise<void> {
+  if (!ctx.guestRegistrationCompleted) return;
+  await syncAccessCodeDatesForReservation(ctx.reservationId);
+}
+
+/** booking.checked_out — revoke active code (idempotent). */
+export async function onReservationCheckedOutForTTLock(
+  ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
+): Promise<void> {
+  await revokeAccessCodeForReservation(ctx.reservationId);
+}
+
+/** booking.cancelled — revoke/delete code (idempotent). */
+export async function onReservationCancelledForTTLock(
+  ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
+): Promise<void> {
+  await revokeAccessCodeForReservation(ctx.reservationId);
 }
 
 /** Triggers TTLock passcode flow once guest registration is complete. */
@@ -42,6 +76,9 @@ export async function onGuestRegistrationCompletedForTTLock(
 ): Promise<void> {
   if (!ctx.guestRegistrationCompleted) return;
 
+  const { processReservationAccessAfterRegistration } = await import(
+    "@/services/integrations/ttlock/ttlock-access.service"
+  );
   await processReservationAccessAfterRegistration({
     reservationId: ctx.reservationId,
     propertyId: ctx.propertyId,

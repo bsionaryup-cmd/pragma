@@ -1,13 +1,15 @@
 import {
   AccessCredentialStatus,
   ReservationStatus,
-  TTLockIntegrationStatus,
 } from "@prisma/client";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
-import { ensureTTLockIntegration } from "@/services/integrations/ttlock/ttlock.service";
+import {
+  ensureTTLockIntegrationForScope,
+  isTTLockIntegrationConnected,
+} from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export type SmartAccessStage =
   | "awaiting_registration"
@@ -94,10 +96,8 @@ function resolveStage(input: {
 export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
   const scope = await requireTenantDataScope();
 
-  const integration = await ensureTTLockIntegration(scope.userId);
-  const integrationConnected =
-    integration.status === TTLockIntegrationStatus.CONNECTED ||
-    integration.status === TTLockIntegrationStatus.READY;
+  const integration = await ensureTTLockIntegrationForScope(scope);
+  const integrationConnected = isTTLockIntegrationConnected(integration);
 
   const propertyScope = scope.organizationId
     ? { organizationId: scope.organizationId }

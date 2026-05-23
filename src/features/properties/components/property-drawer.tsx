@@ -23,6 +23,7 @@ type PropertyDrawerProps = {
   property: PropertyDetailDto | null;
   detailLoading: boolean;
   canWrite: boolean;
+  canManageIntegrations?: boolean;
   onClose: () => void;
   onCreated: (property: PropertyGridItem) => void;
   onUpdated: (property: PropertyDetailDto) => void;
@@ -37,6 +38,7 @@ export function PropertyDrawer({
   property,
   detailLoading,
   canWrite,
+  canManageIntegrations = false,
   onClose,
   onCreated,
   onUpdated,
@@ -94,6 +96,7 @@ export function PropertyDrawer({
               <PropertyDetailPanel
                 property={property}
                 canWrite={canWrite}
+                canManageIntegrations={canManageIntegrations}
                 onEdit={onEdit}
                 onDeleted={onDeleted}
                 onClose={onClose}

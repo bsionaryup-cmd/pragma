@@ -130,6 +130,21 @@ export async function ensureTTLockIntegration(userId: string) {
       });
     }
 
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true },
+    });
+    if (user?.organizationId && !integration.organizationId) {
+      return db.tTLockIntegration.update({
+        where: { id: integration.id },
+        data: {
+          organizationId: user.organizationId,
+          configuredById: userId,
+        },
+        include: { automationSettings: true },
+      });
+    }
+
     return integration;
   } catch (error) {
     rethrowUnlessTTLockSchemaDrift(error);

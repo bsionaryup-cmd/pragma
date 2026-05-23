@@ -20,6 +20,11 @@ import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.ser
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
+import { PageHeader } from "@/components/ui/page-header";
+import {
+  getPricingReasonBadgeClass,
+} from "@/lib/ui/status-badge-styles";
 import { cn } from "@/lib/utils";
 
 type SmartpriceDashboardProps = {
@@ -116,36 +121,28 @@ export function SmartpriceDashboard({
       : t(verdictKey);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0E9F8D]">
-            {t("smartprice.eyebrow")}
-          </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {t("smartprice.title")}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            {t("smartprice.description")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-5 pb-10 sm:px-6">
+      <PageHeader
+        eyebrow={t("smartprice.eyebrow")}
+        title={t("smartprice.title")}
+        description={t("smartprice.description")}
+        actions={
           <Button asChild variant="outline" size="sm">
             <Link href="/calendar">{t("smartprice.actions.calendar")}</Link>
           </Button>
-        </div>
-      </header>
+        }
+      />
 
       {billingLocked ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
           {t("smartprice.billingLocked")}
         </div>
       ) : null}
 
-      <Card className="border-[#0E9F8D]/20 bg-gradient-to-br from-[#0E9F8D]/5 via-background to-background">
+      <Card className="border-pragma-soft-cyan/30 bg-pragma-soft-cyan/10 shadow-pragma-soft">
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-[#0E9F8D]/10 p-2.5 text-[#0E9F8D]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pragma-soft-cyan text-pragma-electric">
               <Sparkles className="h-5 w-5" />
             </div>
             <div>
@@ -171,26 +168,37 @@ export function SmartpriceDashboard({
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
+        <KpiCard
           label={t("smartprice.stats.underpriced")}
           value={String(priceLabs.underpricedCount)}
-          warn={priceLabs.underpricedCount > 0}
-          icon={<TrendingDown className="h-4 w-4" />}
+          icon={TrendingDown}
+          trend={priceLabs.underpricedCount > 0 ? "down" : undefined}
+          trendLabel={
+            priceLabs.underpricedCount > 0
+              ? t("smartprice.reasons.underpriced")
+              : undefined
+          }
         />
-        <StatCard
+        <KpiCard
           label={t("smartprice.stats.overpriced")}
           value={String(priceLabs.overpricedCount)}
-          warn={priceLabs.overpricedCount > 0}
-          icon={<TrendingUp className="h-4 w-4" />}
+          icon={TrendingUp}
+          trend={priceLabs.overpricedCount > 0 ? "up" : undefined}
+          trendLabel={
+            priceLabs.overpricedCount > 0
+              ? t("smartprice.reasons.overpriced")
+              : undefined
+          }
         />
-        <StatCard
+        <KpiCard
           label={t("smartprice.stats.inRange")}
           value={String(priceLabs.neutralCount)}
-          icon={<Minus className="h-4 w-4" />}
+          icon={Minus}
         />
-        <StatCard
+        <KpiCard
           label={t("smartprice.stats.sync")}
           value={`${priceLabs.syncedCount}/${priceLabs.propertyCount}`}
+          icon={LineChart}
         />
       </div>
 
@@ -203,7 +211,7 @@ export function SmartpriceDashboard({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <AlertCircle className="h-4 w-4 text-[#0E9F8D]" />
+            <AlertCircle className="h-4 w-4 text-pragma-electric" />
             {t("smartprice.attention.title")}
           </CardTitle>
         </CardHeader>
@@ -224,10 +232,12 @@ export function SmartpriceDashboard({
                     <p className="text-xs text-muted-foreground">{item.city}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <ReasonBadge
-                      reason={item.reason}
-                      label={t(REASON_LABEL_KEYS[item.reason])}
-                    />
+                    <Badge
+                      variant="outline"
+                      className={getPricingReasonBadgeClass(item.reason)}
+                    >
+                      {t(REASON_LABEL_KEYS[item.reason])}
+                    </Badge>
                     {item.recommendedRate ? (
                       <span className="text-sm tabular-nums text-muted-foreground">
                         {formatMoney(item.recommendedRate)}
@@ -237,8 +247,8 @@ export function SmartpriceDashboard({
                       <span
                         className={cn(
                           "text-sm font-medium tabular-nums",
-                          item.reason === "underpriced" && "text-amber-600",
-                          item.reason === "overpriced" && "text-sky-700",
+                          item.reason === "underpriced" && "text-warning",
+                          item.reason === "overpriced" && "text-info",
                         )}
                       >
                         {formatSignedMoney(item.priceDelta)}
@@ -261,11 +271,11 @@ export function SmartpriceDashboard({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base">
-            <LineChart className="h-4 w-4 text-[#0E9F8D]" />
+            <LineChart className="h-4 w-4 text-pragma-electric" />
             {t("smartprice.context.title")}
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-3 text-sm">
+        <CardContent className="grid gap-4 text-sm sm:grid-cols-3">
           <Row label={t("smartprice.context.occupancy")} value={finance?.occupancyRate ?? "—"} />
           <Row label={t("smartprice.context.adr")} value={finance?.adr ?? "—"} />
           <Row
@@ -275,51 +285,6 @@ export function SmartpriceDashboard({
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  warn,
-  icon,
-}: {
-  label: string;
-  value: string;
-  warn?: boolean;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <Card className="border-border/80">
-      <CardContent className="pt-4">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p
-          className={cn(
-            "mt-1 flex items-center gap-2 text-lg font-semibold tabular-nums",
-            warn && "text-amber-600",
-          )}
-        >
-          {icon}
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ReasonBadge({ reason, label }: { reason: string; label: string }) {
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        reason === "underpriced" && "border-amber-300 text-amber-800",
-        reason === "overpriced" && "border-sky-300 text-sky-800",
-        reason === "sync_error" && "border-red-300 text-red-800",
-        reason === "pending_sync" && "border-slate-300 text-slate-700",
-      )}
-    >
-      {label}
-    </Badge>
   );
 }
 

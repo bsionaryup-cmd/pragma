@@ -27,6 +27,7 @@ model Organization {
   users          User[]
   billingAccount BillingAccount?
   wompiIntegration WompiIntegration?
+  ttlockIntegration TTLockIntegration?
   properties     Property[]
   impersonationSessions PlatformImpersonationSession[]
 
@@ -64,6 +65,7 @@ model User {
   properties           Property[]
   assignedTasks        Task[]                 @relation("TaskAssignee")
   ttlockIntegrations   TTLockIntegration[]
+  ttlockConfigured     TTLockIntegration[]  @relation("TTLockConfigurator")
   loginActivities      LoginActivity[]
   manualExpenses       ManualExpense[]        @relation("ManualExpenseCreator")
   otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
@@ -273,6 +275,10 @@ enum GuestRegistrationStatus {
 model TTLockIntegration {
   id                    String                  @id @default(cuid())
   userId                String
+  organizationId        String?                 @unique
+  configuredById        String?
+  gatewayId             String?
+  isActive              Boolean                 @default(true)
   clientId              String?
   clientSecretEncrypted String?
   username              String?
@@ -291,12 +297,15 @@ model TTLockIntegration {
   updatedAt             DateTime                @updatedAt
 
   user               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization       Organization?              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  configuredBy       User?                      @relation("TTLockConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
   propertyLocks      PropertyLock[]
   automationSettings TTLockAutomationSettings?
   accessEvents       AccessEvent[]
 
   @@unique([userId])
   @@index([status])
+  @@index([organizationId])
   @@map("ttlock_integrations")
 }
 
@@ -306,9 +315,12 @@ model PropertyLock {
   propertyId    String         @unique
   ttlockLockId  String?
   alias         String?
+  gatewayId     String?
+  batteryLevel  Int?
   timezone      String?
   lockStatus    TTLockLockStatus @default(UNMAPPED)
   onlineState   TTLockOnlineState @default(UNKNOWN)
+  lastSyncAt    DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -340,12 +352,15 @@ model TTLockAutomationSettings {
 
 model AccessCredential {
   id             String                       @id @default(cuid())
+  organizationId String?
   reservationId  String
+  guestId        String?
   propertyLockId String?
   ttlockCodeId   String?
   codeEncrypted  String?
   validFrom      DateTime?
   validTo        DateTime?
+  type           AccessCodeType               @default(GUEST)
   status         AccessCredentialStatus       @default(PENDING)
   deliveryStatus AccessCredentialDeliveryStatus @default(NOT_SENT)
   createdAt      DateTime                     @default(now())
@@ -355,6 +370,7 @@ model AccessCredential {
   propertyLock PropertyLock? @relation(fields: [propertyLockId], references: [id], onDelete: SetNull)
 
   @@index([reservationId])
+  @@index([organizationId])
   @@index([propertyLockId])
   @@index([status])
   @@map("access_credentials")
@@ -410,6 +426,13 @@ enum TTLockExpirationStrategy {
   CHECKOUT_TIME
   CHECKOUT_PLUS_BUFFER
   MANUAL
+}
+
+enum AccessCodeType {
+  GUEST
+  OWNER
+  CLEANER
+  MAINTENANCE
 }
 
 enum AccessCredentialStatus {

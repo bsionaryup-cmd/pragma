@@ -92,7 +92,7 @@ export function PriceLabsApiKeyCard({
           <span
             className={cn(
               "flex items-center gap-1.5 font-medium",
-              config.configured ? "text-emerald-700" : "text-amber-700",
+              config.configured ? "text-success" : "text-warning",
             )}
           >
             {config.configured ? (

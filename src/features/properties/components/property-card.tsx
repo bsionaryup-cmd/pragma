@@ -28,8 +28,8 @@ export function PropertyCard({
       onClick={onSelect}
       className={cn(
         "group flex w-full items-center gap-4 rounded-xl border border-[#E9ECEF] bg-white px-4 py-3.5 text-left shadow-pragma-soft transition-colors duration-150",
-        "hover:border-[#0E9F8D]/30 hover:bg-[#FAFBFC]",
-        isSelected && "ring-2 ring-[#0E9F8D]/30",
+        "hover:border-primary/20 hover:bg-muted/30",
+        isSelected && "ring-2 ring-primary/20",
       )}
     >
       <PropertyCover

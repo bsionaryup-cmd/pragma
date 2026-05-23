@@ -23,6 +23,7 @@ import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.ser
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSemanticBadgeClass } from "@/lib/ui/status-badge-styles";
 import { cn } from "@/lib/utils";
 
 type PriceLabsPanelProps = {
@@ -50,27 +51,29 @@ function formatMoney(value: string | null, currency = "COP") {
 
 function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
   if (overview.syncing) {
-    return <Badge className="bg-slate-100 text-slate-700">Sincronizando</Badge>;
+    return (
+      <Badge variant="outline" className={getSemanticBadgeClass("neutral")}>
+        Sincronizando
+      </Badge>
+    );
   }
   if (!overview.config.configured) {
     return (
-      <Badge variant="outline" className="border-amber-300 text-amber-800">
+      <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
         En espera de API key
       </Badge>
     );
   }
   if (!overview.config.liveApiEnabled) {
     return (
-      <Badge variant="outline" className="border-slate-300 text-slate-600">
+      <Badge variant="outline" className={getSemanticBadgeClass("neutral")}>
         Dry-run
       </Badge>
     );
   }
   if (overview.integration.status === "CONNECTED") {
     return (
-      <Badge className="bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200">
-        Conectado
-      </Badge>
+      <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>
     );
   }
   return <Badge variant="outline">{overview.metrics.statusLabel}</Badge>;
@@ -110,17 +113,17 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
   };
 
   return (
-    <ModuleShellFlow className="bg-[#FAFBFC] px-4 py-6 pb-12 text-foreground sm:px-6 lg:px-8">
+    <ModuleShellFlow className="bg-background px-4 py-6 pb-12 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="flex flex-col gap-4 rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-pragma-soft lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-[#6B7280]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
               Integraciones · Smart Price
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[#111827]">
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
               PriceLabs
             </h1>
-            <p className="mt-2 max-w-xl text-sm text-[#6B7280]">
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
               Customer API oficial — listings, precios dinámicos, overrides y
               datos de mercado.
             </p>
@@ -129,7 +132,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
         </header>
 
         {database.setupRequired ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
             <p className="font-medium">Migración pendiente</p>
             <p className="mt-1">{database.hint}</p>
           </div>
@@ -281,7 +284,7 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
                         {p.listingId ?? "—"}
                       </td>
                       <td className="py-3 pr-4">{formatMoney(p.baseRate)}</td>
-                      <td className="py-3 pr-4 text-[#0E9F8D]">
+                      <td className="py-3 pr-4 text-success">
                         {formatMoney(p.recommendedRate)}
                       </td>
                       <td className="py-3 pr-4">{formatMoney(p.priceDelta)}</td>
@@ -349,7 +352,7 @@ function Stat({
   return (
     <div>
       <p className="text-xs text-[#9CA3AF]">{label}</p>
-      <p className={cn("font-semibold", warn && "text-amber-600")}>{value}</p>
+      <p className={cn("font-semibold", warn && "text-warning")}>{value}</p>
     </div>
   );
 }

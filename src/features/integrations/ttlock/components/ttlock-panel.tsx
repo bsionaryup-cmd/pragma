@@ -60,7 +60,7 @@ function MetricCard({
           </p>
           <p className="mt-2 text-xl font-semibold text-foreground">{value}</p>
         </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-pragma-soft-cyan text-pragma-electric">
           <Icon className="h-5 w-5" />
         </span>
       </div>

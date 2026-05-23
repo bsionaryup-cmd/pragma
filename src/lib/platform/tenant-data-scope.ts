@@ -58,7 +58,12 @@ export function ttLockIntegrationWhere(
   scope: TenantDataScope,
 ): Prisma.TTLockIntegrationWhereInput {
   if (scope.organizationId) {
-    return { user: { organizationId: scope.organizationId } };
+    return {
+      OR: [
+        { organizationId: scope.organizationId },
+        { user: { organizationId: scope.organizationId } },
+      ],
+    };
   }
 
   return { userId: scope.userId };

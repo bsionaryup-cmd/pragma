@@ -1,4 +1,9 @@
 import type { PropertyFormValues } from "@/features/properties/schemas/property.schema";
+import { mapSmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.mapper";
+import {
+  isTTLockIntegrationConnected,
+  resolveTTLockIntegrationForProperty,
+} from "@/modules/integrations/ttlock/ttlock.persistence";
 import type { AirbnbListingPreview } from "@/services/airbnb/airbnb-import.service";
 import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
 import {
@@ -192,6 +197,7 @@ export async function getPropertyDetail(
   const property = await db.property.findFirst({
     where: scope,
     include: {
+      propertyLock: true,
       reservations: {
         where: {
           status: { not: ReservationStatus.CANCELLED },
@@ -268,6 +274,11 @@ export async function getPropertyDetail(
     dueDate: t.dueDate?.toISOString() ?? null,
   }));
 
+  const integration = await resolveTTLockIntegrationForProperty(id);
+  const integrationConnected = integration
+    ? isTTLockIntegrationConnected(integration)
+    : false;
+
   return {
     ...grid,
     description: property.description,
@@ -292,6 +303,15 @@ export async function getPropertyDetail(
     pendingTasks,
     monthRevenue: String(sumMonthRevenue(allMonthReservations, monthStart, monthEnd)),
     createdAt: property.createdAt.toISOString(),
+    smartAccess: {
+      lock: property.propertyLock
+        ? mapSmartLockSnapshot({
+            lock: property.propertyLock,
+            propertyName: property.name,
+          })
+        : null,
+      integrationConnected,
+    },
   };
 }
 

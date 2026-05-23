@@ -130,7 +130,7 @@ export function BillingDashboard({
         ) : null}
 
         {access.locked ? (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="mb-6 rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
             <p className="font-medium">Acceso restringido</p>
             <p className="mt-1">{access.reason}</p>
           </div>
@@ -228,7 +228,7 @@ export function BillingDashboard({
                     <div className="space-y-2">
                       <Button
                         disabled={pending || !paymentMethods.wompiEnabled}
-                        className="w-full bg-[#0E9F8D] hover:bg-[#0c8a7a]"
+                        className="w-full"
                         onClick={() => payInvoice(payableInvoice.id)}
                       >
                         {payableInvoice.status === "FAILED"
@@ -360,7 +360,7 @@ export function BillingDashboard({
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
           ¿Necesitas ayuda?{" "}
-          <Link href="mailto:soporte@pragma.co" className="text-[#0E9F8D] underline">
+          <Link href="mailto:soporte@pragma.co" className="text-pragma-electric underline">
             Contacta soporte
           </Link>
         </p>

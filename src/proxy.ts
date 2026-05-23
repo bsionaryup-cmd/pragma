@@ -34,6 +34,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/ical/(.*)",
   "/api/cron/(.*)",
   "/api/integrations/ttlock/callback",
+  "/api/integrations/ttlock/webhook/(.*)",
   "/guest-registration/(.*)",
 ]);
 

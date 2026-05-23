@@ -26,6 +26,7 @@ type StatusFilter = "all" | PropertyStatus;
 type PropertiesHubProps = {
   initialProperties: PropertyGridItem[];
   canWrite: boolean;
+  canManageIntegrations?: boolean;
   openCreateOnMount?: boolean;
   initialPropertyId?: string | null;
 };
@@ -43,6 +44,7 @@ const FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
 export function PropertiesHub({
   initialProperties,
   canWrite,
+  canManageIntegrations = false,
   openCreateOnMount = false,
   initialPropertyId = null,
 }: PropertiesHubProps) {
@@ -268,6 +270,7 @@ export function PropertiesHub({
         property={detail}
         detailLoading={detailLoading}
         canWrite={canWrite}
+        canManageIntegrations={canManageIntegrations}
         onClose={closeDrawer}
         onCreated={(p) => handleCreated(p)}
         onUpdated={handleUpdated}

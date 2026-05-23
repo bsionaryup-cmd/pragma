@@ -16,6 +16,7 @@ import { disconnectPropertyAirbnbIcalAction } from "@/features/properties/action
 import { deletePropertyAction } from "@/features/properties/actions/property.actions";
 import { AirbnbSyncButton } from "@/features/properties/components/airbnb-sync-button";
 import { PropertyIcalExportLink } from "@/features/properties/components/property-ical-export-link";
+import { PropertySmartAccessCard } from "@/features/properties/components/property-smart-access-card";
 import { PropertyCover } from "@/features/properties/components/property-cover";
 import { getPropertyStatusBadgeClass } from "@/features/properties/lib/property-style";
 import type { PropertyDetailDto } from "@/features/properties/types/property.types";
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils";
 type PropertyDetailPanelProps = {
   property: PropertyDetailDto;
   canWrite: boolean;
+  canManageIntegrations?: boolean;
   onEdit: () => void;
   onDeleted: (id: string) => void;
   onClose: () => void;
@@ -48,6 +50,7 @@ type PropertyDetailPanelProps = {
 export function PropertyDetailPanel({
   property,
   canWrite,
+  canManageIntegrations = false,
   onEdit,
   onDeleted,
   onClose,
@@ -179,6 +182,13 @@ export function PropertyDetailPanel({
           />
           <DetailRow label="Descripción" value={property.description} />
         </DetailSection>
+
+        <PropertySmartAccessCard
+          propertyId={property.id}
+          lock={property.smartAccess?.lock ?? null}
+          integrationConnected={property.smartAccess?.integrationConnected ?? false}
+          canManage={canManageIntegrations}
+        />
 
         <DetailSection title="Operación">
           <DetailRow label="Acceso" value={property.accessInstructions} />

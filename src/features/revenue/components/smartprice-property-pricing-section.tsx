@@ -107,7 +107,7 @@ function PropertyPricingRow({
           <span className="tabular-nums">{formatMoney(property.maxRate)}</span>
         )}
       </td>
-      <td className="py-3 pr-3 align-top tabular-nums text-[#0E9F8D]">
+      <td className="py-3 pr-3 align-top tabular-nums text-success">
         {formatMoney(property.recommendedRate)}
       </td>
       <td className="py-3 pr-3 align-top tabular-nums">

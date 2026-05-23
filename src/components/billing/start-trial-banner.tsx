@@ -17,7 +17,7 @@ export function StartTrialBanner() {
             </span>
           </p>
         </div>
-        <Button size="sm" className="h-8 bg-[#0E9F8D] hover:bg-[#0c8a7a]" asChild>
+        <Button size="sm" className="h-8" asChild>
           <Link href="/onboarding">Comenzar prueba</Link>
         </Button>
       </div>

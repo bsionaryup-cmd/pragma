@@ -106,7 +106,7 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
             </div>
             <Button
               type="button"
-              className="w-full bg-[#0E9F8D] hover:bg-[#0c8a7a]"
+              className="w-full"
               disabled={pending}
               onClick={onSubmitProfile}
             >
@@ -140,7 +140,7 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
             </Button>
             <Button
               type="button"
-              className="w-full bg-[#0E9F8D] hover:bg-[#0c8a7a]"
+              className="w-full"
               onClick={() => setStep(3)}
             >
               Continuar sin crear ahora
@@ -153,7 +153,7 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <CheckCircle2 className="h-4 w-4 text-success" />
               Listo para operar
             </CardTitle>
           </CardHeader>
@@ -173,7 +173,7 @@ export function OnboardingWizard({ displayName, email }: OnboardingWizardProps) 
             </ul>
             <Button
               type="button"
-              className="w-full bg-[#0E9F8D] hover:bg-[#0c8a7a]"
+              className="w-full"
               onClick={() => router.push("/panel")}
             >
               Ir al panel

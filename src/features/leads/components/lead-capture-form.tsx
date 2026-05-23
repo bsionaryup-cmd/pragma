@@ -51,7 +51,7 @@ export function LeadCaptureForm({ source = "landing", compact = false }: LeadCap
 
   if (submitted) {
     return (
-      <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+      <p className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
         Gracias. Te contactaremos pronto. También puedes{" "}
         <Link href="/sign-up" className="font-medium underline">
           crear tu cuenta gratis

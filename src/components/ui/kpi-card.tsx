@@ -14,8 +14,8 @@ type KpiCardProps = {
 };
 
 const trendStyles: Record<Trend, string> = {
-  up: "text-emerald-600",
-  down: "text-red-600",
+  up: "text-success",
+  down: "text-danger",
   flat: "text-muted-foreground",
 };
 

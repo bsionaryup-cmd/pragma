@@ -15,7 +15,14 @@ import {
   encryptTTLockSecret,
 } from "@/services/integrations/ttlock/ttlock-crypto";
 import { isTTLockLiveApiEnabled } from "@/services/integrations/ttlock/ttlock-oauth.client";
-import { ensureTTLockIntegration } from "@/services/integrations/ttlock/ttlock.service";
+import {
+  resolveOrganizationIdForProperty,
+  resolveTTLockIntegrationForProperty,
+  resolveTTLockAutomationSettingsForProperty,
+} from "@/modules/integrations/ttlock/ttlock.persistence";
+import {
+  resolveTTLockApiSessionForProperty,
+} from "@/modules/integrations/ttlock/ttlock.client";
 import { beforeAccessCredentialPersist } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 
 const BOGOTA_OFFSET_MINUTES = -5 * 60;
@@ -62,38 +69,98 @@ function generatePasscode(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-async function resolveAccessTokenForOwner(ownerId: string): Promise<{
+async function resolveAccessTokenForProperty(
+  propertyId: string,
+): Promise<{
   integrationId: string;
   clientId: string;
   accessToken: string;
-  environment: Awaited<
-    ReturnType<typeof ensureTTLockIntegration>
-  >["environment"];
+  environment: "PRODUCTION" | "SANDBOX";
 } | null> {
-  const integration = await ensureTTLockIntegration(ownerId);
-  if (
-    integration.status !== TTLockIntegrationStatus.CONNECTED &&
-    integration.status !== TTLockIntegrationStatus.READY
-  ) {
-    return null;
-  }
-
-  if (!integration.clientId?.trim()) return null;
-
-  let accessToken = decryptTTLockSecret(integration.accessTokenEncrypted);
-  if (!accessToken && isTTLockLiveApiEnabled()) {
-    return null;
-  }
-  if (!accessToken) {
-    accessToken = "placeholder-token";
-  }
-
+  const session = await resolveTTLockApiSessionForProperty(propertyId);
+  if (!session) return null;
   return {
-    integrationId: integration.id,
-    clientId: integration.clientId,
-    accessToken,
-    environment: integration.environment,
+    integrationId: session.integrationId,
+    clientId: session.clientId,
+    accessToken: session.accessToken,
+    environment: session.environment,
   };
+}
+
+export async function tryGenerateAccessCodeForReservation(
+  reservationId: string,
+): Promise<GenerateAccessCodeResult | null> {
+  const reservation = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: { guestRegistrationCompletedAt: true },
+  });
+  if (!reservation?.guestRegistrationCompletedAt) return null;
+  return generateAccessCodeForReservation(reservationId);
+}
+
+export async function syncAccessCodeDatesForReservation(
+  reservationId: string,
+): Promise<GenerateAccessCodeResult> {
+  const reservation = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: {
+      id: true,
+      propertyId: true,
+      checkIn: true,
+      checkOut: true,
+      guestRegistrationCompletedAt: true,
+      property: {
+        select: { checkInTime: true, checkOutTime: true },
+      },
+      accessCredentials: {
+        where: {
+          status: {
+            in: [
+              AccessCredentialStatus.GENERATED,
+              AccessCredentialStatus.ACTIVE,
+              AccessCredentialStatus.SENT,
+            ],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!reservation?.guestRegistrationCompletedAt) {
+    return {
+      ok: false,
+      message: "Registro de huésped pendiente",
+    };
+  }
+
+  const active = reservation.accessCredentials[0];
+  if (!active) {
+    return generateAccessCodeForReservation(reservationId);
+  }
+
+  const { validFrom, validTo } = resolveAccessWindow({
+    checkIn: reservation.checkIn,
+    checkOut: reservation.checkOut,
+    checkInTime: reservation.property.checkInTime,
+    checkOutTime: reservation.property.checkOutTime,
+  });
+
+  const sameWindow =
+    active.validFrom?.getTime() === validFrom.getTime() &&
+    active.validTo?.getTime() === validTo.getTime();
+
+  if (sameWindow) {
+    return {
+      ok: true,
+      message: "Ventana de acceso sin cambios",
+      credentialId: active.id,
+    };
+  }
+
+  await revokeAccessCodeForReservation(reservationId);
+  return generateAccessCodeForReservation(reservationId, { force: true });
 }
 
 export type GenerateAccessCodeResult = {
@@ -122,6 +189,7 @@ export async function generateAccessCodeForReservation(
       property: {
         select: {
           ownerId: true,
+          organizationId: true,
           name: true,
           checkInTime: true,
           checkOutTime: true,
@@ -192,10 +260,17 @@ export async function generateAccessCodeForReservation(
     };
   }
 
-  const integration = await ensureTTLockIntegration(reservation.property.ownerId);
-  const settings = integration.automationSettings;
+  const integration = await resolveTTLockIntegrationForProperty(
+    reservation.propertyId,
+  );
+  const settings = await resolveTTLockAutomationSettingsForProperty(
+    reservation.propertyId,
+  );
 
   if (settings?.requireManualApproval && !options?.force) {
+    const organizationId =
+      reservation.property.organizationId ??
+      (await resolveOrganizationIdForProperty(reservation.propertyId));
     const { validFrom, validTo } = resolveAccessWindow({
       checkIn: reservation.checkIn,
       checkOut: reservation.checkOut,
@@ -206,21 +281,25 @@ export async function generateAccessCodeForReservation(
     const pending = await db.accessCredential.create({
       data: {
         reservationId: reservation.id,
+        organizationId,
         propertyLockId: propertyLock.id,
         status: AccessCredentialStatus.PENDING,
         validFrom,
         validTo,
+        type: "GUEST",
       },
     });
 
-    await db.accessEvent.create({
-      data: {
-        reservationId: reservation.id,
-        integrationId: integration.id,
-        eventType: AccessEventType.CODE_GENERATION_READY,
-        payload: { credentialId: pending.id, awaitingApproval: true },
-      },
-    });
+    if (integration) {
+      await db.accessEvent.create({
+        data: {
+          reservationId: reservation.id,
+          integrationId: integration.id,
+          eventType: AccessEventType.CODE_GENERATION_READY,
+          payload: { credentialId: pending.id, awaitingApproval: true },
+        },
+      });
+    }
 
     return {
       ok: true,
@@ -254,7 +333,7 @@ export async function generateAccessCodeForReservation(
   });
 
   const passcode = generatePasscode();
-  const apiSession = await resolveAccessTokenForOwner(reservation.property.ownerId);
+  const apiSession = await resolveAccessTokenForProperty(reservation.propertyId);
   let ttlockCodeId: string | null = null;
   let apiMessage: string | null = null;
 
@@ -296,31 +375,39 @@ export async function generateAccessCodeForReservation(
       : "Modo preparación: código generado localmente";
   }
 
+  const organizationId =
+    reservation.property.organizationId ??
+    (await resolveOrganizationIdForProperty(reservation.propertyId));
+
   const credential = await db.accessCredential.create({
     data: {
       reservationId: reservation.id,
+      organizationId,
       propertyLockId: propertyLock.id,
       ttlockCodeId,
       codeEncrypted: encryptTTLockSecret(passcode),
       validFrom,
       validTo,
       status: AccessCredentialStatus.GENERATED,
+      type: "GUEST",
     },
   });
 
-  await db.accessEvent.create({
-    data: {
-      reservationId: reservation.id,
-      integrationId: integration.id,
-      eventType: AccessEventType.CODE_GENERATED,
-      payload: {
-        credentialId: credential.id,
-        guestLabel,
-        ttlockCodeId,
-        mode: isTTLockLiveApiEnabled() ? "live_api" : "prepared_without_live_api",
+  if (integration) {
+    await db.accessEvent.create({
+      data: {
+        reservationId: reservation.id,
+        integrationId: integration.id,
+        eventType: AccessEventType.CODE_GENERATED,
+        payload: {
+          credentialId: credential.id,
+          guestLabel,
+          ttlockCodeId,
+          mode: isTTLockLiveApiEnabled() ? "live_api" : "prepared_without_live_api",
+        },
       },
-    },
-  });
+    });
+  }
 
   return {
     ok: true,
@@ -372,6 +459,7 @@ export async function revokeAccessCodeForReservation(
       propertyLock: { select: { ttlockLockId: true } },
       reservation: {
         select: {
+          propertyId: true,
           property: { select: { ownerId: true } },
         },
       },
@@ -379,7 +467,7 @@ export async function revokeAccessCodeForReservation(
   });
 
   if (!credential) {
-    return { ok: false, message: "No hay código activo para revocar" };
+    return { ok: true, message: "No había código activo" };
   }
 
   if (
@@ -387,8 +475,8 @@ export async function revokeAccessCodeForReservation(
     credential.propertyLock?.ttlockLockId &&
     isTTLockLiveApiEnabled()
   ) {
-    const apiSession = await resolveAccessTokenForOwner(
-      credential.reservation.property.ownerId,
+    const apiSession = await resolveAccessTokenForProperty(
+      credential.reservation.propertyId,
     );
     if (apiSession) {
       const lockId = Number.parseInt(credential.propertyLock.ttlockLockId, 10);
@@ -427,20 +515,24 @@ export async function processReservationAccessAfterRegistration(input: {
   propertyId: string;
   ownerId: string;
 }): Promise<void> {
-  const integration = await ensureTTLockIntegration(input.ownerId);
-  const settings = integration.automationSettings;
+  const integration = await resolveTTLockIntegrationForProperty(input.propertyId);
+  const settings = await resolveTTLockAutomationSettingsForProperty(
+    input.propertyId,
+  );
 
-  await db.accessEvent.create({
-    data: {
-      reservationId: input.reservationId,
-      integrationId: integration.id,
-      eventType: AccessEventType.CODE_GENERATION_READY,
-      payload: {
-        propertyId: input.propertyId,
-        guestRegistrationCompleted: true,
+  if (integration) {
+    await db.accessEvent.create({
+      data: {
+        reservationId: input.reservationId,
+        integrationId: integration.id,
+        eventType: AccessEventType.CODE_GENERATION_READY,
+        payload: {
+          propertyId: input.propertyId,
+          guestRegistrationCompleted: true,
+        },
       },
-    },
-  });
+    });
+  }
 
   if (settings && !settings.generateAfterGuestRegistration) {
     return;

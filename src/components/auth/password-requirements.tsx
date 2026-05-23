@@ -24,14 +24,14 @@ export function PasswordRequirements({
           key={rule.id}
           className={cn(
             "flex items-center gap-2 text-xs transition-colors",
-            rule.met ? "text-emerald-700" : "text-muted-foreground",
+            rule.met ? "text-success" : "text-muted-foreground",
           )}
         >
           <span
             className={cn(
               "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
               rule.met
-                ? "border-emerald-600 bg-emerald-600 text-white"
+                ? "border-success bg-success text-white"
                 : "border-muted-foreground/40 bg-background",
             )}
             aria-hidden

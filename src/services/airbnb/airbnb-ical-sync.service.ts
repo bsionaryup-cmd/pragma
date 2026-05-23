@@ -23,6 +23,12 @@ import {
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import { ensureGuestRegistrationForReservation } from "@/services/guests/guest-registration.service";
+import {
+  emitBookingCancelled,
+  emitBookingCheckedOut,
+  emitBookingConfirmed,
+  emitBookingModified,
+} from "@/modules/integrations/ttlock/ttlock.events";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 import { db } from "@/lib/db";
@@ -69,7 +75,13 @@ async function findReservationByIcalUid(
 ) {
   return db.reservation.findFirst({
     where: { propertyId, icalUid },
-    select: { id: true, guestRegistrationCompletedAt: true },
+    select: {
+      id: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      guestRegistrationCompletedAt: true,
+    },
   });
 }
 
@@ -316,6 +328,11 @@ export async function syncPropertyIcalCalendarInner(
       };
 
       if (existing) {
+        const prevStatus = existing.status;
+        const datesChanged =
+          existing.checkIn.getTime() !== checkIn.getTime() ||
+          existing.checkOut.getTime() !== checkOut.getTime();
+
         await db.reservation.update({
           where: { id: existing.id },
           data: existing.guestRegistrationCompletedAt
@@ -330,6 +347,30 @@ export async function syncPropertyIcalCalendarInner(
         if (!blocked && status === ReservationStatus.CONFIRMED) {
           await ensureGuestRegistrationForReservation(existing.id);
         }
+
+        if (status === ReservationStatus.CHECKED_OUT && prevStatus !== ReservationStatus.CHECKED_OUT) {
+          await emitBookingCheckedOut({
+            reservationId: existing.id,
+            propertyId: property.id,
+            ownerId,
+          });
+        } else if (status === ReservationStatus.CANCELLED && prevStatus !== ReservationStatus.CANCELLED) {
+          await emitBookingCancelled({
+            reservationId: existing.id,
+            propertyId: property.id,
+            ownerId,
+          });
+        } else if (datesChanged) {
+          await emitBookingModified({
+            reservationId: existing.id,
+            propertyId: property.id,
+            ownerId,
+            checkIn,
+            checkOut,
+            guestRegistrationCompleted: Boolean(existing.guestRegistrationCompletedAt),
+          });
+        }
+
         updated += 1;
         continue;
       }
@@ -377,6 +418,11 @@ export async function syncPropertyIcalCalendarInner(
       if (!blocked && status === ReservationStatus.CONFIRMED) {
         await ensureGuestRegistrationForReservation(createdReservation.id);
       }
+      await emitBookingConfirmed({
+        reservationId: createdReservation.id,
+        propertyId: property.id,
+        ownerId,
+      });
       created += 1;
     }
 
@@ -395,6 +441,11 @@ export async function syncPropertyIcalCalendarInner(
         await db.reservation.update({
           where: { id: row.id },
           data: { status: ReservationStatus.CANCELLED },
+        });
+        await emitBookingCancelled({
+          reservationId: row.id,
+          propertyId: property.id,
+          ownerId,
         });
         cancelled += 1;
       }

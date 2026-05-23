@@ -191,7 +191,7 @@ export function WompiCredentialsCard({
           <span
             className={cn(
               "flex items-center gap-1.5 font-medium",
-              wompi.configured ? "text-emerald-700" : "text-amber-700",
+              wompi.configured ? "text-success" : "text-warning",
             )}
           >
             {wompi.configured ? (
