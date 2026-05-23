@@ -23,6 +23,8 @@
     "db:purge-demo": "node scripts/purge-demo-artifacts.mjs",
     "db:purge-test": "node scripts/purge-test-data.mjs",
     "db:purge-accounts": "node scripts/purge-tenant-accounts.mjs",
+    "db:seed:demo": "node scripts/seed-demo-data.mjs",
+    "db:provision:demo-user": "node scripts/provision-demo-test-user.mjs",
     "user:admin": "node scripts/set-admin-role.mjs",
     "validate:ical": "node scripts/validate-ical-export.mjs && node scripts/validate-ical-sync.mjs",
     "validate:ttlock-callback": "node scripts/validate-ttlock-callback.mjs",
