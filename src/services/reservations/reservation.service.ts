@@ -20,7 +20,10 @@ import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.se
 import { emitBookingCancelled, emitBookingConfirmed } from "@/modules/integrations/ttlock/ttlock.events";
 import {
   buildGuestRegistrationUrl,
+  ensureGuestRegistrationForReservation,
   getActiveGuestRegistrationForReservation,
+  isGuestRegistrationEligiblePlatform,
+  isGuestRegistrationEligibleStatus,
 } from "@/services/guests/guest-registration.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
@@ -399,6 +402,13 @@ export async function createReservation(data: ReservationWizardValues) {
     propertyId: created.propertyId,
     ownerId: created.property.ownerId,
   });
+
+  if (
+    isGuestRegistrationEligiblePlatform(created.platform) &&
+    isGuestRegistrationEligibleStatus(created.status)
+  ) {
+    await ensureGuestRegistrationForReservation(created.id);
+  }
 
   return created;
 }

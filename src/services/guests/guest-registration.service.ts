@@ -36,6 +36,17 @@ const GUEST_REGISTRATION_ELIGIBLE_STATUSES: ReservationStatus[] = [
   ReservationStatus.CHECKOUT_TODAY,
 ];
 
+const GUEST_REGISTRATION_ELIGIBLE_PLATFORMS: BookingPlatform[] = [
+  BookingPlatform.AIRBNB,
+  BookingPlatform.DIRECT,
+];
+
+export function isGuestRegistrationEligiblePlatform(
+  platform: BookingPlatform,
+): boolean {
+  return GUEST_REGISTRATION_ELIGIBLE_PLATFORMS.includes(platform);
+}
+
 export function isGuestRegistrationEligibleStatus(
   status: ReservationStatus,
 ): boolean {
@@ -54,9 +65,9 @@ type GuestRegistrationReservationSnapshot = {
 function assertGuestRegistrationEligible(
   reservation: GuestRegistrationReservationSnapshot,
 ): void {
-  if (reservation.platform !== BookingPlatform.AIRBNB) {
+  if (!isGuestRegistrationEligiblePlatform(reservation.platform)) {
     throw new GuestRegistrationError(
-      "El registro de huéspedes solo aplica a reservas de Airbnb.",
+      "El registro de huéspedes no está disponible para este tipo de reserva.",
     );
   }
 
