@@ -1,15 +1,37 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
 import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
 import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
+import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
+import { getUserByClerkId } from "@/services/users/user.service";
 
 type SignInPageProps = {
   searchParams: Promise<{
     inactive?: string;
+    signed_out?: string;
   }>;
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const showInactiveHint = params.inactive === "1";
+  const showSignedOutHint = params.signed_out === "1";
+  const { userId } = await auth();
+
+  if (userId && !showInactiveHint) {
+    const dbUser = await getUserByClerkId(userId);
+
+    if (dbUser && !dbUser.isActive) {
+      redirect("/sign-in?inactive=1");
+    }
+
+    if (dbUser?.isActive) {
+      redirect(resolvePostAuthHomePath(dbUser));
+    }
+
+    redirect("/panel");
+  }
 
   return (
     <PragmaAuthLayout
@@ -17,8 +39,17 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       backLabel="Inicio"
       hint={
         showInactiveHint ? (
-          <p className="text-sm text-destructive">
-            Tu cuenta fue desactivada. Contacta al administrador de PRAGMA.
+          <div className="space-y-3">
+            <p className="text-sm text-destructive">
+              Tu cuenta fue desactivada. Contacta al administrador de PRAGMA.
+            </p>
+            <div className="flex justify-center">
+              <ClerkSignOutButton>Cerrar sesión</ClerkSignOutButton>
+            </div>
+          </div>
+        ) : showSignedOutHint ? (
+          <p className="text-sm text-muted-foreground">
+            Sesión cerrada correctamente. Puedes iniciar sesión de nuevo.
           </p>
         ) : null
       }

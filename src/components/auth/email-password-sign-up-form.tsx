@@ -3,7 +3,6 @@
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -20,7 +19,6 @@ import {
 type Step = "register" | "verify";
 
 export function EmailPasswordSignUpForm() {
-  const router = useRouter();
   const { isLoaded, signUp } = useSignUp();
   const { setActive } = useClerk();
 
@@ -42,9 +40,7 @@ export function EmailPasswordSignUpForm() {
       return;
     }
 
-    await setActive({ session: sessionId });
-    router.push("/onboarding");
-    router.refresh();
+    await setActive({ session: sessionId, redirectUrl: "/onboarding" });
   }
 
   function handleRegister(event: React.FormEvent<HTMLFormElement>) {

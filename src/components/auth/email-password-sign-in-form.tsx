@@ -3,7 +3,7 @@
 import { useSignIn } from "@clerk/nextjs/legacy";
 import { useAuth, useClerk } from "@clerk/nextjs";
 import Link from "next/link";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
@@ -12,46 +12,57 @@ import { Label } from "@/components/ui/label";
 import { getClerkAuthErrorMessage } from "@/lib/clerk-auth-errors";
 
 export function EmailPasswordSignInForm() {
-  const { isLoaded: authLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
-  const { isLoaded, signIn, setActive } = useSignIn();
+  const { isLoaded: authLoaded } = useAuth();
+  const { signOut, setActive, session } = useClerk();
+  const { isLoaded, signIn } = useSignIn();
 
-  const [ready, setReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const loginSucceededRef = useRef(false);
 
-  useEffect(() => {
-    if (!authLoaded) return;
+  async function ensureSignedOut() {
+    if (session) {
+      await signOut();
+    }
+  }
 
-    // Fresh login on this page — keep the new session and let handleSubmit redirect.
-    if (loginSucceededRef.current) {
-      setReady(true);
-      return;
+  async function signInWithPassword(normalizedEmail: string, plainPassword: string) {
+    if (!signIn) {
+      throw new Error("El servicio de autenticación no está listo.");
     }
 
-    if (!isSignedIn) {
-      setReady(true);
-      return;
+    try {
+      return await signIn.create({
+        strategy: "password",
+        identifier: normalizedEmail,
+        password: plainPassword,
+      });
+    } catch (passwordStrategyError) {
+      let result = await signIn.create({ identifier: normalizedEmail });
+
+      if (result.status === "needs_first_factor") {
+        const passwordFactor = signIn.supportedFirstFactors?.find(
+          (factor) => factor.strategy === "password",
+        );
+
+        if (!passwordFactor || passwordFactor.strategy !== "password") {
+          throw passwordStrategyError;
+        }
+
+        result = await signIn.attemptFirstFactor({
+          strategy: "password",
+          password: plainPassword,
+        });
+      }
+
+      return result;
     }
-
-    // Stale session after logout or late Clerk hydration — clear before showing the form.
-    setReady(false);
-    let cancelled = false;
-    void signOut().then(() => {
-      if (!cancelled) setReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoaded, isSignedIn, signOut]);
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isLoaded || !signIn) return;
+    if (!isLoaded || !signIn || !authLoaded) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
@@ -63,37 +74,19 @@ export function EmailPasswordSignInForm() {
 
     startTransition(async () => {
       try {
-        let result = await signIn.create({
-          identifier: normalizedEmail,
-          password,
-        });
+        await ensureSignedOut();
 
-        if (result.status === "needs_first_factor") {
-          const passwordFactor = signIn.supportedFirstFactors?.find(
-            (factor) => factor.strategy === "password",
-          );
-
-          if (!passwordFactor || passwordFactor.strategy !== "password") {
-            setError(
-              "Tu cuenta no tiene contraseña configurada. Usa otro método o crea una cuenta nueva.",
-            );
-            return;
-          }
-
-          result = await signIn.attemptFirstFactor({
-            strategy: "password",
-            password,
-          });
-        }
+        const result = await signInWithPassword(normalizedEmail, password);
 
         if (result.status !== "complete" || !result.createdSessionId) {
           setError("No se pudo completar el inicio de sesión. Intenta de nuevo.");
           return;
         }
 
-        loginSucceededRef.current = true;
-        await setActive({ session: result.createdSessionId });
-        window.location.assign("/panel");
+        await setActive({
+          session: result.createdSessionId,
+          redirectUrl: "/panel",
+        });
       } catch (err) {
         setError(
           getClerkAuthErrorMessage(
@@ -105,7 +98,7 @@ export function EmailPasswordSignInForm() {
     });
   }
 
-  if (!authLoaded || !ready || !isLoaded) {
+  if (!authLoaded || !isLoaded) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
         Preparando acceso…
@@ -138,7 +131,7 @@ export function EmailPasswordSignInForm() {
             <Input
               id="sign-in-email"
               type="email"
-              autoComplete="off"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               className="pl-9"
@@ -153,7 +146,7 @@ export function EmailPasswordSignInForm() {
           label="Contraseña"
           value={password}
           onChange={setPassword}
-          autoComplete="off"
+          autoComplete="current-password"
           placeholder="••••••••"
           required
         />

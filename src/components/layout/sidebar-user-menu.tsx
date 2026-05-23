@@ -37,7 +37,7 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
   const canManageBilling = hasPermission(user.role ?? "RECEPTIONIST", "billing:manage");
 
   async function handleLogout() {
-    await signOut({ redirectUrl: "/sign-in" });
+    await signOut({ redirectUrl: "/sign-in?signed_out=1" });
   }
 
   return (
