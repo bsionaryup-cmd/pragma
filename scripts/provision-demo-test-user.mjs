@@ -75,13 +75,7 @@ async function main() {
 
   const seedUsers = await db.user.findMany({
     where: {
-      OR: [
-        { email: { in: SEED_EMAILS } },
-        {
-          organizationId: organization.id,
-          email: { not: emailArg },
-        },
-      ],
+      email: { in: SEED_EMAILS },
     },
     select: { id: true, clerkId: true, email: true },
   });
