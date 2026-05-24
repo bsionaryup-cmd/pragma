@@ -1,4 +1,4 @@
-import type { ClerkAPIError, SignInErrors } from "@clerk/shared/types";
+import type { ClerkAPIError, SignInErrors, SignUpErrors } from "@clerk/shared/types";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 
 const CLERK_ERROR_MESSAGES: Record<string, string> = {
@@ -43,6 +43,26 @@ export function getSignInFlowErrorMessage(
   const fieldMessage =
     fields?.password?.message ??
     fields?.identifier?.message ??
+    fields?.code?.message ??
+    fieldErrors?.global?.[0]?.message;
+
+  if (fieldMessage) return fieldMessage;
+
+  return fallback;
+}
+
+export function getSignUpFlowErrorMessage(
+  result: { error: ClerkAPIError | null } | null | undefined,
+  fieldErrors: SignUpErrors | undefined,
+  fallback: string,
+): string {
+  const direct = messageFromClerkError(result?.error ?? null);
+  if (direct) return direct;
+
+  const fields = fieldErrors?.fields;
+  const fieldMessage =
+    fields?.password?.message ??
+    fields?.emailAddress?.message ??
     fields?.code?.message ??
     fieldErrors?.global?.[0]?.message;
 

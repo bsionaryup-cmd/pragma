@@ -1,7 +1,7 @@
 "use client";
 
-import { useSignUp } from "@clerk/nextjs/legacy";
-import { useClerk } from "@clerk/nextjs";
+import { useSignUp } from "@clerk/nextjs";
+import type { SignUpFutureResource } from "@clerk/shared/types";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
@@ -10,17 +10,28 @@ import { PasswordRequirements } from "@/components/auth/password-requirements";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getClerkAuthErrorMessage } from "@/lib/clerk-auth-errors";
+import {
+  getClerkAuthErrorMessage,
+  getSignUpFlowErrorMessage,
+} from "@/lib/clerk-auth-errors";
 import {
   PASSWORD_MIN_LENGTH,
   validateNewAccountPassword,
 } from "@/lib/auth/password-rules";
 
+const POST_SIGNUP_PATH = "/onboarding";
+
 type Step = "register" | "verify";
 
+function needsEmailVerification(signUp: SignUpFutureResource): boolean {
+  return (
+    signUp.status !== "complete" &&
+    signUp.unverifiedFields.includes("email_address")
+  );
+}
+
 export function EmailPasswordSignUpForm() {
-  const { isLoaded, signUp } = useSignUp();
-  const { setActive } = useClerk();
+  const { signUp, errors, fetchStatus } = useSignUp();
 
   const [step, setStep] = useState<Step>("register");
   const [email, setEmail] = useState("");
@@ -32,20 +43,74 @@ export function EmailPasswordSignUpForm() {
   const [info, setInfo] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const clerkReady = Boolean(signUp);
+  const isFetching = fetchStatus === "fetching" || pending;
   const showPasswordRules = passwordFocused || password.length > 0;
 
-  async function completeSignUp(sessionId: string | null | undefined) {
-    if (!sessionId) {
-      setError("No se pudo crear la sesión. Intenta de nuevo.");
+  async function finalizeSignUp() {
+    if (!signUp) {
+      throw new Error("El servicio de autenticación no está listo.");
+    }
+
+    const result = await signUp.finalize({
+      navigate: ({ session, decorateUrl }) => {
+        if (session?.currentTask) {
+          return;
+        }
+
+        const url = decorateUrl(POST_SIGNUP_PATH);
+        if (url.startsWith("http")) {
+          window.location.href = url;
+        } else {
+          window.location.assign(url);
+        }
+      },
+    });
+
+    const message = getSignUpFlowErrorMessage(
+      result,
+      errors,
+      "No se pudo activar la sesión. Intenta de nuevo.",
+    );
+
+    if (result.error) {
+      throw new Error(message);
+    }
+  }
+
+  async function completeSignUpIfReady() {
+    if (!signUp) {
+      throw new Error("El servicio de autenticación no está listo.");
+    }
+
+    if (signUp.status === "complete") {
+      await finalizeSignUp();
       return;
     }
 
-    await setActive({ session: sessionId, redirectUrl: "/onboarding" });
+    if (needsEmailVerification(signUp)) {
+      const sendResult = await signUp.verifications.sendEmailCode();
+      const message = getSignUpFlowErrorMessage(
+        sendResult,
+        errors,
+        "No se pudo enviar el código de verificación.",
+      );
+
+      if (sendResult.error) {
+        throw new Error(message);
+      }
+
+      setStep("verify");
+      setInfo(`Enviamos un código de verificación a ${email.trim().toLowerCase()}`);
+      return;
+    }
+
+    throw new Error("No se pudo completar el registro. Intenta de nuevo.");
   }
 
   function handleRegister(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isLoaded || !signUp) return;
+    if (!clerkReady || !signUp) return;
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
@@ -69,25 +134,33 @@ export function EmailPasswordSignUpForm() {
 
     startTransition(async () => {
       try {
-        await signUp.create({
+        await signUp.reset();
+
+        const result = await signUp.password({
           emailAddress: normalizedEmail,
           password,
         });
 
-        if (signUp.status === "complete") {
-          await completeSignUp(signUp.createdSessionId);
+        const message = getSignUpFlowErrorMessage(
+          result,
+          errors,
+          "No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.",
+        );
+
+        if (result.error) {
+          setError(message);
           return;
         }
 
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
-        setStep("verify");
-        setInfo(`Enviamos un código de verificación a ${normalizedEmail}`);
+        await completeSignUpIfReady();
       } catch (err) {
         setError(
-          getClerkAuthErrorMessage(
-            err,
-            "No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.",
-          ),
+          err instanceof Error
+            ? err.message
+            : getClerkAuthErrorMessage(
+                err,
+                "No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.",
+              ),
         );
       }
     });
@@ -95,7 +168,7 @@ export function EmailPasswordSignUpForm() {
 
   function handleVerify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isLoaded || !signUp) return;
+    if (!clerkReady || !signUp) return;
 
     const trimmedCode = code.trim();
     if (trimmedCode.length < 6) {
@@ -107,39 +180,67 @@ export function EmailPasswordSignUpForm() {
 
     startTransition(async () => {
       try {
-        const result = await signUp.attemptEmailAddressVerification({
+        const result = await signUp.verifications.verifyEmailCode({
           code: trimmedCode,
         });
 
-        if (result.status !== "complete") {
+        const message = getSignUpFlowErrorMessage(
+          result,
+          errors,
+          "Código inválido o expirado. Intenta de nuevo.",
+        );
+
+        if (result.error) {
+          setError(message);
+          return;
+        }
+
+        if (signUp.status !== "complete") {
           setError("Verificación incompleta. Revisa el código e intenta de nuevo.");
           return;
         }
 
-        await completeSignUp(result.createdSessionId);
+        await finalizeSignUp();
       } catch (err) {
         setError(
-          getClerkAuthErrorMessage(err, "Código inválido o expirado. Intenta de nuevo."),
+          err instanceof Error
+            ? err.message
+            : getClerkAuthErrorMessage(err, "Código inválido o expirado. Intenta de nuevo."),
         );
       }
     });
   }
 
   function resendCode() {
-    if (!isLoaded || !signUp) return;
+    if (!clerkReady || !signUp) return;
 
     setError(null);
     startTransition(async () => {
       try {
-        await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+        const result = await signUp.verifications.sendEmailCode();
+        const message = getSignUpFlowErrorMessage(
+          result,
+          errors,
+          "No se pudo reenviar el código.",
+        );
+
+        if (result.error) {
+          setError(message);
+          return;
+        }
+
         setInfo(`Reenviamos el código a ${email.trim().toLowerCase()}`);
       } catch (err) {
-        setError(getClerkAuthErrorMessage(err, "No se pudo reenviar el código."));
+        setError(
+          err instanceof Error
+            ? err.message
+            : getClerkAuthErrorMessage(err, "No se pudo reenviar el código."),
+        );
       }
     });
   }
 
-  if (!isLoaded) {
+  if (!clerkReady) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
         Preparando registro…
@@ -191,15 +292,15 @@ export function EmailPasswordSignUpForm() {
           </div>
         </div>
 
-        <Button type="submit" variant="brand" className="h-11 w-full" disabled={pending}>
-          {pending ? "Verificando…" : "Activar cuenta"}
+        <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+          {isFetching ? "Verificando…" : "Activar cuenta"}
         </Button>
 
         <Button
           type="button"
           variant="ghost"
           className="w-full"
-          disabled={pending}
+          disabled={isFetching}
           onClick={resendCode}
         >
           Reenviar código
@@ -271,8 +372,8 @@ export function EmailPasswordSignUpForm() {
         />
       </div>
 
-      <Button type="submit" variant="brand" className="h-11 w-full" disabled={pending}>
-        {pending ? "Creando cuenta…" : "Crear cuenta"}
+      <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+        {isFetching ? "Creando cuenta…" : "Crear cuenta"}
       </Button>
 
       <p className="text-center text-sm text-muted-foreground">
