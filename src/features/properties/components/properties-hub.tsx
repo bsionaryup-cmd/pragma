@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PropertyStatus } from "@prisma/client";
 import { propertyStatusLabels } from "@/lib/labels";
+import { propertyMatchesQuery } from "@/lib/property-display";
 import { cn } from "@/lib/utils";
 
 type StatusFilter = "all" | PropertyStatus;
@@ -75,11 +76,7 @@ export function PropertiesHub({
     const result = properties.filter((p) => {
       if (statusFilter !== "all" && p.status !== statusFilter) return false;
       if (!q) return true;
-      return (
-        p.name.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q) ||
-        (p.neighborhood?.toLowerCase().includes(q) ?? false)
-      );
+      return propertyMatchesQuery(p, q);
     });
     return result.sort((a, b) =>
       a.name.localeCompare(b.name, "es", { sensitivity: "base" }),

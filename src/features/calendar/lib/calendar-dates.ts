@@ -17,6 +17,8 @@ export const CALENDAR_DEFAULT_DAYS_BEFORE = 21;
 export const CALENDAR_DAYS_BEFORE = 0;
 /** Días visibles después del ancla. */
 export const CALENDAR_DAYS_AFTER = 56;
+/** Tope al expandir hacia el pasado con ancla=hoy (evita miles de columnas DOM). */
+export const CALENDAR_MAX_DAYS_BEFORE = 120;
 
 export function toDateKey(date: Date): string {
   return prismaDateToKey(date);

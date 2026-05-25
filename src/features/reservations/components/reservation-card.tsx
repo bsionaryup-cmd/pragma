@@ -12,8 +12,9 @@ import {
 } from "@/features/reservations/lib/reservation-status";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
-import { formatPropertyLabel } from "@/lib/property-display";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import { formatCurrency } from "@/lib/helpers";
+import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { cn } from "@/lib/utils";
 
 type ReservationCardProps = {
@@ -36,6 +37,10 @@ function ReservationCardComponent({
     reservation.children,
     reservation.infants,
   );
+  const registrationDueSoon = isGuestRegistrationDueSoon({
+    checkIn: reservation.checkIn,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
+  });
 
   return (
     <button
@@ -52,18 +57,29 @@ function ReservationCardComponent({
           <p className="truncate text-sm font-medium leading-tight text-foreground">
             {reservation.guestName}
           </p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {formatPropertyLabel(reservation.property)}
-          </p>
+          <div className="mt-0.5">
+            <PropertyIdentity
+              name={reservation.property.name}
+              unitNumber={reservation.property.unitNumber}
+              size="sm"
+            />
+          </div>
         </div>
-        <span
-          className={cn(
-            "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
-            getStatusBadgeClass(displayStatus),
-          )}
-        >
-          {displayStatusLabels[displayStatus]}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {registrationDueSoon ? (
+            <span className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[9px] font-medium text-warning">
+              Registro pendiente
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
+              getStatusBadgeClass(displayStatus),
+            )}
+          >
+            {displayStatusLabels[displayStatus]}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3">

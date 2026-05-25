@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { updateReservationAction } from "@/features/reservations/actions/reservation.actions";
@@ -35,6 +36,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import { formatPropertyLabel } from "@/lib/property-display";
+import {
+  clampGuestsToCapacity,
+  guestCapacityMessage,
+  guestTotalExceedsCapacity,
+  resolvePropertyMaxGuests,
+} from "@/features/reservations/lib/reservation-guest-capacity";
 
 type ReservationEditFormProps = {
   reservation: ReservationDetailItem;
@@ -50,8 +57,10 @@ export function ReservationEditForm({
   onCancel,
 }: ReservationEditFormProps) {
   const router = useRouter();
-  const selectedProperty = properties.find((p) => p.id === reservation.property.id);
-  const maxGuests = selectedProperty?.maxGuests ?? reservation.property.maxGuests ?? 99;
+  const initialCapacity = resolvePropertyMaxGuests(
+    properties.find((p) => p.id === reservation.property.id)?.maxGuests ??
+      reservation.property.maxGuests,
+  );
 
   const form = useForm<ReservationEditValues>({
     resolver: zodResolver(reservationEditSchema),
@@ -70,18 +79,75 @@ export function ReservationEditForm({
       guestLanguage: reservation.guestLanguage ?? "es",
       totalAmount: Number(reservation.totalAmount),
       internalNotes: reservation.internalNotes ?? "",
-      maxGuests,
+      maxGuests: initialCapacity ?? undefined,
     },
   });
 
   const watchedPropertyId = form.watch("propertyId");
-  const watchedMaxGuests =
-    properties.find((p) => p.id === watchedPropertyId)?.maxGuests ?? maxGuests;
+  const selectedForCapacity = properties.find((p) => p.id === watchedPropertyId);
+  const propertyCapacity = resolvePropertyMaxGuests(
+    selectedForCapacity?.maxGuests ?? reservation.property.maxGuests,
+  );
+
+  useEffect(() => {
+    form.setValue("maxGuests", propertyCapacity ?? undefined, { shouldValidate: false });
+    if (propertyCapacity == null) return;
+
+    const { adults, children, infants } = form.getValues();
+    if (guestTotalExceedsCapacity(adults, children, infants, propertyCapacity)) {
+      const clamped = clampGuestsToCapacity(adults, children, infants, propertyCapacity);
+      form.setValue("adults", clamped.adults, { shouldValidate: false });
+      form.setValue("children", clamped.children, { shouldValidate: false });
+      form.setValue("infants", clamped.infants, { shouldValidate: false });
+      form.setError("adults", { message: guestCapacityMessage(propertyCapacity) });
+    } else {
+      form.clearErrors("adults");
+    }
+  }, [watchedPropertyId, propertyCapacity, form]);
+
+  function applyGuestCount(
+    field: "adults" | "children" | "infants",
+    raw: number,
+  ) {
+    const min = field === "adults" ? 1 : 0;
+    const next = Math.max(min, Number.isFinite(raw) ? Math.floor(raw) : min);
+    const current = form.getValues();
+
+    if (propertyCapacity == null) {
+      form.setValue(field, next);
+      return;
+    }
+
+    const draft = { ...current, [field]: next };
+    if (
+      guestTotalExceedsCapacity(
+        draft.adults,
+        draft.children,
+        draft.infants,
+        propertyCapacity,
+      )
+    ) {
+      const clamped = clampGuestsToCapacity(
+        draft.adults,
+        draft.children,
+        draft.infants,
+        propertyCapacity,
+      );
+      form.setValue("adults", clamped.adults);
+      form.setValue("children", clamped.children);
+      form.setValue("infants", clamped.infants);
+      form.setError("adults", { message: guestCapacityMessage(propertyCapacity) });
+      return;
+    }
+
+    form.clearErrors("adults");
+    form.setValue(field, next);
+  }
 
   async function onSubmit(values: ReservationEditValues) {
     const result = await updateReservationAction(reservation.id, {
       ...values,
-      maxGuests: watchedMaxGuests,
+      maxGuests: propertyCapacity ?? undefined,
     });
     if (!result.success) {
       toast.error(result.error);
@@ -173,14 +239,10 @@ export function ReservationEditForm({
                     <Input
                       type="number"
                       min={name === "adults" ? 1 : 0}
-                      max={
-                        name === "adults"
-                          ? watchedMaxGuests
-                          : watchedMaxGuests - 1
-                      }
+                      max={propertyCapacity ?? undefined}
                       value={field.value}
                       onChange={(e) =>
-                        field.onChange(e.target.valueAsNumber || 0)
+                        applyGuestCount(name, e.target.valueAsNumber)
                       }
                     />
                   </FormControl>
@@ -190,10 +252,16 @@ export function ReservationEditForm({
             />
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Capacidad máxima: {watchedMaxGuests} persona
-          {watchedMaxGuests === 1 ? "" : "s"}
-        </p>
+        {propertyCapacity != null ? (
+          <p className="text-xs text-muted-foreground">
+            Capacidad máxima: {propertyCapacity} huésped
+            {propertyCapacity === 1 ? "" : "es"} (total adultos + niños + bebés)
+          </p>
+        ) : (
+          <p className="text-xs text-warning">
+            Esta propiedad no tiene capacidad configurada.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <FormField

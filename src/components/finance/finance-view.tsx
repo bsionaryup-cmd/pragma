@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Receipt, TrendingUp, Wallet } from "lucide-react";
-import { DashboardFinanceBarChart } from "@/components/dashboard/dashboard-finance-bar-chart";
+import { FinanceYearlyOverviewChart } from "@/components/finance/finance-yearly-overview-chart";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
@@ -143,6 +144,22 @@ export function FinanceView({
           eyebrow={t("finance.eyebrow")}
           title={t("finance.title")}
           description={t("finance.description")}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/finance/payment-history"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted/50"
+              >
+                Historial de cobros
+              </Link>
+              <Link
+                href="/finance/payment-links"
+                className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+              >
+                Payment Links
+              </Link>
+            </div>
+          }
         />
 
         <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -184,38 +201,68 @@ export function FinanceView({
           />
         </section>
 
+        {canWrite ? (
+          <section className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-pragma-light-blue/25 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Otros ingresos y gastos
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Registro rápido sin salir del resumen financiero.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab("otherIncome")}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  activeTab === "otherIncome"
+                    ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
+                    : "border-border bg-card text-foreground hover:bg-muted/40",
+                )}
+              >
+                {t("finance.tabs.otherIncome")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("expenses")}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  activeTab === "expenses"
+                    ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
+                    : "border-border bg-card text-foreground hover:bg-muted/40",
+                )}
+              >
+                {t("finance.tabs.expenses")}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section className="mb-6">
           <SectionCard
-            title="Ingresos vs egresos"
-            description="Comparación del mes actual y mes anterior."
+            title="Financial Overview"
+            description="Vista anual con ingresos confirmados y egresos registrados (ene–dic). Solo datos reales."
           >
             <div className="p-4 sm:p-6">
-              <DashboardFinanceBarChart
-                points={[
-                  {
-                    label: "Mes ant.",
-                    revenue: comparison.revenue.previous,
-                    expenses: comparison.expenses.previous,
-                  },
-                  {
-                    label: "Actual",
-                    revenue: comparison.revenue.current,
-                    expenses: comparison.expenses.current,
-                  },
-                ]}
+              <FinanceYearlyOverviewChart
+                months={data.yearlyChart}
+                year={data.chartYear}
+                locale={locale}
               />
             </div>
           </SectionCard>
         </section>
 
-        <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-px">
+        <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "shrink-0 px-4 py-2.5 text-sm font-medium transition-colors",
+                "shrink-0 px-4 py-2.5 text-sm font-semibold transition-colors",
                 activeTab === tab.id
                   ? "border-b-2 border-pragma-electric text-pragma-electric"
                   : "text-muted-foreground hover:text-foreground",
@@ -252,16 +299,16 @@ export function FinanceView({
             </SectionCard>
 
             <SectionCard
-              title={t("finance.forecast.title")}
-              description={t("finance.forecast.description")}
+              title="Acumulado del año"
+              description="Ingresos confirmados en el año en curso, sin proyecciones."
             >
               <div className="space-y-4 p-6">
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {t("finance.forecast.projected")}
+                    Ingresos YTD ({data.chartYear})
                   </p>
                   <p className="font-heading mt-2 text-3xl font-semibold text-pragma-electric">
-                    {data.revenueForecastFormatted}
+                    {data.yearToDateRevenueFormatted}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">

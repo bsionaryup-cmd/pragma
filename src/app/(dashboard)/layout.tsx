@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
 import { DashboardDataRefreshLazy } from "@/components/dashboard/dashboard-data-refresh-lazy";
+import { SupportBubbleLazy } from "@/components/support/support-bubble-lazy";
 import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
 import { OwnerShellHeader } from "@/components/owner/owner-shell-header";
@@ -15,6 +16,7 @@ import { hasPermission, requireDbUser } from "@/lib/auth";
 import { displayRoleLabel } from "@/lib/auth/role-labels";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { getServerLocale } from "@/i18n/locale.server";
+import { getOrganizationPlanContextForUser } from "@/lib/billing/organization-plan";
 import {
   getMainNavigationForRole,
   getSettingsNavItem,
@@ -56,7 +58,8 @@ export default async function DashboardLayout({
   }
 
   const role = tenantContext.effectiveRole as AppUserRole;
-  const navItems = getMainNavigationForRole(role);
+  const planContext = await getOrganizationPlanContextForUser(user.id);
+  const navItems = getMainNavigationForRole(role, planContext?.plan);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb =
     hasPermission(role, "properties:write") &&
@@ -109,6 +112,7 @@ export default async function DashboardLayout({
           <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
           <DashboardDataRefreshLazy />
           {children}
+          <SupportBubbleLazy routeContext={pathname || undefined} />
         </AppShell>
       </div>
     </I18nProvider>

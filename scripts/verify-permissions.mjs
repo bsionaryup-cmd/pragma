@@ -31,13 +31,21 @@ const ROLE_PERMISSIONS = {
   ],
   RECEPTIONIST: [
     "dashboard:read",
-    "properties:read",
     "reservations:read",
     "reservations:create",
+    "reservations:write",
     "calendar:read",
-    "finance:operations:read",
+    "tasks:read",
+    "tasks:write",
   ],
 };
+
+const RECEPTIONIST_ROUTE_PREFIXES = [
+  "/panel",
+  "/reservations",
+  "/calendar",
+  "/tasks",
+];
 
 const ROUTE_PERMISSIONS = {
   "/panel": "dashboard:read",
@@ -45,13 +53,17 @@ const ROUTE_PERMISSIONS = {
   "/properties": "properties:read",
   "/reservations/new": "reservations:create",
   "/reservations": "reservations:read",
+  "/inbox": "reservations:read",
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
+  "/finance/payment-links": "finance:read",
+  "/finance/payment-history": "finance:read",
   "/finance": "finance:read",
   "/integrations": "integrations:read",
   "/settings/billing": "billing:manage",
   "/settings": "settings:read",
   "/users": "users:read",
+  "/tasks/new": "tasks:write",
   "/tasks": "tasks:read",
 };
 
@@ -73,11 +85,11 @@ const EXPECTED_ACCESS = {
   ],
   RECEPTIONIST: [
     "/panel",
-    "/properties",
     "/reservations",
     "/reservations/new",
     "/calendar",
-    "/finance",
+    "/tasks",
+    "/tasks/new",
   ],
 };
 
@@ -88,13 +100,23 @@ const EXPECTED_DENIED = {
     "/settings",
     "/settings/billing",
     "/users",
-    "/tasks",
+    "/finance",
+    "/finance/payment-links",
+    "/finance/payment-history",
+    "/inbox",
+    "/properties",
     "/properties/new",
   ],
 };
 
 function hasPermission(role, permission) {
   return ROLE_PERMISSIONS[role].includes(permission);
+}
+
+function receptionistRouteAllowed(pathname) {
+  return RECEPTIONIST_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 }
 
 function getRequiredPermission(pathname) {
@@ -105,6 +127,9 @@ function getRequiredPermission(pathname) {
 }
 
 function hasRouteAccess(role, pathname) {
+  if (role === "RECEPTIONIST" && !receptionistRouteAllowed(pathname)) {
+    return false;
+  }
   const permission = getRequiredPermission(pathname);
   if (!permission) return false;
   if (hasPermission(role, permission)) return true;
@@ -132,8 +157,13 @@ for (const path of EXPECTED_DENIED.RECEPTIONIST) {
   }
 }
 
-if (hasPermission("RECEPTIONIST", "reservations:write")) {
-  console.log("✗ RECEPTIONIST must not have reservations:write");
+if (!hasPermission("RECEPTIONIST", "reservations:write")) {
+  console.log("✗ RECEPTIONIST must have reservations:write for operational edits");
+  failed++;
+}
+
+if (hasPermission("RECEPTIONIST", "reservations:delete")) {
+  console.log("✗ RECEPTIONIST must not have reservations:delete");
   failed++;
 }
 

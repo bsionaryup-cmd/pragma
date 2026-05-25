@@ -31,6 +31,9 @@ model Organization {
   properties     Property[]
   impersonationSessions PlatformImpersonationSession[]
   organizationIntegrations OrganizationIntegration[]
+  supportTickets         SupportTicket[]
+  guestPaymentLinks      GuestPaymentLink[]
+  salesQuotes            SalesQuote[]
 
   @@map("organizations")
 }
@@ -76,6 +79,11 @@ model User {
   wompiIntegrations      WompiIntegration[]       @relation("WompiConfigurator")
   platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
   platformAuditLogs      PlatformAuditLog[]
+  supportTickets         SupportTicket[] @relation("SupportTicketCreator")
+  guestPaymentLinks      GuestPaymentLink[] @relation("GuestPaymentLinkCreator")
+  salesQuotesCreated     SalesQuote[] @relation("SalesQuoteCreator")
+  salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
+  salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
 
   @@index([role, isActive])
   @@index([organizationId])
@@ -157,6 +165,7 @@ model Property {
   tasks        Task[]
   propertyLock PropertyLock?
   priceLabs      PropertyPriceLabs?
+  guestPaymentLinks GuestPaymentLink[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -167,6 +176,7 @@ model Property {
 
 enum PropertyType {
   APARTMENT
+  LOFT
   HOUSE
   STUDIO
   ROOM
@@ -216,6 +226,7 @@ model Reservation {
   accessEvents            AccessEvent[]
   tasks                   Task[]
   paymentInvoices         PaymentInvoice[]
+  guestPaymentLinks       GuestPaymentLink[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -747,6 +758,7 @@ enum BillingSubscriptionStatus {
 enum BillingPlanCode {
   STARTER
   PRO
+  SCALE
 }
 
 enum BillingInvoiceStatus {
@@ -1092,4 +1104,233 @@ model PlatformAuditLog {
   @@index([targetTenantId, createdAt(sort: Desc)])
   @@index([action, createdAt(sort: Desc)])
   @@map("platform_audit_logs")
+}
+
+// ─── Support Center ─────────────────────────────────────────
+
+enum SupportTicketStatus {
+  OPEN
+  IN_REVIEW
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketCategory {
+  BUG
+  BILLING
+  RESERVATIONS
+  INTEGRATIONS
+  ACCESS
+  OTHER
+}
+
+model SupportTicket {
+  id              String                @id @default(cuid())
+  organizationId  String?
+  createdById     String
+  subject         String
+  category        SupportTicketCategory   @default(OTHER)
+  priority        SupportTicketPriority   @default(NORMAL)
+  status          SupportTicketStatus     @default(OPEN)
+  routeContext    String?
+  propertyId      String?
+  reservationId   String?
+  autoContext     Json?
+  screenshotUrl   String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  resolvedAt      DateTime?
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  createdBy    User          @relation("SupportTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  messages     SupportMessage[]
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([createdById, createdAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  authorId   String?
+  authorKind String   @default("tenant")
+  body       String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_messages")
+}
+
+// ─── Tenant guest payment links (Wompi per tenant — not SaaS billing) ───
+
+enum GuestPaymentLinkStatus {
+  DRAFT
+  SENT
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  EXPIRED
+  CANCELLED
+  REFUNDED
+}
+
+enum GuestPaymentCategory {
+  RESERVATION_FULL
+  DEPOSIT
+  REMAINING_BALANCE
+  DAMAGE_FEE
+  CLEANING_FEE
+  LATE_CHECKOUT
+  EXTRA_SERVICES
+  MANUAL_OPERATIONAL
+}
+
+model GuestPaymentLink {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  createdById      String
+  reservationId    String?
+  propertyId       String?
+  guestName        String?
+  category         GuestPaymentCategory
+  description      String
+  amount           Decimal                @db.Decimal(12, 2)
+  currency         String                 @default("COP")
+  status           GuestPaymentLinkStatus @default(DRAFT)
+  wompiLinkId      String?
+  wompiCheckoutUrl String?
+  expiresAt        DateTime?
+  notes            String?
+  paymentInvoiceId String?
+  metadata         Json?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User          @relation("GuestPaymentLinkCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  reservation    Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  property       Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([reservationId])
+  @@map("guest_payment_links")
+}
+
+// ─── Sales Console (SaaS offers — platform owner only) ───
+
+enum SalesQuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+  CONVERTED
+}
+
+enum SalesBillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
+enum SalesDiscountScope {
+  GLOBAL
+  PLAN
+  TENANT
+}
+
+enum SalesDiscountKind {
+  PERCENT
+  FIXED_COP
+}
+
+model SalesDiscountCode {
+  id              String             @id @default(cuid())
+  createdById     String
+  code            String             @unique
+  label           String?
+  kind            SalesDiscountKind
+  value           Decimal            @db.Decimal(12, 2)
+  scope           SalesDiscountScope @default(GLOBAL)
+  plan            BillingPlanCode?
+  organizationId  String?
+  firstMonthOnly  Boolean            @default(false)
+  recurring       Boolean            @default(true)
+  maxRedemptions  Int?
+  redemptionCount Int                @default(0)
+  expiresAt       DateTime?
+  active          Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  createdBy User         @relation("SalesDiscountCodeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  quotes    SalesQuote[]
+
+  @@index([active, expiresAt])
+  @@map("sales_discount_codes")
+}
+
+model SalesQuote {
+  id                String               @id @default(cuid())
+  createdById       String
+  organizationId    String?
+  prospectName      String?
+  prospectEmail     String?
+  plan              BillingPlanCode
+  propertyCount     Int
+  billingInterval   SalesBillingInterval @default(MONTHLY)
+  discountPercent   Decimal?             @db.Decimal(5, 2)
+  discountAmountCop Decimal?             @db.Decimal(12, 2)
+  discountCodeId    String?
+  listAmountCop     Decimal              @db.Decimal(12, 2)
+  savingsAmountCop  Decimal              @default(0) @db.Decimal(12, 2)
+  finalAmountCop    Decimal              @db.Decimal(12, 2)
+  currency          String               @default("COP")
+  status            SalesQuoteStatus     @default(DRAFT)
+  offerToken        String?              @unique
+  expiresAt         DateTime?
+  acceptedAt        DateTime?
+  convertedAt       DateTime?
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  createdBy    User               @relation("SalesQuoteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  organization Organization?      @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  discountCode SalesDiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  events       SalesQuoteEvent[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([prospectEmail])
+  @@index([organizationId])
+  @@map("sales_quotes")
+}
+
+model SalesQuoteEvent {
+  id        String   @id @default(cuid())
+  quoteId   String
+  action    String
+  actorId   String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  quote SalesQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  actor User?      @relation("SalesQuoteEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([quoteId, createdAt])
+  @@map("sales_quote_events")
 }

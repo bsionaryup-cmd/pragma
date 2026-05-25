@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import { TTLockLoadError } from "@/features/integrations/ttlock/components/ttlock-load-error";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import type { AppUserRole } from "@/types/auth";
 import { resolveRequestContextFromHeaders } from "@/lib/integrations/ttlock-config";
 import { isTTLockSchemaDriftError } from "@/services/integrations/ttlock/ttlock-prisma-guard";
@@ -28,6 +29,7 @@ type TTLockPageProps = {
 export default async function TTLockIntegrationPage({
   searchParams,
 }: TTLockPageProps) {
+  await redirectIfMissingPlanFeature("ttlock", "/integrations/ttlock");
   const user = await requirePermission("integrations:read");
   const canManage = hasPermission(user.role as AppUserRole, "integrations:manage");
 

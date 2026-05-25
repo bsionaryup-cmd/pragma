@@ -65,7 +65,7 @@ export type OperationalSummary = {
 
 export type DashboardAlert = {
   id: string;
-  type: "lock" | "payment" | "cleaning" | "sync" | "conflict";
+  type: "lock" | "payment" | "cleaning" | "sync" | "conflict" | "registration";
   severity: "critical" | "warning";
   messageKey: string;
 };
@@ -134,6 +134,9 @@ function computeOccupancyFromReservations(
 export async function getCommandCenterData(locale: Locale = "es"): Promise<CommandCenterData> {
   const scope = await requireTenantDataScope();
   const today = startOfDay();
+  const registrationDueBy = new Date(today);
+  registrationDueBy.setDate(registrationDueBy.getDate() + 2);
+  registrationDueBy.setHours(23, 59, 59, 999);
   const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds(today);
 
   const [
@@ -145,6 +148,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     currentRaw,
     pendingCleaning,
     propertiesWithStaleSync,
+    pendingGuestRegistration,
     ttlockConnected,
     monthReservations,
     prevMonthReservations,
@@ -201,6 +205,21 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
           in: [TTLockIntegrationStatus.CONNECTED, TTLockIntegrationStatus.READY],
         },
       },
+    }),
+    db.reservation.count({
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          guestRegistrationCompletedAt: null,
+          status: {
+            in: [
+              ReservationStatus.CONFIRMED,
+              ReservationStatus.CHECKED_IN,
+              ReservationStatus.CHECKOUT_TODAY,
+            ],
+          },
+          checkIn: { gte: today, lte: registrationDueBy },
+        }),
+      ),
     }),
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
@@ -372,6 +391,14 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       type: "sync",
       severity: "warning",
       messageKey: "dashboard.alerts.syncFailure",
+    });
+  }
+  if (pendingGuestRegistration > 0) {
+    alerts.push({
+      id: "guest-registration",
+      type: "registration",
+      severity: "warning",
+      messageKey: "dashboard.alerts.guestRegistrationDue",
     });
   }
 

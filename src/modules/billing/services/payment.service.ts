@@ -26,6 +26,8 @@ import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.r
 import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
 import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
 import { resolveOrganizationIdForBillingInvoice } from "@/modules/billing/services/wompi-org";
+import { isGuestPaymentReference } from "@/lib/payments/guest-payment-reference";
+import { reconcileGuestPaymentFromWebhook } from "@/services/payments/guest-payment-reconcile.service";
 
 async function resolvePaymentTenantId(
   billingInvoiceId: string,
@@ -155,6 +157,10 @@ export async function reconcileTransactionFromWebhook(input: {
   paymentMethod?: PaymentMethodType;
   failureReason?: string;
 }) {
+  if (isGuestPaymentReference(input.reference)) {
+    return reconcileGuestPaymentFromWebhook(input);
+  }
+
   const billingInvoice = await db.billingInvoice.findFirst({
     where: { externalRef: input.reference },
   });

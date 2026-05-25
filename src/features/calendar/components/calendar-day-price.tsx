@@ -55,10 +55,10 @@ export function CalendarDayPrice({
         >
           <span
             className={cn(
-              "text-[11px] font-normal tabular-nums",
+              "text-[12px] font-medium tabular-nums",
               highlighted
                 ? "text-[var(--cal-text-range-select)]"
-                : "text-[var(--cal-text-muted)]",
+                : "text-[var(--cal-text-secondary)]",
             )}
           >
             {formatLodgifyPrice(display)}

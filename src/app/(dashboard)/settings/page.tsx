@@ -1,7 +1,8 @@
 import dynamic from "next/dynamic";
 import { Suspense } from "react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { requireDbUser } from "@/lib/auth";
+import { hasPermission, requireDbUser } from "@/lib/auth";
+import type { AppUserRole } from "@/types/auth";
 import { getUserDisplayName } from "@/lib/helpers/user-display";
 import SettingsLoading from "./loading";
 
@@ -15,6 +16,10 @@ const SettingsView = dynamic(
 
 export default async function SettingsPage() {
   const user = await requireDbUser();
+  const canManageBilling = hasPermission(
+    user.role as AppUserRole,
+    "billing:manage",
+  );
 
   return (
     <ModuleShellFlow className="bg-background">
@@ -28,6 +33,7 @@ export default async function SettingsPage() {
           )}
           initialLocale={user.locale}
           initialTheme={user.theme}
+          canManageBilling={canManageBilling}
         />
       </Suspense>
     </ModuleShellFlow>

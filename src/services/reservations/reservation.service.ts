@@ -31,6 +31,13 @@ import { formatAccessCode } from "@/lib/access-code";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
+import {
+  assertReservationDateMutationAllowed,
+  canUseHistoricalReservationOverride,
+  isHistoricalOrClosedReservation,
+} from "@/lib/reservations/reservation-mutation-policy";
+import { requireTenantContext } from "@/lib/platform/tenant-context";
+import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -126,6 +133,12 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       address: r.property.address,
       city: r.property.city,
       maxGuests: r.property.maxGuests,
+      propertyType:
+        "propertyType" in r.property ? r.property.propertyType : undefined,
+      checkInTime:
+        "checkInTime" in r.property ? r.property.checkInTime : undefined,
+      checkOutTime:
+        "checkOutTime" in r.property ? r.property.checkOutTime : undefined,
     },
   };
 }
@@ -288,7 +301,17 @@ export async function getReservationForInbox(
     ),
     include: {
       property: {
-        select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
+        select: {
+          id: true,
+          name: true,
+          unitNumber: true,
+          address: true,
+          city: true,
+          maxGuests: true,
+          propertyType: true,
+          checkInTime: true,
+          checkOutTime: true,
+        },
       },
     },
   });
@@ -352,7 +375,33 @@ export async function getReservationForInbox(
 }
 
 export async function createReservation(data: ReservationWizardValues) {
-  const scope = await requireTenantDataScope();
+  const [scope, tenantCtx] = await Promise.all([
+    requireTenantDataScope(),
+    requireTenantContext(),
+  ]);
+  const allowHistoricalOverride = canUseHistoricalReservationOverride(tenantCtx);
+
+  assertReservationDateMutationAllowed({
+    operation: "create",
+    checkIn: data.checkIn,
+    checkOut: data.checkOut,
+    allowHistoricalOverride,
+  });
+
+  if (allowHistoricalOverride && data.checkIn < prismaDateToKey(new Date())) {
+    await writePlatformAuditLog({
+      platformUserId: tenantCtx.userId,
+      ownerEmail: tenantCtx.email,
+      action: "reservation_create_historical_override",
+      targetTenantId: scope.organizationId,
+      metadata: {
+        propertyId: data.propertyId,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+      },
+    });
+  }
+
   await assertPropertyInScope(scope, data.propertyId);
 
   const property = await db.property.findFirst({
@@ -375,7 +424,7 @@ export async function createReservation(data: ReservationWizardValues) {
   const guestTotal = data.adults + data.children + data.infants;
   if (guestTotal > property.maxGuests) {
     throw new Error(
-      `La propiedad permite máximo ${property.maxGuests} persona${property.maxGuests === 1 ? "" : "s"}`,
+      `Máximo ${property.maxGuests} huésped${property.maxGuests === 1 ? "" : "es"} (capacidad de la propiedad)`,
     );
   }
 
@@ -435,8 +484,56 @@ export async function updateReservation(
   id: string,
   data: ReservationEditValues,
 ) {
-  const scope = await requireTenantDataScope();
-  const existing = await assertReservationInScope(scope, id);
+  const [scope, tenantCtx] = await Promise.all([
+    requireTenantDataScope(),
+    requireTenantContext(),
+  ]);
+  await assertReservationInScope(scope, id);
+  const existing = await db.reservation.findFirst({
+    where: { id },
+    select: { checkIn: true, checkOut: true, status: true, propertyId: true },
+  });
+  if (!existing) throw new Error("Reserva no encontrada");
+
+  const allowHistoricalOverride = canUseHistoricalReservationOverride(tenantCtx);
+  const existingCheckIn = prismaDateToKey(existing.checkIn);
+  const existingCheckOut = prismaDateToKey(existing.checkOut);
+
+  assertReservationDateMutationAllowed({
+    operation: "update",
+    checkIn: data.checkIn,
+    checkOut: data.checkOut,
+    existing: {
+      checkIn: existingCheckIn,
+      checkOut: existingCheckOut,
+      status: existing.status,
+    },
+    allowHistoricalOverride,
+  });
+
+  if (
+    allowHistoricalOverride &&
+    (isHistoricalOrClosedReservation(existingCheckOut, existing.status) ||
+      data.checkIn < prismaDateToKey(new Date()) ||
+      data.checkOut < prismaDateToKey(new Date()))
+  ) {
+    await writePlatformAuditLog({
+      platformUserId: tenantCtx.userId,
+      ownerEmail: tenantCtx.email,
+      action: "reservation_update_historical_override",
+      targetTenantId: scope.organizationId,
+      metadata: {
+        reservationId: id,
+        previous: {
+          checkIn: existingCheckIn,
+          checkOut: existingCheckOut,
+          status: existing.status,
+        },
+        next: { checkIn: data.checkIn, checkOut: data.checkOut },
+      },
+    });
+  }
+
   await assertPropertyInScope(scope, data.propertyId);
 
   const property = await db.property.findFirst({
@@ -454,7 +551,7 @@ export async function updateReservation(
   const guestTotal = data.adults + data.children + data.infants;
   if (guestTotal > property.maxGuests) {
     throw new Error(
-      `La propiedad permite máximo ${property.maxGuests} persona${property.maxGuests === 1 ? "" : "s"}`,
+      `Máximo ${property.maxGuests} huésped${property.maxGuests === 1 ? "" : "es"} (capacidad de la propiedad)`,
     );
   }
 

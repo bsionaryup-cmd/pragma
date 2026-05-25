@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/table";
 import { TaskStatusSelect } from "@/features/tasks/components/task-status-select";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import { formatDate } from "@/lib/helpers/date";
 import { taskTypeLabels } from "@/lib/labels";
 import { listTasks } from "@/services/tasks/task.service";
 import type { AppUserRole } from "@/types/auth";
 
 export default async function TasksPage() {
+  await redirectIfMissingPlanFeature("tasks", "/tasks");
   const auth = await requirePermission("tasks:read");
   const tasks = await listTasks();
   const canWrite = hasPermission(auth.role as AppUserRole, "tasks:write");

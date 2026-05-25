@@ -1,6 +1,4 @@
-import { PropertyUnitBadge } from "@/components/properties/property-unit-badge";
-import { formatPropertyLabel, formatPropertyUnit } from "@/lib/property-display";
-import { cn } from "@/lib/utils";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 
 type ReservationPropertyLabelProps = {
   property: {
@@ -10,6 +8,7 @@ type ReservationPropertyLabelProps = {
   className?: string;
   badgeSize?: "sm" | "md" | "lg";
   showBadge?: boolean;
+  layout?: "inline" | "stack";
 };
 
 export function ReservationPropertyLabel({
@@ -17,16 +16,16 @@ export function ReservationPropertyLabel({
   className,
   badgeSize = "sm",
   showBadge = true,
+  layout = "stack",
 }: ReservationPropertyLabelProps) {
-  const unit = formatPropertyUnit(property.unitNumber);
-  const label = showBadge ? formatPropertyLabel(property) : property.name;
-
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)}>
-      {showBadge && unit ? (
-        <PropertyUnitBadge unitNumber={unit} size={badgeSize} />
-      ) : null}
-      <span className="truncate font-semibold text-foreground">{label}</span>
-    </span>
+    <PropertyIdentity
+      name={property.name}
+      unitNumber={property.unitNumber}
+      className={className}
+      layout={layout}
+      size={badgeSize}
+      showBadge={showBadge}
+    />
   );
 }

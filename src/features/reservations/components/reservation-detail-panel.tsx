@@ -32,7 +32,9 @@ import { Button } from "@/components/ui/button";
 import { DetailEmptyState } from "@/components/detail/detail-section";
 import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
-import { formatPropertyLabel } from "@/lib/property-display";
+import { PropertyIdentity } from "@/components/properties/property-identity";
+import { ReservationPaymentLinks } from "@/features/payments/components/reservation-payment-links";
+import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
 
@@ -116,6 +118,7 @@ type ReservationDetailPanelProps = {
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
   canDelete?: boolean;
+  canManagePayments?: boolean;
   onDeleted: (id: string) => void;
   onClose: () => void;
   onUpdated?: (reservation: ReservationDetailItem) => void;
@@ -256,6 +259,7 @@ export function ReservationDetailPanel({
   canWrite,
   canManageGuestRegistration = canWrite,
   canDelete = false,
+  canManagePayments = false,
   onDeleted,
   onClose,
   onUpdated,
@@ -281,6 +285,10 @@ export function ReservationDetailPanel({
   const registrationProgress = reservation.guestRegistrationProgress;
   const accessCode = reservation.accessCode;
   const reservationCode = formatReservationCode(reservation);
+  const registrationDueSoon = isGuestRegistrationDueSoon({
+    checkIn: reservation.checkIn,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
+  });
 
   async function handleDelete() {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -372,11 +380,14 @@ export function ReservationDetailPanel({
               {reservation.guestName}
             </h3>
             <TitularContactSummary reservation={reservation} />
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              {formatPropertyLabel(reservation.property)}
-              <span className="mx-1.5" aria-hidden>
-                ·
-              </span>
+            <div className="mt-2">
+              <PropertyIdentity
+                name={reservation.property.name}
+                unitNumber={reservation.property.unitNumber}
+                size="sm"
+              />
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
               {formatStayRange(reservation.checkIn, reservation.checkOut)}
               <span className="mx-1.5" aria-hidden>
                 ·
@@ -432,12 +443,44 @@ export function ReservationDetailPanel({
 
         {!editing ? (
           <>
+            {registrationDueSoon ? (
+              <div className="mb-4 rounded-xl border border-warning/35 bg-warning/10 px-3 py-2.5 text-sm text-foreground">
+                <p className="font-medium text-warning">
+                  Registro de huéspedes pendiente
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  El check-in es en los próximos 2 días y el registro aún no está
+                  completo.
+                </p>
+                {canManageGuestRegistration && !registration ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-2.5"
+                    onClick={generateRegistrationLink}
+                    disabled={isTokenPending}
+                  >
+                    Generar link de registro de huéspedes
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
             {accessCode ? (
               <ReservationDetailSection title="Código de acceso">
                 <AccessCodeDisplay
                   code={accessCode.code}
                   status={accessCode.status}
                   isActive={accessCode.isActive}
+                  copyContext={{
+                    propertyType: reservation.property.propertyType,
+                    propertyName: reservation.property.name,
+                    unitNumber: reservation.property.unitNumber,
+                    checkIn: reservation.checkIn,
+                    checkOut: reservation.checkOut,
+                    checkInTime: reservation.property.checkInTime,
+                    checkOutTime: reservation.property.checkOutTime,
+                  }}
                 />
               </ReservationDetailSection>
             ) : null}
@@ -498,6 +541,15 @@ export function ReservationDetailPanel({
                 ) : null}
               </div>
             </ReservationDetailSection>
+
+            {canManagePayments ? (
+              <ReservationDetailSection title="Cobros">
+                <ReservationPaymentLinks
+                  reservationId={reservation.id}
+                  canManage={canManagePayments}
+                />
+              </ReservationDetailSection>
+            ) : null}
 
             <ReservationDetailSection title="Registro de huéspedes">
               {registrationProgress ? (
@@ -599,7 +651,7 @@ export function ReservationDetailPanel({
                       disabled={isTokenPending}
                     >
                       <RefreshCw className="h-3.5 w-3.5" />
-                      Generar link
+                      Generar link de registro de huéspedes
                     </Button>
                   ) : null}
                 </div>

@@ -123,20 +123,22 @@ export function InboxPageView({
       return;
     }
 
+    queueMicrotask(() => {
+      void loadConversation(selectedId);
+    });
+  }, [selectedId, loadConversation]);
+
+  useEffect(() => {
+    if (!selectedId || conversations.length === 0) return;
     const exists = conversations.some((c) => c.id === selectedId);
-    if (!exists && conversations.length > 0) {
+    if (!exists) {
       queueMicrotask(() => {
         setSelectedId(null);
         setActiveConversation(null);
         syncUrl(null);
       });
-      return;
     }
-
-    queueMicrotask(() => {
-      void loadConversation(selectedId);
-    });
-  }, [selectedId, conversations, loadConversation, syncUrl]);
+  }, [selectedId, conversations, syncUrl]);
 
   function handleSelect(id: string) {
     setSelectedId(id);

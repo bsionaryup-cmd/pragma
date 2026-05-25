@@ -104,6 +104,10 @@ export function AirbnbImportDrawer({
           listingUrl,
           icalUrl,
         });
+        if (!result.success) {
+          toast.error(result.message);
+          return;
+        }
         toast.success("Propiedad importada desde Airbnb");
         onImported(result.property);
         resetForm();

@@ -4,6 +4,7 @@ import { Copy, Pencil, User } from "lucide-react";
 import { InboxAvatar } from "@/components/inbox/inbox-avatar";
 import { InboxStatusBadge } from "@/components/inbox/inbox-status-badge";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import type { InboxConversation } from "@/types/inbox";
 
 type InboxReservationSidebarProps = {
@@ -66,10 +67,16 @@ export function InboxReservationSidebar({
               sizes="56px"
             />
             <div className="min-w-0">
-              <p className="text-sm font-semibold leading-snug text-foreground">
-                {conversation.propertyName}
-              </p>
-              <p className="text-sm text-muted-foreground">{conversation.propertyUnit}</p>
+              <PropertyIdentity
+                name={conversation.propertyName}
+                unitNumber={
+                  conversation.propertyUnit &&
+                  conversation.propertyUnit !== conversation.propertyName
+                    ? conversation.propertyUnit
+                    : null
+                }
+                size="md"
+              />
               <p className="mt-1 text-xs text-text-subtle">
                 ID del alojamiento: {conversation.propertyId}
               </p>

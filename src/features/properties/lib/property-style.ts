@@ -30,6 +30,8 @@ export function getPropertyStatusBadgeClass(status: PropertyStatus): string {
 
 export function getPropertyTypeIconClass(type: PropertyType): string {
   switch (type) {
+    case "LOFT":
+      return "text-info";
     case "HOUSE":
       return "text-warning";
     case "STUDIO":

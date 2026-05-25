@@ -23,6 +23,7 @@ import {
 } from "@/services/organizations/organization.service";
 import { resolvePlatformRoleForEmail } from "@/lib/platform/resolve-platform-role";
 import { isPlatformOwnerEmail } from "@/lib/platform/platform-owner";
+import { assertCanAddUserForOrganization } from "@/lib/billing/plan-limits";
 import { assertUsersShareOrganization } from "@/lib/platform/tenant-access";
 
 async function createSelfSignupUser(
@@ -383,6 +384,14 @@ export async function setUserActive(
         "No se puede desactivar al dueño principal de la cuenta",
       );
     }
+  } else {
+    const target = await db.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true, isActive: true },
+    });
+    if (target?.organizationId && !target.isActive) {
+      await assertCanAddUserForOrganization(target.organizationId);
+    }
   }
 
   return db.user.update({
@@ -425,6 +434,8 @@ export async function createUserByAdmin(
   if (!admin?.organizationId) {
     throw new Error("No se pudo determinar la organización del administrador");
   }
+
+  await assertCanAddUserForOrganization(admin.organizationId);
 
   const email = input.email.trim().toLowerCase();
 

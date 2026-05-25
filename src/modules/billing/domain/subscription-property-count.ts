@@ -4,23 +4,24 @@ import {
   clampPropertyCount,
 } from "@/modules/billing/domain/plan-catalog";
 import type { BillingPlanCode } from "@prisma/client";
+import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
 
 export type BillingAccountMetadata = {
   propertySlots?: number;
+  salesQuoteId?: string;
+  quotedMonthlyAmountCop?: number;
+  quotedPlan?: BillingPlanCode;
 };
 
 export function parseBillingAccountMetadata(
   metadata: unknown,
 ): BillingAccountMetadata {
-  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return {};
-  }
-  const raw = metadata as Record<string, unknown>;
-  const propertySlots =
-    typeof raw.propertySlots === "number" ? raw.propertySlots : undefined;
+  const sales = parseSalesBillingMetadata(metadata);
   return {
-    propertySlots:
-      propertySlots !== undefined ? clampPropertyCount(propertySlots) : undefined,
+    propertySlots: sales.propertySlots,
+    salesQuoteId: sales.salesQuoteId,
+    quotedMonthlyAmountCop: sales.quotedMonthlyAmountCop,
+    quotedPlan: sales.quotedPlan,
   };
 }
 
@@ -88,9 +89,22 @@ export async function resolveSubscriptionAmountForAccount(input: {
     metadata: input.metadata,
     userPropertyCount,
   });
+
+  const meta = parseBillingAccountMetadata(input.metadata);
+  const effectivePlan = meta.quotedPlan ?? input.plan;
+  let amount = calculateSubscriptionAmount(effectivePlan, propertyCount);
+
+  if (
+    meta.quotedMonthlyAmountCop != null &&
+    Number.isFinite(meta.quotedMonthlyAmountCop) &&
+    meta.quotedMonthlyAmountCop >= 0
+  ) {
+    amount = Math.round(meta.quotedMonthlyAmountCop);
+  }
+
   return {
     propertyCount,
-    amount: calculateSubscriptionAmount(input.plan, propertyCount),
+    amount,
   };
 }
 

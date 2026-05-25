@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useClerk } from "@clerk/nextjs";
-import { CreditCard, LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,6 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
     user.email,
   );
   const canAccessSettings = hasPermission(user.role ?? "RECEPTIONIST", "settings:read");
-  const canManageBilling = hasPermission(user.role ?? "RECEPTIONIST", "billing:manage");
 
   async function handleLogout() {
     await signOut({ redirectUrl: "/sign-in?signed_out=1" });
@@ -89,7 +88,7 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {canAccessSettings || canManageBilling ? (
+        {canAccessSettings ? (
           <>
             {canAccessSettings ? (
               <DropdownMenuItem asChild>
@@ -104,14 +103,6 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
                 <Link href="/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
                   Configuración
-                </Link>
-              </DropdownMenuItem>
-            ) : null}
-            {canManageBilling ? (
-              <DropdownMenuItem asChild>
-                <Link href="/settings/billing" className="cursor-pointer">
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Facturación
                 </Link>
               </DropdownMenuItem>
             ) : null}

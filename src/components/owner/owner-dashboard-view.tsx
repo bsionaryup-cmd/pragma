@@ -77,8 +77,9 @@ const statusOptions = [
 
 const planOptions = [
   { value: "ALL", label: "Todos los planes" },
-  { value: "STARTER", label: "Básico" },
+  { value: "STARTER", label: "Start" },
   { value: "PRO", label: "Pro" },
+  { value: "SCALE", label: "Scale" },
 ] as const;
 
 const sortOptions = [
@@ -268,6 +269,10 @@ function OverviewPanel({ snapshot }: { snapshot: OwnerDashboardSnapshot }) {
     <div className="space-y-6">
       <div className="flex flex-wrap justify-end gap-2">
         <Button asChild size="sm" variant="outline" className="gap-2">
+          <Link href="/owner-dashboard/sales">Sales Console</Link>
+          <Link href="/owner-dashboard/support">Support Center</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline" className="gap-2">
           <Link href="/owner-dashboard/billing">
             <CreditCard className="h-4 w-4" />
             Wompi y webhooks
@@ -446,7 +451,7 @@ function SubscriptionsPanel({
         <KpiCard label="Activas" value={String(analytics.activeSubscriptions)} icon={CreditCard} />
         <KpiCard label="En trial" value={String(analytics.trialTenants)} icon={Activity} />
         <KpiCard label="Vencidas" value={String(analytics.pastDueCount)} icon={AlertTriangle} />
-        <KpiCard label="Starter / Pro" value={`${analytics.starterActiveCount} / ${analytics.proActiveCount}`} icon={Building2} />
+        <KpiCard label="Start / Pro / Scale" value={`${analytics.starterActiveCount} / ${analytics.proActiveCount} / ${analytics.scaleActiveCount}`} icon={Building2} />
       </section>
 
       <FilterBar

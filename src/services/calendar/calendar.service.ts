@@ -3,6 +3,7 @@ import {
   CALENDAR_DAYS_AFTER,
   CALENDAR_DAYS_BEFORE,
   CALENDAR_DEFAULT_DAYS_BEFORE,
+  CALENDAR_MAX_DAYS_BEFORE,
   differenceInCalendarDays,
   getTodayKey,
 } from "@/features/calendar/lib/calendar-dates";
@@ -13,7 +14,10 @@ import type {
 import { PropertyStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
-import { parseDailyPricesFromMeta } from "@/features/calendar/lib/daily-pricing";
+import {
+  parseDailyPricesFromMeta,
+  trimDailyPricesToRange,
+} from "@/features/calendar/lib/daily-pricing";
 import { resolveCalendarUnitLabel } from "@/features/calendar/lib/property-unit";
 import type { StoredPriceLabsMeta } from "@/integrations/pricelabs/types";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
@@ -26,7 +30,7 @@ import {
   mergeReservationScope,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
-import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
+import { purgeGhostReservationsThrottled } from "@/services/reservations/ghost-reservation.service";
 
 async function loadCalendarProperties(scope: TenantDataScope) {
   const base = {
@@ -78,7 +82,11 @@ type PriceLabsRow = {
   meta: unknown;
 };
 
-function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
+function mapCalendarProperty(
+  p: PropertyRow,
+  rangeStart: string,
+  rangeEnd: string,
+): CalendarPropertyDto {
   const pl = (
     "priceLabs" in p ? p.priceLabs : null
   ) as PriceLabsRow | null;
@@ -115,7 +123,11 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
           }
         : null,
     dailyPricesByDate: pl?.meta
-      ? parseDailyPricesFromMeta(pl.meta)
+      ? trimDailyPricesToRange(
+          parseDailyPricesFromMeta(pl.meta),
+          rangeStart,
+          rangeEnd,
+        )
       : {},
     cleaningFee: p.cleaningFee ? Number(p.cleaningFee) : null,
   };
@@ -147,26 +159,29 @@ async function resolveCalendarDaysBefore(
   }
 
   const earliestKey = prismaDateToKey(earliest.checkIn);
-  return Math.max(
-    CALENDAR_DAYS_BEFORE,
-    differenceInCalendarDays(
-      dateKeyToPrismaDate(todayKey),
-      dateKeyToPrismaDate(earliestKey),
-    ),
+  const span = differenceInCalendarDays(
+    dateKeyToPrismaDate(todayKey),
+    dateKeyToPrismaDate(earliestKey),
+  );
+  return Math.min(
+    CALENDAR_MAX_DAYS_BEFORE,
+    Math.max(CALENDAR_DAYS_BEFORE, span),
   );
 }
 
 export async function getCalendarData(anchorKey: string): Promise<CalendarDataDto> {
   const scope = await requireTenantDataScope();
-  await purgeGhostReservations(scope);
+  await purgeGhostReservationsThrottled(scope);
   const daysBefore = await resolveCalendarDaysBefore(anchorKey, scope);
   const viewport = buildRollingCalendarViewport(
     anchorKey,
     daysBefore,
     CALENDAR_DAYS_AFTER,
   );
-  const rangeStart = dateKeyToPrismaDate(viewport.rangeStart);
-  const rangeEnd = dateKeyToPrismaDate(viewport.rangeEnd);
+  const rangeStartKey = viewport.rangeStart;
+  const rangeEndKey = viewport.rangeEnd;
+  const rangeStart = dateKeyToPrismaDate(rangeStartKey);
+  const rangeEnd = dateKeyToPrismaDate(rangeEndKey);
 
   const [propertiesRaw, reservations] = await Promise.all([
     loadCalendarProperties(scope),
@@ -227,7 +242,9 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
 
   return {
     properties: sortPropertiesByUnitNumber(
-      propertiesRaw.map(mapCalendarProperty),
+      propertiesRaw.map((p) =>
+        mapCalendarProperty(p, rangeStartKey, rangeEndKey),
+      ),
       (p) => p,
     ),
     reservations: reservationDtos,

@@ -1,6 +1,7 @@
 import type {
   BookingPlatform,
   GuestRegistrationStatus,
+  PropertyType,
   ReservationGuestStatus,
   ReservationStatus,
 } from "@prisma/client";
@@ -11,6 +12,9 @@ export type ReservationPropertyDto = {
   unitNumber?: string | null;
   address: string;
   city: string;
+  propertyType?: PropertyType;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
 };
 
 export type ReservationRelatedBlock = {

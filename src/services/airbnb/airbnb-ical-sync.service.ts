@@ -620,6 +620,7 @@ export async function getAirbnbSyncStatusForOwner(ownerId: string) {
     select: {
       id: true,
       name: true,
+      unitNumber: true,
       icalUrl: true,
       lastIcalSyncedAt: true,
     },
@@ -641,6 +642,7 @@ export async function getAirbnbSyncStatusForOwner(ownerId: string) {
     properties: properties.map((p) => ({
       id: p.id,
       name: p.name,
+      unitNumber: p.unitNumber,
       lastSyncedAt: p.lastIcalSyncedAt?.toISOString() ?? null,
     })),
   };

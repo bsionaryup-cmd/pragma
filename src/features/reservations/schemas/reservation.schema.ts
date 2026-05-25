@@ -33,13 +33,19 @@ export const reservationStep3BaseSchema = z.object({
 });
 
 /** Schemas por paso (con reglas de paso; NO derivados de .pick() sobre wizard refinado) */
-export const reservationStep1Schema = reservationStep1BaseSchema.refine(
-  (data) => new Date(data.checkOut) > new Date(data.checkIn),
-  {
-    message: "Check-out debe ser posterior al check-in",
-    path: ["checkOut"],
-  },
-);
+export const reservationStep1Schema = reservationStep1BaseSchema
+  .extend({ maxGuests: z.number().int().min(1).optional() })
+  .superRefine((data, ctx) => {
+    if (new Date(data.checkOut) <= new Date(data.checkIn)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Check-out debe ser posterior al check-in",
+        path: ["checkOut"],
+      });
+    }
+    validateGuestCounts(data, ctx);
+    validateMaxGuests(data, ctx);
+  });
 
 export const reservationStep2Schema = reservationStep2BaseSchema;
 
@@ -87,7 +93,7 @@ function validateMaxGuests(
   if (total > max) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: `Máximo ${max} persona${max === 1 ? "" : "s"} según capacidad de la propiedad`,
+      message: `Máximo ${max} huésped${max === 1 ? "" : "es"} (capacidad de la propiedad)`,
       path: ["adults"],
     });
   }

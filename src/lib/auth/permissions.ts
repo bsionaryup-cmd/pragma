@@ -68,13 +68,22 @@ const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
   ADMIN: ALL_PERMISSIONS,
   RECEPTIONIST: [
     "dashboard:read",
-    "properties:read",
     "reservations:read",
     "reservations:create",
+    "reservations:write",
     "calendar:read",
-    "finance:operations:read",
+    "tasks:read",
+    "tasks:write",
   ],
 };
+
+/** Rutas permitidas para recepcionista (operación diaria). */
+export const RECEPTIONIST_ROUTE_PREFIXES = [
+  "/panel",
+  "/reservations",
+  "/calendar",
+  "/tasks",
+] as const;
 
 /** Ruta → permiso mínimo para acceder */
 export const ROUTE_PERMISSIONS: Record<string, Permission> = {
@@ -87,12 +96,15 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
   "/finance": "finance:read",
+  "/finance/payment-links": "finance:read",
+  "/finance/payment-history": "finance:read",
   "/integrations/airbnb": "integrations:read",
   "/integrations/sire": "integrations:manage",
   "/integrations/traa": "integrations:manage",
   "/integrations/ttlock/connect": "integrations:manage",
   "/integrations/ttlock": "integrations:read",
   "/integrations/pricelabs": "integrations:read",
+  "/integrations/wompi": "integrations:read",
   "/integrations": "integrations:read",
   "/smart-access": "access:read",
   "/settings/billing": "billing:manage",
@@ -153,8 +165,18 @@ export function getRequiredPermissionForPath(pathname: string): Permission | nul
   return match?.[1] ?? null;
 }
 
+function receptionistRouteAllowed(pathname: string): boolean {
+  return RECEPTIONIST_ROUTE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 /** Route access with partial finance fallback for receptionist operations view. */
 export function hasRouteAccess(role: AppUserRole, pathname: string): boolean {
+  if (role === "RECEPTIONIST" && !receptionistRouteAllowed(pathname)) {
+    return false;
+  }
+
   const permission = getRequiredPermissionForPath(pathname);
   if (!permission) return false;
 

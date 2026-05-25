@@ -11,6 +11,7 @@ import type { ReservationInboxItem, ReservationDetailItem } from "@/features/res
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission, requireAnyPermission } from "@/lib/auth";
 import { ReservationConflictError } from "@/services/reservations/reservation-conflicts";
+import { ReservationMutationPolicyError } from "@/lib/reservations/reservation-mutation-policy";
 import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.service";
 import {
   createReservation,
@@ -123,7 +124,10 @@ export async function updateReservationAction(
     }
     return { success: true as const, reservation };
   } catch (error) {
-    if (error instanceof ReservationConflictError) {
+    if (
+      error instanceof ReservationConflictError ||
+      error instanceof ReservationMutationPolicyError
+    ) {
       return { success: false as const, error: error.message };
     }
     if (error instanceof Error) {

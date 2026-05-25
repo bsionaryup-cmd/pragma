@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { EmailPasswordSignUpForm } from "@/components/auth/email-password-sign-up-form";
@@ -6,8 +7,16 @@ import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
 import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
 import { getUserByClerkId } from "@/services/users/user.service";
 
-export default async function SignUpPage() {
+type SignUpPageProps = {
+  searchParams: Promise<{ offer_token?: string; email?: string }>;
+};
+
+export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const { userId } = await auth();
+  const params = await searchParams;
+  const offerQuery = params.offer_token
+    ? `?offer_token=${encodeURIComponent(params.offer_token)}${params.email ? `&email=${encodeURIComponent(params.email)}` : ""}`
+    : "";
 
   if (userId) {
     const dbUser = await getUserByClerkId(userId);
@@ -20,7 +29,7 @@ export default async function SignUpPage() {
       redirect(resolvePostAuthHomePath(dbUser));
     }
 
-    redirect("/onboarding");
+    redirect(`/onboarding${offerQuery}`);
   }
 
   return (
@@ -34,7 +43,9 @@ export default async function SignUpPage() {
         </p>
       }
     >
-      <EmailPasswordSignUpForm />
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
+        <EmailPasswordSignUpForm />
+      </Suspense>
     </PragmaAuthLayout>
   );
 }

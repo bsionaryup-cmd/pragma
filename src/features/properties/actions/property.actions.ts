@@ -7,6 +7,7 @@ import {
 } from "@/features/properties/schemas/property.schema";
 import type { PropertyDetailDto } from "@/features/properties/types/property.types";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
+import { isPlanLimitError } from "@/lib/billing/plan-limit.errors";
 import { requirePermission } from "@/lib/auth";
 import {
   createProperty,
@@ -27,7 +28,15 @@ export async function createPropertyAction(data: PropertyFormValues) {
   const user = await requirePermission("properties:write");
   await assertBillingUnlocked();
   const parsed = propertyFormSchema.parse(data);
-  const created = await createProperty(user.dbUserId, parsed);
+  let created;
+  try {
+    created = await createProperty(user.dbUserId, parsed);
+  } catch (error) {
+    if (isPlanLimitError(error)) {
+      return { success: false as const, message: error.message };
+    }
+    throw error;
+  }
   revalidatePropertyPaths();
 
   const grid = await listPropertiesForGrid(user.dbUserId);
@@ -43,7 +52,15 @@ export async function updatePropertyAction(id: string, data: PropertyFormValues)
   const user = await requirePermission("properties:write");
   await assertBillingUnlocked();
   const parsed = propertyFormSchema.parse(data);
-  const result = await updateProperty(id, user.dbUserId, parsed);
+  let result;
+  try {
+    result = await updateProperty(id, user.dbUserId, parsed);
+  } catch (error) {
+    if (isPlanLimitError(error)) {
+      return { success: false as const, message: error.message };
+    }
+    throw error;
+  }
   if (result.count === 0) throw new Error("Propiedad no encontrada");
 
   revalidatePropertyPaths();

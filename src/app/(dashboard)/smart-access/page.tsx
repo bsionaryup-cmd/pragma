@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import type { AppUserRole } from "@/types/auth";
 import { getSmartAccessOverview } from "@/services/access/smart-access.service";
 import { PragmaLoader } from "@/components/brand/pragma-loader";
@@ -21,6 +22,7 @@ const SmartAccessDashboard = dynamic(
 );
 
 export default async function SmartAccessPage() {
+  await redirectIfMissingPlanFeature("ttlock", "/smart-access");
   const user = await requirePermission("access:read");
   const canManage = hasPermission(user.role as AppUserRole, "access:manage");
   const data = await getSmartAccessOverview();

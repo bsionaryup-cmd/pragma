@@ -11,7 +11,10 @@ import {
   resolveDisplayStatus,
 } from "@/features/reservations/lib/reservation-status";
 import { formatDate, formatDateRange, formatPanelDate } from "@/lib/helpers/date";
-import { formatPropertyUnit } from "@/lib/property-display";
+import {
+  formatCalendarUnitDisplay,
+  resolveCalendarUnitLabel,
+} from "@/features/calendar/lib/property-unit";
 import { isInboxConversationUnread } from "@/features/inbox/lib/inbox-unread";
 
 type ReservationExtras = {
@@ -79,7 +82,11 @@ function mapBaseFields(
   const total = Number(reservation.totalAmount) || 0;
   const paymentStatus = extras?.paymentStatus ?? "PAID";
   const { paidAmount, dueAmount } = resolvePaymentAmounts(total, paymentStatus);
-  const unit = formatPropertyUnit(reservation.property.unitNumber);
+  const unitLabel = resolveCalendarUnitLabel({
+    name: reservation.property.name,
+    unitNumber: reservation.property.unitNumber,
+  });
+  const unit = unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
   const activityAt = extras?.updatedAt.toISOString() ?? reservation.createdAt;
 
   return {
@@ -98,7 +105,7 @@ function mapBaseFields(
     bookingCode: resolveBookingCode(reservation, extras),
     platform: reservation.platform,
     propertyName: reservation.property.name,
-    propertyUnit: unit ?? reservation.property.address,
+    propertyUnit: unit ?? "",
     propertyId: reservation.property.id,
     checkIn: formatDate(new Date(`${reservation.checkIn}T12:00:00`)),
     checkOut: formatDate(new Date(`${reservation.checkOut}T12:00:00`)),

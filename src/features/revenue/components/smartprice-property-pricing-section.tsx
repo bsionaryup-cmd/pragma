@@ -79,12 +79,14 @@ const cellClass = "px-1.5 py-1 text-center";
   return (
     <tr className="border-b border-border/50 last:border-0">
       <td className={cellClass}>
-        <p
-          className="text-sm font-normal tabular-nums text-black"
-          title={property.name}
-        >
-          {unitNumber}
-        </p>
+        <div className="mx-auto max-w-[7rem] text-center">
+          <p className="text-sm font-bold tabular-nums text-foreground">
+            {unitNumber}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+            {property.name}
+          </p>
+        </div>
       </td>
       <td className={cellClass}>
         <RateCell

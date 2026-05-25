@@ -6,6 +6,7 @@ import {
   type Theme,
 } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ClientDiagnosticsProvider } from "@/components/providers/client-diagnostics-provider";
 import { useMounted } from "@/hooks/use-mounted";
 
 type AppProvidersProps = {
@@ -26,7 +27,7 @@ export function AppProviders({
       defaultTheme={defaultTheme}
       defaultResolved={defaultResolved}
     >
-      {children}
+      <ClientDiagnosticsProvider>{children}</ClientDiagnosticsProvider>
       {mounted ? (
         <Toaster richColors closeButton position="top-right" />
       ) : null}

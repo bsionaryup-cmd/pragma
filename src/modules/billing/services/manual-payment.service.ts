@@ -5,7 +5,10 @@ import {
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
-import { clampPropertyCount } from "@/modules/billing/domain/plan-catalog";
+import {
+  clampPropertyCountForBillingPlan,
+  getPlanDisplayName,
+} from "@/modules/billing/domain/plan-catalog";
 import {
   parseBillingAccountMetadata,
   resolveSubscriptionAmountForAccount,
@@ -20,7 +23,10 @@ export async function selectSubscriptionPlan(input: {
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
   const billingAccountId = await requireBillingAccountId();
-  const propertySlots = clampPropertyCount(input.propertyCount);
+  const propertySlots = clampPropertyCountForBillingPlan(
+    input.plan,
+    input.propertyCount,
+  );
   const account = await db.billingAccount.findUnique({
     where: { id: billingAccountId },
   });
@@ -55,7 +61,7 @@ export async function selectSubscriptionPlan(input: {
 
   return {
     ok: true,
-    message: `Plan ${input.plan} · ${propertySlots} propiedad${propertySlots === 1 ? "" : "es"}`,
+    message: `Plan ${getPlanDisplayName(input.plan)} · ${propertySlots} propiedad${propertySlots === 1 ? "" : "es"}`,
   };
 }
 

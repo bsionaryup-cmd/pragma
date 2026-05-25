@@ -1,8 +1,8 @@
 import {
   AccessCredentialStatus,
+  type PropertyType,
   ReservationStatus,
 } from "@prisma/client";
-import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import { resolveCalendarUnitLabel } from "@/features/calendar/lib/property-unit";
 import { formatAccessCode } from "@/lib/access-code";
 import { prismaDateToKey } from "@/lib/dates";
@@ -30,6 +30,9 @@ export type SmartAccessItem = {
   guestName: string;
   propertyName: string;
   propertyUnitNumber: string | null;
+  propertyType: PropertyType;
+  checkInTime: string | null;
+  checkOutTime: string | null;
   checkIn: string;
   checkOut: string;
   status: ReservationStatus;
@@ -63,7 +66,7 @@ export type SmartAccessOverview = {
 };
 
 const STAGE_LABELS: Record<SmartAccessStage, string> = {
-  awaiting_registration: "Esperando registro del huésped",
+  awaiting_registration: "Registro pendiente",
   awaiting_integration: "TTLock no conectado",
   awaiting_lock: "Sin cerradura vinculada",
   pending_approval: "Pendiente de aprobación",
@@ -137,6 +140,9 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
           name: true,
           unitNumber: true,
           maxGuests: true,
+          propertyType: true,
+          checkInTime: true,
+          checkOutTime: true,
           propertyLock: { select: { id: true } },
         },
       },
@@ -169,9 +175,8 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     },
   });
 
-  const sortedReservations = sortPropertiesByUnitNumber(
-    reservations,
-    (reservation) => reservation.property,
+  const sortedReservations = [...reservations].sort((a, b) =>
+    a.checkIn.getTime() - b.checkIn.getTime(),
   );
 
   const items: SmartAccessItem[] = sortedReservations.map((reservation) => {
@@ -198,6 +203,9 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         name: reservation.property.name,
         unitNumber: reservation.property.unitNumber,
       }),
+      propertyType: reservation.property.propertyType,
+      checkInTime: reservation.property.checkInTime,
+      checkOutTime: reservation.property.checkOutTime,
       checkIn: prismaDateToKey(reservation.checkIn),
       checkOut: prismaDateToKey(reservation.checkOut),
       status: reservation.status,

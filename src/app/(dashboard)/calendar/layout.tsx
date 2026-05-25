@@ -1,10 +1,7 @@
-import { requirePermission } from "@/lib/auth";
-
-export default async function CalendarLayout({
+export default function CalendarLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requirePermission("calendar:read");
   return children;
 }

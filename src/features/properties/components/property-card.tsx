@@ -5,6 +5,7 @@ import { Bath, BedDouble, CalendarDays, MapPin, Users } from "lucide-react";
 import { PropertyCover } from "@/features/properties/components/property-cover";
 import { getPropertyStatusBadgeClass } from "@/features/properties/lib/property-style";
 import type { PropertyGridItem } from "@/features/properties/types/property.types";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -43,9 +44,11 @@ function PropertyCardComponent({
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold leading-tight text-[#111111]">
-              {property.name}
-            </h3>
+            <PropertyIdentity
+              name={property.name}
+              unitNumber={property.unitNumber}
+              size="md"
+            />
             <p className="mt-1 flex items-center gap-1 text-xs text-[#6B7280]">
               <MapPin className="h-3 w-3 shrink-0" />
               <span className="truncate">

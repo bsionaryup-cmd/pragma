@@ -9,6 +9,12 @@ import { toast } from "sonner";
 import { createReservationAction } from "@/features/reservations/actions/reservation.actions";
 import { countNights } from "@/features/reservations/lib/reservation-dates";
 import {
+  clampGuestsToCapacity,
+  guestCapacityMessage,
+  guestTotalExceedsCapacity,
+  resolvePropertyMaxGuests,
+} from "@/features/reservations/lib/reservation-guest-capacity";
+import {
   reservationStep1Schema,
   reservationStep2Schema,
   reservationWizardSchema,
@@ -123,8 +129,65 @@ export function ReservationCreateWizard({
   ]);
 
   const values = form.watch();
-  const selectedProperty = properties.find((p) => p.id === values.propertyId);
-  const maxGuests = selectedProperty?.maxGuests;
+  const watchedPropertyId = values.propertyId;
+  const selectedProperty = properties.find((p) => p.id === watchedPropertyId);
+  const propertyCapacity = resolvePropertyMaxGuests(selectedProperty?.maxGuests);
+
+  useEffect(() => {
+    if (!watchedPropertyId) return;
+    form.setValue("maxGuests", propertyCapacity ?? undefined, { shouldValidate: false });
+    if (propertyCapacity == null) return;
+
+    const { adults, children, infants } = form.getValues();
+    if (guestTotalExceedsCapacity(adults, children, infants, propertyCapacity)) {
+      const clamped = clampGuestsToCapacity(adults, children, infants, propertyCapacity);
+      form.setValue("adults", clamped.adults, { shouldValidate: false });
+      form.setValue("children", clamped.children, { shouldValidate: false });
+      form.setValue("infants", clamped.infants, { shouldValidate: false });
+      form.setError("adults", { message: guestCapacityMessage(propertyCapacity) });
+    } else {
+      form.clearErrors("adults");
+    }
+  }, [watchedPropertyId, propertyCapacity, form]);
+
+  function applyGuestCount(
+    field: "adults" | "children" | "infants",
+    raw: number,
+  ) {
+    const min = field === "adults" ? 1 : 0;
+    const next = Math.max(min, Number.isFinite(raw) ? Math.floor(raw) : min);
+    const current = form.getValues();
+
+    if (propertyCapacity == null) {
+      form.setValue(field, next);
+      return;
+    }
+
+    const draft = { ...current, [field]: next };
+    if (
+      guestTotalExceedsCapacity(
+        draft.adults,
+        draft.children,
+        draft.infants,
+        propertyCapacity,
+      )
+    ) {
+      const clamped = clampGuestsToCapacity(
+        draft.adults,
+        draft.children,
+        draft.infants,
+        propertyCapacity,
+      );
+      form.setValue("adults", clamped.adults);
+      form.setValue("children", clamped.children);
+      form.setValue("infants", clamped.infants);
+      form.setError("adults", { message: guestCapacityMessage(propertyCapacity) });
+      return;
+    }
+
+    form.clearErrors("adults");
+    form.setValue(field, next);
+  }
   const nights =
     step === 3 && values.checkIn && values.checkOut
       ? countNights(values.checkIn, values.checkOut)
@@ -142,17 +205,24 @@ export function ReservationCreateWizard({
       ]);
       if (!ok) return;
       const stepValues = form.getValues();
-      if (
-        maxGuests &&
-        stepValues.adults + stepValues.children + stepValues.infants > maxGuests
-      ) {
-        form.setError("adults", {
-          message: `Máximo ${maxGuests} persona${maxGuests === 1 ? "" : "s"} según la propiedad`,
-        });
+      const parsed = reservationStep1Schema.safeParse({
+        ...stepValues,
+        maxGuests: propertyCapacity ?? undefined,
+      });
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          const path = issue.path[0];
+          if (
+            typeof path === "string" &&
+            (path === "adults" || path === "checkOut" || path === "propertyId")
+          ) {
+            form.setError(path as "adults" | "checkOut" | "propertyId", {
+              message: issue.message,
+            });
+          }
+        }
         return;
       }
-      const parsed = reservationStep1Schema.safeParse(stepValues);
-      if (!parsed.success) return;
       setStep(2);
       return;
     }
@@ -210,7 +280,7 @@ export function ReservationCreateWizard({
     try {
       const result = await createReservationAction({
         ...data,
-        maxGuests,
+        maxGuests: propertyCapacity ?? undefined,
       });
       if (!result.success) {
         toast.error(result.error);
@@ -310,10 +380,14 @@ export function ReservationCreateWizard({
                   )}
                 />
               </div>
-              {maxGuests ? (
+              {propertyCapacity != null ? (
                 <p className="text-xs text-muted-foreground">
-                  Capacidad máxima: {maxGuests} persona
-                  {maxGuests === 1 ? "" : "s"}
+                  Capacidad máxima: {propertyCapacity} huésped
+                  {propertyCapacity === 1 ? "" : "es"} (total adultos + niños + bebés)
+                </p>
+              ) : watchedPropertyId ? (
+                <p className="text-xs text-warning">
+                  Esta propiedad no tiene capacidad configurada.
                 </p>
               ) : null}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -327,9 +401,11 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={1}
-                          max={maxGuests ?? undefined}
+                          max={propertyCapacity ?? undefined}
                           value={field.value}
-                          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                          onChange={(e) =>
+                            applyGuestCount("adults", e.target.valueAsNumber)
+                          }
                         />
                       </FormControl>
                       <FormMessage />
@@ -346,9 +422,11 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={0}
-                          max={maxGuests ? Math.max(0, maxGuests - 1) : undefined}
+                          max={propertyCapacity ?? undefined}
                           value={field.value}
-                          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                          onChange={(e) =>
+                            applyGuestCount("children", e.target.valueAsNumber)
+                          }
                         />
                       </FormControl>
                       <FormMessage />
@@ -365,9 +443,11 @@ export function ReservationCreateWizard({
                         <Input
                           type="number"
                           min={0}
-                          max={maxGuests ? Math.max(0, maxGuests - 1) : undefined}
+                          max={propertyCapacity ?? undefined}
                           value={field.value}
-                          onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                          onChange={(e) =>
+                            applyGuestCount("infants", e.target.valueAsNumber)
+                          }
                         />
                       </FormControl>
                       <FormMessage />

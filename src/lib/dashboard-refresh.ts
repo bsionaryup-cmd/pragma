@@ -1,6 +1,8 @@
 export const DASHBOARD_DATA_REFRESH_EVENT = "pragma-dashboard-data-refresh";
 
-export const DASHBOARD_DATA_POLL_MS = 12_000;
+/** Menos agresivo en dev (localhost) para reducir router.refresh y consultas Prisma. */
+export const DASHBOARD_DATA_POLL_MS =
+  process.env.NODE_ENV === "development" ? 60_000 : 20_000;
 export const DASHBOARD_DATA_REFRESH_COOLDOWN_MS = 4_000;
 
 const LIVE_DASHBOARD_PREFIXES = [

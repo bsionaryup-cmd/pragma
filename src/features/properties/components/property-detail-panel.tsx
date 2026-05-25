@@ -36,6 +36,7 @@ import {
 } from "@/lib/labels";
 import { formatCurrency } from "@/lib/helpers";
 import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import { cn } from "@/lib/utils";
 
 type PropertyDetailPanelProps = {
@@ -127,9 +128,13 @@ export function PropertyDetailPanel({
           >
             {propertyStatusLabels[property.status]}
           </span>
-          <h3 className="mt-2 text-lg font-semibold leading-tight">
-            {property.name}
-          </h3>
+          <div className="mt-2">
+            <PropertyIdentity
+              name={property.name}
+              unitNumber={property.unitNumber}
+              size="lg"
+            />
+          </div>
           {locationLabel ? (
             <p className="text-sm text-muted-foreground">{locationLabel}</p>
           ) : null}

@@ -31,6 +31,13 @@
     #ffffff 55%,
     #f4f6f8 100%
   );
+  --pragma-gradient-premium-dark: linear-gradient(
+    165deg,
+    #0f1f38 0%,
+    #050a18 42%,
+    #0a1628 100%
+  );
+  --pragma-off-white: #f8fafc;
 
   --pragma-primary: var(--pragma-electric);
   --pragma-primary-hover: var(--pragma-mid-blue);
@@ -40,7 +47,7 @@
 
   --pragma-background: var(--pragma-white);
   --pragma-surface: var(--pragma-white);
-  --pragma-sidebar: var(--pragma-white);
+  --pragma-sidebar: #f8fafc;
   --pragma-card: var(--pragma-white);
   --pragma-surface-alt: var(--pragma-soft-gray);
   --pragma-text: var(--pragma-black);
@@ -295,6 +302,10 @@
 
   .bg-pragma-gradient-subtle {
     background-image: var(--pragma-gradient-subtle);
+  }
+
+  .bg-pragma-gradient-premium-dark {
+    background-image: var(--pragma-gradient-premium-dark);
   }
 
   .text-pragma-gradient {

@@ -1,4 +1,6 @@
 import type { BillingPlanCode } from "@prisma/client";
+import { getCommercialPlanLabel } from "@/lib/billing/plan-entitlements";
+import { clampPropertyCountForPlan } from "@/lib/billing/plan-entitlements";
 
 export type PlanDefinition = {
   code: BillingPlanCode;
@@ -11,39 +13,67 @@ export type PlanDefinition = {
   features: string[];
   highlighted?: boolean;
   badge?: string;
+  /** Tope de propiedades del plan (referencia comercial). */
+  maxProperties: number;
+  /** Tope de usuarios del plan. */
+  maxUsers: number;
 };
 
 export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
   STARTER: {
     code: "STARTER",
-    name: "Básico",
-    tagline: "Esencial para empezar",
-    description: "Operación centralizada para anfitriones que inician o consolidan su portafolio.",
+    name: "Start",
+    tagline: "Opera tus Airbnb sin Excel",
+    description:
+      "Calendario, reservas y propiedades para anfitriones que inician en Medellín y LatAm.",
     pricePerPropertyCop: 79_999,
     currency: "COP",
+    maxProperties: 5,
+    maxUsers: 2,
     features: [
       "Calendario y reservas multi-propiedad",
       "Sync iCal Airbnb",
-      "Panel de ingresos",
+      "Mensajes y panel operativo",
       "Registro de huéspedes",
-      "Integración TTLock",
+      "Hasta 5 propiedades · 2 usuarios",
     ],
   },
   PRO: {
     code: "PRO",
     name: "Pro",
-    tagline: "Más control, más ingresos",
-    description: "Automatización avanzada, reportes y soporte prioritario para escalar sin fricción.",
+    tagline: "Escala ingresos y operación",
+    description:
+      "Automatización, TTLock, PriceLabs y finanzas para property managers en crecimiento.",
     pricePerPropertyCop: 89_999,
     currency: "COP",
     highlighted: true,
     badge: "Recomendado",
+    maxProperties: 25,
+    maxUsers: 5,
     features: [
-      "Todo lo del plan Básico",
+      "Todo lo del plan Start",
+      "TTLock — códigos por reserva",
       "PriceLabs — precios dinámicos",
-      "Reportes avanzados de ocupación e ingresos",
-      "Automatizaciones operativas",
-      "Soporte prioritario y onboarding asistido",
+      "Finanzas, tareas y reportes",
+      "Hasta 25 propiedades · 5 usuarios",
+    ],
+  },
+  SCALE: {
+    code: "SCALE",
+    name: "Scale",
+    tagline: "Property manager profesional",
+    description:
+      "Operación enterprise, cumplimiento SIRE/TRAA y capacidad ampliada para portafolios grandes.",
+    pricePerPropertyCop: 74_999,
+    currency: "COP",
+    maxProperties: 999,
+    maxUsers: 999,
+    features: [
+      "Todo lo del plan Pro",
+      "SIRE y TRAA — reportes gubernamentales",
+      "Capacidad ampliada (999+ propiedades)",
+      "Usuarios ilimitados en la organización",
+      "Onboarding asistido y soporte prioritario",
     ],
   },
 };
@@ -53,6 +83,10 @@ export const MAX_BILLABLE_PROPERTIES = 999;
 
 export function getPlanDefinition(code: BillingPlanCode): PlanDefinition {
   return PLAN_CATALOG[code] ?? PLAN_CATALOG.STARTER;
+}
+
+export function getPlanDisplayName(code: BillingPlanCode): string {
+  return getPlanDefinition(code).name || getCommercialPlanLabel(code);
 }
 
 export function getPlanPricePerProperty(code: BillingPlanCode): number {
@@ -72,11 +106,18 @@ export function clampPropertyCount(count: number): number {
   );
 }
 
+export function clampPropertyCountForBillingPlan(
+  plan: BillingPlanCode,
+  count: number,
+): number {
+  return clampPropertyCountForPlan(plan, clampPropertyCount(count));
+}
+
 export function calculateSubscriptionAmount(
   code: BillingPlanCode,
   propertyCount: number,
 ): number {
-  return getPlanPricePerProperty(code) * clampPropertyCount(propertyCount);
+  return getPlanPricePerProperty(code) * clampPropertyCountForBillingPlan(code, propertyCount);
 }
 
 export function formatCop(amount: number): string {

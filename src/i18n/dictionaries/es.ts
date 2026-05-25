@@ -32,7 +32,10 @@ export const es = {
     integrations: "Integraciones",
     messages: "Mensajes",
     finance: "Finanzas",
-    billing: "Facturación",
+    financeOverview: "Financial Overview",
+    paymentLinks: "Payment Links",
+    paymentHistory: "Historial de cobros",
+    billing: "Mi Suscripción",
     settings: "Configuración",
     users: "Usuarios",
     hostCommandCenter: "Host Command Center",
@@ -111,6 +114,8 @@ export const es = {
       active: "Descargar alojados",
     },
     alerts: {
+      guestRegistrationDue:
+        "Hay reservas con check-in en 2 días o menos sin registro de huéspedes completo.",
       lockOffline: "Cerradura sin conexión",
       paymentPending: "Pago pendiente",
       cleaningDelayed: "Limpieza retrasada",

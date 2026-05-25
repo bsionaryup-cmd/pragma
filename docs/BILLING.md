@@ -2,15 +2,14 @@
 
 ## Scope
 
-Wompi is the **centralized** payment processor for **PRAGMA SaaS subscriptions only**.
+Wompi tiene **dos rieles aislados**:
 
-It must **not** be used for:
+1. **SaaS (este documento)** — suscripción PRAGMA, credenciales platform / env, referencias `pragma-*`.
+2. **Guest Payment Links (tenant)** — cobro al huésped por el anfitrión, credenciales en `WompiIntegration` por `organizationId`, referencias `guest-*`, UI en `/finance/payment-links`. Ver `docs/RELEASE-PUSH.md`.
 
-- Reservation / guest payments
-- OTA or Airbnb-like flows
-- Deposits or booking operational charges
+El riel SaaS **no** debe procesar referencias `guest-*`. El riel guest **no** usa la org de facturación SaaS (`assertTenantGuestWompiScope`).
 
-Hospitality finance (`/finance`, `PaymentStatus` on reservations) remains separate.
+Hospitality finance (`/finance`, `PaymentStatus`, `OtherIncome`) consume pagos guest reconciliados; la suscripción SaaS sigue en `/settings/billing`.
 
 ## Ownership model
 
@@ -71,7 +70,12 @@ Security: `x-event-checksum`, events secret, idempotency, rate limit, timestamp 
 
 ## Cron
 
-`GET /api/cron/billing-renewal` with `Authorization: Bearer CRON_SECRET` — daily lifecycle reconciliation.
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/cron/billing-renewal` | SaaS lifecycle (trial, grace, lock) |
+| `GET /api/cron/guest-payment-reconcile` | Expira links + reconcilia pagos guest (API fallback) |
+
+Auth: `Authorization: Bearer CRON_SECRET` or `?secret=` (see `docs/RELEASE-PUSH.md`).
 
 ## Activation
 

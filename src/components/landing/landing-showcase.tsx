@@ -6,7 +6,10 @@ import { SectionHeading } from "@/components/landing/section-heading";
 
 export function LandingShowcase() {
   return (
-    <section id="product" className="border-t border-pragma-border bg-white py-20 md:py-28">
+    <section
+      id="product"
+      className="border-t border-white/10 bg-pragma-gradient-premium-dark py-20 text-white md:py-28"
+    >
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <SectionHeading
@@ -18,7 +21,7 @@ export function LandingShowcase() {
         </FadeIn>
 
         <FadeIn delay={0.1}>
-          <div className="relative mt-14 overflow-hidden rounded-3xl border border-pragma-border bg-pragma-gradient-subtle p-4 shadow-pragma-glow md:p-8">
+          <div className="relative mt-14 overflow-hidden rounded-3xl border border-white/15 bg-white/5 p-4 shadow-pragma-card backdrop-blur-sm md:p-8">
             <div
               aria-hidden
               className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-pragma-gradient opacity-20 blur-3xl"

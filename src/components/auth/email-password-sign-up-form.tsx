@@ -3,6 +3,7 @@
 import { useSignUp } from "@clerk/nextjs";
 import type { SignUpFutureResource } from "@clerk/shared/types";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -36,10 +37,17 @@ function needsEmailVerification(signUp: SignUpFutureResource): boolean {
 }
 
 export function EmailPasswordSignUpForm() {
+  const searchParams = useSearchParams();
+  const offerToken = searchParams.get("offer_token")?.trim();
+  const offerEmail = searchParams.get("email")?.trim();
+  const postSignupPath = offerToken
+    ? `/onboarding?offer_token=${encodeURIComponent(offerToken)}`
+    : "/onboarding";
+
   const { signUp, errors, fetchStatus } = useSignUp();
 
   const [step, setStep] = useState<Step>("register");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(offerEmail ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordFocused, setPasswordFocused] = useState(false);
@@ -80,7 +88,7 @@ export function EmailPasswordSignUpForm() {
           return;
         }
 
-        const url = decorateUrl(POST_SIGNUP_PATH);
+        const url = decorateUrl(postSignupPath);
         if (url.startsWith("http")) {
           window.location.href = url;
         } else {

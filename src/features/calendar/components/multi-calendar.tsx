@@ -96,6 +96,7 @@ export function MultiCalendar({
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
+  const gridScrollRafRef = useRef<number | null>(null);
   const scrolledRef = useRef<string | null>(null);
   const openedInitialReservationRef = useRef(false);
   const drawerModeRef = useRef<ReservationDrawerMode>(null);
@@ -209,7 +210,7 @@ export function MultiCalendar({
   function handleToolbarCreateClick() {
     if (!canWrite) {
       toast.error(
-        "Modo restringido o sin permiso: no puedes crear reservas. Ve a Facturación.",
+        "Modo restringido o sin permiso: no puedes crear reservas. Ve a Mi Suscripción.",
       );
       return;
     }
@@ -324,20 +325,32 @@ export function MultiCalendar({
   ]);
 
   const syncFromGrid = useCallback(() => {
-    if (syncingRef.current) return;
-    const grid = gridScrollRef.current;
-    if (!grid) return;
+    if (syncingRef.current || gridScrollRafRef.current !== null) return;
+    gridScrollRafRef.current = requestAnimationFrame(() => {
+      gridScrollRafRef.current = null;
+      if (syncingRef.current) return;
+      const grid = gridScrollRef.current;
+      if (!grid) return;
 
-    syncingRef.current = true;
-    if (sidebarScrollRef.current) {
-      sidebarScrollRef.current.scrollTop = grid.scrollTop;
-    }
-    if (headerScrollRef.current) {
-      headerScrollRef.current.scrollLeft = grid.scrollLeft;
-    }
-    updateDisplayMonth(grid.scrollLeft);
-    syncingRef.current = false;
+      syncingRef.current = true;
+      if (sidebarScrollRef.current) {
+        sidebarScrollRef.current.scrollTop = grid.scrollTop;
+      }
+      if (headerScrollRef.current) {
+        headerScrollRef.current.scrollLeft = grid.scrollLeft;
+      }
+      updateDisplayMonth(grid.scrollLeft);
+      syncingRef.current = false;
+    });
   }, [updateDisplayMonth]);
+
+  useEffect(() => {
+    return () => {
+      if (gridScrollRafRef.current !== null) {
+        cancelAnimationFrame(gridScrollRafRef.current);
+      }
+    };
+  }, []);
 
   const syncFromSidebar = useCallback(() => {
     if (syncingRef.current) return;
@@ -366,7 +379,7 @@ export function MultiCalendar({
     (propertyId: string, dateKey: string) => {
       if (!canWrite) {
         toast.error(
-          "Modo restringido o sin permiso: no puedes crear reservas. Ve a Facturación.",
+          "Modo restringido o sin permiso: no puedes crear reservas. Ve a Mi Suscripción.",
         );
         return;
       }

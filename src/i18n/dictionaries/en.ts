@@ -33,7 +33,10 @@ export const en = {
     integrations: "Integrations",
     messages: "Messages",
     finance: "Finance",
-    billing: "Billing",
+    financeOverview: "Financial Overview",
+    paymentLinks: "Payment Links",
+    paymentHistory: "Payment history",
+    billing: "My Subscription",
     settings: "Settings",
     users: "Users",
     hostCommandCenter: "Host Command Center",
@@ -112,6 +115,8 @@ export const en = {
       active: "Download in-stay",
     },
     alerts: {
+      guestRegistrationDue:
+        "Reservations checking in within 2 days still need guest registration.",
       lockOffline: "Lock offline",
       paymentPending: "Payment pending",
       cleaningDelayed: "Cleaning delayed",

@@ -39,7 +39,7 @@ export async function BillingLockBanner({
         </p>
         {canManageBilling ? (
           <Button asChild size="sm" variant="default" className="shrink-0">
-            <Link href="/settings/billing">Ir al centro de facturación</Link>
+            <Link href="/settings/billing">Ir a Mi Suscripción</Link>
           </Button>
         ) : null}
       </div>

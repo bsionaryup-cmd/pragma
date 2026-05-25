@@ -13,7 +13,9 @@ import { PlanSelector } from "@/features/billing/components/plan-selector";
 import { BankTransferPanel } from "@/features/billing/components/bank-transfer-panel";
 import type { BillingDashboardDto } from "@/modules/billing/services/dashboard.service";
 import type { BillingPlanCode } from "@prisma/client";
+import { PlanUpgradeBanner } from "@/components/billing/plan-upgrade-banner";
 import { getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
+import type { PlanFeature } from "@/lib/billing/plan-entitlements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,8 +24,25 @@ import { PageHeader } from "@/components/ui/page-header";
 
 type BillingDashboardProps = {
   data: BillingDashboardDto;
+  upgradeFeature?: string;
   showDevActivate?: boolean;
 };
+
+const UPGRADE_FEATURES = new Set([
+  "calendar",
+  "reservations",
+  "properties",
+  "inbox",
+  "ical",
+  "tasks",
+  "finance",
+  "revenue",
+  "ttlock",
+  "pricelabs",
+  "reports",
+  "sire",
+  "traa",
+]);
 
 const STATUS_LABELS: Record<string, string> = {
   TRIAL: "Prueba",
@@ -56,8 +75,13 @@ function StatusBadge({ status }: { status: string }) {
 
 export function BillingDashboard({
   data,
+  upgradeFeature,
   showDevActivate = false,
 }: BillingDashboardProps) {
+  const upgrade =
+    upgradeFeature && UPGRADE_FEATURES.has(upgradeFeature)
+      ? (upgradeFeature as PlanFeature)
+      : null;
   const { account, access, invoices, paymentMethods, ready } = data;
   const [pending, startTransition] = useTransition();
 
@@ -118,7 +142,7 @@ export function BillingDashboard({
           backHref="/settings"
           backLabel="Configuración"
           eyebrow="Configuración"
-          title="Facturación"
+          title="Mi Suscripción"
           description="Consulta tu suscripción, realiza el pago y revisa tus facturas."
         />
 
@@ -140,6 +164,11 @@ export function BillingDashboard({
 
         {ready ? (
           <>
+            {upgrade ? (
+              <div className="mb-6">
+                <PlanUpgradeBanner feature={upgrade} />
+              </div>
+            ) : null}
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-base">Tu suscripción</CardTitle>
@@ -157,8 +186,16 @@ export function BillingDashboard({
                     <dd className="font-medium">{getPlanDefinition(account.plan as BillingPlanCode).name}</dd>
                   </div>
                   <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
-                    <dt className="text-muted-foreground">Propiedades</dt>
+                    <dt className="text-muted-foreground">Propiedades (facturación)</dt>
                     <dd className="font-medium tabular-nums">{account.propertyCount}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
+                    <dt className="text-muted-foreground">Límite del plan</dt>
+                    <dd className="font-medium tabular-nums">
+                      {getPlanDefinition(account.plan as BillingPlanCode).maxProperties}{" "}
+                      prop. ·{" "}
+                      {getPlanDefinition(account.plan as BillingPlanCode).maxUsers} usuarios
+                    </dd>
                   </div>
                   <div className="flex justify-between gap-4 sm:flex-col sm:justify-start">
                     <dt className="text-muted-foreground">Precio por propiedad</dt>

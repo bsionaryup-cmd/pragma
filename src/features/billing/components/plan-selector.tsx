@@ -8,7 +8,9 @@ import { selectPlanAction } from "@/features/billing/actions/billing.actions";
 import {
   calculateSubscriptionAmount,
   clampPropertyCount,
+  clampPropertyCountForBillingPlan,
   formatCop,
+  getPlanDefinition,
   PLAN_CATALOG,
   proPlanMonthlySavingsVsStarter,
 } from "@/modules/billing/domain/plan-catalog";
@@ -27,9 +29,17 @@ export function PlanSelector({
   disabled,
 }: PlanSelectorProps) {
   const [pending, startTransition] = useTransition();
-  const [propertyCount, setPropertyCount] = useState(
-    clampPropertyCount(initialPropertyCount),
+  const [selectedPlan, setSelectedPlan] = useState<BillingPlanCode>(currentPlan);
+  const planDef = getPlanDefinition(selectedPlan);
+  const maxForPlan = planDef.maxProperties;
+
+  const [propertyCount, setPropertyCount] = useState(() =>
+    clampPropertyCountForBillingPlan(
+      currentPlan,
+      clampPropertyCount(initialPropertyCount),
+    ),
   );
+
   const plans = Object.values(PLAN_CATALOG);
 
   const proExtraCost = useMemo(
@@ -39,11 +49,18 @@ export function PlanSelector({
 
   const onSelect = (plan: BillingPlanCode) => {
     if (disabled) return;
+    const slots = clampPropertyCountForBillingPlan(plan, propertyCount);
     startTransition(async () => {
-      const result = await selectPlanAction(plan, propertyCount);
+      const result = await selectPlanAction(plan, slots);
       if (result.ok) toast.success(result.message);
       else toast.error(result.message);
     });
+  };
+
+  const adjustCount = (delta: number) => {
+    setPropertyCount((c) =>
+      clampPropertyCountForBillingPlan(selectedPlan, c + delta),
+    );
   };
 
   return (
@@ -53,8 +70,8 @@ export function PlanSelector({
           ¿Cuántas propiedades gestionas?
         </label>
         <p className="mt-1 text-xs text-muted-foreground">
-          Cobramos por propiedad activa. Puedes empezar con 1 y escalar cuando lo
-          necesites.
+          Cobramos por propiedad activa. El tope depende de tu plan (Start: 5, Pro:
+          25, Scale: amplio).
         </p>
         <div className="mt-3 flex items-center gap-3">
           <Button
@@ -62,7 +79,7 @@ export function PlanSelector({
             variant="outline"
             size="sm"
             disabled={pending || propertyCount <= 1}
-            onClick={() => setPropertyCount((c) => clampPropertyCount(c - 1))}
+            onClick={() => adjustCount(-1)}
           >
             −
           </Button>
@@ -70,10 +87,15 @@ export function PlanSelector({
             id="propertyCount"
             type="number"
             min={1}
-            max={999}
+            max={maxForPlan}
             value={propertyCount}
             onChange={(e) =>
-              setPropertyCount(clampPropertyCount(Number(e.target.value)))
+              setPropertyCount(
+                clampPropertyCountForBillingPlan(
+                  selectedPlan,
+                  Number(e.target.value),
+                ),
+              )
             }
             className="h-10 w-20 rounded-lg border border-border bg-background text-center text-sm font-semibold tabular-nums"
           />
@@ -81,31 +103,41 @@ export function PlanSelector({
             type="button"
             variant="outline"
             size="sm"
-            disabled={pending || propertyCount >= 999}
-            onClick={() => setPropertyCount((c) => clampPropertyCount(c + 1))}
+            disabled={pending || propertyCount >= maxForPlan}
+            onClick={() => adjustCount(1)}
           >
             +
           </Button>
           <span className="text-sm text-muted-foreground">
-            propiedad{propertyCount === 1 ? "" : "es"}
+            propiedad{propertyCount === 1 ? "" : "es"} (máx. {maxForPlan} en{" "}
+            {planDef.name})
           </span>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-3">
         {plans.map((plan) => {
           const active = plan.code === currentPlan;
           const total = calculateSubscriptionAmount(plan.code, propertyCount);
           const isPro = plan.code === "PRO";
+          const isScale = plan.code === "SCALE";
 
           return (
             <div
               key={plan.code}
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedPlan(plan.code)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setSelectedPlan(plan.code);
+              }}
               className={cn(
-                "relative rounded-xl border p-4 transition-colors",
+                "relative rounded-xl border p-4 transition-colors cursor-pointer",
                 plan.highlighted
                   ? "border-pragma-cyan bg-pragma-light-blue/20 ring-1 ring-pragma-cyan/30"
-                  : "border-border bg-card",
+                  : selectedPlan === plan.code
+                    ? "border-pragma-electric ring-1 ring-pragma-electric/40"
+                    : "border-border bg-card",
               )}
             >
               {plan.badge ? (
@@ -130,8 +162,13 @@ export function PlanSelector({
 
               {isPro ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Solo {formatCop(proExtraCost)} más al mes vs Básico — incluye
-                  PriceLabs, reportes avanzados y soporte prioritario.
+                  +{formatCop(proExtraCost)}/mes vs Start — TTLock, PriceLabs y
+                  finanzas.
+                </p>
+              ) : null}
+              {isScale ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Mejor precio por volumen + SIRE/TRAA para operadores grandes.
                 </p>
               ) : null}
 
@@ -145,9 +182,20 @@ export function PlanSelector({
                 type="button"
                 variant={plan.highlighted ? "default" : "outline"}
                 size="sm"
-                className={cn("mt-4 w-full", plan.highlighted && "bg-pragma-electric hover:bg-pragma-electric/90")}
+                className={cn(
+                  "mt-4 w-full",
+                  plan.highlighted && "bg-pragma-electric hover:bg-pragma-electric/90",
+                )}
                 disabled={pending || disabled || active}
-                onClick={() => onSelect(plan.code)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const slots = clampPropertyCountForBillingPlan(
+                    plan.code,
+                    propertyCount,
+                  );
+                  setPropertyCount(slots);
+                  onSelect(plan.code);
+                }}
               >
                 {active ? "Plan actual" : `Elegir ${plan.name}`}
               </Button>

@@ -176,7 +176,7 @@ function pickFromJsonLd(blocks: Record<string, unknown>[]) {
 
 function inferPropertyType(html: string, name: string): PropertyType {
   const lower = `${name}`.toLowerCase();
-  if (/\bloft\b/.test(lower)) return PropertyType.APARTMENT;
+  if (/\bloft\b/.test(lower)) return PropertyType.LOFT;
   if (/\bstudio\b|\bestudio\b/.test(lower)) return PropertyType.STUDIO;
   if (/\bcasa\b|\bhouse\b|\bvilla\b|\bchalet\b/.test(lower)) {
     return PropertyType.HOUSE;

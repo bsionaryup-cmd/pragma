@@ -34,6 +34,7 @@ type ReservationSidePanelProps = {
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
   canDelete?: boolean;
+  canManagePayments?: boolean;
   initialCreateValues?: ReservationCreateInitialValues;
   onClose?: () => void;
   onCreated: (reservation: ReservationInboxItem) => void;
@@ -52,6 +53,7 @@ export function ReservationSidePanel({
   canWrite,
   canManageGuestRegistration = canWrite,
   canDelete = false,
+  canManagePayments = false,
   initialCreateValues,
   onClose,
   onCreated,
@@ -92,6 +94,7 @@ export function ReservationSidePanel({
             canWrite={canWrite}
             canManageGuestRegistration={canManageGuestRegistration}
             canDelete={canDelete}
+            canManagePayments={canManagePayments}
             onDeleted={onDeleted}
             onClose={onClose ?? (() => {})}
             onUpdated={onUpdated}

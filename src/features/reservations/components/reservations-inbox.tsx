@@ -2,7 +2,6 @@
 
 import { Filter, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -56,7 +55,7 @@ type ReservationsInboxProps = {
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
   canDelete?: boolean;
-  canAccessTasks?: boolean;
+  canManagePayments?: boolean;
   openCreateOnMount?: boolean;
   initialSelectedId?: string | null;
   initialCreateValues?: ReservationCreateInitialValues;
@@ -83,7 +82,7 @@ export function ReservationsInbox({
   canWrite,
   canManageGuestRegistration = canWrite,
   canDelete = false,
-  canAccessTasks = false,
+  canManagePayments = false,
   openCreateOnMount = false,
   initialSelectedId = null,
   initialCreateValues,
@@ -356,6 +355,7 @@ export function ReservationsInbox({
               canWrite={canWrite}
               canManageGuestRegistration={canManageGuestRegistration}
               canDelete={canDelete}
+              canManagePayments={canManagePayments}
               initialCreateValues={initialCreateValues}
               onClose={closePanel}
               onCreated={handleCreated}
@@ -370,14 +370,6 @@ export function ReservationsInbox({
                 Selecciona una reserva del listado o crea una nueva con el botón
                 inferior.
               </p>
-              {canAccessTasks ? (
-                <Link
-                  href="/tasks"
-                  className="text-sm font-medium text-pragma-electric hover:underline"
-                >
-                  {t("nav.tasks")}
-                </Link>
-              ) : null}
             </div>
           )}
         </div>
@@ -392,6 +384,7 @@ export function ReservationsInbox({
           canWrite={canWrite}
           canManageGuestRegistration={canManageGuestRegistration}
           canDelete={canDelete}
+          canManagePayments={canManagePayments}
           initialCreateValues={initialCreateValues}
           onClose={closePanel}
           onCreated={handleCreated}

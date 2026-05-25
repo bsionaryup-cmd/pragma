@@ -86,10 +86,11 @@ export function LandingPricing({ session }: LandingPricingProps) {
           </div>
         </FadeIn>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
+        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {plans.map((plan, index) => {
             const total = calculateSubscriptionAmount(plan.code, count);
             const isPro = plan.code === "PRO";
+            const isScale = plan.code === "SCALE";
 
             return (
               <FadeIn key={plan.code} delay={index * 0.06}>
@@ -125,7 +126,12 @@ export function LandingPricing({ session }: LandingPricingProps) {
                     </p>
                     {isPro ? (
                       <p className="mt-2 text-sm text-pragma-mid-gray">
-                        Solo {formatCop(proExtra)} más que Básico — mejor ROI operativo.
+                        +{formatCop(proExtra)}/mes vs Start — TTLock, PriceLabs y finanzas.
+                      </p>
+                    ) : null}
+                    {isScale ? (
+                      <p className="mt-2 text-sm text-pragma-mid-gray">
+                        Volumen + cumplimiento SIRE/TRAA para property managers.
                       </p>
                     ) : null}
                     <p className="mt-3 text-sm text-pragma-mid-gray">{plan.description}</p>
@@ -141,7 +147,13 @@ export function LandingPricing({ session }: LandingPricingProps) {
                   <div className="space-y-3 border-t px-8 py-6">
                     <FreeTrialButton
                       href={primary.href}
-                      label={isPro ? "Probar plan Pro" : primary.label}
+                      label={
+                        isPro
+                          ? "Probar plan Pro"
+                          : isScale
+                            ? "Hablar con ventas"
+                            : primary.label
+                      }
                       className="w-full"
                     />
                     <LogInButton className="w-full" />

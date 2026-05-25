@@ -52,6 +52,21 @@ export function parseDailyPricesFromMeta(
   return map;
 }
 
+/** Limita precios diarios al rango visible del calendario (reduce payload y trabajo en cliente). */
+export function trimDailyPricesToRange(
+  prices: Record<string, CalendarDayPricingDto>,
+  rangeStart: string,
+  rangeEnd: string,
+): Record<string, CalendarDayPricingDto> {
+  const trimmed: Record<string, CalendarDayPricingDto> = {};
+  for (const [date, row] of Object.entries(prices)) {
+    if (date >= rangeStart && date <= rangeEnd) {
+      trimmed[date] = row;
+    }
+  }
+  return trimmed;
+}
+
 export function formatCompactPrice(value: number | null): string {
   if (value == null) return "";
   if (value >= 1_000_000) return `${Math.round(value / 100_000) / 10}M`;

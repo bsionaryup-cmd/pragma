@@ -1,8 +1,10 @@
-/** Auto-sync Airbnb → PRAGMA: diferido para no competir con la carga inicial del dashboard. */
-export const AIRBNB_AUTO_SYNC_INITIAL_MS = 25_000;
+const isDev = process.env.NODE_ENV === "development";
 
-/** Sondeo periódico en dashboard abierto (90s). */
-export const AIRBNB_AUTO_SYNC_MS = 90_000;
+/** Auto-sync Airbnb → PRAGMA: diferido para no competir con la carga inicial del dashboard. */
+export const AIRBNB_AUTO_SYNC_INITIAL_MS = isDev ? 60_000 : 25_000;
+
+/** Sondeo periódico en dashboard abierto. Más espaciado en dev para aliviar localhost. */
+export const AIRBNB_AUTO_SYNC_MS = isDev ? 180_000 : 90_000;
 
 /** Mínimo entre auto-syncs disparados por visible/interval (evita tormentas). */
 export const AIRBNB_AUTO_SYNC_COOLDOWN_MS = 60_000;

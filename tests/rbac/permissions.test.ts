@@ -20,17 +20,19 @@ describe("RBAC permissions", () => {
     assert.equal(hasPermission("ADMIN", "finance:revenue:read"), true);
   });
 
-  it("receptionist is limited to operational scope", () => {
+  it("receptionist is limited to daily operations", () => {
     assert.equal(hasPermission("RECEPTIONIST", "reservations:create"), true);
-    assert.equal(hasPermission("RECEPTIONIST", "reservations:write"), false);
+    assert.equal(hasPermission("RECEPTIONIST", "reservations:write"), true);
     assert.equal(hasPermission("RECEPTIONIST", "reservations:delete"), false);
-    assert.equal(hasPermission("RECEPTIONIST", "finance:operations:read"), true);
+    assert.equal(hasPermission("RECEPTIONIST", "tasks:read"), true);
+    assert.equal(hasPermission("RECEPTIONIST", "tasks:write"), true);
+    assert.equal(hasPermission("RECEPTIONIST", "properties:read"), false);
+    assert.equal(hasPermission("RECEPTIONIST", "finance:operations:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "finance:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "finance:revenue:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "billing:manage"), false);
     assert.equal(hasPermission("RECEPTIONIST", "integrations:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "settings:read"), false);
-    assert.equal(hasPermission("RECEPTIONIST", "tasks:read"), false);
   });
 
   it("denies unknown protected routes by default", () => {
@@ -38,8 +40,18 @@ describe("RBAC permissions", () => {
     assert.equal(hasRouteAccess("RECEPTIONIST", "/unknown-admin"), false);
   });
 
-  it("allows receptionist finance via operations fallback", () => {
-    assert.equal(hasRouteAccess("RECEPTIONIST", "/finance"), true);
+  it("receptionist only accesses operational routes", () => {
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/panel"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations/new"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/calendar"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks/new"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/finance"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/finance/payment-links"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/finance/payment-history"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/inbox"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/properties"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/revenue"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/settings/billing"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/users"), false);

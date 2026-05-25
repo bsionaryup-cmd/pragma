@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useTransition } from "react";
+import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -29,6 +31,7 @@ type SettingsViewProps = {
   displayName: string;
   initialLocale: string;
   initialTheme: string;
+  canManageBilling?: boolean;
 };
 
 export function SettingsView({
@@ -36,6 +39,7 @@ export function SettingsView({
   displayName,
   initialLocale,
   initialTheme,
+  canManageBilling = false,
 }: SettingsViewProps) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
@@ -74,6 +78,25 @@ export function SettingsView({
           Configuración del sistema
         </h1>
       </div>
+
+      {canManageBilling ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("nav.billing")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Plan de suscripción, facturas y métodos de pago de tu cuenta PRAGMA.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/settings/billing" className="inline-flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                {t("nav.billing")}
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>

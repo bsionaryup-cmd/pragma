@@ -18,7 +18,7 @@ export type OwnerClientSortField =
 export type OwnerClientsQuery = {
   search?: string;
   status?: "ACTIVE" | "SUSPENDED" | "ALL";
-  plan?: "STARTER" | "PRO" | "ALL";
+  plan?: "STARTER" | "PRO" | "SCALE" | "ALL";
   billingStatus?: BillingSubscriptionStatus | "ALL";
   sortBy?: OwnerClientSortField;
   sortDir?: "asc" | "desc";
@@ -58,6 +58,7 @@ export type OwnerDashboardAnalytics = {
   trialsExpiring7d: number;
   starterActiveCount: number;
   proActiveCount: number;
+  scaleActiveCount: number;
   totalProperties: number;
   totalUsers: number;
   totalReservations: number;
@@ -118,7 +119,13 @@ function planMrr(
   metadata?: unknown,
   userPropertyCount?: number | null,
 ): number {
-  if (plan !== BillingPlanCode.STARTER && plan !== BillingPlanCode.PRO) return 0;
+  if (
+    plan !== BillingPlanCode.STARTER &&
+    plan !== BillingPlanCode.PRO &&
+    plan !== BillingPlanCode.SCALE
+  ) {
+    return 0;
+  }
   const propertyCount = resolveBillablePropertyCount({
     propertySlots: parseBillingAccountMetadata(metadata).propertySlots,
     activePropertyCount,
@@ -436,6 +443,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     trialsExpiring7d,
     starterActiveCount,
     proActiveCount,
+    scaleActiveCount,
     totalProperties,
     totalUsers,
     totalReservations,
@@ -468,6 +476,9 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     }),
     db.billingAccount.count({
       where: { status: BillingSubscriptionStatus.ACTIVE, plan: "PRO" },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "SCALE" },
     }),
     db.property.count(),
     db.user.count({ where: { deletedAt: null } }),
@@ -584,6 +595,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     trialsExpiring7d,
     starterActiveCount,
     proActiveCount,
+    scaleActiveCount,
     totalProperties,
     totalUsers,
     totalReservations,
@@ -602,7 +614,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       status: g.status,
       count: g._count._all,
     })),
-    subscriptionByPlan: (["STARTER", "PRO"] as const)
+    subscriptionByPlan: (["STARTER", "PRO", "SCALE"] as const)
       .map((plan) => {
         const accounts = activeBillingAccounts.filter((acc) => acc.plan === plan);
         return {

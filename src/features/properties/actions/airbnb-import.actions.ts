@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { airbnbImportSchema } from "@/features/properties/schemas/airbnb-import.schema";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
+import { isPlanLimitError } from "@/lib/billing/plan-limit.errors";
 import { requirePermission } from "@/lib/auth";
 import { resetPrismaClient } from "@/lib/db";
 import {
@@ -68,6 +69,9 @@ export async function importAirbnbPropertyAction(input: {
       icalUrl,
     });
   } catch (error) {
+    if (isPlanLimitError(error)) {
+      return { success: false as const, message: error.message };
+    }
     if (isStalePrismaClientError(error)) {
       resetPrismaClient();
       created = await createPropertyFromAirbnbImport(user.dbUserId, {
@@ -75,6 +79,8 @@ export async function importAirbnbPropertyAction(input: {
         listingUrl,
         icalUrl,
       });
+    } else if (isPlanLimitError(error)) {
+      return { success: false as const, message: error.message };
     } else {
       throw error;
     }

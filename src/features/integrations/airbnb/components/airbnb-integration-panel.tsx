@@ -10,6 +10,7 @@ import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import { BRAND_ASSETS } from "@/lib/brand-assets";
 import { formatDateTime } from "@/lib/helpers/date";
 
@@ -19,6 +20,7 @@ export type AirbnbIntegrationOverview = {
   properties: Array<{
     id: string;
     name: string;
+    unitNumber?: string | null;
     lastSyncedAt: string | null;
   }>;
 };
@@ -117,9 +119,12 @@ export function AirbnbIntegrationPanel({
                     key={property.id}
                     className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
                   >
-                    <span className="font-medium text-foreground">
-                      {property.name}
-                    </span>
+                    <PropertyIdentity
+                      name={property.name}
+                      unitNumber={property.unitNumber}
+                      size="sm"
+                      className="min-w-[8rem] flex-1"
+                    />
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground">
                         {property.lastSyncedAt

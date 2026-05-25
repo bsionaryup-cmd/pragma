@@ -9,6 +9,7 @@ import {
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
   APARTMENT: "Apartamento",
+  LOFT: "Loft",
   HOUSE: "Casa",
   STUDIO: "Estudio",
   ROOM: "Habitación",

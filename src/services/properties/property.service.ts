@@ -30,6 +30,7 @@ import {
   withVisibleReservationsFilter,
 } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
+import { assertCanAddPropertyForUser } from "@/lib/billing/plan-limits";
 import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 
 async function resolvePropertyScope(userId: string, propertyId?: string) {
@@ -425,6 +426,7 @@ function normalizeFormData(data: PropertyFormValues) {
 }
 
 export async function createProperty(ownerId: string, data: PropertyFormValues) {
+  await assertCanAddPropertyForUser(ownerId);
   const organizationId = await getEffectiveOrganizationIdForUser(ownerId);
 
   const created = await db.property.create({
@@ -471,6 +473,7 @@ export async function createPropertyFromAirbnbImport(
   ownerId: string,
   preview: AirbnbImportPayload,
 ) {
+  await assertCanAddPropertyForUser(ownerId);
   const data = sanitizeAirbnbImport(preview);
   const user = await db.user.findUnique({
     where: { id: ownerId },
@@ -497,6 +500,16 @@ export async function updateProperty(
   userId: string,
   data: PropertyFormValues,
 ) {
+  if (data.status === PropertyStatus.ACTIVE) {
+    const scope = await resolvePropertyScope(userId, id);
+    const existing = await db.property.findFirst({
+      where: scope,
+      select: { status: true },
+    });
+    if (existing?.status !== PropertyStatus.ACTIVE) {
+      await assertCanAddPropertyForUser(userId);
+    }
+  }
   const scope = await resolvePropertyScope(userId, id);
   return db.property.updateMany({
     where: scope,

@@ -13,6 +13,10 @@ import {
 import { reconcileTransactionFromWebhook } from "@/modules/billing/services/payment.service";
 import { validateWompiWebhookTimestamp } from "@/modules/billing/lib/webhook-timestamp";
 import { parseWompiWebhookPayload } from "@/modules/billing/validation/webhook.schema";
+import { parseGuestPaymentReference } from "@/lib/payments/guest-payment-reference";
+import { resolveWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import { verifyWompiEventChecksum } from "@/modules/billing/providers/wompi/wompi.signature";
+import { db } from "@/lib/db";
 import {
   hasPaymentLedgerDelegates,
   isPaymentSchemaMissing,
@@ -48,9 +52,29 @@ function buildEventId(
   return createHash("sha256").update(rawBody).digest("hex").slice(0, 32);
 }
 
-async function resolveWebhookVerificationConfig(_input: {
+async function resolveWebhookVerificationConfig(input: {
   rawBody: string;
 }): Promise<{ eventsSecret: string | null; organizationId: string | null }> {
+  const event = parseWompiWebhookPayload(input.rawBody);
+  const reference = event?.data?.transaction?.reference;
+  const guestLinkId = parseGuestPaymentReference(reference);
+
+  if (guestLinkId) {
+    const link = await db.guestPaymentLink.findUnique({
+      where: { id: guestLinkId },
+      select: { organizationId: true },
+    });
+    if (link) {
+      const tenantConfig = await resolveWompiConfig(link.organizationId);
+      if (tenantConfig.eventsSecret) {
+        return {
+          eventsSecret: tenantConfig.eventsSecret,
+          organizationId: link.organizationId,
+        };
+      }
+    }
+  }
+
   const platformOrgId = await resolvePlatformWompiOrganizationId();
   const config = await resolvePlatformWompiConfig();
 
@@ -59,6 +83,49 @@ async function resolveWebhookVerificationConfig(_input: {
   }
 
   return { eventsSecret: null, organizationId: null };
+}
+
+async function verifyWebhookSignature(input: {
+  rawBody: string;
+  signature: string;
+}): Promise<{ valid: boolean; organizationId: string | null }> {
+  const primary = await resolveWebhookVerificationConfig({ rawBody: input.rawBody });
+  if (primary.eventsSecret) {
+    const valid = verifyWompiEventChecksum({
+      payload: input.rawBody,
+      signature: input.signature,
+      secret: primary.eventsSecret,
+    });
+    if (valid) {
+      return { valid: true, organizationId: primary.organizationId };
+    }
+  }
+
+  const event = parseWompiWebhookPayload(input.rawBody);
+  const guestLinkId = parseGuestPaymentReference(
+    event?.data?.transaction?.reference,
+  );
+  if (!guestLinkId) {
+    return { valid: false, organizationId: null };
+  }
+
+  const link = await db.guestPaymentLink.findUnique({
+    where: { id: guestLinkId },
+    select: { organizationId: true },
+  });
+  if (!link) return { valid: false, organizationId: null };
+
+  const tenantConfig = await resolveWompiConfig(link.organizationId);
+  if (!tenantConfig.eventsSecret) {
+    return { valid: false, organizationId: null };
+  }
+
+  const valid = verifyWompiEventChecksum({
+    payload: input.rawBody,
+    signature: input.signature,
+    secret: tenantConfig.eventsSecret,
+  });
+  return { valid, organizationId: link.organizationId };
 }
 
 export async function processWompiWebhook(input: {
@@ -78,27 +145,12 @@ export async function processWompiWebhook(input: {
     return { ok: false, message: "Firma ausente", status: 401 };
   }
 
-  const verification = await resolveWebhookVerificationConfig({
-    rawBody: input.rawBody,
-  });
-
-  if (!verification.eventsSecret) {
-    return {
-      ok: false,
-      message: "Secreto de eventos Wompi no configurado",
-      status: 503,
-    };
-  }
-
-  const provider = wompiAdapter;
-  const signatureValid = await wompiAdapter.verifyWebhookSignatureAsync({
+  const signatureCheck = await verifyWebhookSignature({
     rawBody: input.rawBody,
     signature: input.signature,
-    organizationId: verification.organizationId ?? undefined,
-    eventsSecret: verification.eventsSecret,
   });
 
-  if (!signatureValid) {
+  if (!signatureCheck.valid) {
     if (hasPaymentLedgerDelegates()) {
       await createWebhookLog({
         eventType: "unknown",
@@ -172,6 +224,7 @@ export async function processWompiWebhook(input: {
     return { ok: false, message: "Evento sin referencia", status: 422 };
   }
 
+  const provider = wompiAdapter;
   const wompiStatus = event.data?.transaction?.status ?? "";
   const mappedStatus =
     provider.mapProviderStatus?.(wompiStatus) ?? PaymentTransactionStatus.PENDING;

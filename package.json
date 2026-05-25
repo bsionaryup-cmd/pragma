@@ -32,7 +32,9 @@
     "audit:ical": "node scripts/run-ical-sync-audit.mjs",
     "brand:assets": "node scripts/generate-brand-assets.mjs",
     "brand:favicon": "node scripts/brand/generate-favicon.mjs",
-    "test:billing": "npx tsx --test tests/billing/*.test.ts tests/rbac/*.test.ts"
+    "test:billing": "npx tsx --test tests/billing/*.test.ts tests/rbac/*.test.ts tests/payments/*.test.ts tests/sales/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify:release": "node scripts/verify-release.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",

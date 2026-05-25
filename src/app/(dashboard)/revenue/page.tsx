@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import type { AppUserRole } from "@/types/auth";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getFinanceOverview } from "@/services/finance/finance.service";
@@ -14,6 +15,7 @@ const SmartpriceDashboard = dynamic(
 );
 
 export default async function SmartpricePage() {
+  await redirectIfMissingPlanFeature("revenue", "/revenue");
   const user = await requirePermission("finance:revenue:read");
   const canEditPrices = hasPermission(user.role as AppUserRole, "finance:write");
 

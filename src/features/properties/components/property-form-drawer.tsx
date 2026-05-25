@@ -142,10 +142,18 @@ export function PropertyFormDrawer({
     try {
       if (isEditing && property) {
         const result = await updatePropertyAction(property.id, values);
+        if (!result.success) {
+          toast.error("message" in result ? result.message : "No se pudo actualizar");
+          return;
+        }
         toast.success("Propiedad actualizada");
         onSuccess(result.property);
       } else {
         const result = await createPropertyAction(values);
+        if (!result.success) {
+          toast.error("message" in result ? result.message : "No se pudo crear");
+          return;
+        }
         toast.success("Propiedad creada");
         onSuccess(result.property);
       }

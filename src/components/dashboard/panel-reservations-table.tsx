@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPanelDate } from "@/lib/helpers/date";
+import { cn } from "@/lib/utils";
 import type { PanelReservationRow } from "@/services/dashboard/dashboard.service";
 
 type PanelTab = "arrivals" | "departures" | "current";
@@ -71,14 +72,19 @@ function PropertyCell({ row }: { row: PanelReservationRow }) {
         )}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">
-          {row.property.name}
-        </p>
         {unitNumber ? (
-          <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+          <p className="truncate text-base font-bold tabular-nums tracking-tight text-foreground">
             {unitNumber}
           </p>
         ) : null}
+        <p
+          className={cn(
+            "truncate text-muted-foreground",
+            unitNumber ? "mt-0.5 text-xs" : "text-sm font-medium text-foreground",
+          )}
+        >
+          {row.property.name}
+        </p>
       </div>
     </div>
   );

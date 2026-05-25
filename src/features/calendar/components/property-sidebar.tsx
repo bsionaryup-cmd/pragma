@@ -75,20 +75,20 @@ function PropertySidebarItem({
         </div>
       ) : null}
       {hasTextContent ? (
-        <div className="min-w-0 flex-1">
-          {viewSettings.showInternalName ? (
-            <p className="truncate text-[13px] font-semibold leading-snug text-[var(--cal-text-day)]">
-              {property.name}
+        <div className="min-w-0 flex-1 text-center sm:text-start">
+          {viewSettings.showIdentificationNumber && unit !== "—" ? (
+            <p className="truncate text-[15px] font-bold tabular-nums leading-tight tracking-tight text-[var(--cal-text-day)]">
+              {unit}
             </p>
           ) : null}
-          {viewSettings.showIdentificationNumber && unit !== "—" ? (
+          {viewSettings.showInternalName ? (
             <p
               className={cn(
                 "truncate text-[11px] font-normal leading-tight text-[var(--cal-text-secondary)]",
-                viewSettings.showInternalName && "mt-0.5",
+                viewSettings.showIdentificationNumber && unit !== "—" && "mt-0.5",
               )}
             >
-              Apto {unit}
+              {property.name}
             </p>
           ) : null}
           {viewSettings.showIdentificationNumber ? (

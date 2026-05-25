@@ -106,3 +106,22 @@ export async function purgeGhostReservations(
 
   return deleted.count;
 }
+
+const PURGE_THROTTLE_MS = 5 * 60 * 1000;
+const lastPurgeAtByScope = new Map<string, number>();
+
+function purgeScopeKey(scope: TenantDataScope): string {
+  return `${scope.organizationId ?? "solo"}:${scope.userId}`;
+}
+
+/** Evita purgas repetidas en cada carga del calendario; sync/iCal siguen usando purge completo. */
+export async function purgeGhostReservationsThrottled(
+  scope: TenantDataScope,
+): Promise<number> {
+  const key = purgeScopeKey(scope);
+  const now = Date.now();
+  const last = lastPurgeAtByScope.get(key) ?? 0;
+  if (now - last < PURGE_THROTTLE_MS) return 0;
+  lastPurgeAtByScope.set(key, now);
+  return purgeGhostReservations(scope);
+}

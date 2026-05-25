@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import {
+  ClipboardList,
   KeyRound,
   LockKeyhole,
   RefreshCw,
@@ -184,35 +185,49 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                   ? formatCalendarUnitDisplay(item.propertyUnitNumber)
                   : null;
 
+                const showStageBadge = item.stage !== "awaiting_registration";
+
                 return (
                   <div
                     key={item.id}
-                    className="w-fit max-w-full rounded-lg border border-border/80 px-2.5 py-2"
+                    className="w-full max-w-full rounded-lg border border-border bg-card px-4 py-3 shadow-pragma-soft"
                   >
                     <div className="flex flex-col gap-1.5">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            {item.guestName}
-                          </p>
-                          {unitNumber ? (
-                            <span className="text-xs tabular-nums text-black">
-                              Apto {unitNumber}
-                            </span>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            {unitNumber ? (
+                              <p className="text-xl font-bold tabular-nums tracking-tight text-foreground">
+                                {unitNumber}
+                              </p>
+                            ) : null}
+                            <p
+                              className={cn(
+                                "font-medium text-foreground",
+                                unitNumber ? "mt-0.5 text-sm" : "text-base",
+                              )}
+                            >
+                              {item.guestName}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Check-in {formatDate(item.checkIn)}
+                              <span className="mx-1" aria-hidden>
+                                ·
+                              </span>
+                              {formatDate(item.checkOut)}
+                            </p>
+                            <p className="mt-0.5 truncate text-[11px] text-muted-foreground/80">
+                              {item.propertyName}
+                            </p>
+                          </div>
+                          {showStageBadge ? (
+                            <Badge
+                              variant="outline"
+                              className={cn("shrink-0 text-[10px]", stageBadgeClass(item.stage))}
+                            >
+                              {item.stageLabel}
+                            </Badge>
                           ) : null}
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px]", stageBadgeClass(item.stage))}
-                          >
-                            {item.stageLabel}
-                          </Badge>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {item.propertyName}
-                          <span className="mx-1" aria-hidden>
-                            ·
-                          </span>
-                          {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
-                        </p>
                         {item.registrationProgress ? (
                           <p className="text-[11px] font-medium leading-tight text-warning">
                             Registro: {item.registrationProgress} huéspedes
@@ -225,86 +240,112 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                           code={item.credential!.code}
                           status={item.credential!.status}
                           isActive={codeIsActive}
+                          copyContext={{
+                            propertyType: item.propertyType,
+                            propertyName: item.propertyName,
+                            unitNumber: item.propertyUnitNumber,
+                            checkIn: item.checkIn,
+                            checkOut: item.checkOut,
+                            checkInTime: item.checkInTime,
+                            checkOutTime: item.checkOutTime,
+                          }}
                         />
                       ) : null}
 
-                      {canManage ? (
-                        <div className="flex flex-wrap gap-1">
-                          {item.stage === "pending_approval" && item.credential ? (
-                            <Button
-                              size="xs"
-                              disabled={pending}
-                              onClick={() =>
-                                runAction(() =>
-                                  approveAccessCodeAction(item.credential!.id),
-                                )
-                              }
-                            >
-                              Aprobar y generar
-                            </Button>
-                          ) : null}
-
-                          {(item.stage === "ready_to_generate" ||
-                            item.stage === "awaiting_lock" ||
-                            item.stage === "revoked") &&
-                          item.registrationComplete ? (
-                            <Button
-                              size="xs"
-                              disabled={pending}
-                              onClick={() =>
-                                runAction(() => generateAccessCodeAction(item.id))
-                              }
-                            >
-                              <RefreshCw className="mr-1 h-3.5 w-3.5" />
-                              Generar código
-                            </Button>
-                          ) : null}
-
-                          {canToggleCode && item.credential ? (
-                            <>
-                              {item.stage === "generated" ? (
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  disabled={pending}
-                                  onClick={() =>
-                                    runAction(() =>
-                                      suspendAccessCodeAction(item.id),
-                                    )
-                                  }
-                                >
-                                  Desactivar
-                                </Button>
-                              ) : null}
-                              {item.stage === "suspended" ? (
-                                <Button
-                                  size="xs"
-                                  variant="outline"
-                                  disabled={pending}
-                                  onClick={() =>
-                                    runAction(() =>
-                                      activateAccessCodeAction(item.id),
-                                    )
-                                  }
-                                >
-                                  Activar
-                                </Button>
-                              ) : null}
+                      <div className="flex flex-wrap gap-1">
+                        {canManage ? (
+                          <>
+                            {item.stage === "pending_approval" && item.credential ? (
                               <Button
                                 size="xs"
-                                variant="outline"
-                                className="border-danger/20 text-danger/70 hover:border-danger/30 hover:bg-danger/5 hover:text-danger"
                                 disabled={pending}
                                 onClick={() =>
-                                  runAction(() => revokeAccessCodeAction(item.id))
+                                  runAction(() =>
+                                    approveAccessCodeAction(item.credential!.id),
+                                  )
                                 }
                               >
-                                Revocar
+                                Aprobar y generar
                               </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      ) : null}
+                            ) : null}
+
+                            {(item.stage === "ready_to_generate" ||
+                              item.stage === "awaiting_lock" ||
+                              item.stage === "revoked") &&
+                            item.registrationComplete ? (
+                              <Button
+                                size="xs"
+                                disabled={pending}
+                                onClick={() =>
+                                  runAction(() => generateAccessCodeAction(item.id))
+                                }
+                              >
+                                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                                Generar código
+                              </Button>
+                            ) : null}
+
+                            {canToggleCode && item.credential ? (
+                              <>
+                                {item.stage === "generated" ? (
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() =>
+                                      runAction(() =>
+                                        suspendAccessCodeAction(item.id),
+                                      )
+                                    }
+                                  >
+                                    Desactivar
+                                  </Button>
+                                ) : null}
+                                {item.stage === "suspended" ? (
+                                  <Button
+                                    size="xs"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() =>
+                                      runAction(() =>
+                                        activateAccessCodeAction(item.id),
+                                      )
+                                    }
+                                  >
+                                    Activar
+                                  </Button>
+                                ) : null}
+                              </>
+                            ) : null}
+                          </>
+                        ) : null}
+
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          className="border-border bg-muted/30 text-foreground shadow-none hover:bg-muted/50"
+                          asChild
+                        >
+                          <Link href={`/reservations?reservation=${item.id}`}>
+                            <ClipboardList className="mr-1 h-3.5 w-3.5" />
+                            Ver reserva
+                          </Link>
+                        </Button>
+
+                        {canManage && canToggleCode && item.credential ? (
+                          <Button
+                            size="xs"
+                            variant="outline"
+                            className="border-danger/20 text-danger/70 shadow-none hover:border-danger/30 hover:bg-danger/5 hover:text-danger"
+                            disabled={pending}
+                            onClick={() =>
+                              runAction(() => revokeAccessCodeAction(item.id))
+                            }
+                          >
+                            Revocar
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );

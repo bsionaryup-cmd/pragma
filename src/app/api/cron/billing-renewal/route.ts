@@ -4,6 +4,7 @@ import {
   accountNeedsLifecycleReconciliation,
   reconcileBillingLifecycle,
 } from "@/modules/billing/services/billing-lifecycle.service";
+import { expireStaleSalesQuotes } from "@/modules/sales/services/sales-quote.service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,9 +45,12 @@ export async function GET(request: Request) {
     });
   }
 
+  const expiredQuotes = await expireStaleSalesQuotes();
+
   return NextResponse.json({
     ok: true,
     processed: reconciled.length,
+    expiredSalesQuotes: expiredQuotes,
     accounts: reconciled,
   });
 }

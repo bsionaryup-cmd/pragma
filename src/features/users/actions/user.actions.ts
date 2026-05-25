@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { UserRole } from "@prisma/client";
 import { requirePermission } from "@/lib/auth";
+import { isPlanLimitError } from "@/lib/billing/plan-limit.errors";
 import { validateNewAccountPassword } from "@/lib/auth/password-rules";
 import {
   createUserSchema,
@@ -29,16 +30,23 @@ export async function createUserAction(input: unknown) {
     throw new Error(passwordError);
   }
 
-  await createUserByAdmin(
-    {
-      email: parsed.email,
-      firstName: parsed.firstName || null,
-      lastName: parsed.lastName || null,
-      role: parsed.role,
-      password: parsed.password,
-    },
-    admin.dbUserId,
-  );
+  try {
+    await createUserByAdmin(
+      {
+        email: parsed.email,
+        firstName: parsed.firstName || null,
+        lastName: parsed.lastName || null,
+        role: parsed.role,
+        password: parsed.password,
+      },
+      admin.dbUserId,
+    );
+  } catch (error) {
+    if (isPlanLimitError(error)) {
+      throw new Error(error.message);
+    }
+    throw error;
+  }
   revalidatePath("/users");
 }
 

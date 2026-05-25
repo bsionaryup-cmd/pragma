@@ -38,8 +38,7 @@ export default async function ReservationsPage({
     hasPermission(role, "reservations:write") ||
     hasPermission(role, "properties:write");
   const canDelete = hasPermission(role, "reservations:delete");
-  const canAccessTasks = hasPermission(role, "tasks:read");
-
+  const canManagePayments = hasPermission(role, "finance:write");
   const reservationId = params.reservation ?? null;
   const validReservationId =
     reservationId && reservations.some((r) => r.id === reservationId)
@@ -55,7 +54,7 @@ export default async function ReservationsPage({
         canWrite={canWrite}
         canManageGuestRegistration={canManageGuestRegistration}
         canDelete={canDelete}
-        canAccessTasks={canAccessTasks}
+        canManagePayments={canManagePayments}
         openCreateOnMount={params.create === "true" && canCreate}
         initialSelectedId={validReservationId}
         initialCreateValues={

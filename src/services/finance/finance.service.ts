@@ -9,6 +9,10 @@ import {
   mergeReservationScope,
 } from "@/lib/platform/tenant-data-scope";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
+import {
+  buildFinanceYearlySeries,
+  type FinanceYearMonthPoint,
+} from "@/services/finance/finance-yearly-series";
 import type { Locale } from "@/i18n/types";
 
 export type FinanceKpis = {
@@ -83,8 +87,11 @@ export type TopPropertyRow = {
 export type FinanceOverview = {
   kpis: FinanceKpis;
   comparison: MonthComparison;
-  revenueForecast: number;
-  revenueForecastFormatted: string;
+  /** Solo ingresos reales acumulados del año (sin proyección de pendientes). */
+  yearToDateRevenue: number;
+  yearToDateRevenueFormatted: string;
+  chartYear: number;
+  yearlyChart: FinanceYearMonthPoint[];
   revenueFlow: RevenueFlowRow[];
   expenseFlow: ExpenseFlowRow[];
   profitability: {
@@ -325,7 +332,11 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   const margin = revenue > 0 ? clampPercent((netProfit / revenue) * 100) : 0;
   const roi = expenses > 0 ? clampPercent((netProfit / expenses) * 100) : 0;
 
-  const forecast = Math.round(revenue + pendingIncome);
+  const chartYear = new Date().getFullYear();
+  const yearlyChart = await buildFinanceYearlySeries(scope, chartYear);
+  const yearToDateRevenue = yearlyChart
+    .filter((m) => !m.isFuture)
+    .reduce((sum, m) => sum + m.revenue, 0);
 
   return {
     kpis: {
@@ -374,8 +385,10 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
         ),
       },
     },
-    revenueForecast: forecast,
-    revenueForecastFormatted: formatMoney(forecast, undefined, locale),
+    yearToDateRevenue,
+    yearToDateRevenueFormatted: formatMoney(yearToDateRevenue, undefined, locale),
+    chartYear,
+    yearlyChart,
     revenueFlow,
     expenseFlow,
     profitability: {

@@ -5,6 +5,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatAccessCode } from "@/lib/access-code";
+import {
+  copyAccessCodeGuestMessage,
+  type AccessCodeCopyContext,
+} from "@/lib/access-code-guest-message";
 import { cn } from "@/lib/utils";
 
 type AccessCodeDisplayProps = {
@@ -14,6 +18,8 @@ type AccessCodeDisplayProps = {
   className?: string;
   defaultVisible?: boolean;
   variant?: "card" | "inline";
+  /** Si se provee, “Copiar código” envía el mensaje de bienvenida completo al huésped. */
+  copyContext?: Omit<AccessCodeCopyContext, "code">;
 };
 
 export function AccessCodeDisplay({
@@ -23,6 +29,7 @@ export function AccessCodeDisplay({
   className,
   defaultVisible = false,
   variant = "card",
+  copyContext,
 }: AccessCodeDisplayProps) {
   const [visible, setVisible] = useState(defaultVisible);
   const displayCode = formatAccessCode(code);
@@ -37,6 +44,23 @@ export function AccessCodeDisplay({
   async function copyCode() {
     if (!displayCode) return;
     try {
+      if (copyContext) {
+        const { ok, usedFullMessage } = await copyAccessCodeGuestMessage({
+          ...copyContext,
+          code: displayCode,
+        });
+        if (!ok) {
+          toast.error("No se pudo copiar el mensaje");
+          return;
+        }
+        toast.success(
+          usedFullMessage
+            ? "Mensaje de acceso copiado"
+            : "Código copiado",
+        );
+        return;
+      }
+
       await navigator.clipboard.writeText(displayCode);
       toast.success("Código copiado");
     } catch {

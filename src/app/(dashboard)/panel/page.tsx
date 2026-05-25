@@ -33,15 +33,12 @@ export default async function PanelControlPage() {
   const novedades = getActiveSystemAnnouncements(locale);
 
   const canCreateProperties = hasPermission(auth.role, "properties:write");
-  const canAccessTasks = hasPermission(auth.role, "tasks:read");
-
   return (
     <CommandCenterView
       firstName={auth.firstName}
       data={data}
       showEmptyBanner={propertyCount === 0}
       canCreateProperties={canCreateProperties}
-      canAccessTasks={canAccessTasks}
       novedades={novedades}
     />
   );

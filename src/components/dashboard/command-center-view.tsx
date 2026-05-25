@@ -20,7 +20,6 @@ type CommandCenterViewProps = {
   data: CommandCenterData;
   showEmptyBanner: boolean;
   canCreateProperties: boolean;
-  canAccessTasks?: boolean;
   novedades: SystemAnnouncement[];
 };
 
@@ -29,7 +28,6 @@ export function CommandCenterView({
   data,
   showEmptyBanner,
   canCreateProperties,
-  canAccessTasks = false,
   novedades,
 }: CommandCenterViewProps) {
   const { t } = useI18n();
@@ -111,14 +109,6 @@ export function CommandCenterView({
           <Link href="/reservations" className="font-medium text-pragma-electric hover:underline">
             {t("nav.reservations")}
           </Link>
-          {canAccessTasks ? (
-            <>
-              {" · "}
-              <Link href="/tasks" className="font-medium text-pragma-electric hover:underline">
-                {t("nav.tasks")}
-              </Link>
-            </>
-          ) : null}
         </p>
       </div>
     </ModuleShellFlow>

@@ -6,6 +6,7 @@ import { getServerLocale } from "@/i18n/locale.server";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import type { AppUserRole } from "@/types/auth";
 import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import FinanceLoading from "./loading";
 
 const FinanceView = dynamic(
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
 };
 
 export default async function FinancePage() {
+  await redirectIfMissingPlanFeature("finance", "/finance");
   const locale = await getServerLocale();
   const [auth, data] = await Promise.all([
     requireAnyPermission("finance:read", "finance:operations:read"),

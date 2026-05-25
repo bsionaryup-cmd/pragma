@@ -47,8 +47,8 @@ function SidebarNavLink({
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
         isActive
-          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/25 shadow-pragma-soft dark:bg-primary/15"
-          : "text-pragma-mid-gray hover:bg-pragma-light-blue/60 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
+          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft dark:bg-primary/15"
+          : "text-pragma-mid-gray hover:bg-white/80 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
       )}
     >
       <NavIcon

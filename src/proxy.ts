@@ -36,6 +36,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/integrations/ttlock/callback",
   "/api/integrations/ttlock/webhook/(.*)",
   "/guest-registration/(.*)",
+  "/offer/(.*)",
 ]);
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);

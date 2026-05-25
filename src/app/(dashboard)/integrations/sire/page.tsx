@@ -3,8 +3,10 @@ import { getExternalIntegrationOverview } from "@/features/integrations/actions/
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { requirePermission } from "@/lib/auth";
+import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 
 export default async function SireIntegrationPage() {
+  await redirectIfMissingPlanFeature("sire", "/integrations/sire");
   await requirePermission("integrations:manage");
   const integration = await getExternalIntegrationOverview("SIRE");
 
