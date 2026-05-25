@@ -87,6 +87,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
   "/finance": "finance:read",
+  "/integrations/airbnb": "integrations:read",
   "/integrations/sire": "integrations:manage",
   "/integrations/traa": "integrations:manage",
   "/integrations/ttlock/connect": "integrations:manage",

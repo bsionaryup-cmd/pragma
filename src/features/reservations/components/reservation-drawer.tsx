@@ -20,6 +20,11 @@ export type ReservationCreateInitialValues = {
   propertyId?: string;
   checkIn?: string;
   checkOut?: string;
+  totalAmount?: number;
+  /** Campo de precio vacío para ingreso manual (calendario). */
+  clearTotalAmount?: boolean;
+  /** Monto fijado por presupuesto PriceLabs (no editable). */
+  lockTotalAmount?: boolean;
 };
 
 type ReservationDrawerProps = {

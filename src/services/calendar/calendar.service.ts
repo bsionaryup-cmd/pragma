@@ -1,4 +1,11 @@
-import { buildRollingCalendarViewport } from "@/features/calendar/lib/calendar-dates";
+import {
+  buildRollingCalendarViewport,
+  CALENDAR_DAYS_AFTER,
+  CALENDAR_DAYS_BEFORE,
+  CALENDAR_DEFAULT_DAYS_BEFORE,
+  differenceInCalendarDays,
+  getTodayKey,
+} from "@/features/calendar/lib/calendar-dates";
 import type {
   CalendarDataDto,
   CalendarReservationDto,
@@ -32,6 +39,7 @@ async function loadCalendarProperties(scope: TenantDataScope) {
     status: true,
     coverImageUrl: true,
     baseRate: true,
+    cleaningFee: true,
   } as const;
   const propertyFilter = mergePropertyScope(scope, {
     status: PropertyStatus.ACTIVE,
@@ -109,13 +117,54 @@ function mapCalendarProperty(p: PropertyRow): CalendarPropertyDto {
     dailyPricesByDate: pl?.meta
       ? parseDailyPricesFromMeta(pl.meta)
       : {},
+    cleaningFee: p.cleaningFee ? Number(p.cleaningFee) : null,
   };
+}
+
+async function resolveCalendarDaysBefore(
+  anchorKey: string,
+  scope: TenantDataScope,
+): Promise<number> {
+  const todayKey = getTodayKey();
+  const anchor = anchorKey?.match(/^\d{4}-\d{2}-\d{2}$/) ? anchorKey : todayKey;
+
+  if (anchor !== todayKey) {
+    return CALENDAR_DEFAULT_DAYS_BEFORE;
+  }
+
+  const earliest = await db.reservation.findFirst({
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        status: { notIn: ["CANCELLED"] },
+      }),
+    ),
+    orderBy: { checkIn: "asc" },
+    select: { checkIn: true },
+  });
+
+  if (!earliest) {
+    return CALENDAR_DAYS_BEFORE;
+  }
+
+  const earliestKey = prismaDateToKey(earliest.checkIn);
+  return Math.max(
+    CALENDAR_DAYS_BEFORE,
+    differenceInCalendarDays(
+      dateKeyToPrismaDate(todayKey),
+      dateKeyToPrismaDate(earliestKey),
+    ),
+  );
 }
 
 export async function getCalendarData(anchorKey: string): Promise<CalendarDataDto> {
   const scope = await requireTenantDataScope();
   await purgeGhostReservations(scope);
-  const viewport = buildRollingCalendarViewport(anchorKey);
+  const daysBefore = await resolveCalendarDaysBefore(anchorKey, scope);
+  const viewport = buildRollingCalendarViewport(
+    anchorKey,
+    daysBefore,
+    CALENDAR_DAYS_AFTER,
+  );
   const rangeStart = dateKeyToPrismaDate(viewport.rangeStart);
   const rangeEnd = dateKeyToPrismaDate(viewport.rangeEnd);
 
@@ -144,16 +193,19 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
     }),
   ]);
 
-  const primaryGuests = await db.reservationGuest.findMany({
-    where: {
-      isPrimary: true,
-      reservationId: { in: reservations.map((r) => r.id) },
-    },
-    select: {
-      reservationId: true,
-      fullName: true,
-    },
-  });
+  const primaryGuests =
+    reservations.length === 0
+      ? []
+      : await db.reservationGuest.findMany({
+          where: {
+            isPrimary: true,
+            reservationId: { in: reservations.map((r) => r.id) },
+          },
+          select: {
+            reservationId: true,
+            fullName: true,
+          },
+        });
   const primaryGuestByReservation = new Map(
     primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
   );

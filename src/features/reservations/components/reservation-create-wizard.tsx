@@ -41,18 +41,13 @@ import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import { formatCurrency } from "@/lib/helpers";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { cn } from "@/lib/utils";
+import type { ReservationCreateInitialValues } from "@/features/reservations/components/reservation-drawer";
 
 const STEPS = [
   { id: 1, label: "Reserva" },
   { id: 2, label: "Huésped" },
   { id: 3, label: "Resumen" },
 ] as const;
-
-export type ReservationCreateInitialValues = {
-  propertyId?: string;
-  checkIn?: string;
-  checkOut?: string;
-};
 
 type ReservationCreateWizardProps = {
   properties: PropertyOption[];
@@ -72,6 +67,9 @@ export function ReservationCreateWizard({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summaryConfirmed, setSummaryConfirmed] = useState(false);
 
+  const leaveTotalBlank = initialValues?.clearTotalAmount === true;
+  const lockTotalAmount = initialValues?.lockTotalAmount === true;
+
   const form = useForm<ReservationWizardValues>({
     resolver: zodResolver(reservationWizardSchema),
     defaultValues: {
@@ -89,23 +87,38 @@ export function ReservationCreateWizard({
       guestPhone: "",
       guestCountry: "CO",
       guestLanguage: "es",
-      totalAmount: 0,
+      totalAmount: leaveTotalBlank ? 0 : (initialValues?.totalAmount ?? 0),
       status: ReservationStatus.CONFIRMED,
     },
   });
 
+  const [totalAmountBlank, setTotalAmountBlank] = useState(leaveTotalBlank);
+
   useEffect(() => {
-    if (!initialValues?.propertyId && !initialValues?.checkIn) return;
+    if (
+      !initialValues?.propertyId &&
+      !initialValues?.checkIn &&
+      initialValues?.totalAmount === undefined &&
+      !initialValues?.clearTotalAmount
+    ) {
+      return;
+    }
+
+    const blank = initialValues?.clearTotalAmount === true;
+    setTotalAmountBlank(blank);
     form.reset({
       ...form.getValues(),
-      propertyId: initialValues.propertyId ?? "",
-      checkIn: initialValues.checkIn ?? "",
-      checkOut: initialValues.checkOut ?? "",
+      propertyId: initialValues?.propertyId ?? "",
+      checkIn: initialValues?.checkIn ?? "",
+      checkOut: initialValues?.checkOut ?? "",
+      totalAmount: blank ? 0 : (initialValues?.totalAmount ?? 0),
     });
   }, [
     initialValues?.propertyId,
     initialValues?.checkIn,
     initialValues?.checkOut,
+    initialValues?.totalAmount,
+    initialValues?.clearTotalAmount,
     form,
   ]);
 
@@ -186,6 +199,10 @@ export function ReservationCreateWizard({
     if (step !== 3) return;
     if (!summaryConfirmed) {
       toast.error("Lee el resumen y confirma antes de crear la reserva");
+      return;
+    }
+    if (totalAmountBlank) {
+      form.setError("totalAmount", { message: "Ingresa el valor total" });
       return;
     }
 
@@ -510,10 +527,35 @@ export function ReservationCreateWizard({
                         type="number"
                         min={0}
                         step={1000}
-                        value={field.value}
-                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
+                        readOnly={lockTotalAmount}
+                        disabled={lockTotalAmount}
+                        placeholder={totalAmountBlank ? "Ingrese el valor" : undefined}
+                        className={cn(lockTotalAmount && "cursor-not-allowed bg-muted")}
+                        value={totalAmountBlank ? "" : field.value}
+                        onChange={(e) => {
+                          if (lockTotalAmount) return;
+                          const raw = e.target.value;
+                          if (raw === "") {
+                            setTotalAmountBlank(true);
+                            field.onChange(0);
+                            return;
+                          }
+                          setTotalAmountBlank(false);
+                          field.onChange(e.target.valueAsNumber || 0);
+                        }}
+                        onFocus={() => {
+                          if (lockTotalAmount) return;
+                          if (totalAmountBlank && field.value === 0) {
+                            setTotalAmountBlank(true);
+                          }
+                        }}
                       />
                     </FormControl>
+                    {lockTotalAmount ? (
+                      <p className="text-xs text-muted-foreground">
+                        Monto calculado con tarifas PriceLabs y tarifa de aseo.
+                      </p>
+                    ) : null}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -551,7 +593,7 @@ export function ReservationCreateWizard({
                 )}
               />
 
-              {values.totalAmount > 0 && (
+              {values.totalAmount > 0 && !totalAmountBlank && (
                 <p className="text-sm text-muted-foreground">
                   Total:{" "}
                   <span className="font-semibold text-foreground">

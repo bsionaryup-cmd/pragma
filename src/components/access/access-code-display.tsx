@@ -50,29 +50,17 @@ export function AccessCodeDisplay({
     return (
       <div
         className={cn(
-          "flex items-center justify-between gap-2 rounded-md border border-border/70 bg-muted/25 px-2.5 py-1.5",
+          "inline-flex w-fit max-w-full items-center gap-2 rounded-md border border-border/70 bg-muted/25 px-2.5 py-1.5",
           className,
         )}
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Código
-          </span>
-          <span className="font-mono text-sm tracking-wider text-foreground">
-            {visible ? displayCode : "••••••#"}
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-1.5 py-px text-[10px] font-medium",
-              isActive
-                ? "bg-success/10 text-success"
-                : "bg-warning/10 text-warning",
-            )}
-          >
-            {statusLabel}
-          </span>
-        </div>
-        <div className="flex shrink-0 gap-0.5">
+        <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Código
+        </span>
+        <span className="shrink-0 font-mono text-sm tracking-wider text-foreground">
+          {visible ? displayCode : "••••••#"}
+        </span>
+        <div className="flex shrink-0 items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
@@ -98,6 +86,16 @@ export function AccessCodeDisplay({
             <Copy className="h-3.5 w-3.5" />
           </Button>
         </div>
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium",
+            isActive
+              ? "bg-success/10 text-success"
+              : "bg-warning/10 text-warning",
+          )}
+        >
+          {statusLabel}
+        </span>
       </div>
     );
   }

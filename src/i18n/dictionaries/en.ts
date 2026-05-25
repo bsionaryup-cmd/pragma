@@ -27,11 +27,13 @@ export const en = {
     reservations: "Reservations",
     properties: "Properties",
     calendar: "Calendar",
+    tasks: "Tasks",
     revenue: "PriceLabs",
     smartAccess: "TTLock",
     integrations: "Integrations",
     messages: "Messages",
     finance: "Finance",
+    billing: "Billing",
     settings: "Settings",
     users: "Users",
     hostCommandCenter: "Host Command Center",
@@ -45,6 +47,17 @@ export const en = {
     eyebrow: "Control Panel",
     greeting: "Hi, {{name}}. Your Airbnb operation at a glance.",
     alertsButton: "Alerts",
+    novedadesButton: "Updates",
+    novedades: {
+      title: "Updates",
+      description: "System notices about maintenance, product updates, and more.",
+      empty: "No updates right now.",
+      categories: {
+        maintenance: "Maintenance",
+        update: "Update",
+        info: "Info",
+      },
+    },
     kpi: {
       occupancy: "Occupancy",
       occupancyMonth: "Monthly occupancy",
@@ -66,8 +79,8 @@ export const en = {
     sections: {
       operational: "Operational summary",
       operationalDesc: "Today's priorities and the next 7 days.",
-      calendar: "Calendar & activity",
-      calendarDesc: "Arrivals, departures, and active stays.",
+      calendar: "Daily activity",
+      calendarDesc: "Arrivals, departures, and guests in stay.",
       alerts: "Alerts",
       alertsDesc: "Issues that require action.",
       activity: "Recent activity",
@@ -84,9 +97,9 @@ export const en = {
       smartLockPending: "Not configured",
     },
     tabs: {
-      checkIns: "Check-ins",
-      checkOuts: "Check-outs",
-      active: "In stay",
+      checkIns: "Upcoming arrivals",
+      checkOuts: "Upcoming departures",
+      active: "Currently hosted",
     },
     tabDesc: {
       checkIns: "Confirmed arrivals in the next 7 days.",
@@ -94,8 +107,8 @@ export const en = {
       active: "Guests currently in active properties.",
     },
     download: {
-      checkIns: "Download check-ins",
-      checkOuts: "Download check-outs",
+      checkIns: "Download arrivals",
+      checkOuts: "Download departures",
       active: "Download in-stay",
     },
     alerts: {
@@ -324,9 +337,9 @@ export const en = {
   },
   integrations: {
     title: "Integrations",
-    subtitle: "Airbnb integrations",
+    subtitle: "Connector hub",
     description:
-      "Connect Airbnb, smart locks, calendar, and automations in your Command Center.",
+      "Airbnb, smart locks, PriceLabs, and government reporting in one module.",
   },
   settings: {
     title: "Settings",

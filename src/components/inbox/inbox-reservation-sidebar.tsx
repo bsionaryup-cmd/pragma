@@ -49,7 +49,7 @@ export function InboxReservationSidebar({
             {conversation.adults} Adultos
           </p>
           <p className="text-sm text-muted-foreground">
-            {conversation.nights} noches, de Airbnb
+            {conversation.nights} noches · {conversation.platform}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Número de reserva: {conversation.bookingCode}

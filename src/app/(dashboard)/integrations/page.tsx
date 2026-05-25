@@ -1,9 +1,11 @@
+import Image from "next/image";
 import Link from "next/link";
 import { FileText, KeyRound, LineChart, Shield } from "lucide-react";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { BackLink } from "@/components/ui/back-link";
 import { requirePermission } from "@/lib/auth";
 import { hasPermission } from "@/lib/auth/permissions";
+import { BRAND_ASSETS } from "@/lib/brand-assets";
 import type { AppUserRole } from "@/types/auth";
 
 export default async function IntegrationsPage() {
@@ -13,7 +15,7 @@ export default async function IntegrationsPage() {
   return (
     <ModuleShellFlow className="bg-background px-4 py-6 pb-10 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
-        <BackLink href="/settings" label="Configuración" />
+        <BackLink href="/panel" label="Panel" />
         <header>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
             Integraciones
@@ -22,12 +24,32 @@ export default async function IntegrationsPage() {
             Conectores PRAGMA
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Smart locks, reportes gubernamentales y canales de reserva en un solo
+            Canales de reserva, smart locks y reportes gubernamentales en un solo
             módulo.
           </p>
         </header>
 
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Link
+            href="/integrations/airbnb"
+            prefetch={false}
+            className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
+          >
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-danger/10">
+              <Image
+                src={BRAND_ASSETS.airbnbMark}
+                alt=""
+                width={28}
+                height={28}
+                className="h-7 w-7 object-contain"
+              />
+            </span>
+            <h2 className="mt-5 text-lg font-semibold">Airbnb</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Importación de listings, sync iCal y calendario de exportación.
+            </p>
+          </Link>
+
           <Link
             href="/integrations/ttlock"
             prefetch={false}

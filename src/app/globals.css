@@ -152,29 +152,67 @@
 }
 
 .cal-module {
-  --cal-border: #d4dae3;
-  --cal-border-strong: #b8c2ce;
+  --cal-toolbar-height: 48px;
+  --cal-border: #e5e5e5;
+  --cal-border-strong: #d1d1d1;
   /** Separador horizontal entre filas (sidebar + grid), estilo Lodgify */
-  --cal-row-divider: #eceef2;
-  /** Separador vertical entre días (punteado) */
-  --cal-col-divider: #c8d0da;
-  --cal-bg-canvas: #f4f5f7;
-  --cal-bg-alt: #fafbfc;
-  --cal-bg-weekend: #f0f2f5;
-  --cal-bg-hover: #e8ecf0;
-  --cal-bg-hover-cell: #e0f2ee;
-  --cal-bg-today: #ddefea;
-  --cal-bg-today-header: #d6ebe5;
-  --cal-bg-selected: #c8e8de;
-  --cal-bg-thumbnail: #e2e7ec;
-  --cal-text-day: #2f3744;
-  --cal-text-secondary: #5a6472;
-  --cal-text-muted: #8891a0;
-  --cal-reservation-muted-bg: #eceef2;
-  --cal-reservation-muted-text: #5a6472;
-  --cal-reservation-blocked-bg: #e8eaed;
+  --cal-row-divider: #ebebeb;
+  /** Separador vertical entre días */
+  --cal-col-divider: #e8e8e8;
+  --cal-bg-canvas: #ffffff;
+  --cal-bg-alt: #fafafa;
+  --cal-bg-weekend: #f5f5f5;
+  --cal-bg-hover: #f3f3f3;
+  --cal-bg-hover-cell: #f7f7f7;
+  --cal-bg-today: #f5f5f5;
+  --cal-bg-today-header: #3a3f47;
+  --cal-bg-selected: #eeeeee;
+  /** Rango seleccionado al crear reserva (estilo Lodgify) */
+  --cal-bg-range-select: #262626;
+  --cal-text-range-select: #ffffff;
+  --cal-col-divider-selected: rgba(255, 255, 255, 0.35);
+  --cal-bg-thumbnail: #ececec;
+  --cal-text-day: #111111;
+  --cal-text-secondary: #666666;
+  --cal-text-muted: #999999;
+  --cal-reservation-muted-bg: #f5f5f5;
+  --cal-reservation-muted-text: #888888;
+  --cal-reservation-blocked-bg: #f0f0f0;
   /** Banda de ocupación continua (estilo Lodgify) */
-  --cal-booked-fill: #e4e8ed;
+  --cal-booked-fill: #e8e8e8;
+  --cal-header-cell-bg: #f7f7f7;
+  --cal-pill-border: #111111;
+}
+
+.cal-module .cal-grid-scrollbar {
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #777777 #dddddd;
+}
+
+.cal-module .cal-grid-scrollbar::-webkit-scrollbar {
+  width: 18px;
+  height: 18px;
+}
+
+.cal-module .cal-grid-scrollbar::-webkit-scrollbar-track {
+  background: #dddddd;
+  border-radius: 10px;
+}
+
+.cal-module .cal-grid-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #777777;
+  border-radius: 10px;
+  border: 2px solid #dddddd;
+  background-clip: padding-box;
+}
+
+.cal-module .cal-grid-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #555555;
+}
+
+.cal-module .cal-grid-scrollbar::-webkit-scrollbar-corner {
+  background: #dddddd;
 }
 
 @theme inline {

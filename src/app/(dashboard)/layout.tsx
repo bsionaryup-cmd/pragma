@@ -40,14 +40,16 @@ export default async function DashboardLayout({
     getServerLocale(),
     headers(),
   ]);
-  const dictionary = await getDictionary(locale);
   const pathname =
     headerStore.get("x-pathname") ??
     headerStore.get("x-invoke-path") ??
     headerStore.get("next-url") ??
     "";
 
-  const tenantContext = await enforceTenantDashboardAccess(user, pathname);
+  const [dictionary, tenantContext] = await Promise.all([
+    getDictionary(locale),
+    enforceTenantDashboardAccess(user, pathname),
+  ]);
 
   if (!isSuperAdminOwner(user) && userNeedsOnboarding(user)) {
     redirect("/onboarding");

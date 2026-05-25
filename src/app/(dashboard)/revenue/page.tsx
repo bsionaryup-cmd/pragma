@@ -5,7 +5,6 @@ import type { AppUserRole } from "@/types/auth";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import { getPriceLabsOverview } from "@/services/integrations/pricelabs.service";
-import { buildAttentionItems } from "@/services/revenue/revenue-dashboard.service";
 
 const SmartpriceDashboard = dynamic(
   () =>
@@ -28,7 +27,6 @@ export default async function SmartpricePage() {
     <ModuleShellFlow className="bg-background">
       <SmartpriceDashboard
         overview={overview}
-        attention={buildAttentionItems(overview.properties)}
         billingLocked={billing.locked}
         canEditPrices={canEditPrices}
         finance={

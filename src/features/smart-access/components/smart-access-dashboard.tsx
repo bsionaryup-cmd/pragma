@@ -12,6 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatCalendarUnitDisplay } from "@/features/calendar/lib/property-unit";
 import { AccessCodeDisplay } from "@/components/access/access-code-display";
 import {
   activateAccessCodeAction,
@@ -166,9 +167,9 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
               TTLock
             </Badge>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="flex flex-col items-start gap-2">
             {items.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
+              <p className="w-full py-8 text-center text-sm text-muted-foreground">
                 No hay reservas activas con acceso inteligente en este momento.
               </p>
             ) : (
@@ -179,18 +180,25 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                   : false;
                 const canToggleCode =
                   item.stage === "generated" || item.stage === "suspended";
+                const unitNumber = item.propertyUnitNumber
+                  ? formatCalendarUnitDisplay(item.propertyUnitNumber)
+                  : null;
 
                 return (
                   <div
                     key={item.id}
-                    className="rounded-xl border border-border/80 px-3 py-2.5 sm:px-4"
+                    className="w-fit max-w-full rounded-lg border border-border/80 px-2.5 py-2"
                   >
-                    <div className="space-y-2">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <p className="text-sm font-medium text-foreground">
                             {item.guestName}
                           </p>
+                          {unitNumber ? (
+                            <span className="text-xs tabular-nums text-black">
+                              Apto {unitNumber}
+                            </span>
+                          ) : null}
                           <Badge
                             variant="outline"
                             className={cn("text-[10px]", stageBadgeClass(item.stage))}
@@ -198,19 +206,18 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                             {item.stageLabel}
                           </Badge>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {item.propertyName}
-                          <span className="mx-1.5" aria-hidden>
+                          <span className="mx-1" aria-hidden>
                             ·
                           </span>
                           {formatDate(item.checkIn)} → {formatDate(item.checkOut)}
                         </p>
                         {item.registrationProgress ? (
-                          <p className="mt-0.5 text-[11px] font-medium text-warning">
+                          <p className="text-[11px] font-medium leading-tight text-warning">
                             Registro: {item.registrationProgress} huéspedes
                           </p>
                         ) : null}
-                      </div>
 
                       {hasCode ? (
                         <AccessCodeDisplay
@@ -222,7 +229,7 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                       ) : null}
 
                       {canManage ? (
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                        <div className="flex flex-wrap gap-1">
                           {item.stage === "pending_approval" && item.credential ? (
                             <Button
                               size="xs"

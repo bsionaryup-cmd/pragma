@@ -5,6 +5,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { getServerLocale } from "@/i18n/locale.server";
 import { dashboardMetadata } from "@/lib/seo";
 import { getCommandCenterData } from "@/services/dashboard/command-center.service";
+import { getActiveSystemAnnouncements } from "@/lib/system-announcements";
 import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
 import { db } from "@/lib/db";
 
@@ -29,9 +30,10 @@ export default async function PanelControlPage() {
     getCommandCenterData(locale),
     db.property.count({ where: propertyScope }),
   ]);
+  const novedades = getActiveSystemAnnouncements(locale);
 
   const canCreateProperties = hasPermission(auth.role, "properties:write");
-  const canViewFinancials = hasPermission(auth.role, "finance:revenue:read");
+  const canAccessTasks = hasPermission(auth.role, "tasks:read");
 
   return (
     <CommandCenterView
@@ -39,7 +41,8 @@ export default async function PanelControlPage() {
       data={data}
       showEmptyBanner={propertyCount === 0}
       canCreateProperties={canCreateProperties}
-      canViewFinancials={canViewFinancials}
+      canAccessTasks={canAccessTasks}
+      novedades={novedades}
     />
   );
 }

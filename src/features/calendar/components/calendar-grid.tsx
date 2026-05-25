@@ -19,9 +19,13 @@ type CalendarGridProps = {
   onScroll: () => void;
   canWrite: boolean;
   selection: CalendarDateSelection | null;
+  selectionHoverDate: string | null;
   onDayClick: (propertyId: string, dateKey: string) => void;
+  onDayHover: (propertyId: string, dateKey: string | null) => void;
   /** Abre detalle en el drawer del calendario (no navega a /reservations). */
   onReservationClick: (reservationId: string) => void;
+  showPrice: boolean;
+  showMinimumStay: boolean;
 };
 
 function CalendarGridComponent({
@@ -34,37 +38,48 @@ function CalendarGridComponent({
   onScroll,
   canWrite,
   selection,
+  selectionHoverDate,
   onDayClick,
+  onDayHover,
   onReservationClick,
+  showPrice,
+  showMinimumStay,
 }: CalendarGridProps) {
   return (
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="pragma-scrollbar min-h-0 flex-1 overflow-auto"
+      onMouseLeave={() => onDayHover("", null)}
+      className="cal-grid-scrollbar min-h-0 flex-1 overflow-auto"
     >
-      {properties.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
-          No hay propiedades activas para mostrar.
-        </div>
-      ) : (
-        properties.map((property, index) => (
-          <CalendarPropertyRow
-            key={property.id}
-            propertyId={property.id}
-            dailyPricesByDate={property.dailyPricesByDate}
-            reservations={reservationsByProperty.get(property.id) ?? []}
-            days={days}
-            rangeStart={rangeStart}
-            gridWidth={gridWidth}
-            rowIndex={index}
-            canWrite={canWrite}
-            selection={selection}
-            onDayClick={onDayClick}
-            onReservationClick={onReservationClick}
-          />
-        ))
-      )}
+      <div style={{ minWidth: gridWidth }}>
+        {properties.length === 0 ? (
+          <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+            No hay propiedades activas para mostrar.
+          </div>
+        ) : (
+          properties.map((property, index) => (
+            <CalendarPropertyRow
+              key={property.id}
+              propertyId={property.id}
+              dailyPricesByDate={property.dailyPricesByDate}
+              reservations={reservationsByProperty.get(property.id) ?? []}
+              days={days}
+              rangeStart={rangeStart}
+              gridWidth={gridWidth}
+              rowIndex={index}
+              canWrite={canWrite}
+              selection={selection}
+              selectionHoverDate={selectionHoverDate}
+              onDayClick={onDayClick}
+              onDayHover={onDayHover}
+              onReservationClick={onReservationClick}
+              showPrice={showPrice}
+              showMinimumStay={showMinimumStay}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Receipt, TrendingUp, Wallet } from "lucide-react";
+import { DashboardFinanceBarChart } from "@/components/dashboard/dashboard-finance-bar-chart";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
@@ -181,6 +182,30 @@ export function FinanceView({
             value={kpis.pendingIncomeFormatted}
             icon={TrendingUp}
           />
+        </section>
+
+        <section className="mb-6">
+          <SectionCard
+            title="Ingresos vs egresos"
+            description="Comparación del mes actual y mes anterior."
+          >
+            <div className="p-4 sm:p-6">
+              <DashboardFinanceBarChart
+                points={[
+                  {
+                    label: "Mes ant.",
+                    revenue: comparison.revenue.previous,
+                    expenses: comparison.expenses.previous,
+                  },
+                  {
+                    label: "Actual",
+                    revenue: comparison.revenue.current,
+                    expenses: comparison.expenses.current,
+                  },
+                ]}
+              />
+            </div>
+          </SectionCard>
         </section>
 
         <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-px">

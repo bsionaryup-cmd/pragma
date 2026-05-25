@@ -4,6 +4,7 @@ import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
 import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
 import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
 import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
+import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
 import { getUserByClerkId } from "@/services/users/user.service";
 
 type SignInPageProps = {
@@ -11,6 +12,7 @@ type SignInPageProps = {
     inactive?: string;
     signed_out?: string;
     clerk_unavailable?: string;
+    next?: string;
   }>;
 };
 
@@ -19,6 +21,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const showInactiveHint = params.inactive === "1";
   const showSignedOutHint = params.signed_out === "1";
   const showClerkUnavailableHint = params.clerk_unavailable === "1";
+  const postAuthPath = sanitizeAuthRedirectPath(params.next, "/panel");
   const { userId } = await auth();
 
   // After logout, allow the sign-in form even if a stale server session cookie lingers.
@@ -33,7 +36,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       redirect(resolvePostAuthHomePath(dbUser));
     }
 
-    redirect("/panel");
+    redirect(postAuthPath);
   }
 
   return (
@@ -62,7 +65,10 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         ) : null
       }
     >
-      <EmailPasswordSignInForm />
+      <EmailPasswordSignInForm
+        postAuthPath={postAuthPath}
+        clearStaleSession={showSignedOutHint}
+      />
     </PragmaAuthLayout>
   );
 }

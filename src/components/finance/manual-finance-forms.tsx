@@ -90,7 +90,6 @@ export function ExpenseSubmodule() {
     >
       <form
         className="grid gap-4 p-4 sm:grid-cols-2"
-        encType="multipart/form-data"
         action={(fd) =>
           startTransition(async () => {
             try {

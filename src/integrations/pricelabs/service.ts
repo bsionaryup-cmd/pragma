@@ -2,7 +2,7 @@ import { OrganizationIntegrationStatus, PropertyPriceLabsSyncStatus } from "@pri
 import { assertPriceLabsLiveOrThrow, PriceLabsConfigError } from "@/integrations/pricelabs/auth";
 import { fetchPriceLabsListings } from "@/integrations/pricelabs/listings";
 import { fetchPriceLabsNeighborhoodData } from "@/integrations/pricelabs/neighborhood";
-import { fetchPriceLabsOverrides } from "@/integrations/pricelabs/overrides";
+import { fetchPriceLabsOverrides, upsertPriceLabsOverrides, deletePriceLabsOverrides } from "@/integrations/pricelabs/overrides";
 import {
   buildPricingDateRange,
   matchListingsToProperties,
@@ -13,8 +13,16 @@ import {
 } from "@/integrations/pricelabs/pricing";
 import { checkPriceLabsReachability } from "@/integrations/pricelabs/status";
 import { resetPriceLabsCircuitBreaker } from "@/integrations/pricelabs/client";
+import {
+  buildOperationalInsights,
+  buildPropertyInsights,
+  computeWeekendUpliftPct,
+  type PriceLabsOperationalInsights,
+  type PriceLabsPropertyInsights,
+} from "@/integrations/pricelabs/insights";
 import type {
   PriceLabsDailyPrice,
+  PriceLabsOverrideRecord,
   PriceLabsPricesSummary,
   PriceLabsSyncSummary,
   StoredPriceLabsMeta,
@@ -192,7 +200,9 @@ export type PriceLabsOverviewDto = {
     occupancy: string | null;
     lastSyncedAt: string | null;
     lastError: string | null;
+    insights: PriceLabsPropertyInsights;
   }>;
+  insights: PriceLabsOperationalInsights;
   metrics: {
     propertyCount: number;
     syncedCount: number;
@@ -812,6 +822,7 @@ export async function fetchDynamicPrices(): Promise<
 
       const days = row.data ?? row.prices ?? row.days ?? [];
       const summary = pickSummaryFromDays(days);
+      const weekendUpliftPct = computeWeekendUpliftPct(days);
 
       let overrides: StoredPriceLabsMeta["overrides"];
       const ov = await fetchPriceLabsOverrides(listingId);
@@ -834,6 +845,7 @@ export async function fetchDynamicPrices(): Promise<
             ? Number.parseFloat(property.baseRate.toString())
             : null),
         priceDelta: summary.delta,
+        weekendUpliftPct,
         syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
         lastError: null,
         meta: {
@@ -851,7 +863,7 @@ export async function fetchDynamicPrices(): Promise<
         ok: true,
         recommendedRate: summary.recommended,
         priceDelta: summary.delta,
-        weekendUpliftPct: null,
+        weekendUpliftPct,
       });
     }
   }
@@ -973,6 +985,196 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   return { ok: true, message: "Límites de precio guardados" };
 }
 
+function normalizeOverrideDate(value: string): string {
+  const trimmed = value.trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new Error("Fecha inválida (usa YYYY-MM-DD)");
+  }
+  return trimmed;
+}
+
+export async function savePriceLabsOverridesFromPanel(input: {
+  propertyId: string;
+  date: string;
+  price?: string;
+  minStay?: string;
+  minPrice?: string;
+  maxPrice?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, input.propertyId);
+
+  const property = await getPropertyForPriceLabs(input.propertyId, scope);
+  if (!property?.priceLabs?.listingId) {
+    return { ok: false, message: "Propiedad sin listing de PriceLabs vinculado" };
+  }
+
+  const listingId = property.priceLabs.listingId;
+  if (!isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Listing ID inválido. Ejecuta sync listings." };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof PriceLabsConfigError
+          ? error.message
+          : "API de PriceLabs deshabilitada",
+    };
+  }
+
+  const date = normalizeOverrideDate(input.date);
+  const override: PriceLabsOverrideRecord = { date };
+  const price = input.price != null && input.price.trim() !== ""
+    ? parseOptionalRate(input.price)
+    : null;
+  const minStay = input.minStay != null && input.minStay.trim() !== ""
+    ? parseOptionalRate(input.minStay)
+    : null;
+  const minPrice = input.minPrice != null && input.minPrice.trim() !== ""
+    ? parseOptionalRate(input.minPrice)
+    : null;
+  const maxPrice = input.maxPrice != null && input.maxPrice.trim() !== ""
+    ? parseOptionalRate(input.maxPrice)
+    : null;
+
+  if (price != null) override.price = price;
+  if (minStay != null) override.min_stay = minStay;
+  if (minPrice != null) override.min_price = minPrice;
+  if (maxPrice != null) override.max_price = maxPrice;
+
+  if (
+    override.price == null &&
+    override.min_stay == null &&
+    override.min_price == null &&
+    override.max_price == null
+  ) {
+    return { ok: false, message: "Indica al menos un valor para el override" };
+  }
+
+  resetPriceLabsCircuitBreaker();
+  const api = await upsertPriceLabsOverrides(listingId, [override]);
+  if (!api.ok) {
+    return { ok: false, message: api.message };
+  }
+
+  const refreshed = await fetchPriceLabsOverrides(listingId);
+  const existingMeta = (property.priceLabs.meta as StoredPriceLabsMeta | null) ?? {};
+  await upsertPropertyPriceLabsSync({
+    propertyId: property.id,
+    listingId,
+    syncStatus: property.priceLabs.syncStatus,
+    recommendedRate: property.priceLabs.recommendedRate
+      ? Number.parseFloat(property.priceLabs.recommendedRate.toString())
+      : null,
+    baseRateAtSync: property.priceLabs.baseRateAtSync
+      ? Number.parseFloat(property.priceLabs.baseRateAtSync.toString())
+      : null,
+    priceDelta: property.priceLabs.priceDelta
+      ? Number.parseFloat(property.priceLabs.priceDelta.toString())
+      : null,
+    weekendUpliftPct: property.priceLabs.weekendUpliftPct
+      ? Number.parseFloat(property.priceLabs.weekendUpliftPct.toString())
+      : null,
+    lastError: null,
+    meta: {
+      ...existingMeta,
+      overrides: refreshed.ok ? refreshed.data : existingMeta.overrides,
+      lastOverridesSync: new Date().toISOString(),
+    },
+  });
+
+  await appendPriceLabsSyncLog({
+    action: "upsert_override",
+    result: "success",
+    message: `Override ${date} guardado para ${property.name}`,
+    source: "manual",
+    meta: { propertyId: property.id, listingId, date },
+  });
+
+  return { ok: true, message: `Override guardado para ${date}` };
+}
+
+export async function deletePriceLabsOverridesFromPanel(input: {
+  propertyId: string;
+  dates: string[];
+}): Promise<{ ok: boolean; message: string }> {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, input.propertyId);
+
+  const property = await getPropertyForPriceLabs(input.propertyId, scope);
+  if (!property?.priceLabs?.listingId) {
+    return { ok: false, message: "Propiedad sin listing de PriceLabs vinculado" };
+  }
+
+  const listingId = property.priceLabs.listingId;
+  if (!isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Listing ID inválido. Ejecuta sync listings." };
+  }
+
+  const dates = input.dates.map(normalizeOverrideDate);
+  if (dates.length === 0) {
+    return { ok: false, message: "Selecciona al menos una fecha" };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof PriceLabsConfigError
+          ? error.message
+          : "API de PriceLabs deshabilitada",
+    };
+  }
+
+  resetPriceLabsCircuitBreaker();
+  const api = await deletePriceLabsOverrides(listingId, dates);
+  if (!api.ok) {
+    return { ok: false, message: api.message };
+  }
+
+  const refreshed = await fetchPriceLabsOverrides(listingId);
+  const existingMeta = (property.priceLabs.meta as StoredPriceLabsMeta | null) ?? {};
+  await upsertPropertyPriceLabsSync({
+    propertyId: property.id,
+    listingId,
+    syncStatus: property.priceLabs.syncStatus,
+    recommendedRate: property.priceLabs.recommendedRate
+      ? Number.parseFloat(property.priceLabs.recommendedRate.toString())
+      : null,
+    baseRateAtSync: property.priceLabs.baseRateAtSync
+      ? Number.parseFloat(property.priceLabs.baseRateAtSync.toString())
+      : null,
+    priceDelta: property.priceLabs.priceDelta
+      ? Number.parseFloat(property.priceLabs.priceDelta.toString())
+      : null,
+    weekendUpliftPct: property.priceLabs.weekendUpliftPct
+      ? Number.parseFloat(property.priceLabs.weekendUpliftPct.toString())
+      : null,
+    lastError: null,
+    meta: {
+      ...existingMeta,
+      overrides: refreshed.ok ? refreshed.data : existingMeta.overrides,
+      lastOverridesSync: new Date().toISOString(),
+    },
+  });
+
+  await appendPriceLabsSyncLog({
+    action: "delete_override",
+    result: "success",
+    message: `Override(s) eliminado(s): ${dates.join(", ")}`,
+    source: "manual",
+    meta: { propertyId: property.id, listingId, dates },
+  });
+
+  return { ok: true, message: "Override(s) eliminado(s)" };
+}
+
 export async function getPriceLabsOverview(
   canManage: boolean,
 ): Promise<PriceLabsOverviewDto> {
@@ -1042,6 +1244,51 @@ export async function getPriceLabsOverview(
     ? "La API key guardada no se puede descifrar con las claves actuales del servidor. Vuelve a pegarla en el panel o verifica TTLOCK_ENCRYPTION_KEY en Vercel."
     : null;
 
+  const propertyRows = properties.map((p) => {
+    const insights = readListingInsights(p.priceLabs?.meta ?? null);
+    const propertyInsights = buildPropertyInsights(p.priceLabs?.meta ?? null);
+    return {
+      id: p.id,
+      name: p.name,
+      unitNumber: p.unitNumber ?? null,
+      city: p.city,
+      baseRate: p.baseRate?.toString() ?? insights.listingBase,
+      syncStatus:
+        p.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
+      listingId: p.priceLabs?.listingId ?? null,
+      recommendedRate: p.priceLabs?.recommendedRate?.toString() ?? null,
+      priceDelta: p.priceLabs?.priceDelta?.toString() ?? null,
+      weekendUpliftPct: p.priceLabs?.weekendUpliftPct?.toString() ?? null,
+      minRate: insights.minRate,
+      maxRate: insights.maxRate,
+      listingBase: insights.listingBase,
+      revenue: insights.revenue,
+      occupancy: insights.occupancy,
+      lastSyncedAt: p.priceLabs?.lastSyncedAt?.toISOString() ?? null,
+      lastError: p.priceLabs?.lastError ?? null,
+      insights: propertyInsights,
+      meta: p.priceLabs?.meta ?? null,
+      syncStatusRaw:
+        p.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
+      priceDeltaRaw: p.priceLabs?.priceDelta?.toString() ?? null,
+    };
+  });
+
+  const operationalInsights = buildOperationalInsights({
+    properties: propertyRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      syncStatus: row.syncStatusRaw,
+      listingId: row.listingId,
+      priceDelta: row.priceDeltaRaw,
+      lastError: row.lastError,
+      meta: row.meta,
+    })),
+    lastPricesSyncAt: row?.lastPricesSyncAt?.toISOString() ?? null,
+    integrationStatus,
+    lastError: row?.lastError ?? decryptErrorMessage,
+  });
+
   return {
     integration: {
       status: integrationStatus,
@@ -1082,29 +1329,8 @@ export async function getPriceLabsOverview(
       createdAt: log.createdAt.toISOString(),
     })),
     syncing,
-    properties: properties.map((p) => {
-      const insights = readListingInsights(p.priceLabs?.meta ?? null);
-      return {
-        id: p.id,
-        name: p.name,
-        unitNumber: p.unitNumber ?? null,
-        city: p.city,
-        baseRate: p.baseRate?.toString() ?? insights.listingBase,
-        syncStatus:
-          p.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
-        listingId: p.priceLabs?.listingId ?? null,
-        recommendedRate: p.priceLabs?.recommendedRate?.toString() ?? null,
-        priceDelta: p.priceLabs?.priceDelta?.toString() ?? null,
-        weekendUpliftPct: p.priceLabs?.weekendUpliftPct?.toString() ?? null,
-        minRate: insights.minRate,
-        maxRate: insights.maxRate,
-        listingBase: insights.listingBase,
-        revenue: insights.revenue,
-        occupancy: insights.occupancy,
-        lastSyncedAt: p.priceLabs?.lastSyncedAt?.toISOString() ?? null,
-        lastError: p.priceLabs?.lastError ?? null,
-      };
-    }),
+    insights: operationalInsights,
+    properties: propertyRows.map(({ meta: _meta, syncStatusRaw: _s, priceDeltaRaw: _d, ...property }) => property),
     metrics: {
       propertyCount: properties.length,
       syncedCount,

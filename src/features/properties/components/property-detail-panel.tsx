@@ -173,7 +173,7 @@ export function PropertyDetailPanel({
                   ? `Base ${formatCurrency(Number(property.baseRate), property.currency)}`
                   : null,
                 property.cleaningFee
-                  ? `Limpieza ${formatCurrency(Number(property.cleaningFee), property.currency)}`
+                  ? `Aseo ${formatCurrency(Number(property.cleaningFee), property.currency)}`
                   : null,
               ]
                 .filter(Boolean)

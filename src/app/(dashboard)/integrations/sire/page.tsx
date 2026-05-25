@@ -16,7 +16,7 @@ export default async function SireIntegrationPage() {
           backLabel="Integraciones"
           eyebrow="Integraciones"
           title="SIRE"
-          description="Reporte de huéspedes — configuración lista para conectar API oficial."
+          description="Reporte de huéspedes — la prueba de conexión valida credenciales contra el portal o API SIRE configurada."
         />
         <ExternalIntegrationCard
           provider="SIRE"

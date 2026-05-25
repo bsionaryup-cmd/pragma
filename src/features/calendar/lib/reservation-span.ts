@@ -144,10 +144,10 @@ export function computeOccupancyBandClipPath(
   }
 
   if (hasTurnoverOnCheckout) {
-    xTrEnd = endCol * W + CHECKOUT_BAR_END;
+    xTrEnd = endCol * W + HALF_DAY;
   }
   if (hasTurnoverOnCheckin) {
-    xTrStart = startCol * W + CHECKIN_BAR_START;
+    xTrStart = startCol * W + HALF_DAY;
   }
 
   return `polygon(${xBlStart}px ${H}px, ${xBlEnd}px ${H}px, ${xTrEnd}px 0px, ${xTrStart}px 0px)`;

@@ -10,15 +10,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getSignInFlowErrorMessage } from "@/lib/clerk-auth-errors";
+import {
+  formatResendCooldown,
+  isVerificationCodeActive,
+  sanitizeAuthRedirectPath,
+  VERIFICATION_RESEND_COOLDOWN_MS,
+} from "@/lib/auth/verification-flow";
 
 const SIGN_IN_REDIRECT = "/sign-in?signed_out=1";
-const POST_AUTH_PATH = "/panel";
+const DEFAULT_POST_AUTH_PATH = "/panel";
 
 type Step = "credentials" | "verification";
 type VerificationStrategy = "email_code" | "phone_code" | "totp" | "backup_code";
+type VerificationReason = "client_trust" | "second_factor";
+
+type EmailPasswordSignInFormProps = {
+  postAuthPath?: string;
+  clearStaleSession?: boolean;
+};
 
 function requiresSecondFactor(status: SignInFutureResource["status"]): boolean {
   return status === "needs_client_trust" || status === "needs_second_factor";
+}
+
+function verificationReason(
+  status: SignInFutureResource["status"],
+): VerificationReason | null {
+  if (status === "needs_client_trust") return "client_trust";
+  if (status === "needs_second_factor") return "second_factor";
+  return null;
 }
 
 function resolveSecondFactorStrategy(
@@ -40,7 +60,22 @@ function resolveSecondFactorStrategy(
   return null;
 }
 
-function verificationHint(strategy: VerificationStrategy, email: string): string {
+function verificationHint(
+  strategy: VerificationStrategy,
+  email: string,
+  reason: VerificationReason | null,
+): string {
+  if (reason === "client_trust") {
+    switch (strategy) {
+      case "email_code":
+        return `Detectamos un nuevo dispositivo. Enviamos un código de verificación a ${email || "tu correo"}.`;
+      case "phone_code":
+        return "Detectamos un nuevo dispositivo. Enviamos un código de verificación a tu teléfono.";
+      default:
+        return "Detectamos un nuevo dispositivo. Completa la verificación para continuar.";
+    }
+  }
+
   switch (strategy) {
     case "email_code":
       return `Enviamos un código de verificación a ${email || "tu correo"}.`;
@@ -55,7 +90,14 @@ function verificationHint(strategy: VerificationStrategy, email: string): string
   }
 }
 
-function verificationTitle(strategy: VerificationStrategy): string {
+function verificationTitle(
+  strategy: VerificationStrategy,
+  reason: VerificationReason | null,
+): string {
+  if (reason === "client_trust") {
+    return "Confirma tu dispositivo";
+  }
+
   switch (strategy) {
     case "totp":
       return "Verificación en dos pasos";
@@ -66,7 +108,28 @@ function verificationTitle(strategy: VerificationStrategy): string {
   }
 }
 
-export function EmailPasswordSignInForm() {
+function verificationDescription(
+  strategy: VerificationStrategy,
+  reason: VerificationReason | null,
+): string {
+  if (reason === "client_trust") {
+    return "Por seguridad, confirma que eres tú con el código enviado a tu correo.";
+  }
+
+  switch (strategy) {
+    case "totp":
+      return "Confirma tu identidad con tu app de autenticación.";
+    case "backup_code":
+      return "Usa uno de los códigos de respaldo de tu cuenta.";
+    default:
+      return "Por seguridad, confirma tu identidad con el código enviado a tu correo.";
+  }
+}
+
+export function EmailPasswordSignInForm({
+  postAuthPath = DEFAULT_POST_AUTH_PATH,
+  clearStaleSession = false,
+}: EmailPasswordSignInFormProps) {
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
@@ -75,32 +138,53 @@ export function EmailPasswordSignInForm() {
   const [step, setStep] = useState<Step>("credentials");
   const [verificationStrategy, setVerificationStrategy] =
     useState<VerificationStrategy | null>(null);
+  const [verificationReasonState, setVerificationReasonState] =
+    useState<VerificationReason | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [pending, startTransition] = useTransition();
   const loginSucceededRef = useRef(false);
-  const autoVerificationStartedRef = useRef(false);
+  const verificationSendStartedRef = useRef(false);
+  const restoredVerificationRef = useRef(false);
 
   const clerkReady = authLoaded && Boolean(signIn);
   const isFetching = fetchStatus === "fetching" || pending;
+  const normalizedEmail = email.trim().toLowerCase();
+  const redirectPath = sanitizeAuthRedirectPath(postAuthPath, DEFAULT_POST_AUTH_PATH);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = window.setInterval(() => {
+      setResendCooldown((current) => (current <= 1 ? 0 : current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   useEffect(() => {
     if (!authLoaded) return;
 
     if (loginSucceededRef.current) {
-      setReady(true);
+      queueMicrotask(() => setReady(true));
       return;
     }
 
     if (!isSignedIn) {
-      setReady(true);
+      queueMicrotask(() => setReady(true));
       return;
     }
 
-    setReady(false);
+    if (!clearStaleSession) {
+      queueMicrotask(() => setReady(true));
+      return;
+    }
+
+    queueMicrotask(() => setReady(false));
     let cancelled = false;
 
     void signOut({ redirectUrl: SIGN_IN_REDIRECT }).finally(() => {
@@ -110,21 +194,40 @@ export function EmailPasswordSignInForm() {
     return () => {
       cancelled = true;
     };
-  }, [authLoaded, isSignedIn, signOut]);
+  }, [authLoaded, clearStaleSession, isSignedIn, signOut]);
 
   useEffect(() => {
-    if (!signIn) return;
+    if (!signIn || !ready || restoredVerificationRef.current) return;
+    if (!requiresSecondFactor(signIn.status)) return;
 
-    if (requiresSecondFactor(signIn.status)) {
+    const strategy = resolveSecondFactorStrategy(signIn);
+    if (!strategy) return;
+
+    restoredVerificationRef.current = true;
+    queueMicrotask(() => {
       setStep("verification");
-      const strategy = resolveSecondFactorStrategy(signIn);
       setVerificationStrategy(strategy);
-    } else if (signIn.status === "needs_identifier") {
-      setStep("credentials");
-      setVerificationStrategy(null);
-      autoVerificationStartedRef.current = false;
-    }
-  }, [signIn, signIn?.status]);
+      setVerificationReasonState(verificationReason(signIn.status));
+    });
+
+    void ensureVerificationCodeSent(strategy).then((sent) => {
+      setInfo(
+        sent
+          ? verificationHint(strategy, normalizedEmail, verificationReason(signIn.status))
+          : `Ingresa el código enviado a ${normalizedEmail || "tu correo"}.`,
+      );
+    }).catch((err) => {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo enviar el código de verificación.",
+      );
+    });
+  }, [ready, signIn, signIn?.status, normalizedEmail]);
+
+  function startResendCooldown() {
+    setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
+  }
 
   async function finalizeSignIn() {
     if (!signIn) {
@@ -137,7 +240,7 @@ export function EmailPasswordSignInForm() {
           return;
         }
 
-        const url = decorateUrl(POST_AUTH_PATH);
+        const url = decorateUrl(redirectPath);
         if (url.startsWith("http")) {
           window.location.href = url;
         } else {
@@ -184,13 +287,49 @@ export function EmailPasswordSignInForm() {
     }
   }
 
-  async function beginSecondFactorVerification() {
+  async function ensureVerificationCodeSent(
+    strategy: VerificationStrategy,
+    options?: { force?: boolean },
+  ): Promise<boolean> {
     if (!signIn) {
       throw new Error("El servicio de autenticación no está listo.");
     }
 
-    const strategy =
-      verificationStrategy ?? resolveSecondFactorStrategy(signIn);
+    if (
+      !options?.force &&
+      (isVerificationCodeActive(signIn.secondFactorVerification) ||
+        verificationSendStartedRef.current)
+    ) {
+      return false;
+    }
+
+    if (strategy !== "email_code" && strategy !== "phone_code") {
+      return false;
+    }
+
+    verificationSendStartedRef.current = true;
+
+    try {
+      await sendVerificationCode(strategy);
+      if (options?.force) {
+        startResendCooldown();
+      }
+      return true;
+    } catch (error) {
+      verificationSendStartedRef.current = false;
+      throw error;
+    }
+  }
+
+  async function enterVerificationStep() {
+    if (!signIn) {
+      throw new Error("El servicio de autenticación no está listo.");
+    }
+
+    restoredVerificationRef.current = true;
+
+    const strategy = resolveSecondFactorStrategy(signIn);
+    const reason = verificationReason(signIn.status);
 
     if (!strategy) {
       throw new Error(
@@ -198,14 +337,16 @@ export function EmailPasswordSignInForm() {
       );
     }
 
-    if (strategy === "email_code" || strategy === "phone_code") {
-      await sendVerificationCode(strategy);
+    setVerificationStrategy(strategy);
+    setVerificationReasonState(reason);
+    setStep("verification");
+
+    const sent = await ensureVerificationCodeSent(strategy);
+    if (sent) {
+      startResendCooldown();
     }
 
-    setVerificationStrategy(strategy);
-    setStep("verification");
-    setInfo(verificationHint(strategy, email.trim().toLowerCase()));
-    autoVerificationStartedRef.current = true;
+    setInfo(verificationHint(strategy, normalizedEmail, reason));
   }
 
   async function completeSignInIfReady() {
@@ -220,7 +361,7 @@ export function EmailPasswordSignInForm() {
     }
 
     if (requiresSecondFactor(signIn.status)) {
-      await beginSecondFactorVerification();
+      await enterVerificationStep();
       return;
     }
 
@@ -231,35 +372,15 @@ export function EmailPasswordSignInForm() {
     throw new Error("No se pudo completar el inicio de sesión. Intenta de nuevo.");
   }
 
-  useEffect(() => {
-    if (!signIn || !ready || step !== "verification" || !verificationStrategy) return;
-    if (autoVerificationStartedRef.current) return;
-    if (verificationStrategy !== "email_code" && verificationStrategy !== "phone_code") {
-      return;
-    }
-    if (!requiresSecondFactor(signIn.status)) return;
-
-    autoVerificationStartedRef.current = true;
-    void beginSecondFactorVerification().catch((err) => {
-      autoVerificationStartedRef.current = false;
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo enviar el código de verificación.",
-      );
-    });
-  }, [ready, signIn, step, verificationStrategy, signIn?.status]);
-
   function handleCredentialsSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!clerkReady || !ready || !signIn) return;
 
-    if (isSignedIn) {
+    if (isSignedIn && clearStaleSession) {
       setError("Cierra la sesión anterior antes de iniciar sesión de nuevo.");
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
       setError("Ingresa tu correo y contraseña.");
       return;
@@ -267,7 +388,8 @@ export function EmailPasswordSignInForm() {
 
     setError(null);
     setInfo(null);
-    autoVerificationStartedRef.current = false;
+    verificationSendStartedRef.current = false;
+    restoredVerificationRef.current = false;
 
     startTransition(async () => {
       try {
@@ -374,7 +496,7 @@ export function EmailPasswordSignInForm() {
   }
 
   function resendVerificationCode() {
-    if (!signIn || !verificationStrategy) return;
+    if (!signIn || !verificationStrategy || resendCooldown > 0) return;
     if (verificationStrategy !== "email_code" && verificationStrategy !== "phone_code") {
       return;
     }
@@ -382,7 +504,19 @@ export function EmailPasswordSignInForm() {
     setError(null);
     startTransition(async () => {
       try {
-        await beginSecondFactorVerification();
+        verificationSendStartedRef.current = false;
+        const sent = await ensureVerificationCodeSent(verificationStrategy, {
+          force: true,
+        });
+        if (sent) {
+          setInfo(
+            `Reenviamos el código a ${
+              verificationStrategy === "phone_code"
+                ? "tu teléfono"
+                : normalizedEmail || "tu correo"
+            }.`,
+          );
+        }
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "No se pudo reenviar el código.",
@@ -399,7 +533,9 @@ export function EmailPasswordSignInForm() {
     setCode("");
     setStep("credentials");
     setVerificationStrategy(null);
-    autoVerificationStartedRef.current = false;
+    setVerificationReasonState(null);
+    verificationSendStartedRef.current = false;
+    restoredVerificationRef.current = false;
     await signIn.reset();
   }
 
@@ -418,19 +554,24 @@ export function EmailPasswordSignInForm() {
     const strategy =
       verificationStrategy ??
       (signIn ? resolveSecondFactorStrategy(signIn) : null);
+    const reason =
+      verificationReasonState ??
+      (signIn ? verificationReason(signIn.status) : null);
+    const resendLabel =
+      resendCooldown > 0
+        ? `Reenviar código (${formatResendCooldown(resendCooldown)})`
+        : "Reenviar código";
 
     return (
       <form className="space-y-5" onSubmit={handleVerificationSubmit}>
         <div className="space-y-1 text-center">
           <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
-            {strategy ? verificationTitle(strategy) : "Verifica tu acceso"}
+            {strategy ? verificationTitle(strategy, reason) : "Verifica tu acceso"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {strategy === "totp"
-              ? "Confirma tu identidad con tu app de autenticación."
-              : strategy === "backup_code"
-                ? "Usa uno de los códigos de respaldo de tu cuenta."
-                : "Por seguridad, confirma tu identidad con el código enviado a tu correo."}
+            {strategy
+              ? verificationDescription(strategy, reason)
+              : "Por seguridad, confirma tu identidad con el código enviado a tu correo."}
           </p>
         </div>
 
@@ -487,10 +628,10 @@ export function EmailPasswordSignInForm() {
               type="button"
               variant="ghost"
               className="w-full"
-              disabled={isFetching}
+              disabled={isFetching || resendCooldown > 0}
               onClick={resendVerificationCode}
             >
-              Reenviar código
+              {resendLabel}
             </Button>
           ) : null}
           <Button

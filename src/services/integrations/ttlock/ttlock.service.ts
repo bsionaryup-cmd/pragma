@@ -15,6 +15,7 @@ import {
   getTTLockOAuthAuthorizeUrl,
   getTTLockOAuthRedirectUri,
   isTTLockBrowserOAuthEnabled,
+  resolveTTLockAppRedirectUrl,
   resolveTTLockRedirectUri,
   type TTLockRequestContext,
 } from "@/lib/integrations/ttlock-config";
@@ -268,14 +269,20 @@ async function loadTTLockOverview(
     await Promise.all([
       db.property.findMany({
         where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
-        select: { id: true, name: true, address: true, city: true },
-        orderBy: { name: "asc" },
+        select: { id: true, name: true, unitNumber: true, address: true, city: true },
+        orderBy: [{ unitNumber: "asc" }, { name: "asc" }],
       }),
       db.propertyLock.findMany({
         where: { integrationId: integration.id },
         include: {
           property: {
-            select: { id: true, name: true, address: true, city: true },
+            select: {
+              id: true,
+              name: true,
+              unitNumber: true,
+              address: true,
+              city: true,
+            },
           },
         },
         orderBy: { createdAt: "asc" },
@@ -312,6 +319,7 @@ async function loadTTLockOverview(
 
   const metrics = deriveOverviewMetrics({
     status: integration.status,
+    accountConnected: Boolean(integration.accessTokenEncrypted && integration.uid),
     hasCredentials: hasAppCredentials(integration),
     hasAccessToken: Boolean(integration.accessTokenEncrypted),
     hasRefreshToken: Boolean(integration.refreshTokenEncrypted),
@@ -456,9 +464,12 @@ export async function buildTTLockConnectSession(userId: string) {
   return { state };
 }
 
+export type TTLockConnectFlow = "account" | "oauth";
+
 export async function beginTTLockConnect(
   userId: string,
   _request?: TTLockRequestContext,
+  options?: { flow?: TTLockConnectFlow; requestUrl?: string },
 ): Promise<{
   redirectUrl: string;
   state: string;
@@ -493,10 +504,17 @@ export async function beginTTLockConnect(
   });
 
   const connectPath = `/integrations/ttlock/connect?state=${encodeURIComponent(state)}`;
+  const accountConnectUrl = resolveTTLockAppRedirectUrl(
+    connectPath,
+    options?.requestUrl,
+  );
 
-  if (!isTTLockBrowserOAuthEnabled()) {
+  const useBrowserOAuth =
+    options?.flow === "oauth" && isTTLockBrowserOAuthEnabled();
+
+  if (!useBrowserOAuth) {
     return {
-      redirectUrl: connectPath,
+      redirectUrl: accountConnectUrl,
       state,
       redirectUri,
       mode: "account_credentials",
@@ -705,7 +723,12 @@ export async function handleTTLockOAuthCallback(input: {
       },
     });
 
-    return { redirectPath: `${basePath}?connected=1` };
+    try {
+      await syncTTLockLocks(verified.userId);
+      return { redirectPath: `${basePath}?connected=1&synced=1` };
+    } catch {
+      return { redirectPath: `${basePath}?connected=1&sync=manual` };
+    }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Error al intercambiar código OAuth";
@@ -1118,18 +1141,23 @@ export async function savePropertyLockMapping(
   await assertPropertyInScope(scope, input.propertyId);
 
   const trimmedLockId = input.ttlockLockId.trim();
+
+  if (!input.propertyId.trim()) {
+    throw new Error("Propiedad no válida");
+  }
+
   if (trimmedLockId) {
-    const duplicate = await db.propertyLock.findFirst({
+    await db.propertyLock.updateMany({
       where: {
         integrationId: integration.id,
         ttlockLockId: trimmedLockId,
         NOT: { propertyId: input.propertyId },
       },
-      select: { propertyId: true },
+      data: {
+        ttlockLockId: null,
+        lockStatus: TTLockLockStatus.UNMAPPED,
+      },
     });
-    if (duplicate) {
-      throw new Error("Esta cerradura ya está asignada a otra propiedad");
-    }
   }
 
   const remoteLock = getCachedRemoteLocks(integration.id).find(
@@ -1142,7 +1170,7 @@ export async function savePropertyLockMapping(
       integrationId: integration.id,
       propertyId: input.propertyId,
       ttlockLockId: trimmedLockId || null,
-      alias: (input.alias.trim() || remoteLock?.lockName || null),
+      alias: input.alias.trim() || remoteLock?.lockName || null,
       timezone: input.timezone.trim() || "America/Bogota",
       lockStatus: trimmedLockId
         ? TTLockLockStatus.MAPPED
@@ -1157,6 +1185,29 @@ export async function savePropertyLockMapping(
         ? TTLockLockStatus.MAPPED
         : TTLockLockStatus.UNMAPPED,
     },
+  });
+}
+
+export async function unassignTTLockByLockId(userId: string, ttlockLockId: string) {
+  const integration = await ensureTTLockIntegration(userId);
+  const trimmedLockId = ttlockLockId.trim();
+  if (!trimmedLockId) return;
+
+  const existing = await db.propertyLock.findFirst({
+    where: {
+      integrationId: integration.id,
+      ttlockLockId: trimmedLockId,
+    },
+    select: { propertyId: true, alias: true, timezone: true },
+  });
+
+  if (!existing) return;
+
+  await savePropertyLockMapping(userId, {
+    propertyId: existing.propertyId,
+    ttlockLockId: "",
+    alias: existing.alias ?? "",
+    timezone: existing.timezone ?? "America/Bogota",
   });
 }
 

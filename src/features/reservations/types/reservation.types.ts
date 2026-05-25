@@ -65,6 +65,7 @@ export type ReservationInboxItem = {
   infants: number;
   checkIn: string;
   checkOut: string;
+  createdAt?: string;
   platform: BookingPlatform;
   status: ReservationStatus;
   totalAmount: string;

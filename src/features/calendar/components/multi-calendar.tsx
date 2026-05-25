@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
 import { subscribeDashboardDataRefresh } from "@/lib/dashboard-refresh";
@@ -10,6 +11,16 @@ import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-h
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
 import { CalendarToolbar } from "@/features/calendar/components/calendar-toolbar";
 import { PropertySidebar } from "@/features/calendar/components/property-sidebar";
+import { CalendarCreateBudgetDialog } from "@/features/calendar/components/calendar-create-budget-dialog";
+import { CalendarViewSettingsDialog } from "@/features/calendar/components/calendar-view-settings-dialog";
+import {
+  applyWeekStartsOnToDays,
+  loadCalendarViewSettings,
+  saveCalendarViewSettings,
+  type CalendarViewSettings,
+} from "@/features/calendar/lib/calendar-view-settings";
+import { resolveMonthFromScrollLeft, getTodayKey } from "@/features/calendar/lib/calendar-dates";
+import { sumBudgetReservationTotal } from "@/features/calendar/lib/daily-pricing";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { groupReservationsByProperty } from "@/features/calendar/lib/reservation-span";
 import type {
@@ -18,6 +29,7 @@ import type {
   CalendarReservationDto,
 } from "@/features/calendar/types/calendar.types";
 import {
+  type ReservationCreateInitialValues,
   type ReservationDrawerMode,
 } from "@/features/reservations/components/reservation-drawer";
 import type {
@@ -38,7 +50,6 @@ type MultiCalendarProps = {
   data: CalendarDataDto;
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
-  canSyncAirbnb: boolean;
   propertyOptions: PropertyOption[];
   /** Abre detalle al montar (p. ej. /calendar?reservation=id) sin ir a /reservations */
   initialReservationId?: string | null;
@@ -48,13 +59,18 @@ export function MultiCalendar({
   data,
   canWrite,
   canManageGuestRegistration = canWrite,
-  canSyncAirbnb,
   propertyOptions,
   initialReservationId = null,
 }: MultiCalendarProps) {
+  const router = useRouter();
   const viewport = data.viewport;
   const [search, setSearch] = useState("");
+  const [displayMonth, setDisplayMonth] = useState(() => ({
+    year: data.viewport.year,
+    month: data.viewport.month,
+  }));
   const [selection, setSelection] = useState<CalendarDateSelection | null>(null);
+  const [selectionHoverDate, setSelectionHoverDate] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<ReservationDrawerMode>(null);
   const [selectedReservation, setSelectedReservation] =
     useState<ReservationDetailItem | null>(null);
@@ -62,11 +78,18 @@ export function MultiCalendar({
     CalendarReservationDto[] | null
   >(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [createDefaults, setCreateDefaults] = useState<{
+  const [createDefaults, setCreateDefaults] =
+    useState<ReservationCreateInitialValues | null>(null);
+  const [pendingCreate, setPendingCreate] = useState<{
     propertyId: string;
     checkIn: string;
     checkOut: string;
   } | null>(null);
+  const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
+  const [viewSettingsOpen, setViewSettingsOpen] = useState(false);
+  const [viewSettings, setViewSettings] = useState<CalendarViewSettings>(
+    loadCalendarViewSettings,
+  );
   const [propertyPanelOpen, setPropertyPanelOpen] = useState(false);
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
@@ -106,7 +129,7 @@ export function MultiCalendar({
   );
 
   useEffect(() => {
-    setCalendarReservations(null);
+    queueMicrotask(() => setCalendarReservations(null));
   }, [serverReservationsKey]);
 
   const reservationsByProperty = useMemo(
@@ -114,26 +137,191 @@ export function MultiCalendar({
     [visibleReservations],
   );
 
+  const displayDays = useMemo(
+    () => applyWeekStartsOnToDays(viewport.days, viewSettings.weekStartsOn),
+    [viewport.days, viewSettings.weekStartsOn],
+  );
+
+  function handleSaveViewSettings(settings: CalendarViewSettings) {
+    setViewSettings(settings);
+    saveCalendarViewSettings(settings);
+  }
+
+  const pendingBudgetTotal = useMemo(() => {
+    if (!pendingCreate) return 0;
+    const property = data.properties.find((p) => p.id === pendingCreate.propertyId);
+    if (!property) return 0;
+    return sumBudgetReservationTotal(
+      property.dailyPricesByDate,
+      pendingCreate.checkIn,
+      pendingCreate.checkOut,
+      property.cleaningFee,
+    );
+  }, [pendingCreate, data.properties]);
+
+  function openCreateDrawer(values: ReservationCreateInitialValues) {
+    setCreateDefaults(values);
+    setDrawerMode("create");
+  }
+
+  function closeBudgetDialog() {
+    setBudgetDialogOpen(false);
+    setPendingCreate(null);
+  }
+
+  function handleChooseWithBudget() {
+    if (pendingCreate) {
+      const property = data.properties.find((p) => p.id === pendingCreate.propertyId);
+      const totalAmount = property
+        ? sumBudgetReservationTotal(
+            property.dailyPricesByDate,
+            pendingCreate.checkIn,
+            pendingCreate.checkOut,
+            property.cleaningFee,
+          )
+        : 0;
+      openCreateDrawer({
+        ...pendingCreate,
+        totalAmount,
+        clearTotalAmount: false,
+        lockTotalAmount: true,
+      });
+    } else {
+      openCreateDrawer({ clearTotalAmount: false, lockTotalAmount: true });
+    }
+    setBudgetDialogOpen(false);
+    setPendingCreate(null);
+  }
+
+  function handleChooseWithoutBudget() {
+    if (pendingCreate) {
+      openCreateDrawer({
+        ...pendingCreate,
+        clearTotalAmount: true,
+      });
+    } else {
+      openCreateDrawer({ clearTotalAmount: true });
+    }
+    setBudgetDialogOpen(false);
+    setPendingCreate(null);
+  }
+
+  function handleToolbarCreateClick() {
+    if (!canWrite) {
+      toast.error(
+        "Modo restringido o sin permiso: no puedes crear reservas. Ve a Facturación.",
+      );
+      return;
+    }
+    setSelection(null);
+    setSelectionHoverDate(null);
+    setPendingCreate(null);
+    setBudgetDialogOpen(true);
+  }
+
   useEffect(() => {
-    if (scrolledRef.current === viewport.anchor) return;
-    const targetIdx = viewport.days.findIndex((d) => d.date === viewport.anchor);
+    queueMicrotask(() => {
+      setDisplayMonth({ year: viewport.year, month: viewport.month });
+    });
+  }, [viewport.anchor, viewport.year, viewport.month]);
+
+  const updateDisplayMonth = useCallback(
+    (scrollLeft: number) => {
+      const next = resolveMonthFromScrollLeft(scrollLeft, viewport.days);
+      setDisplayMonth((prev) =>
+        prev.year === next.year && prev.month === next.month ? prev : next,
+      );
+    },
+    [viewport.days],
+  );
+
+  const applyCalendarScrollLeft = useCallback(
+    (scrollLeft: number) => {
+      const grid = gridScrollRef.current;
+      if (!grid) return false;
+
+      syncingRef.current = true;
+      grid.scrollLeft = scrollLeft;
+      if (headerScrollRef.current) {
+        headerScrollRef.current.scrollLeft = scrollLeft;
+      }
+      syncingRef.current = false;
+      updateDisplayMonth(scrollLeft);
+      return Math.abs(grid.scrollLeft - scrollLeft) <= 2;
+    },
+    [updateDisplayMonth],
+  );
+
+  const scrollToDate = useCallback(
+    (dateKey: string) => {
+      const targetIdx = viewport.days.findIndex((d) => d.date === dateKey);
+      if (targetIdx < 0) return false;
+
+      return applyCalendarScrollLeft(targetIdx * CALENDAR_DAY_WIDTH);
+    },
+    [viewport.days, applyCalendarScrollLeft],
+  );
+
+  const handleGoToToday = useCallback(() => {
+    const today = getTodayKey();
+    if (scrollToDate(today)) return;
+    scrolledRef.current = null;
+    router.push("/calendar");
+  }, [router, scrollToDate]);
+
+  useLayoutEffect(() => {
+    const today = getTodayKey();
+    const scrollDate = viewport.anchor === today ? today : viewport.anchor;
+    const scrollSessionKey = `${viewport.anchor}:${scrollDate}`;
+    if (scrolledRef.current === scrollSessionKey) return;
+
+    const targetIdx = viewport.days.findIndex((d) => d.date === scrollDate);
     if (targetIdx < 0) return;
 
+    const scrollLeft = targetIdx * CALENDAR_DAY_WIDTH;
     const grid = gridScrollRef.current;
-    const header = headerScrollRef.current;
     if (!grid) return;
 
-    const scrollLeft = Math.max(
-      0,
-      targetIdx * CALENDAR_DAY_WIDTH - grid.clientWidth * 0.12,
-    );
+    let cancelled = false;
 
-    requestAnimationFrame(() => {
-      grid.scrollLeft = scrollLeft;
-      if (header) header.scrollLeft = scrollLeft;
-      scrolledRef.current = viewport.anchor;
+    const tryScroll = () => {
+      if (cancelled) return true;
+      if (grid.scrollWidth < viewport.gridWidth - 1) return false;
+      if (applyCalendarScrollLeft(scrollLeft)) {
+        scrolledRef.current = scrollSessionKey;
+        return true;
+      }
+      return false;
+    };
+
+    if (tryScroll()) return;
+
+    const observer = new ResizeObserver(() => {
+      if (tryScroll()) observer.disconnect();
     });
-  }, [viewport.anchor, viewport.days]);
+    observer.observe(grid);
+
+    let frames = 0;
+    const tick = () => {
+      if (cancelled || tryScroll() || frames++ >= 30) {
+        observer.disconnect();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [
+    viewport.anchor,
+    viewport.days,
+    viewport.gridWidth,
+    filteredProperties.length,
+    applyCalendarScrollLeft,
+  ]);
 
   const syncFromGrid = useCallback(() => {
     if (syncingRef.current) return;
@@ -147,8 +335,9 @@ export function MultiCalendar({
     if (headerScrollRef.current) {
       headerScrollRef.current.scrollLeft = grid.scrollLeft;
     }
+    updateDisplayMonth(grid.scrollLeft);
     syncingRef.current = false;
-  }, []);
+  }, [updateDisplayMonth]);
 
   const syncFromSidebar = useCallback(() => {
     if (syncingRef.current) return;
@@ -161,16 +350,17 @@ export function MultiCalendar({
     syncingRef.current = false;
   }, []);
 
-  const syncFromHeader = useCallback(() => {
-    if (syncingRef.current) return;
-    const header = headerScrollRef.current;
-    const grid = gridScrollRef.current;
-    if (!header || !grid) return;
-
-    syncingRef.current = true;
-    grid.scrollLeft = header.scrollLeft;
-    syncingRef.current = false;
-  }, []);
+  const handleDayHover = useCallback(
+    (propertyId: string, dateKey: string | null) => {
+      if (!selection || selection.checkOut !== null) return;
+      if (dateKey === null || propertyId !== selection.propertyId) {
+        setSelectionHoverDate(null);
+        return;
+      }
+      setSelectionHoverDate(dateKey);
+    },
+    [selection],
+  );
 
   const handleDayClick = useCallback(
     (propertyId: string, dateKey: string) => {
@@ -186,19 +376,28 @@ export function MultiCalendar({
         selection.propertyId !== propertyId ||
         (selection.checkOut !== null && selection.checkOut !== undefined)
       ) {
+        setSelectionHoverDate(null);
         setSelection({ propertyId, checkIn: dateKey, checkOut: null });
         return;
       }
 
       const checkIn = selection.checkIn;
+      if (dateKey === checkIn && selection.checkOut === null) {
+        setSelectionHoverDate(null);
+        setSelection(null);
+        return;
+      }
+
       if (dateKey <= checkIn) {
+        setSelectionHoverDate(null);
         setSelection({ propertyId, checkIn: dateKey, checkOut: null });
         return;
       }
 
-      setCreateDefaults({ propertyId, checkIn, checkOut: dateKey });
+      setSelectionHoverDate(null);
       setSelection(null);
-      setDrawerMode("create");
+      setPendingCreate({ propertyId, checkIn, checkOut: dateKey });
+      setBudgetDialogOpen(true);
     },
     [canWrite, selection],
   );
@@ -209,6 +408,7 @@ export function MultiCalendar({
     setDetailLoading(false);
     setCreateDefaults(null);
     setSelection(null);
+    setSelectionHoverDate(null);
   }
 
   const openReservationDetail = useCallback(async (reservationId: string) => {
@@ -218,6 +418,7 @@ export function MultiCalendar({
     setDetailLoading(true);
     setCreateDefaults(null);
     setSelection(null);
+    setSelectionHoverDate(null);
 
     try {
       const result = await getReservationInboxItemAction(reservationId);
@@ -286,12 +487,17 @@ export function MultiCalendar({
   }
 
   return (
-    <div className="cal-module flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--cal-bg-canvas)]">
+    <div className="cal-module flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <CalendarToolbar
         viewport={viewport}
-        canSyncAirbnb={canSyncAirbnb}
+        displayYear={displayMonth.year}
+        displayMonth={displayMonth.month}
         showPropertiesToggle
         onToggleProperties={() => setPropertyPanelOpen(true)}
+        canCreate={canWrite}
+        onCreateClick={handleToolbarCreateClick}
+        onGoToToday={handleGoToToday}
+        onOpenViewSettings={() => setViewSettingsOpen(true)}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -302,31 +508,35 @@ export function MultiCalendar({
             onSearchChange={setSearch}
             scrollRef={sidebarScrollRef}
             onScroll={syncFromSidebar}
+            viewSettings={viewSettings}
           />
         </div>
 
         <div className="calendar-workspace flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="sticky top-0 z-20 shrink-0 border-b border-[var(--cal-row-divider)] bg-white">
             <CalendarDayHeader
-              days={viewport.days}
+              days={displayDays}
               gridWidth={viewport.gridWidth}
               scrollRef={headerScrollRef}
-              onScroll={syncFromHeader}
             />
           </div>
 
           <CalendarGrid
             properties={filteredProperties}
             reservationsByProperty={reservationsByProperty}
-            days={viewport.days}
+            days={displayDays}
             rangeStart={viewport.rangeStart}
             gridWidth={viewport.gridWidth}
             scrollRef={gridScrollRef}
             onScroll={syncFromGrid}
             canWrite={canWrite}
             selection={selection}
+            selectionHoverDate={selectionHoverDate}
             onDayClick={handleDayClick}
+            onDayHover={handleDayHover}
             onReservationClick={openReservationDetail}
+            showPrice={viewSettings.showPrice}
+            showMinimumStay={viewSettings.showMinimumStay}
           />
         </div>
       </div>
@@ -345,6 +555,22 @@ export function MultiCalendar({
           )}
         </div>
       ) : null}
+
+      <CalendarCreateBudgetDialog
+        open={budgetDialogOpen}
+        budgetTotal={pendingBudgetTotal}
+        hasSelectedDates={pendingCreate !== null}
+        onChooseWithBudget={handleChooseWithBudget}
+        onChooseWithoutBudget={handleChooseWithoutBudget}
+        onClose={closeBudgetDialog}
+      />
+
+      <CalendarViewSettingsDialog
+        open={viewSettingsOpen}
+        settings={viewSettings}
+        onClose={() => setViewSettingsOpen(false)}
+        onSave={handleSaveViewSettings}
+      />
 
       <ReservationDrawer
         open={drawerMode !== null}
@@ -371,6 +597,7 @@ export function MultiCalendar({
             onSearchChange={setSearch}
             scrollRef={sidebarScrollRef}
             onScroll={syncFromSidebar}
+            viewSettings={viewSettings}
           />
         </SheetContent>
       </Sheet>

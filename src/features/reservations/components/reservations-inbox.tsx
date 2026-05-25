@@ -2,6 +2,7 @@
 
 import { Filter, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ type ReservationsInboxProps = {
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
   canDelete?: boolean;
+  canAccessTasks?: boolean;
   openCreateOnMount?: boolean;
   initialSelectedId?: string | null;
   initialCreateValues?: ReservationCreateInitialValues;
@@ -81,6 +83,7 @@ export function ReservationsInbox({
   canWrite,
   canManageGuestRegistration = canWrite,
   canDelete = false,
+  canAccessTasks = false,
   openCreateOnMount = false,
   initialSelectedId = null,
   initialCreateValues,
@@ -114,8 +117,10 @@ export function ReservationsInbox({
   const drawerModeRef = useRef(drawerMode);
   const selectedIdRef = useRef(selectedId);
 
-  drawerModeRef.current = drawerMode;
-  selectedIdRef.current = selectedId;
+  useEffect(() => {
+    drawerModeRef.current = drawerMode;
+    selectedIdRef.current = selectedId;
+  }, [drawerMode, selectedId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -360,11 +365,19 @@ export function ReservationsInbox({
               showHeader={drawerMode === "create"}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center p-8">
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8">
               <p className="max-w-sm text-center text-sm text-muted-foreground">
                 Selecciona una reserva del listado o crea una nueva con el botón
                 inferior.
               </p>
+              {canAccessTasks ? (
+                <Link
+                  href="/tasks"
+                  className="text-sm font-medium text-pragma-electric hover:underline"
+                >
+                  {t("nav.tasks")}
+                </Link>
+              ) : null}
             </div>
           )}
         </div>

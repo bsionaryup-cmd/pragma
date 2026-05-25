@@ -15,6 +15,8 @@ import {
   savePriceLabsApiKeyFromPanel,
   syncListings,
   syncPriceLabsOverrides,
+  deletePriceLabsOverridesFromPanel,
+  savePriceLabsOverridesFromPanel,
   syncSingleListing,
 } from "@/services/integrations/pricelabs.service";
 
@@ -154,6 +156,30 @@ export async function runPriceLabsFullSyncAction() {
 export async function syncSinglePriceLabsListingAction(propertyId: string) {
   await requireIntegrationsManageUnlocked();
   const result = await withPriceLabsOrg(() => syncSingleListing(propertyId));
+  revalidatePriceLabs();
+  return result;
+}
+
+export async function savePriceLabsOverrideAction(input: {
+  propertyId: string;
+  date: string;
+  price?: string;
+  minStay?: string;
+  minPrice?: string;
+  maxPrice?: string;
+}) {
+  await requireIntegrationsManageUnlocked();
+  const result = await withPriceLabsOrg(() => savePriceLabsOverridesFromPanel(input));
+  revalidatePriceLabs();
+  return result;
+}
+
+export async function deletePriceLabsOverridesAction(input: {
+  propertyId: string;
+  dates: string[];
+}) {
+  await requireIntegrationsManageUnlocked();
+  const result = await withPriceLabsOrg(() => deletePriceLabsOverridesFromPanel(input));
   revalidatePriceLabs();
   return result;
 }

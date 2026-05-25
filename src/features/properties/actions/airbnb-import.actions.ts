@@ -21,6 +21,7 @@ import {
 
 function revalidatePropertyPaths() {
   revalidatePath("/properties");
+  revalidatePath("/integrations/airbnb");
   revalidatePath("/calendar");
   revalidatePath("/reservations");
   revalidatePath("/");

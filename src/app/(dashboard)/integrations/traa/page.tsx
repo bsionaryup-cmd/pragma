@@ -16,12 +16,12 @@ export default async function TraaIntegrationPage() {
           backLabel="Integraciones"
           eyebrow="Integraciones"
           title="TRAA"
-          description="Turismo registrado — estructura de conexión preparada para producción."
+          description="Tarjeta de Registro de Alojamiento (MINCIT) — la prueba valida RNT y token contra la API PMS oficial."
         />
         <ExternalIntegrationCard
           provider="TRAA"
           title="TRAA"
-          description="API Key, token y callback para validación con la plataforma."
+          description="Client ID = RNT. Token = autogestionado en pms.mincit.gov.co/token (header Authorization: token …)."
           integration={integration}
         />
       </div>

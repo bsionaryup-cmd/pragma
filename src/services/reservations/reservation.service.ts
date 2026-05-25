@@ -62,6 +62,7 @@ type ReservationRow = {
   infants: number;
   checkIn: Date;
   checkOut: Date;
+  createdAt?: Date;
   platform: ReservationInboxItem["platform"];
   status: ReservationInboxItem["status"];
   totalAmount: { toString(): string };
@@ -101,6 +102,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     infants: r.infants,
     checkIn: prismaDateToKey(r.checkIn),
     checkOut: prismaDateToKey(r.checkOut),
+    createdAt: r.createdAt?.toISOString(),
     platform: r.platform,
     status: r.status,
     totalAmount: r.totalAmount.toString(),
@@ -211,6 +213,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       infants: true,
       checkIn: true,
       checkOut: true,
+      createdAt: true,
       platform: true,
       status: true,
       totalAmount: true,
@@ -222,7 +225,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
         select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
       },
     },
-    orderBy: [{ checkIn: "asc" }],
+    orderBy: { createdAt: "desc" },
   });
 
   const ids = rows.map((row) => row.id);

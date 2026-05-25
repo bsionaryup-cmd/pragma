@@ -1,3 +1,5 @@
+import type { BookingPlatform } from "@prisma/client";
+
 export type InboxConversationStatus = "open" | "reserved";
 
 export type InboxMessage = {
@@ -20,7 +22,7 @@ export type InboxConversation = {
   statusLabel: string;
   propertyImageUrl: string | null;
   bookingCode: string;
-  platform: "AIRBNB";
+  platform: BookingPlatform;
   propertyName: string;
   propertyUnit: string;
   propertyId: string;

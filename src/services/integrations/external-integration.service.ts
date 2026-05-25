@@ -4,7 +4,9 @@ import {
   assertIntegrationConfiguredByOrganization,
   integrationVisibleToOrganization,
 } from "@/lib/platform/tenant-access";
-import { encryptTTLockSecret, decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import { encryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import { runSireConnectionTest } from "@/services/integrations/sire/test-sire-connection";
+import { runTraaConnectionTest } from "@/services/integrations/traa/test-traa-connection";
 
 async function loadIntegrationWithConfigurator(
   provider: ExternalIntegrationProvider,
@@ -95,21 +97,59 @@ export async function saveExternalIntegration(input: {
   });
 }
 
+async function persistConnectionTestResult(
+  provider: ExternalIntegrationProvider,
+  outcome: {
+    ok: boolean;
+    message: string;
+    tokenToStore?: string | null;
+  },
+) {
+  await db.externalIntegration.update({
+    where: { provider },
+    data: {
+      status: outcome.ok ? "CONNECTED" : "ERROR",
+      lastError: outcome.ok ? null : outcome.message,
+      lastTestedAt: new Date(),
+      ...(outcome.ok && outcome.tokenToStore
+        ? { tokenEncrypted: outcome.tokenToStore }
+        : {}),
+    },
+  });
+}
+
 export async function testExternalIntegration(
   provider: ExternalIntegrationProvider,
   organizationId: string | null,
 ) {
   const row = await getExternalIntegration(provider, organizationId);
-  if (!row?.clientId && !row?.apiKeyEncrypted) {
-    return { ok: false, message: "Configura credenciales antes de probar" };
+  if (!row) {
+    return { ok: false, message: "Integración no configurada" };
   }
-  const apiKey = decryptTTLockSecret(row.apiKeyEncrypted);
-  if (!apiKey && !row.clientId) {
-    return { ok: false, message: "API Key o Client ID requerido" };
+
+  if (provider === "SIRE") {
+    const outcome = await runSireConnectionTest({
+      clientId: row.clientId,
+      callbackUrl: row.callbackUrl,
+      apiKeyEncrypted: row.apiKeyEncrypted,
+      clientSecretEncrypted: row.clientSecretEncrypted,
+      tokenEncrypted: row.tokenEncrypted,
+    });
+
+    await persistConnectionTestResult(provider, outcome);
+    return { ok: outcome.ok, message: outcome.message };
   }
-  await db.externalIntegration.update({
-    where: { provider },
-    data: { status: "CONNECTED", lastError: null, lastTestedAt: new Date() },
-  });
-  return { ok: true, message: "Conexión validada (estructura lista para API real)" };
+
+  if (provider === "TRAA") {
+    const outcome = await runTraaConnectionTest({
+      clientId: row.clientId,
+      apiKeyEncrypted: row.apiKeyEncrypted,
+      tokenEncrypted: row.tokenEncrypted,
+    });
+
+    await persistConnectionTestResult(provider, outcome);
+    return { ok: outcome.ok, message: outcome.message };
+  }
+
+  return { ok: false, message: "Proveedor de integración no soportado" };
 }

@@ -8,7 +8,10 @@ import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { BackLink } from "@/components/ui/back-link";
 import { TTLockConnectionCard } from "@/features/integrations/ttlock/components/ttlock-connection-card";
 import {
-  savePropertyLockMappingAction,
+  TTLockPropertyAssignmentTable,
+  TTLockSyncedLocksTable,
+} from "@/features/integrations/ttlock/components/ttlock-lock-mapping-tables";
+import {
   saveTTLockAutomationSettingsAction,
   syncTTLockLocksAction,
 } from "@/features/integrations/ttlock/actions/ttlock.actions";
@@ -16,22 +19,18 @@ import type { TTLockOverviewDto } from "@/services/integrations/ttlock/ttlock.ty
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatDateTime } from "@/lib/helpers/date";
 
 type TTLockPanelProps = {
   overview: TTLockOverviewDto;
   flashError?: string | null;
   flashConnected?: boolean;
+  flashSynced?: boolean;
+  flashSyncManual?: boolean;
+  flashDisconnected?: boolean;
+  flashMapped?: boolean;
 };
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Nunca";
-  return new Date(value).toLocaleString("es-CO", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 function MetricCard({
   label,
@@ -66,15 +65,12 @@ export function TTLockPanel({
   overview,
   flashError,
   flashConnected,
+  flashSynced,
+  flashSyncManual,
+  flashDisconnected,
+  flashMapped,
 }: TTLockPanelProps) {
-  const {
-    integration,
-    properties,
-    propertyLocks,
-    remoteLocks,
-    metrics,
-    canManage,
-  } = overview;
+  const { integration, metrics, canManage } = overview;
   const settings = integration.automationSettings;
 
   return (
@@ -109,7 +105,7 @@ export function TTLockPanel({
           <MetricCard
             label="Cerraduras"
             value={String(integration.syncedLockCount)}
-            detail={`Última sync: ${formatDate(integration.lastSyncedAt)}`}
+            detail={`Última sync: ${formatDateTime(integration.lastSyncedAt, "Nunca")}`}
             icon={RefreshCw}
           />
           <MetricCard
@@ -130,6 +126,9 @@ export function TTLockPanel({
           overview={overview}
           flashError={flashError}
           flashConnected={flashConnected}
+          flashSynced={flashSynced}
+          flashSyncManual={flashSyncManual}
+          flashDisconnected={flashDisconnected}
         />
 
         <Card>
@@ -139,55 +138,21 @@ export function TTLockPanel({
               Cerraduras sincronizadas
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Lista de cerraduras detectadas en tu cuenta TTLock.
+              Asigna cada cerradura a un apartamento. El estado muestra
+              &quot;Conectado&quot; cuando la cuenta TTLock está activa y la
+              cerradura quedó vinculada.
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             {canManage ? (
               <form action={syncTTLockLocksAction}>
-                <Button type="submit" variant="outline">
+                <Button type="submit" variant="outline" size="sm">
                   <RefreshCw className="h-4 w-4" />
                   Sincronizar cerraduras
                 </Button>
               </form>
             ) : null}
-            <div className="overflow-hidden rounded-xl border border-border">
-              <div className="grid grid-cols-3 bg-muted/40 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <span>Nombre</span>
-                <span>ID</span>
-                <span>Estado</span>
-              </div>
-              {remoteLocks.length === 0 ? (
-                <p className="px-4 py-6 text-sm text-muted-foreground">
-                  Conecta TTLock y pulsa &quot;Sincronizar cerraduras&quot; para
-                  cargar tu inventario.
-                </p>
-              ) : (
-                remoteLocks.map((lock) => {
-                  const mapped = propertyLocks.find(
-                    (entry) => entry.ttlockLockId === lock.lockId,
-                  );
-                  return (
-                    <div
-                      key={lock.lockId}
-                      className="grid grid-cols-3 border-t border-border px-4 py-3 text-sm"
-                    >
-                      <span className="font-medium">
-                        {lock.lockAlias ?? lock.lockName}
-                      </span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {lock.lockId}
-                      </span>
-                      <span>
-                        {mapped
-                          ? `Asignada · ${mapped.property.name}`
-                          : "Disponible"}
-                      </span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+            <TTLockSyncedLocksTable overview={overview} canManage={canManage} />
           </CardContent>
         </Card>
 
@@ -198,69 +163,16 @@ export function TTLockPanel({
               Asignar cerraduras a propiedades
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Vincula cada propiedad con una cerradura TTLock sincronizada.
+              Listado compacto por número de apartamento (801, 802…).
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {properties.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No hay propiedades activas para mapear.
+          <CardContent>
+            {flashMapped ? (
+              <p className="mb-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+                Asignación guardada correctamente.
               </p>
-            ) : canManage ? (
-              properties.map((property) => {
-                const mapped = propertyLocks.find(
-                  (lock) => lock.propertyId === property.id,
-                );
-                return (
-                  <form
-                    key={property.id}
-                    action={savePropertyLockMappingAction}
-                    className="grid gap-3 rounded-xl border border-border p-4 lg:grid-cols-[1.2fr_1fr_auto]"
-                  >
-                    <input type="hidden" name="propertyId" value={property.id} />
-                    <div>
-                      <p className="text-sm font-semibold">{property.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {property.address}, {property.city}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor={`lock-${property.id}`}>Cerradura TTLock</Label>
-                      <select
-                        id={`lock-${property.id}`}
-                        name="ttlockLockId"
-                        defaultValue={mapped?.ttlockLockId ?? ""}
-                        className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
-                      >
-                        <option value="">Sin asignar</option>
-                        {remoteLocks.map((lock) => (
-                          <option key={lock.lockId} value={lock.lockId}>
-                            {lock.lockAlias ?? lock.lockName} ({lock.lockId})
-                          </option>
-                        ))}
-                      </select>
-                      <Input
-                        name="alias"
-                        type="hidden"
-                        value={mapped?.alias ?? ""}
-                      />
-                      <Input
-                        name="timezone"
-                        type="hidden"
-                        value={mapped?.timezone ?? "America/Bogota"}
-                      />
-                    </div>
-                    <Button type="submit" variant="outline" className="self-end">
-                      Guardar
-                    </Button>
-                  </form>
-                );
-              })
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Vista de solo lectura. Contacta a un administrador para editar mapeos.
-              </p>
-            )}
+            ) : null}
+            <TTLockPropertyAssignmentTable overview={overview} canManage={canManage} />
           </CardContent>
         </Card>
 

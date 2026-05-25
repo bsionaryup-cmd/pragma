@@ -36,8 +36,10 @@ export function PhoneInput({
   const [localNumber, setLocalNumber] = useState(parsed.localNumber);
 
   useEffect(() => {
-    setDialCode(parsed.dialCode);
-    setLocalNumber(parsed.localNumber);
+    queueMicrotask(() => {
+      setDialCode(parsed.dialCode);
+      setLocalNumber(parsed.localNumber);
+    });
   }, [parsed.dialCode, parsed.localNumber]);
 
   function emitChange(nextDialCode: string, nextLocalNumber: string) {

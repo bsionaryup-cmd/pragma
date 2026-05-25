@@ -1,16 +1,22 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { BRAND } from "@/lib/brand";
-
-const footerLinks = [
-  { href: "#solution", label: "Solución" },
-  { href: "#product", label: "Command Center" },
-  { href: "#integrations", label: "Integraciones" },
-  { href: "#contact", label: "Contacto" },
-];
+import {
+  isInPageAnchorHref,
+  LANDING_FOOTER_ITEMS,
+  landingHomeSectionHref,
+} from "@/lib/landing-public-nav";
 
 export function LandingFooter() {
+  const pathname = usePathname();
+  const footerLinks = LANDING_FOOTER_ITEMS.map((item) => ({
+    label: item.label,
+    href: landingHomeSectionHref(pathname, item.section),
+  }));
   const year = new Date().getFullYear();
 
   return (
@@ -38,13 +44,22 @@ export function LandingFooter() {
           <nav aria-label="Pie de página">
             <ul className="flex flex-wrap gap-x-8 gap-y-3">
               {footerLinks.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
-                  >
-                    {link.label}
-                  </Link>
+                <li key={`${link.href}-${link.label}`}>
+                  {isInPageAnchorHref(link.href) ? (
+                    <a
+                      href={link.href}
+                      className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={link.href}
+                      className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
+                    >
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

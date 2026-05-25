@@ -43,21 +43,19 @@ export function getReservationVisualState(
 }
 
 const pillBase =
-  "absolute top-[26px] z-20 flex h-[34px] min-w-[36px] cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border border-[#c8d0da] bg-white px-2.5 text-xs font-medium leading-none tracking-tight text-[#2f3744] shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-[box-shadow,border-color] duration-150 hover:border-[#aeb8c6] hover:shadow-[0_2px_4px_rgba(15,23,42,0.08)] pointer-events-auto";
+  "absolute top-[28px] z-20 flex h-[32px] min-w-[36px] cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border border-[var(--cal-pill-border)] bg-white px-2.5 text-xs font-normal leading-none tracking-tight text-[var(--cal-text-day)] shadow-none transition-[box-shadow] duration-150 hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] pointer-events-auto";
 
 export function getReservationBarClasses(state: ReservationVisualState): string {
   switch (state) {
     case "in_stay":
-      return `${pillBase} border-l-2 border-l-[#14B8A6] bg-[#f8fdfc]`;
     case "checkout_today":
-      return `${pillBase} border-l-2 border-l-[#e8a838] bg-[#fffdf8]`;
-    case "checked_out":
-      return `${pillBase} border-l-2 border-l-[#b8c2ce] bg-[#f7f8fa] text-[var(--cal-reservation-muted-text)]`;
-    case "blocked":
-      return `${pillBase} border-l-2 border-l-[#9ca3af] bg-[#f4f5f7] text-[var(--cal-reservation-muted-text)]`;
     case "confirmed":
     default:
-      return `${pillBase} border-l-2 border-l-[#0E9F8D] bg-white`;
+      return pillBase;
+    case "checked_out":
+      return `${pillBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-muted-bg)] text-[var(--cal-reservation-muted-text)]`;
+    case "blocked":
+      return `${pillBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-blocked-bg)] text-[var(--cal-reservation-muted-text)]`;
   }
 }
 

@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { TTLockEnvironment, TTLockExpirationStrategy } from "@prisma/client";
-import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
+import {
+  assertBillingUnlocked,
+  isBillingLockedError,
+} from "@/lib/billing/billing-guard";
 import { requireTTLockAdmin } from "@/lib/auth/ttlock-admin";
 import {
   completeTTLockConnect,
@@ -12,7 +15,9 @@ import {
   savePropertyLockMapping,
   saveTTLockAutomationSettings,
   saveTTLockCredentials,
+  syncTTLockLocks,
   testTTLockConnection,
+  unassignTTLockByLockId,
 } from "@/services/integrations/ttlock.service";
 import { headers } from "next/headers";
 import { resolveRequestContextFromHeaders } from "@/lib/integrations/ttlock-config";
@@ -55,8 +60,20 @@ export async function saveTTLockCredentialsAction(formData: FormData) {
 
 export async function completeTTLockConnectAction(formData: FormData) {
   const user = await requireTTLockAdmin();
-  await assertBillingUnlocked();
   const state = String(formData.get("state") ?? "").trim();
+
+  try {
+    await assertBillingUnlocked();
+  } catch (error) {
+    if (isBillingLockedError(error)) {
+      const params = new URLSearchParams({
+        error: error.message,
+      });
+      if (state) params.set("state", state);
+      redirect(`/integrations/ttlock/connect?${params.toString()}`);
+    }
+    throw error;
+  }
 
   try {
     await completeTTLockConnect(
@@ -76,7 +93,13 @@ export async function completeTTLockConnectAction(formData: FormData) {
   }
 
   revalidateTTLock();
-  redirect("/integrations/ttlock?connected=1");
+
+  try {
+    await syncTTLockLocks(user.dbUserId);
+    redirect("/integrations/ttlock?connected=1&synced=1");
+  } catch {
+    redirect("/integrations/ttlock?connected=1&sync=manual");
+  }
 }
 
 export async function testTTLockConnectionAction() {
@@ -92,6 +115,7 @@ export async function disconnectTTLockAction() {
   await assertBillingUnlocked();
   await disconnectTTLock(user.dbUserId);
   revalidateTTLock();
+  redirect("/integrations/ttlock?disconnected=1");
 }
 
 export async function refreshTTLockTokenAction() {
@@ -104,21 +128,39 @@ export async function refreshTTLockTokenAction() {
 export async function syncTTLockLocksAction() {
   const user = await requireTTLockAdmin();
   await assertBillingUnlocked();
-  const { syncTTLockLocks } = await import("@/services/integrations/ttlock.service");
   await syncTTLockLocks(user.dbUserId);
   revalidateTTLock();
+  redirect("/integrations/ttlock?synced=1");
 }
 
 export async function savePropertyLockMappingAction(formData: FormData) {
   const user = await requireTTLockAdmin();
   await assertBillingUnlocked();
+
+  const propertyId = String(formData.get("propertyId") ?? "").trim();
+  const ttlockLockId = String(formData.get("ttlockLockId") ?? "").trim();
+
+  if (!propertyId && ttlockLockId) {
+    await unassignTTLockByLockId(user.dbUserId, ttlockLockId);
+    revalidateTTLock();
+    redirect("/integrations/ttlock?mapped=1");
+  }
+
+  if (!propertyId) {
+    redirect(
+      "/integrations/ttlock?error=" +
+        encodeURIComponent("Selecciona una propiedad para asignar la cerradura."),
+    );
+  }
+
   await savePropertyLockMapping(user.dbUserId, {
-    propertyId: String(formData.get("propertyId") ?? ""),
-    ttlockLockId: String(formData.get("ttlockLockId") ?? ""),
+    propertyId,
+    ttlockLockId,
     alias: String(formData.get("alias") ?? ""),
     timezone: String(formData.get("timezone") ?? ""),
   });
   revalidateTTLock();
+  redirect("/integrations/ttlock?mapped=1");
 }
 
 export async function saveTTLockAutomationSettingsAction(formData: FormData) {

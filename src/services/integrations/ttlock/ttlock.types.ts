@@ -41,6 +41,7 @@ export type TTLockOverviewDto = {
   properties: Array<{
     id: string;
     name: string;
+    unitNumber: string | null;
     address: string;
     city: string;
   }>;

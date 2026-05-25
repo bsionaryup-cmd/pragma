@@ -3,6 +3,11 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { startOfDay } from "@/lib/helpers/date";
 import {
+  formatCalendarUnitDisplay,
+  resolveCalendarUnitLabel,
+} from "@/features/calendar/lib/property-unit";
+import type { StoredPriceLabsMeta } from "@/integrations/pricelabs/types";
+import {
   mergeReservationScope,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
@@ -73,6 +78,9 @@ const panelReservationInclude = {
       checkInTime: true,
       checkOutTime: true,
       neighborhood: true,
+      priceLabs: {
+        select: { meta: true },
+      },
     },
   },
 } as const;
@@ -94,6 +102,7 @@ export type PanelReservationRow = {
   property: {
     name: string;
     unitNumber: string | null;
+    unitDisplay: string | null;
     coverImageUrl: string | null;
     checkInTime: string | null;
     checkOutTime: string | null;
@@ -130,6 +139,28 @@ async function attachPrimaryGuestNames<T extends { id: string }>(
   }));
 }
 
+function readPriceLabsListingName(meta: unknown): string | null {
+  if (!meta || typeof meta !== "object") return null;
+  const name = (meta as StoredPriceLabsMeta).listing?.name?.trim();
+  return name || null;
+}
+
+function resolvePanelPropertyUnit(property: {
+  name: string;
+  unitNumber: string | null;
+  priceLabs?: { meta: unknown } | null;
+}): string | null {
+  const listingName = readPriceLabsListingName(property.priceLabs?.meta);
+  const label = resolveCalendarUnitLabel({
+    name: property.name,
+    unitNumber: property.unitNumber,
+    listingName,
+  });
+  if (!label) return null;
+  const display = formatCalendarUnitDisplay(label);
+  return display === "—" ? null : display;
+}
+
 export function toPanelReservationRow(
   reservation: PanelReservationWithPrimaryGuest,
 ): PanelReservationRow {
@@ -148,6 +179,7 @@ export function toPanelReservationRow(
     property: {
       name: reservation.property.name,
       unitNumber: reservation.property.unitNumber,
+      unitDisplay: resolvePanelPropertyUnit(reservation.property),
       coverImageUrl: reservation.property.coverImageUrl,
       checkInTime: reservation.property.checkInTime,
       checkOutTime: reservation.property.checkOutTime,

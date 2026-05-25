@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import {
@@ -8,20 +9,24 @@ import {
   LogInButton,
 } from "@/components/brand/auth-cta-buttons";
 import { APP_DEMO_CTA } from "@/lib/constants";
+import {
+  isInPageAnchorHref,
+  LANDING_NAV_ITEMS,
+  landingHomeSectionHref,
+} from "@/lib/landing-public-nav";
 import { type LandingSession } from "@/lib/landing-session";
-
-const links = [
-  { href: "#solution", label: "Solución" },
-  { href: "#product", label: "Producto" },
-  { href: "#pricing", label: "Precios" },
-  { href: "#contact", label: "Contacto" },
-];
 
 type LandingNavProps = {
   session: LandingSession;
 };
 
 export function LandingNav({ session: _session }: LandingNavProps) {
+  const pathname = usePathname();
+  const links = LANDING_NAV_ITEMS.map((item) => ({
+    label: item.label,
+    href: landingHomeSectionHref(pathname, item.section),
+  }));
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -12 }}
@@ -44,13 +49,22 @@ export function LandingNav({ session: _session }: LandingNavProps) {
 
         <ul className="hidden items-center gap-8 md:flex">
           {links.map((link) => (
-            <li key={link.href}>
-              <a
-                href={link.href}
-                className="text-sm font-medium text-pragma-mid-gray transition-colors hover:text-pragma-black"
-              >
-                {link.label}
-              </a>
+            <li key={`${link.href}-${link.label}`}>
+              {isInPageAnchorHref(link.href) ? (
+                <a
+                  href={link.href}
+                  className="text-sm font-medium text-pragma-mid-gray transition-colors hover:text-pragma-black"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  href={link.href}
+                  className="text-sm font-medium text-pragma-mid-gray transition-colors hover:text-pragma-black"
+                >
+                  {link.label}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

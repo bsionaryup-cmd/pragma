@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useTransition } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useTransition } from "react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -13,10 +13,18 @@ import { Separator } from "@/components/ui/separator";
 import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 import { saveUserPreferencesAction } from "@/features/settings/actions/settings.actions";
 
+/** Secciones enlazables vía `/settings?tab=profile|preferences|appearance` */
+export const SETTINGS_TABS = ["profile", "preferences", "appearance"] as const;
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return (
+    value !== null &&
+    (SETTINGS_TABS as readonly string[]).includes(value)
+  );
+}
+
 type SettingsViewProps = {
-  canAccessIntegrations: boolean;
-  canManageUsers: boolean;
-  canManageBilling: boolean;
   email: string;
   displayName: string;
   initialLocale: string;
@@ -24,9 +32,6 @@ type SettingsViewProps = {
 };
 
 export function SettingsView({
-  canAccessIntegrations,
-  canManageUsers,
-  canManageBilling,
   email,
   displayName,
   initialLocale,
@@ -34,6 +39,14 @@ export function SettingsView({
 }: SettingsViewProps) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab");
+
+  useEffect(() => {
+    if (!isSettingsTab(activeTab)) return;
+    const section = document.getElementById(activeTab);
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeTab]);
 
   function persistPreferences() {
     startTransition(async () => {
@@ -51,9 +64,6 @@ export function SettingsView({
     });
   }
 
-  const hasQuickLinks =
-    canAccessIntegrations || canManageBilling || canManageUsers;
-
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 pb-12 sm:px-6 lg:px-8">
       <div>
@@ -65,59 +75,16 @@ export function SettingsView({
         </h1>
       </div>
 
-      {hasQuickLinks ? (
-        <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-          {canManageBilling ? (
-            <Link
-              href="/settings/billing"
-              className="rounded-lg bg-pragma-soft-cyan px-3 py-1.5 text-sm font-medium text-pragma-electric ring-1 ring-pragma-cyan/20"
-            >
-              Facturación
-            </Link>
-          ) : null}
-          {canAccessIntegrations ? (
-            <Link
-              href="/integrations"
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-            >
-              {t("nav.integrations")}
-            </Link>
-          ) : null}
-          {canManageUsers ? (
-            <Link
-              href="/users"
-              className="rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted"
-            >
-              {t("nav.users")}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-
-      {canManageBilling ? (
-        <Card className="border-pragma-soft-cyan/30 bg-pragma-soft-cyan/10">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Suscripción y facturas
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Consulta tu plan, paga tu suscripción y descarga facturas.
-              </p>
-            </div>
-            <Button asChild size="sm">
-              <Link href="/settings/billing">Abrir facturación</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">General</CardTitle>
         </CardHeader>
         <CardContent className="space-y-8">
-          <section className="space-y-4">
+          <section
+            id="profile"
+            className="scroll-mt-6 space-y-4"
+            aria-label="Perfil"
+          >
             <div>
               <h2 className="text-sm font-semibold text-foreground">Perfil</h2>
               <p className="text-xs text-muted-foreground">
@@ -138,7 +105,11 @@ export function SettingsView({
 
           <Separator />
 
-          <section className="space-y-4">
+          <section
+            id="preferences"
+            className="scroll-mt-6 space-y-4"
+            aria-label="Preferencias"
+          >
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 Preferencias
@@ -163,7 +134,11 @@ export function SettingsView({
 
           <Separator />
 
-          <section className="space-y-4">
+          <section
+            id="appearance"
+            className="scroll-mt-6 space-y-4"
+            aria-label="Apariencia"
+          >
             <div>
               <h2 className="text-sm font-semibold text-foreground">
                 Apariencia

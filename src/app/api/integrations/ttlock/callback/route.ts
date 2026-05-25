@@ -175,6 +175,19 @@ async function handleCallbackRequest(request: Request): Promise<NextResponse> {
   const cookieStore = await cookies();
   const cookieState = cookieStore.get(TTLOCK_OAUTH_STATE_COOKIE)?.value?.trim();
 
+  if (
+    params.state?.trim() &&
+    cookieState &&
+    params.state.trim() !== cookieState
+  ) {
+    return NextResponse.redirect(
+      resolveTTLockAppRedirectUrl(
+        `/integrations/ttlock?error=${encodeURIComponent("Sesión OAuth inválida. Intenta conectar de nuevo.")}`,
+        request.url,
+      ),
+    );
+  }
+
   const { redirectPath } = await handleTTLockOAuthCallback({
     code: params.code,
     state: params.state,

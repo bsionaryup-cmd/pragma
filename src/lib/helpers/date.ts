@@ -16,6 +16,31 @@ export function formatDate(
   }).format(value);
 }
 
+/** Fecha y hora en es-CO con zona fija; evita mismatches de hidratación SSR/cliente. */
+export function formatDateTime(
+  date: Date | string | null | undefined,
+  fallback = "—",
+): string {
+  if (!date) return fallback;
+  const value = typeof date === "string" ? new Date(date) : date;
+  const parts = new Intl.DateTimeFormat("es-CO", {
+    timeZone: DEFAULT_TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(value);
+
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const dayPeriod = read("dayPeriod").replace(/\u00a0|\u202f/g, " ").trim();
+
+  return `${read("day")}/${read("month")}/${read("year")}, ${read("hour")}:${read("minute")} ${dayPeriod}`;
+}
+
 export function formatDateRange(checkIn: Date, checkOut: Date): string {
   return `${formatDate(checkIn)} → ${formatDate(checkOut)}`;
 }

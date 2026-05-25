@@ -6,6 +6,8 @@ export {
   revokePriceLabsApiKeyFromPanel,
   savePriceLabsApiKeyFromPanel,
   savePropertyPriceBoundsFromPanel,
+  savePriceLabsOverridesFromPanel,
+  deletePriceLabsOverridesFromPanel,
   syncListings,
   syncPriceLabsOverrides,
   syncSingleListing,

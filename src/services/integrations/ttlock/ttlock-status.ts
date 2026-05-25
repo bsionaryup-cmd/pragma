@@ -63,6 +63,7 @@ export function deriveTokenHealth(input: {
 
 export function deriveOverviewMetrics(input: {
   status: TTLockIntegrationStatus;
+  accountConnected?: boolean;
   hasCredentials: boolean;
   hasAccessToken: boolean;
   hasRefreshToken: boolean;
@@ -102,7 +103,15 @@ export function deriveOverviewMetrics(input: {
     input.status !== TTLockIntegrationStatus.CONNECTED &&
     input.status !== TTLockIntegrationStatus.READY
       ? "Callback inválido"
-      : integrationStatusLabels[input.status];
+      : input.accountConnected &&
+          input.hasAccessToken &&
+          input.status !== TTLockIntegrationStatus.NOT_CONNECTED &&
+          input.status !== TTLockIntegrationStatus.INVALID_CREDENTIALS &&
+          input.status !== TTLockIntegrationStatus.TOKEN_EXPIRED
+        ? input.status === TTLockIntegrationStatus.READY
+          ? "Listo"
+          : "Conectado"
+        : integrationStatusLabels[input.status];
 
   return {
     integrationStatus: input.status,

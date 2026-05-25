@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -481,7 +482,7 @@ export function PropertyFormDrawer({
             />
           </FormSection>
 
-          <FormSection title="Finanzas">
+          <FormSection title="Tarifas">
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -512,11 +513,12 @@ export function PropertyFormDrawer({
                 name="cleaningFee"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Tarifa limpieza</FormLabel>
+                    <FormLabel>Tarifa de aseo</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
                         min={0}
+                        placeholder="0"
                         value={field.value ?? ""}
                         onChange={(e) =>
                           field.onChange(
@@ -527,6 +529,9 @@ export function PropertyFormDrawer({
                         }
                       />
                     </FormControl>
+                    <FormDescription className="text-xs">
+                      Se suma al total en reservas con presupuesto del calendario.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

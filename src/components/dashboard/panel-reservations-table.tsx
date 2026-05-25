@@ -1,9 +1,14 @@
 "use client";
 
+import { useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Clock, Download } from "lucide-react";
 import { PlatformBadge } from "@/components/dashboard/platform-badge";
-import { ReservationPropertyLabel } from "@/components/reservations/reservation-property-label";
+import {
+  formatCalendarUnitDisplay,
+  resolveCalendarUnitLabel,
+} from "@/features/calendar/lib/property-unit";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -35,10 +40,48 @@ function dateLabel(row: PanelReservationRow, tab: PanelTab) {
   return formatPanelDate(date);
 }
 
-function timeLabel(row: PanelReservationRow, tab: PanelTab) {
-  if (tab === "current") return null;
-  if (tab === "departures") return row.property.checkOutTime ?? "13:00";
-  return row.property.checkInTime ?? "15:00";
+function resolveUnitNumber(row: PanelReservationRow): string | null {
+  if (row.property.unitDisplay) return row.property.unitDisplay;
+
+  const unitLabel = resolveCalendarUnitLabel({
+    name: row.property.name,
+    unitNumber: row.property.unitNumber,
+  });
+  return unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
+}
+
+function PropertyCell({ row }: { row: PanelReservationRow }) {
+  const unitNumber = resolveUnitNumber(row);
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-muted">
+        {row.property.coverImageUrl ? (
+          <Image
+            src={row.property.coverImageUrl}
+            alt=""
+            fill
+            className="object-cover"
+            sizes="44px"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-muted-foreground">
+            {(unitNumber ?? row.property.name).slice(0, 2).toUpperCase()}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">
+          {row.property.name}
+        </p>
+        {unitNumber ? (
+          <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+            {unitNumber}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 export function PanelReservationsTable({
@@ -47,6 +90,7 @@ export function PanelReservationsTable({
   downloadLabel,
 }: PanelReservationsTableProps) {
   const { t } = useI18n();
+  const router = useRouter();
 
   const dateColumn =
     tab === "departures"
@@ -54,6 +98,20 @@ export function PanelReservationsTable({
       : tab === "current"
         ? t("table.stay")
         : t("table.date");
+
+  const openReservation = useCallback(
+    (reservationId: string) => {
+      router.push(`/reservations?reservation=${reservationId}`);
+    },
+    [router],
+  );
+
+  function handleRowKeyDown(event: React.KeyboardEvent, reservationId: string) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openReservation(reservationId);
+    }
+  }
 
   return (
     <div>
@@ -66,7 +124,6 @@ export function PanelReservationsTable({
           />
         ) : (
           rows.map((row) => {
-            const time = timeLabel(row, tab);
             const totalGuests = guestTotal(row);
             const guestLabel =
               totalGuests === 1
@@ -76,63 +133,36 @@ export function PanelReservationsTable({
             return (
               <article
                 key={row.id}
-                className="rounded-xl border border-border bg-card p-4 shadow-pragma-soft"
+                role="button"
+                tabIndex={0}
+                onClick={() => openReservation(row.id)}
+                onKeyDown={(event) => handleRowKeyDown(event, row.id)}
+                className="cursor-pointer rounded-xl border border-border bg-card p-4 transition-colors hover:bg-muted/20"
               >
-                <div className="flex items-start gap-3">
-                  <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
-                    {row.property.coverImageUrl ? (
-                      <Image
-                        src={row.property.coverImageUrl}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="48px"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
-                        {(row.property.unitNumber ?? row.property.name).slice(0, 2).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <ReservationPropertyLabel
-                      property={row.property}
-                      showBadge={false}
-                      className="text-sm"
-                    />
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {row.property.neighborhood || t("table.noNeighborhood")}
-                    </p>
-                  </div>
-                  <PlatformBadge platform={row.platform} />
-                </div>
-                <div className="mt-3 grid gap-2 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {dateColumn}
-                    </span>
-                    <span className="font-medium text-foreground">
+                <PropertyCell row={row} />
+                <div className="mt-3 border-t border-border/70 pt-3">
+                  <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2.5 text-sm">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                      <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                       {dateLabel(row, tab)}
-                      {time ? ` · ${time}` : ""}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {t("table.guests")}
-                    </span>
-                    <span className="truncate font-medium text-foreground">
-                      {row.guestName} · {guestLabel}
-                    </span>
+                    <PlatformBadge platform={row.platform} />
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="min-w-0 text-center">
+                        <p className="truncate font-medium text-foreground">{row.guestName}</p>
+                        <p className="text-xs text-muted-foreground">{guestLabel}</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 rounded-md border-border bg-muted/40 px-3 text-xs font-medium shadow-none hover:bg-muted/60"
+                      >
+                        {t("common.contact")}
+                      </Button>
+                    </div>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 h-10 w-full rounded-full border-border bg-card text-xs font-semibold shadow-none hover:bg-accent"
-                >
-                  {t("common.contact")}
-                </Button>
               </article>
             );
           })
@@ -140,120 +170,93 @@ export function PanelReservationsTable({
       </div>
 
       <div className="hidden md:block">
-      <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
-        <Table className="min-w-[760px]">
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="h-11 ps-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("table.property")}
-              </TableHead>
-              <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {dateColumn}
-              </TableHead>
-              <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("table.channel")}
-              </TableHead>
-              <TableHead className="h-11 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("table.guests")}
-              </TableHead>
-              <TableHead className="h-11 pe-0 text-end" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={5} className="p-0">
-                  <EmptyState
-                    icon={Clock}
-                    title={t("common.noRecords")}
-                    description={t("common.noRecordsDetail")}
-                  />
-                </TableCell>
+        <div className="mx-auto max-w-6xl overflow-x-auto px-4 sm:px-6">
+          <Table className="w-full table-fixed">
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="h-10 w-[38%] ps-0 pe-3 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("table.property")}
+                </TableHead>
+                <TableHead className="h-10 w-[14%] px-2 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {dateColumn}
+                </TableHead>
+                <TableHead className="h-10 w-[10%] px-2 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  OTA
+                </TableHead>
+                <TableHead className="h-10 w-[24%] px-2 text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("table.guests")}
+                </TableHead>
+                <TableHead className="h-10 w-[14%] pe-0 ps-2 text-center" />
               </TableRow>
-            ) : (
-              rows.map((row) => {
-                const time = timeLabel(row, tab);
-                const totalGuests = guestTotal(row);
-                const guestLabel =
-                  totalGuests === 1
-                    ? `1 ${t("common.guest")}`
-                    : `${totalGuests} ${t("common.guests")}`;
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={5} className="p-0">
+                    <EmptyState
+                      icon={Clock}
+                      title={t("common.noRecords")}
+                      description={t("common.noRecordsDetail")}
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row) => {
+                  const totalGuests = guestTotal(row);
+                  const guestLabel =
+                    totalGuests === 1
+                      ? `1 ${t("common.guest")}`
+                      : `${totalGuests} ${t("common.guests")}`;
 
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="border-border transition-colors hover:bg-muted/40"
-                  >
-                    <TableCell className="py-3.5 ps-0">
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-muted ring-1 ring-border">
-                          {row.property.coverImageUrl ? (
-                            <Image
-                              src={row.property.coverImageUrl}
-                              alt=""
-                              fill
-                              className="object-cover"
-                              sizes="48px"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
-                              {(row.property.unitNumber ?? row.property.name).slice(0, 2).toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <ReservationPropertyLabel
-                            property={row.property}
-                            showBadge={false}
-                            className="max-w-[260px] text-sm"
+                  return (
+                    <TableRow
+                      key={row.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openReservation(row.id)}
+                      onKeyDown={(event) => handleRowKeyDown(event, row.id)}
+                      className="cursor-pointer border-border hover:bg-muted/20"
+                    >
+                      <TableCell className="align-middle py-3 ps-0 pe-3">
+                        <PropertyCell row={row} />
+                      </TableCell>
+                      <TableCell className="align-middle px-2 py-3 text-center">
+                        <span className="inline-flex items-center justify-center gap-1.5 text-sm text-foreground">
+                          <Clock
+                            className="h-4 w-4 shrink-0 text-muted-foreground"
+                            strokeWidth={1.75}
                           />
-                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {row.property.neighborhood || t("table.noNeighborhood")}
-                          </p>
+                          {dateLabel(row, tab)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="align-middle px-2 py-3 text-center">
+                        <div className="flex justify-center">
+                          <PlatformBadge platform={row.platform} />
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3.5">
-                      <div className="flex flex-col gap-1 text-sm text-foreground">
-                        <span className="font-medium">{dateLabel(row, tab)}</span>
-                        {time ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            {time}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {t("table.until", { date: formatPanelDate(row.checkOut) })}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-3.5">
-                      <PlatformBadge platform={row.platform} />
-                    </TableCell>
-                    <TableCell className="py-3.5">
-                      <p className="max-w-[220px] truncate text-sm font-medium text-foreground">
-                        {row.guestName}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">{guestLabel}</p>
-                    </TableCell>
-                    <TableCell className="py-3.5 pe-0 text-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full border-border bg-card px-4 text-xs font-semibold shadow-none hover:bg-accent"
-                      >
-                        {t("common.contact")}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                      </TableCell>
+                      <TableCell className="align-middle px-2 py-3 text-center">
+                        <p className="mx-auto max-w-[200px] truncate text-sm font-medium text-foreground">
+                          {row.guestName}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{guestLabel}</p>
+                      </TableCell>
+                      <TableCell className="align-middle py-3 pe-0 ps-2 text-center">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 rounded-md border-border bg-muted/40 px-3 text-xs font-medium shadow-none hover:bg-muted/60"
+                        >
+                          {t("common.contact")}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -277,7 +280,7 @@ export function PanelReservationsTable({
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-foreground underline-offset-4 hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
         >
           <Download className="h-4 w-4" />
           {downloadLabel}

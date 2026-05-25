@@ -3,7 +3,7 @@
 import { useSignUp } from "@clerk/nextjs";
 import type { SignUpFutureResource } from "@clerk/shared/types";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
 import { PasswordRequirements } from "@/components/auth/password-requirements";
@@ -18,6 +18,11 @@ import {
   PASSWORD_MIN_LENGTH,
   validateNewAccountPassword,
 } from "@/lib/auth/password-rules";
+import {
+  formatResendCooldown,
+  isVerificationCodeActive,
+  VERIFICATION_RESEND_COOLDOWN_MS,
+} from "@/lib/auth/verification-flow";
 
 const POST_SIGNUP_PATH = "/onboarding";
 
@@ -41,11 +46,28 @@ export function EmailPasswordSignUpForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [pending, startTransition] = useTransition();
+  const verificationSendStartedRef = useRef(false);
 
   const clerkReady = Boolean(signUp);
   const isFetching = fetchStatus === "fetching" || pending;
   const showPasswordRules = passwordFocused || password.length > 0;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = window.setInterval(() => {
+      setResendCooldown((current) => (current <= 1 ? 0 : current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
+  function startResendCooldown() {
+    setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
+  }
 
   async function finalizeSignUp() {
     if (!signUp) {
@@ -78,6 +100,51 @@ export function EmailPasswordSignUpForm() {
     }
   }
 
+  async function sendSignupEmailCode(options?: { force?: boolean }) {
+    if (!signUp) {
+      throw new Error("El servicio de autenticación no está listo.");
+    }
+
+    const emailVerification = signUp.verifications.emailAddress;
+    if (
+      !options?.force &&
+      (isVerificationCodeActive(emailVerification) || verificationSendStartedRef.current)
+    ) {
+      return false;
+    }
+
+    verificationSendStartedRef.current = true;
+
+    const sendResult = await signUp.verifications.sendEmailCode();
+    const message = getSignUpFlowErrorMessage(
+      sendResult,
+      errors,
+      "No se pudo enviar el código de verificación.",
+    );
+
+    if (sendResult.error) {
+      verificationSendStartedRef.current = false;
+      throw new Error(message);
+    }
+
+    return true;
+  }
+
+  async function enterVerifyStep(options?: { forceSend?: boolean }) {
+    const sent = await sendSignupEmailCode({ force: options?.forceSend });
+    setStep("verify");
+
+    if (sent) {
+      startResendCooldown();
+      setInfo(`Enviamos un código de verificación a ${normalizedEmail}`);
+      return;
+    }
+
+    setInfo(
+      `Ingresa el código de verificación enviado a ${normalizedEmail}.`,
+    );
+  }
+
   async function completeSignUpIfReady() {
     if (!signUp) {
       throw new Error("El servicio de autenticación no está listo.");
@@ -89,19 +156,7 @@ export function EmailPasswordSignUpForm() {
     }
 
     if (needsEmailVerification(signUp)) {
-      const sendResult = await signUp.verifications.sendEmailCode();
-      const message = getSignUpFlowErrorMessage(
-        sendResult,
-        errors,
-        "No se pudo enviar el código de verificación.",
-      );
-
-      if (sendResult.error) {
-        throw new Error(message);
-      }
-
-      setStep("verify");
-      setInfo(`Enviamos un código de verificación a ${email.trim().toLowerCase()}`);
+      await enterVerifyStep();
       return;
     }
 
@@ -112,7 +167,6 @@ export function EmailPasswordSignUpForm() {
     event.preventDefault();
     if (!clerkReady || !signUp) return;
 
-    const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password) {
       setError("Completa correo y contraseña.");
       return;
@@ -131,6 +185,7 @@ export function EmailPasswordSignUpForm() {
 
     setError(null);
     setInfo(null);
+    verificationSendStartedRef.current = false;
 
     startTransition(async () => {
       try {
@@ -212,24 +267,14 @@ export function EmailPasswordSignUpForm() {
   }
 
   function resendCode() {
-    if (!clerkReady || !signUp) return;
+    if (!clerkReady || !signUp || resendCooldown > 0) return;
 
     setError(null);
     startTransition(async () => {
       try {
-        const result = await signUp.verifications.sendEmailCode();
-        const message = getSignUpFlowErrorMessage(
-          result,
-          errors,
-          "No se pudo reenviar el código.",
-        );
-
-        if (result.error) {
-          setError(message);
-          return;
-        }
-
-        setInfo(`Reenviamos el código a ${email.trim().toLowerCase()}`);
+        verificationSendStartedRef.current = false;
+        await enterVerifyStep({ forceSend: true });
+        setInfo(`Reenviamos el código a ${normalizedEmail}`);
       } catch (err) {
         setError(
           err instanceof Error
@@ -249,6 +294,11 @@ export function EmailPasswordSignUpForm() {
   }
 
   if (step === "verify") {
+    const resendLabel =
+      resendCooldown > 0
+        ? `Reenviar código (${formatResendCooldown(resendCooldown)})`
+        : "Reenviar código";
+
     return (
       <form className="space-y-5" onSubmit={handleVerify}>
         <div className="space-y-1 text-center">
@@ -300,10 +350,10 @@ export function EmailPasswordSignUpForm() {
           type="button"
           variant="ghost"
           className="w-full"
-          disabled={isFetching}
+          disabled={isFetching || resendCooldown > 0}
           onClick={resendCode}
         >
-          Reenviar código
+          {resendLabel}
         </Button>
       </form>
     );

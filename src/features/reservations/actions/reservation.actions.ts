@@ -38,6 +38,7 @@ function toInboxFromCreated(
     infants: r.infants,
     checkIn: prismaDateToKey(r.checkIn),
     checkOut: prismaDateToKey(r.checkOut),
+    createdAt: r.createdAt.toISOString(),
     platform: r.platform,
     status: r.status,
     totalAmount: r.totalAmount.toString(),

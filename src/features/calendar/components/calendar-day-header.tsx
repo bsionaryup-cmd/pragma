@@ -12,54 +12,43 @@ type CalendarDayHeaderProps = {
   days: CalendarDayMeta[];
   gridWidth: number;
   scrollRef: React.RefObject<HTMLDivElement | null>;
-  onScroll: () => void;
 };
 
 function CalendarDayHeaderComponent({
   days,
   gridWidth,
   scrollRef,
-  onScroll,
 }: CalendarDayHeaderProps) {
   return (
     <div
       ref={scrollRef}
-      onScroll={onScroll}
-      className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[var(--cal-row-divider)] bg-white [&::-webkit-scrollbar]:hidden"
+      className="pointer-events-none shrink-0 overflow-x-scroll overflow-y-hidden border-b border-[var(--cal-row-divider)] bg-white [&::-webkit-scrollbar]:hidden"
       style={{ scrollbarWidth: "none" }}
     >
       <div
         className="flex"
         style={{ width: gridWidth, height: CALENDAR_DAY_HEADER_HEIGHT }}
       >
-        {days.map((day) => (
+        {days.map((day, index) => (
           <div
             key={day.date}
             className={cn(
-              "flex shrink-0 flex-col items-center justify-center border-r border-dashed border-[var(--cal-col-divider)] text-center",
-              day.isWeekend && "bg-[var(--cal-bg-weekend)]",
+              "flex shrink-0 items-center justify-center border-r border-[var(--cal-col-divider)] bg-[var(--cal-header-cell-bg)] text-center",
+              index % 2 === 1 && "bg-[var(--cal-bg-alt)]",
               !day.isCurrentMonth && "text-[var(--cal-text-muted)]",
-              day.isToday && "bg-[var(--cal-bg-today-header)]",
             )}
             style={{ width: CALENDAR_DAY_WIDTH }}
           >
-            <span
-              className={cn(
-                "text-xs lowercase tracking-wide",
-                day.isToday
-                  ? "font-semibold text-[#111111]"
-                  : "text-[var(--cal-text-secondary)]",
-              )}
-            >
-              {day.weekdayShort}
-            </span>
             {day.isToday ? (
-              <span className="mt-0.5 flex h-8 min-w-8 items-center justify-center rounded-lg bg-[#111111] px-1.5 text-sm font-semibold tabular-nums text-white">
-                {day.label}
+              <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--cal-bg-today-header)] px-2.5 py-1.5 text-xs font-medium lowercase text-white">
+                {day.weekdayShort} {day.label}
               </span>
             ) : (
-              <span className="mt-0.5 text-sm font-medium tabular-nums text-[var(--cal-text-day)]">
-                {day.label}
+              <span className="text-xs lowercase">
+                <span className="text-[var(--cal-text-muted)]">{day.weekdayShort}</span>{" "}
+                <span className="font-medium tabular-nums text-[var(--cal-text-day)]">
+                  {day.label}
+                </span>
               </span>
             )}
           </div>

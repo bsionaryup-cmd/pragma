@@ -36,11 +36,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     !billing.locked &&
     (hasPermission(auth.role as AppUserRole, "reservations:write") ||
       hasPermission(auth.role as AppUserRole, "properties:write"));
-  const canSyncAirbnb = hasPermission(
-    auth.role as AppUserRole,
-    "properties:write",
-  );
-
   const data = await getCalendarData(anchor);
   const propertyOptions = data.properties.map((property) => ({
     id: property.id,
@@ -63,7 +58,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         data={data}
         canWrite={canWrite}
         canManageGuestRegistration={canManageGuestRegistration}
-        canSyncAirbnb={canSyncAirbnb}
         propertyOptions={propertyOptions}
         initialReservationId={initialReservationId}
       />

@@ -8,10 +8,10 @@ export const CALENDAR_TURNOVER_GAP_PX = 12;
 export const CALENDAR_ROW_HEIGHT = 88;
 
 /** Sidebar izquierda de propiedades (px) */
-export const CALENDAR_SIDEBAR_WIDTH = 272;
+export const CALENDAR_SIDEBAR_WIDTH = 280;
 
 /** Header de días (px) */
-export const CALENDAR_DAY_HEADER_HEIGHT = 58;
+export const CALENDAR_DAY_HEADER_HEIGHT = 52;
 
 /** Toolbar superior (px) */
 export const CALENDAR_TOOLBAR_HEIGHT = 48;

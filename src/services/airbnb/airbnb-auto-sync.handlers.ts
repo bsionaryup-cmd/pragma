@@ -17,6 +17,7 @@ const AIRBNB_SYNC_TIMEOUT_MS = 90_000;
 
 function revalidateSyncedPaths() {
   revalidatePath("/properties");
+  revalidatePath("/integrations/airbnb");
   revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/");

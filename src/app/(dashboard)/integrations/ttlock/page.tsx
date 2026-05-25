@@ -15,7 +15,14 @@ const TTLockPanel = dynamic(
 );
 
 type TTLockPageProps = {
-  searchParams: Promise<{ error?: string; connected?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    connected?: string;
+    synced?: string;
+    sync?: string;
+    disconnected?: string;
+    mapped?: string;
+  }>;
 };
 
 export default async function TTLockIntegrationPage({
@@ -59,6 +66,10 @@ export default async function TTLockIntegrationPage({
       overview={overview!}
       flashError={params.error ?? null}
       flashConnected={params.connected === "1"}
+      flashSynced={params.synced === "1"}
+      flashSyncManual={params.sync === "manual"}
+      flashDisconnected={params.disconnected === "1"}
+      flashMapped={params.mapped === "1"}
     />
   );
 }

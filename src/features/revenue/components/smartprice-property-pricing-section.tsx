@@ -13,9 +13,7 @@ import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useI18n } from "@/components/providers/i18n-provider";
-import { cn } from "@/lib/utils";
 
 type PropertyRow = PriceLabsOverviewDto["properties"][number];
 
@@ -36,7 +34,16 @@ function formatMoney(value: string | null, currency = "COP") {
   }).format(amount);
 }
 
-function PropertyPricingCard({
+function resolveUnitNumber(property: PropertyRow): string {
+  const unitLabel = resolveCalendarUnitLabel({
+    name: property.name,
+    unitNumber: property.unitNumber,
+    listingName: property.insights.listingName,
+  });
+  return unitLabel ? formatCalendarUnitDisplay(unitLabel) : "—";
+}
+
+function PropertyPricingRow({
   property,
   canEdit,
 }: {
@@ -48,12 +55,7 @@ function PropertyPricingCard({
   const [minRate, setMinRate] = useState(property.minRate ?? "");
   const [baseRate, setBaseRate] = useState(property.baseRate ?? "");
   const [maxRate, setMaxRate] = useState(property.maxRate ?? "");
-
-  const unitLabel = resolveCalendarUnitLabel({
-    name: property.name,
-    unitNumber: property.unitNumber,
-  });
-  const unitDisplay = unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
+  const unitNumber = resolveUnitNumber(property);
 
   const onSave = () => {
     startTransition(async () => {
@@ -72,122 +74,96 @@ function PropertyPricingCard({
     });
   };
 
+const cellClass = "px-1.5 py-1 text-center";
+
   return (
-    <article className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-pragma-soft">
-      <header className="mb-4 flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          {unitDisplay ? (
-            <p className="text-xs font-semibold uppercase tracking-wide text-pragma-electric">
-              {t("smartprice.pricing.unit")} {unitDisplay}
-            </p>
-          ) : null}
-          <p
-            className={cn(
-              "truncate font-medium text-foreground",
-              unitDisplay ? "mt-0.5 text-sm" : "text-base",
-            )}
-            title={property.name}
-          >
-            {property.name}
-          </p>
-          {property.city ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{property.city}</p>
-          ) : null}
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            {t("smartprice.pricing.recommended")}
-          </p>
-          <p className="text-sm font-semibold tabular-nums text-success">
-            {formatMoney(property.recommendedRate)}
-          </p>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-3 gap-2 text-sm">
-        <RateField
-          label={t("smartprice.pricing.min")}
+    <tr className="border-b border-border/50 last:border-0">
+      <td className={cellClass}>
+        <p
+          className="text-sm font-normal tabular-nums text-black"
+          title={property.name}
+        >
+          {unitNumber}
+        </p>
+      </td>
+      <td className={cellClass}>
+        <RateCell
           value={minRate}
-          onChange={setMinRate}
           display={formatMoney(property.minRate)}
+          onChange={setMinRate}
           canEdit={canEdit}
           pending={pending}
         />
-        <RateField
-          label={t("smartprice.pricing.base")}
+      </td>
+      <td className={cellClass}>
+        <RateCell
           value={baseRate}
-          onChange={setBaseRate}
           display={formatMoney(property.baseRate)}
+          onChange={setBaseRate}
           canEdit={canEdit}
           pending={pending}
         />
-        <RateField
-          label={t("smartprice.pricing.max")}
+      </td>
+      <td className={cellClass}>
+        <RateCell
           value={maxRate}
-          onChange={setMaxRate}
           display={formatMoney(property.maxRate)}
+          onChange={setMaxRate}
           canEdit={canEdit}
           pending={pending}
         />
-      </div>
-
-      <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-        <span>
-          {t("smartprice.insight.avgDelta")}:{" "}
-          <span className="font-medium tabular-nums text-foreground">
-            {formatMoney(property.priceDelta)}
-          </span>
-        </span>
-        {canEdit ? (
+      </td>
+      <td className={cellClass}>
+        <p className="text-sm tabular-nums text-success">
+          {formatMoney(property.recommendedRate)}
+        </p>
+      </td>
+      {canEdit ? (
+        <td className={cellClass}>
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={pending}
             onClick={onSave}
-            className="h-8 gap-1.5"
+            className="h-7 gap-1 px-2 text-xs"
           >
-            <Save className="h-3.5 w-3.5" />
+            <Save className="h-3 w-3" />
             {t("common.save")}
           </Button>
-        ) : null}
-      </footer>
-    </article>
+        </td>
+      ) : null}
+    </tr>
   );
 }
 
-function RateField({
-  label,
+function RateCell({
   value,
-  onChange,
   display,
+  onChange,
   canEdit,
   pending,
 }: {
-  label: string;
   value: string;
-  onChange: (value: string) => void;
   display: string;
+  onChange: (value: string) => void;
   canEdit: boolean;
   pending: boolean;
 }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-[11px] text-muted-foreground">{label}</Label>
-      {canEdit ? (
-        <Input
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="0"
-          className="h-9 tabular-nums text-sm"
-          disabled={pending}
-        />
-      ) : (
-        <p className="py-1.5 text-sm tabular-nums">{display}</p>
-      )}
-    </div>
-  );
+  if (canEdit) {
+    return (
+      <Input
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="0"
+        className="mx-auto h-7 w-full max-w-[5rem] px-1.5 text-center text-sm tabular-nums"
+        disabled={pending}
+      />
+    );
+  }
+
+  return <p className="text-sm tabular-nums">{display}</p>;
 }
 
 export function SmartpricePropertyPricingSection({
@@ -202,33 +178,53 @@ export function SmartpricePropertyPricingSection({
     () =>
       sortPropertiesByUnitNumber(properties, (property) => ({
         name: property.name,
-        unitNumber: property.unitNumber,
+        unitNumber: resolveCalendarUnitLabel({
+          name: property.name,
+          unitNumber: property.unitNumber,
+          listingName: property.insights.listingName,
+        }),
       })),
     [properties],
   );
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2 text-center">
         <CardTitle className="text-base">{t("smartprice.pricing.title")}</CardTitle>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {t("smartprice.pricing.description")}
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {sortedProperties.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-center text-sm text-muted-foreground">
             {t("smartprice.pricing.empty")}
           </p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {sortedProperties.map((property) => (
-              <PropertyPricingCard
-                key={property.id}
-                property={property}
-                canEdit={canEdit}
-              />
-            ))}
+          <div className="mx-auto overflow-x-auto rounded-xl border border-border/70">
+            <table className="mx-auto w-full min-w-[440px] max-w-2xl border-separate border-spacing-0 text-center text-sm">
+              <thead>
+                <tr className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="border-b border-border px-1.5 py-1 font-medium text-black">
+                    {t("smartprice.pricing.unit")}
+                  </th>
+                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.min")}</th>
+                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.base")}</th>
+                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.max")}</th>
+                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.recommended")}</th>
+                  {canEdit ? <th className="border-b border-border px-1.5 py-1 font-medium" /> : null}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedProperties.map((property) => (
+                  <PropertyPricingRow
+                    key={property.id}
+                    property={property}
+                    canEdit={canEdit}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </CardContent>

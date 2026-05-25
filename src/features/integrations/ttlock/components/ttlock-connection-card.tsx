@@ -1,45 +1,40 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { KeyRound, Loader2, Plug, RefreshCw, Unplug } from "lucide-react";
 import {
   disconnectTTLockAction,
   syncTTLockLocksAction,
 } from "@/features/integrations/ttlock/actions/ttlock.actions";
+import { accountIsTTLockConnected } from "@/features/integrations/ttlock/components/ttlock-lock-mapping-tables";
 import type { TTLockOverviewDto } from "@/services/integrations/ttlock/ttlock.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/helpers/date";
 
 type TTLockConnectionCardProps = {
   overview: TTLockOverviewDto;
   flashError?: string | null;
   flashConnected?: boolean;
+  flashSynced?: boolean;
+  flashSyncManual?: boolean;
+  flashDisconnected?: boolean;
 };
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "Nunca";
-  return new Date(value).toLocaleString("es-CO", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 export function TTLockConnectionCard({
   overview,
   flashError,
   flashConnected,
+  flashSynced,
+  flashSyncManual,
+  flashDisconnected,
 }: TTLockConnectionCardProps) {
   const { integration, canManage, metrics } = overview;
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [connecting, setConnecting] = useState(false);
 
-  const isConnected =
-    integration.accountConnected &&
-    (integration.status === "CONNECTED" || integration.status === "READY");
+  const isConnected = accountIsTTLockConnected(integration);
   const needsReconnect =
     integration.status === "TOKEN_EXPIRED" ||
     integration.status === "INVALID_CREDENTIALS" ||
@@ -54,6 +49,11 @@ export function TTLockConnectionCard({
       : needsReconnect || integration.status === "SYNC_ERROR"
         ? "destructive"
         : "outline";
+
+  function startConnect() {
+    setConnecting(true);
+    window.location.assign("/api/integrations/ttlock/connect");
+  }
 
   if (!canManage) {
     return (
@@ -93,24 +93,6 @@ export function TTLockConnectionCard({
     );
   }
 
-  function runSync() {
-    setActionMessage(null);
-    startTransition(async () => {
-      try {
-        await syncTTLockLocksAction();
-        setActionMessage("Cerraduras sincronizadas correctamente.");
-      } catch (error) {
-        setActionMessage(
-          error instanceof Error ? error.message : "No se pudo sincronizar",
-        );
-      }
-    });
-  }
-
-  function runReconnect() {
-    window.location.href = "/api/integrations/ttlock/connect";
-  }
-
   return (
     <Card className="border-border shadow-pragma-soft">
       <CardHeader className="space-y-4">
@@ -122,8 +104,8 @@ export function TTLockConnectionCard({
             <div>
               <CardTitle>TTLock</CardTitle>
               <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Conecta tu cuenta TTLock para gestionar cerraduras inteligentes
-                dentro de PRAGMA.
+                Conecta tu cuenta de la app TTLock (usuario y contraseña) para
+                sincronizar cerraduras en PRAGMA.
               </p>
             </div>
           </div>
@@ -135,6 +117,22 @@ export function TTLockConnectionCard({
             Cuenta TTLock conectada correctamente.
           </p>
         ) : null}
+        {flashSynced ? (
+          <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+            Cerraduras sincronizadas correctamente.
+          </p>
+        ) : null}
+        {flashSyncManual ? (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
+            Cuenta conectada. Pulsa &quot;Sincronizar cerraduras&quot; para cargar tu
+            inventario.
+          </p>
+        ) : null}
+        {flashDisconnected ? (
+          <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground">
+            Cuenta TTLock desconectada.
+          </p>
+        ) : null}
         {flashError ? (
           <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {flashError}
@@ -143,11 +141,6 @@ export function TTLockConnectionCard({
         {integration.lastError ? (
           <p className="rounded-xl border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {integration.lastError}
-          </p>
-        ) : null}
-        {actionMessage ? (
-          <p className="rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground">
-            {actionMessage}
           </p>
         ) : null}
       </CardHeader>
@@ -175,7 +168,7 @@ export function TTLockConnectionCard({
               Última sync
             </p>
             <p className="mt-2 text-sm font-medium text-foreground">
-              {formatDate(integration.lastSyncedAt)}
+              {formatDateTime(integration.lastSyncedAt, "Nunca")}
             </p>
           </div>
           <div className="rounded-xl bg-muted/40 p-4">
@@ -194,35 +187,23 @@ export function TTLockConnectionCard({
 
         <div className="flex flex-wrap gap-2">
           {!isConnected || needsReconnect ? (
-            <>
-              <Button type="button" onClick={runReconnect} disabled={isPending}>
-                {isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plug className="h-4 w-4" />
-                )}
-                {needsReconnect ? "Reconectar TTLock" : "Conectar TTLock"}
-              </Button>
-              <Button type="button" variant="outline" asChild disabled={isPending}>
-                <Link href="/integrations/ttlock/connect">
-                  Conectar con cuenta TTLock
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isPending}
-              onClick={runSync}
-            >
-              {isPending ? (
+            <Button type="button" onClick={startConnect} disabled={connecting}>
+              {connecting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <RefreshCw className="h-4 w-4" />
+                <Plug className="h-4 w-4" />
               )}
-              Sincronizar cerraduras
+              {needsReconnect
+                ? "Reconectar con cuenta TTLock"
+                : "Conectar con cuenta TTLock"}
             </Button>
+          ) : (
+            <form action={syncTTLockLocksAction}>
+              <Button type="submit" variant="outline">
+                <RefreshCw className="h-4 w-4" />
+                Sincronizar cerraduras
+              </Button>
+            </form>
           )}
         </div>
 
@@ -232,7 +213,6 @@ export function TTLockConnectionCard({
               <Button
                 type="button"
                 variant="outline"
-                disabled={isPending}
                 onClick={() => setConfirmDisconnect(true)}
               >
                 <Unplug className="h-4 w-4" />
@@ -246,11 +226,7 @@ export function TTLockConnectionCard({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <form action={disconnectTTLockAction}>
-                    <Button
-                      type="submit"
-                      variant="destructive"
-                      disabled={isPending}
-                    >
+                    <Button type="submit" variant="destructive">
                       Confirmar desconexión
                     </Button>
                   </form>

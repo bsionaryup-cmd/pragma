@@ -19,6 +19,9 @@ import {
   testPriceLabsConnectionAction,
 } from "@/features/integrations/pricelabs/actions/pricelabs.actions";
 import { PriceLabsApiKeyCard } from "@/features/integrations/pricelabs/components/pricelabs-api-key-card";
+import { PriceLabsInsightsSection } from "@/features/integrations/pricelabs/components/pricelabs-insights-section";
+import { PriceLabsOverridesPanel } from "@/features/integrations/pricelabs/components/pricelabs-overrides-panel";
+import { PriceLabsPropertyDetailCard } from "@/features/integrations/pricelabs/components/pricelabs-property-detail-card";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -196,6 +199,8 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
           </div>
         ) : null}
 
+        <PriceLabsInsightsSection overview={overview} />
+
         <div className="grid gap-4 lg:grid-cols-3">
           <PriceLabsApiKeyCard overview={overview} canManage={canManage} />
 
@@ -230,8 +235,6 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
             <CardContent className="grid grid-cols-2 gap-2 text-sm">
               <Stat label="Sincronizadas" value={`${metrics.syncedCount}/${metrics.propertyCount}`} />
               <Stat label="Última sync" value={formatDate(integration.lastPricesSyncAt)} />
-              <Stat label="Tarifa baja" value={String(revenue.underpricedCount)} warn />
-              <Stat label="Tarifa alta" value={String(revenue.overpricedCount)} />
               <div className="col-span-2 border-t pt-2">
                 <p className="text-xs text-[#9CA3AF]">Delta promedio</p>
                 <p className="font-semibold">{formatMoney(revenue.avgDelta)}</p>
@@ -314,59 +317,18 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
           </Card>
         ) : null}
 
-        <Card className="border-[#E5E7EB] bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Propiedades</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
-                <thead>
-                  <tr className="border-b text-xs uppercase text-[#9CA3AF]">
-                    <th className="py-2 pr-4">Propiedad</th>
-                    <th className="py-2 pr-4">Listing</th>
-                    <th className="py-2 pr-4">Base PL</th>
-                    <th className="py-2 pr-4">Mín</th>
-                    <th className="py-2 pr-4">Máx</th>
-                    <th className="py-2 pr-4">Recomendado</th>
-                    <th className="py-2 pr-4">Delta</th>
-                    <th className="py-2">Sync</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {properties.map((p) => (
-                    <tr key={p.id} className="border-b border-[#F3F4F6]">
-                      <td className="py-3 pr-4 font-medium">{p.name}</td>
-                      <td className="py-3 pr-4 text-xs text-[#6B7280]">
-                        {p.listingId
-                          ? p.listingId.length > 12
-                            ? `…${p.listingId.slice(-8)}`
-                            : p.listingId
-                          : "—"}
-                      </td>
-                      <td className="py-3 pr-4">
-                        {formatMoney(p.listingBase ?? p.baseRate)}
-                      </td>
-                      <td className="py-3 pr-4">{formatMoney(p.minRate)}</td>
-                      <td className="py-3 pr-4">{formatMoney(p.maxRate)}</td>
-                      <td className="py-3 pr-4 text-success">
-                        {formatMoney(p.recommendedRate)}
-                      </td>
-                      <td className="py-3 pr-4">{formatMoney(p.priceDelta)}</td>
-                      <td className="py-3 text-xs text-[#6B7280]">
-                        {p.lastError ? (
-                          <span className="text-red-600">{p.lastError}</span>
-                        ) : (
-                          formatDate(p.lastSyncedAt)
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <PriceLabsOverridesPanel overview={overview} canManage={canManage} />
+
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold">Propiedades vinculadas</h2>
+          {properties.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay propiedades activas.</p>
+          ) : (
+            properties.map((property) => (
+              <PriceLabsPropertyDetailCard key={property.id} property={property} />
+            ))
+          )}
+        </div>
 
         <Card className="border-[#E5E7EB] bg-white shadow-sm">
           <CardHeader>

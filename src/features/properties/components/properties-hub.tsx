@@ -1,12 +1,12 @@
 "use client";
 
-import { Download, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { getPropertyDetailAction } from "@/features/properties/actions/property.actions";
 import { PropertyCard } from "@/features/properties/components/property-card";
 import { AirbnbImportDrawer } from "@/features/properties/components/airbnb-import-drawer";
-import { AirbnbSyncStatus } from "@/components/airbnb/airbnb-sync-status";
+import { AirbnbHubActions } from "@/features/integrations/airbnb/components/airbnb-hub-actions";
 import {
   PropertyDrawer,
   type PropertyDrawerMode,
@@ -174,17 +174,11 @@ export function PropertiesHub({
               </p>
             </div>
             {canWrite ? (
-              <div className="flex flex-wrap gap-2">
-                <AirbnbSyncStatus canSync={canWrite} />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setAirbnbImportOpen(true)}
-                  className="h-9 rounded-full border-danger/30 px-4 text-danger hover:bg-danger/10 hover:text-danger"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Importar desde Airbnb
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <AirbnbHubActions
+                  canSync={canWrite}
+                  onImportClick={() => setAirbnbImportOpen(true)}
+                />
                 <Button
                   onClick={openCreate}
                   className="h-9 rounded-full bg-primary px-4 text-primary-foreground hover:bg-primary-hover"

@@ -84,7 +84,7 @@ export function InboxConversationList({
                     {conversation.preview}
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <PlatformBadge platform="AIRBNB" />
+                    <PlatformBadge platform={conversation.platform} />
                     <span className="text-xs text-muted-foreground">
                       {conversation.dateRange}
                     </span>

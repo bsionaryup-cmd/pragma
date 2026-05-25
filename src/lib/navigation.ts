@@ -16,7 +16,9 @@ export type NavIconName =
   | "wallet"
   | "line-chart"
   | "settings"
-  | "key-round";
+  | "key-round"
+  | "credit-card"
+  | "list-checks";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -47,6 +49,12 @@ const mainNavItems: NavItem[] = [
     permission: "calendar:read",
   },
   {
+    labelKey: "nav.tasks",
+    href: "/tasks",
+    icon: "list-checks",
+    permission: "tasks:read",
+  },
+  {
     labelKey: "nav.properties",
     href: "/properties",
     icon: "building-2",
@@ -65,6 +73,12 @@ const mainNavItems: NavItem[] = [
     permission: "access:read",
   },
   {
+    labelKey: "nav.integrations",
+    href: "/integrations",
+    icon: "ribbon",
+    permission: "integrations:read",
+  },
+  {
     labelKey: "nav.messages",
     href: "/inbox",
     icon: "message-circle",
@@ -77,6 +91,20 @@ const financeNavItem: NavItem = {
   href: "/finance",
   icon: "wallet",
   permission: "finance:read",
+};
+
+const billingNavItem: NavItem = {
+  labelKey: "nav.billing",
+  href: "/settings/billing",
+  icon: "credit-card",
+  permission: "billing:manage",
+};
+
+const usersNavItem: NavItem = {
+  labelKey: "nav.users",
+  href: "/users",
+  icon: "clipboard-list",
+  permission: "users:read",
 };
 
 const settingsNavItem: NavItem = {
@@ -106,6 +134,14 @@ export function getMainNavigationForRole(role: AppUserRole): NavItem[] {
     hasAnyPermission(role, ["finance:read", "finance:operations:read"])
   ) {
     items.push(financeNavItem);
+  }
+
+  if (hasPermission(role, "billing:manage")) {
+    items.push(billingNavItem);
+  }
+
+  if (hasPermission(role, "users:read")) {
+    items.push(usersNavItem);
   }
 
   return items;

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { completeTTLockConnectAction } from "@/features/integrations/ttlock/actions/ttlock.actions";
 import { requireTTLockAdmin } from "@/lib/auth/ttlock-admin";
+import { buildTTLockConnectSession } from "@/services/integrations/ttlock/ttlock.service";
 
 type TTLockConnectPageProps = {
   searchParams: Promise<{ state?: string; error?: string }>;
@@ -14,10 +15,11 @@ type TTLockConnectPageProps = {
 export default async function TTLockConnectPage({
   searchParams,
 }: TTLockConnectPageProps) {
-  await requireTTLockAdmin();
+  const user = await requireTTLockAdmin();
   const params = await searchParams;
-  const state = params.state?.trim() ?? "";
   const error = params.error?.trim();
+  const state =
+    params.state?.trim() || (await buildTTLockConnectSession(user.dbUserId)).state;
 
   return (
     <ModuleShellFlow className="bg-background px-4 py-8 sm:px-6 lg:px-8">
@@ -46,7 +48,7 @@ export default async function TTLockConnectPage({
           </CardHeader>
           <CardContent>
             <form action={completeTTLockConnectAction} className="space-y-4">
-              {state ? <input type="hidden" name="state" value={state} /> : null}
+              <input type="hidden" name="state" value={state} />
               <div className="space-y-2">
                 <Label htmlFor="username">Usuario TTLock</Label>
                 <Input

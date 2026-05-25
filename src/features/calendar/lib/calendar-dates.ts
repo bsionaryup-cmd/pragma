@@ -11,8 +11,10 @@ import {
 
 const WEEKDAY_SHORT = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
 
-/** Días visibles antes del ancla (hoy por defecto). */
-export const CALENDAR_DAYS_BEFORE = 3;
+/** Días visibles antes del ancla cuando se navega fuera de hoy. */
+export const CALENDAR_DEFAULT_DAYS_BEFORE = 21;
+/** Mínimo de días pasados si no hay reservas previas. */
+export const CALENDAR_DAYS_BEFORE = 0;
 /** Días visibles después del ancla. */
 export const CALENDAR_DAYS_AFTER = 56;
 
@@ -141,6 +143,23 @@ export function formatMonthYear(year: number, month: number): string {
     { month: "long", year: "numeric", timeZone: "UTC" },
   );
   return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** Mes visible según la columna izquierda del scroll horizontal. */
+export function resolveMonthFromScrollLeft(
+  scrollLeft: number,
+  days: CalendarDayMeta[],
+  dayWidth = CALENDAR_DAY_WIDTH,
+): { year: number; month: number } {
+  if (days.length === 0) {
+    return { year: new Date().getUTCFullYear(), month: new Date().getUTCMonth() + 1 };
+  }
+  const index = Math.min(
+    days.length - 1,
+    Math.max(0, Math.floor(scrollLeft / dayWidth)),
+  );
+  const [year, month] = days[index].date.split("-").map(Number);
+  return { year, month };
 }
 
 export function shiftMonth(

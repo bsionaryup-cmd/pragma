@@ -58,3 +58,47 @@ export function formatCompactPrice(value: number | null): string {
   if (value >= 1000) return `${Math.round(value / 1000)}k`;
   return String(Math.round(value));
 }
+
+function resolveNightRate(pricing: CalendarDayPricingDto | undefined): number {
+  if (!pricing) return 0;
+  return (
+    pricing.recommendedPrice ??
+    pricing.nightlyPrice ??
+    pricing.basePrice ??
+    0
+  );
+}
+
+/** Suma tarifas PriceLabs por noche (check-in inclusive, check-out exclusive). */
+export function sumPriceLabsStayTotal(
+  dailyPricesByDate: Record<string, CalendarDayPricingDto>,
+  checkIn: string,
+  checkOut: string,
+): number {
+  if (!checkIn || !checkOut || checkOut <= checkIn) return 0;
+
+  let total = 0;
+  let cursor = checkIn;
+
+  while (cursor < checkOut) {
+    total += resolveNightRate(dailyPricesByDate[cursor]);
+    const [y, m, d] = cursor.split("-").map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    cursor = next.toISOString().slice(0, 10);
+  }
+
+  return Math.round(total);
+}
+
+/** Total con presupuesto: noches PriceLabs + tarifa de aseo de la propiedad. */
+export function sumBudgetReservationTotal(
+  dailyPricesByDate: Record<string, CalendarDayPricingDto>,
+  checkIn: string,
+  checkOut: string,
+  cleaningFee?: number | null,
+): number {
+  const nights = sumPriceLabsStayTotal(dailyPricesByDate, checkIn, checkOut);
+  const fee =
+    cleaningFee != null && cleaningFee > 0 ? Math.round(cleaningFee) : 0;
+  return nights + fee;
+}

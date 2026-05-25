@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Bath, BedDouble, CalendarDays, MapPin, Users } from "lucide-react";
 import { PropertyCover } from "@/features/properties/components/property-cover";
 import { getPropertyStatusBadgeClass } from "@/features/properties/lib/property-style";
@@ -13,7 +14,7 @@ type PropertyCardProps = {
   onSelect: () => void;
 };
 
-export function PropertyCard({
+function PropertyCardComponent({
   property,
   isSelected,
   onSelect,
@@ -105,3 +106,5 @@ export function PropertyCard({
     </button>
   );
 }
+
+export const PropertyCard = memo(PropertyCardComponent);

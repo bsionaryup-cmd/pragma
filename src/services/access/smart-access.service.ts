@@ -2,7 +2,8 @@ import {
   AccessCredentialStatus,
   ReservationStatus,
 } from "@prisma/client";
-import { formatPropertyLabel, sortPropertiesByUnitNumber } from "@/lib/property-display";
+import { sortPropertiesByUnitNumber } from "@/lib/property-display";
+import { resolveCalendarUnitLabel } from "@/features/calendar/lib/property-unit";
 import { formatAccessCode } from "@/lib/access-code";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
@@ -28,6 +29,7 @@ export type SmartAccessItem = {
   id: string;
   guestName: string;
   propertyName: string;
+  propertyUnitNumber: string | null;
   checkIn: string;
   checkOut: string;
   status: ReservationStatus;
@@ -191,7 +193,11 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     return {
       id: reservation.id,
       guestName: reservation.guestName?.trim() || "Sin registrar",
-      propertyName: formatPropertyLabel(reservation.property),
+      propertyName: reservation.property.name,
+      propertyUnitNumber: resolveCalendarUnitLabel({
+        name: reservation.property.name,
+        unitNumber: reservation.property.unitNumber,
+      }),
       checkIn: prismaDateToKey(reservation.checkIn),
       checkOut: prismaDateToKey(reservation.checkOut),
       status: reservation.status,

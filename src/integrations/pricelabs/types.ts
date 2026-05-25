@@ -148,6 +148,7 @@ export type StoredPriceLabsMeta = {
   neighborhood?: PriceLabsNeighborhoodResponse;
   lastListingRefresh?: string;
   lastPricesSync?: string;
+  lastOverridesSync?: string;
   matchReason?: string;
   mode?: string;
 };

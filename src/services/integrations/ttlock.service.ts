@@ -15,6 +15,7 @@ export {
   syncTTLockLocks,
   syncTTLockLocksPlaceholder,
   testTTLockConnection,
+  unassignTTLockByLockId,
   type TTLockOverview,
 } from "@/services/integrations/ttlock/ttlock.service";
 

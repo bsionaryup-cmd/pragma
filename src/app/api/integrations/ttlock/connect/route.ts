@@ -10,14 +10,20 @@ import { TTLOCK_OAUTH_STATE_COOKIE } from "@/services/integrations/ttlock/ttlock
 
 export const runtime = "nodejs";
 
+function resolveConnectFlow(request: Request): "account" | "oauth" {
+  const flow = new URL(request.url).searchParams.get("flow")?.trim().toLowerCase();
+  return flow === "oauth" ? "oauth" : "account";
+}
+
 export async function GET(request: Request) {
-  const authResult = await requireTTLockApiAdmin(request);
+  const authResult = await requireTTLockApiAdmin(request, { browser: true });
   if (isAuthErrorResponse(authResult)) return authResult;
 
   try {
     const session = await beginTTLockConnect(
       authResult.auth.dbUserId,
       authResult.request,
+      { flow: resolveConnectFlow(request), requestUrl: request.url },
     );
 
     const cookieStore = await cookies();
@@ -32,7 +38,11 @@ export async function GET(request: Request) {
         : {}),
     });
 
-    return NextResponse.redirect(session.redirectUrl);
+    const targetUrl = session.redirectUrl.startsWith("http")
+      ? session.redirectUrl
+      : resolveTTLockAppRedirectUrl(session.redirectUrl, request.url);
+
+    return NextResponse.redirect(targetUrl);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "No se pudo iniciar la conexión";

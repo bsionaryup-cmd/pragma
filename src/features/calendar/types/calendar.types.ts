@@ -33,6 +33,8 @@ export type CalendarPropertyDto = {
   coverImageUrl: string | null;
   pricing: CalendarPropertyPricingDto | null;
   dailyPricesByDate: Record<string, CalendarDayPricingDto>;
+  /** Tarifa de aseo (solo se suma en reservas con presupuesto). */
+  cleaningFee: number | null;
 };
 
 export type CalendarReservationDto = {
