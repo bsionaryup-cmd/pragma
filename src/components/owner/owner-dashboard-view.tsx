@@ -268,8 +268,10 @@ function OverviewPanel({ snapshot }: { snapshot: OwnerDashboardSnapshot }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-end gap-2">
-        <Button asChild size="sm" variant="outline" className="gap-2">
+        <Button asChild size="sm" variant="outline">
           <Link href="/owner-dashboard/sales">Sales Console</Link>
+        </Button>
+        <Button asChild size="sm" variant="outline">
           <Link href="/owner-dashboard/support">Support Center</Link>
         </Button>
         <Button asChild size="sm" variant="outline" className="gap-2">

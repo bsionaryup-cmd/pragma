@@ -275,7 +275,7 @@ export async function reconcilePendingGuestPaymentsFromWompi(): Promise<{
         ? String((link.metadata as Record<string, unknown>).lastWompiTransactionId)
         : null);
 
-    let lookup = transactionId
+    const lookup = transactionId
       ? await fetchWompiTransactionById({
           organizationId: link.organizationId,
           transactionId,

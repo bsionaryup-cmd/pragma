@@ -57,7 +57,7 @@ export function calculateSalesQuote(
   const discountPercent = clampDiscountPercent(input.discountPercent);
   const discountAmountCop = roundCop(input.discountAmountCop ?? 0);
 
-  let savingsFromPercent = roundCop((listMonthlyCop * discountPercent) / 100);
+  const savingsFromPercent = roundCop((listMonthlyCop * discountPercent) / 100);
   let savingsCop = Math.min(
     listMonthlyCop,
     savingsFromPercent + discountAmountCop,
