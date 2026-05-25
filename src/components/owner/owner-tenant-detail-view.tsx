@@ -23,6 +23,12 @@ import {
 } from "@/components/ui/table";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { formatDate } from "@/lib/helpers/date";
+import type { BillingPlanCode } from "@prisma/client";
+import {
+  formatCop,
+  getPlanDefinition,
+  PLAN_CATALOG,
+} from "@/modules/billing/domain/plan-catalog";
 
 type TenantDetail = NonNullable<
   Awaited<
@@ -213,9 +219,14 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                     }
                     className="h-10 rounded-xl border border-input bg-white px-3 dark:bg-card"
                   >
-                    <option value="STARTER">Start ($79.999/prop.)</option>
-                    <option value="PRO">Pro ($89.999/prop.)</option>
-                    <option value="SCALE">Scale ($74.999/prop.)</option>
+                    {(Object.keys(PLAN_CATALOG) as BillingPlanCode[]).map((code) => {
+                      const def = getPlanDefinition(code);
+                      return (
+                        <option key={code} value={code}>
+                          {def.name} ({formatCop(def.pricePerPropertyCop)}/prop.)
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <label className="grid gap-1.5 text-sm">

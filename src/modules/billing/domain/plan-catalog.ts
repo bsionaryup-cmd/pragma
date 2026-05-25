@@ -26,7 +26,7 @@ export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
     tagline: "Opera tus Airbnb sin Excel",
     description:
       "Calendario, reservas y propiedades para anfitriones que inician en Medellín y LatAm.",
-    pricePerPropertyCop: 79_999,
+    pricePerPropertyCop: 79_000,
     currency: "COP",
     maxProperties: 5,
     maxUsers: 2,
@@ -44,7 +44,7 @@ export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
     tagline: "Escala ingresos y operación",
     description:
       "Automatización, TTLock, PriceLabs y finanzas para property managers en crecimiento.",
-    pricePerPropertyCop: 89_999,
+    pricePerPropertyCop: 90_000,
     currency: "COP",
     highlighted: true,
     badge: "Recomendado",
@@ -64,7 +64,7 @@ export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
     tagline: "Property manager profesional",
     description:
       "Operación enterprise, cumplimiento SIRE/TRAA y capacidad ampliada para portafolios grandes.",
-    pricePerPropertyCop: 74_999,
+    pricePerPropertyCop: 75_000,
     currency: "COP",
     maxProperties: 999,
     maxUsers: 999,
