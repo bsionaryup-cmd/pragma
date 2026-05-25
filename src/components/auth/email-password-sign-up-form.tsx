@@ -1,9 +1,9 @@
 "use client";
 
-import { useSignUp } from "@clerk/nextjs";
+import { useClerk, useSignUp } from "@clerk/nextjs";
 import type { SignUpFutureResource } from "@clerk/shared/types";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -22,10 +22,9 @@ import {
 import {
   formatResendCooldown,
   isVerificationCodeActive,
+  sanitizeAuthRedirectPath,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from "@/lib/auth/verification-flow";
-
-const POST_SIGNUP_PATH = "/onboarding";
 
 type Step = "register" | "verify";
 
@@ -36,14 +35,34 @@ function needsEmailVerification(signUp: SignUpFutureResource): boolean {
   );
 }
 
+function describeMissingSignUpFields(signUp: SignUpFutureResource): string {
+  const labels: Record<string, string> = {
+    email_address: "correo electrónico",
+    phone_number: "teléfono",
+    password: "contraseña",
+    first_name: "nombre",
+    last_name: "apellido",
+    username: "usuario",
+  };
+
+  return signUp.missingFields
+    .map((field) => labels[field] ?? field)
+    .join(", ");
+}
+
 export function EmailPasswordSignUpForm() {
   const searchParams = useSearchParams();
   const offerToken = searchParams.get("offer_token")?.trim();
   const offerEmail = searchParams.get("email")?.trim();
-  const postSignupPath = offerToken
-    ? `/onboarding?offer_token=${encodeURIComponent(offerToken)}`
-    : "/onboarding";
+  const postSignupPath = sanitizeAuthRedirectPath(
+    offerToken
+      ? `/onboarding?offer_token=${encodeURIComponent(offerToken)}`
+      : "/onboarding",
+    "/onboarding",
+  );
 
+  const router = useRouter();
+  const { setActive } = useClerk();
   const { signUp, errors, fetchStatus } = useSignUp();
 
   const [step, setStep] = useState<Step>("register");
@@ -77,35 +96,41 @@ export function EmailPasswordSignUpForm() {
     setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
   }
 
-  async function finalizeSignUp() {
+  async function activateCompletedSignUp() {
     if (!signUp) {
       throw new Error("El servicio de autenticación no está listo.");
     }
 
-    const result = await signUp.finalize({
-      navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          return;
-        }
-
-        const url = decorateUrl(postSignupPath);
-        if (url.startsWith("http")) {
-          window.location.href = url;
-        } else {
-          window.location.assign(url);
-        }
-      },
-    });
-
-    const message = getSignUpFlowErrorMessage(
-      result,
-      errors,
-      "No se pudo activar la sesión. Intenta de nuevo.",
-    );
-
-    if (result.error) {
-      throw new Error(message);
+    if (signUp.status !== "complete") {
+      if (signUp.status === "missing_requirements") {
+        const missing = describeMissingSignUpFields(signUp);
+        throw new Error(
+          missing
+            ? `Faltan datos para completar el registro: ${missing}.`
+            : "Faltan datos para completar el registro.",
+        );
+      }
+      throw new Error("El registro aún no está completo. Intenta de nuevo.");
     }
+
+    const sessionId = signUp.createdSessionId;
+
+    if (sessionId) {
+      await setActive({ session: sessionId });
+    } else {
+      const result = await signUp.finalize();
+      const message = getSignUpFlowErrorMessage(
+        result,
+        errors,
+        "No se pudo activar la sesión. Intenta de nuevo.",
+      );
+      if (result.error) {
+        throw new Error(message);
+      }
+    }
+
+    router.push(postSignupPath);
+    router.refresh();
   }
 
   async function sendSignupEmailCode(options?: { force?: boolean }) {
@@ -158,14 +183,29 @@ export function EmailPasswordSignUpForm() {
       throw new Error("El servicio de autenticación no está listo.");
     }
 
+    if (signUp.isTransferable) {
+      throw new Error(
+        "Ya existe una cuenta con este correo. Inicia sesión para continuar.",
+      );
+    }
+
     if (signUp.status === "complete") {
-      await finalizeSignUp();
+      await activateCompletedSignUp();
       return;
     }
 
     if (needsEmailVerification(signUp)) {
       await enterVerifyStep();
       return;
+    }
+
+    if (signUp.status === "missing_requirements") {
+      const missing = describeMissingSignUpFields(signUp);
+      throw new Error(
+        missing
+          ? `Faltan datos para completar el registro: ${missing}.`
+          : "Faltan datos para completar el registro.",
+      );
     }
 
     throw new Error("No se pudo completar el registro. Intenta de nuevo.");
@@ -263,7 +303,7 @@ export function EmailPasswordSignUpForm() {
           return;
         }
 
-        await finalizeSignUp();
+        await activateCompletedSignUp();
       } catch (err) {
         setError(
           err instanceof Error
