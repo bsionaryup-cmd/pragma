@@ -470,6 +470,15 @@ export function EmailPasswordSignUpForm() {
         />
       </div>
 
+      {/* Clerk Smart CAPTCHA — required before signUp.password() in custom flows */}
+      <div
+        id="clerk-captcha"
+        className="flex min-h-[4rem] w-full justify-center"
+        data-cl-theme="dark"
+        data-cl-size="flexible"
+        data-cl-language="es-ES"
+      />
+
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
         {isFetching ? "Creando cuenta…" : "Crear cuenta"}
       </Button>
