@@ -3,8 +3,12 @@ import { db } from "@/lib/db";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 
+export { reservationHasVisibleEmailEnrichment } from "@/lib/airbnb-email/reservation-enrichment-visibility";
+
 export type ReservationEmailEnrichmentDetail = {
   emailEnriched: boolean;
+  emailEventCount: number;
+  linkedAuditCount: number;
   reservationCodeFromEmail: string | null;
   lastEventKind: string | null;
   lastMatchConfidence: number | null;
@@ -45,6 +49,7 @@ export async function getReservationEmailEnrichmentSummary(
     reviews,
     tasks,
     audits,
+    linkedAuditCount,
     manualReviewAudits,
     reservation,
   ] = await Promise.all([
@@ -101,6 +106,9 @@ export async function getReservationEmailEnrichmentSummary(
       take: 1,
     }),
     db.emailIngestionAudit.count({
+      where: { reservationId },
+    }),
+    db.emailIngestionAudit.count({
       where: {
         reservationId,
         processingStatus: "MANUAL_REVIEW",
@@ -127,7 +135,12 @@ export async function getReservationEmailEnrichmentSummary(
   const latestComm = communications[0];
 
   return {
-    emailEnriched: Boolean(enrichedEvent),
+    emailEnriched:
+      Boolean(enrichedEvent) ||
+      events.length > 0 ||
+      Boolean(latestEvent?.confirmationCode),
+    emailEventCount: events.length,
+    linkedAuditCount,
     reservationCodeFromEmail:
       reservation?.reservationCode ??
       latestEvent?.confirmationCode ??

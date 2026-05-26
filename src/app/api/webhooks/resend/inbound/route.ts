@@ -111,6 +111,9 @@ export async function POST(request: Request) {
     );
 
     revalidatePath("/integrations/airbnb");
+    if (outcome.reservationId) {
+      revalidatePath("/reservations");
+    }
 
     return NextResponse.json({ ok: true, outcome });
   } catch (error) {
