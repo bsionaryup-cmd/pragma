@@ -17,6 +17,7 @@ import {
   createReservation,
   deleteReservation,
   getReservationForInbox,
+  OtaReservationDeleteError,
   updateReservation,
 } from "@/services/reservations/reservation.service";
 import { prismaDateToKey } from "@/lib/dates";
@@ -142,7 +143,14 @@ export async function updateReservationAction(
 export async function deleteReservationAction(id: string) {
   await requirePermission("reservations:delete");
   await assertBillingUnlocked();
-  await deleteReservation(id);
+  try {
+    await deleteReservation(id);
+  } catch (error) {
+    if (error instanceof OtaReservationDeleteError) {
+      return { success: false as const, error: error.message };
+    }
+    throw error;
+  }
   schedulePriceLabsRefresh("reservation");
   revalidatePath("/reservations");
   revalidatePath("/calendar");

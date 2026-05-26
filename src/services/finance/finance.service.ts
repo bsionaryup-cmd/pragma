@@ -1,5 +1,6 @@
 import { PropertyStatus, ReservationStatus, PaymentStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
+import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
@@ -227,7 +228,7 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       guestName: r.guestName,
       amount: Number(r.totalAmount),
       amountFormatted: formatMoney(Number(r.totalAmount), undefined, locale),
-      date: r.checkIn.toISOString(),
+      date: prismaDateToKey(r.checkIn),
       propertyName: formatPropertyLabel(r.property),
       status: PAID_STATUSES.includes(r.paymentStatus)
         ? ("confirmed" as const)

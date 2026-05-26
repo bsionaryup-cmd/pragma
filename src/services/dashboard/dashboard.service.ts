@@ -1,6 +1,7 @@
 import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
+import { prismaDateToKey } from "@/lib/dates";
 import { startOfDay } from "@/lib/helpers/date";
 import {
   formatCalendarUnitDisplay,
@@ -173,8 +174,8 @@ export function toPanelReservationRow(
     adults: reservation.adults,
     children: reservation.children,
     infants: reservation.infants,
-    checkIn: reservation.checkIn.toISOString(),
-    checkOut: reservation.checkOut.toISOString(),
+    checkIn: prismaDateToKey(reservation.checkIn),
+    checkOut: prismaDateToKey(reservation.checkOut),
     platform: reservation.platform,
     property: {
       name: reservation.property.name,

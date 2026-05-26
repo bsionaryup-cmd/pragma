@@ -108,6 +108,14 @@ const financeNavItem: NavItem = {
   planFeature: "finance",
 };
 
+const paymentLinksNavItem: NavItem = {
+  labelKey: "nav.paymentLinks",
+  href: "/finance/payment-links",
+  icon: "credit-card",
+  permission: "finance:read",
+  planFeature: "finance",
+};
+
 /** Rutas secundarias bajo Finanzas (solo ADMIN con finance:read). */
 export const financeSecondaryLinks: Pick<NavItem, "labelKey" | "href" | "permission">[] =
   [
@@ -177,6 +185,7 @@ export function getMainNavigationForRole(
     hasAnyPermission(role, ["finance:read", "finance:operations:read"]) &&
     navItemAllowedForPlan(financeNavItem, plan)
   ) {
+    items.push(paymentLinksNavItem);
     items.push(financeNavItem);
   }
 

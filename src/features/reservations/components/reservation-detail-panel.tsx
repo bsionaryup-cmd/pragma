@@ -42,6 +42,7 @@ import {
   holdDepositPercentLabel,
 } from "@/lib/reservations/reservation-hold-display";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { isOtaImportedReservation } from "@/lib/reservations/reservation-ota";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
@@ -303,6 +304,11 @@ export function ReservationDetailPanel({
   });
   const holdExpiryLabel = formatHoldExpiryLabel(reservation.holdExpiresAt);
   const propertyLabel = formatPropertyLabel(reservation.property);
+  const otaImported = isOtaImportedReservation({
+    platform: reservation.platform,
+    icalUid: reservation.icalUid,
+  });
+  const allowDelete = canDelete && !otaImported;
 
   async function handleDelete() {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -400,10 +406,10 @@ export function ReservationDetailPanel({
             Reserva en espera de pago
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Las fechas están reservadas temporalmente. El huésped debe pagar al
-            menos el depósito ({holdDepositPercentLabel()}) antes de que venza el
-            plazo{holdExpiryLabel ? ` (${holdExpiryLabel.toLowerCase()})` : ""}.
-            Si no paga, la disponibilidad se libera automáticamente.
+            Las fechas están reservadas temporalmente (30 min). El huésped debe
+            pagar al menos el depósito ({holdDepositPercentLabel()})
+            {holdExpiryLabel ? ` — ${holdExpiryLabel.toLowerCase()}` : ""}. Si no
+            paga, la disponibilidad se libera automáticamente.
           </p>
         </div>
       ) : null}
@@ -527,8 +533,13 @@ export function ReservationDetailPanel({
                 </span>
               </p>
             ) : null}
+            {otaImported ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Reserva sincronizada desde OTA — no se puede eliminar manualmente.
+              </p>
+            ) : null}
           </div>
-          {(canWrite && properties.length > 0) || (canDelete && !editing) ? (
+          {(canWrite && properties.length > 0) || (allowDelete && !editing) ? (
             <div className="flex shrink-0 items-center gap-1.5">
               {canWrite && properties.length > 0 ? (
                 <Button
@@ -542,7 +553,7 @@ export function ReservationDetailPanel({
                   {editing ? "Ver detalle" : "Editar"}
                 </Button>
               ) : null}
-              {canDelete && !editing ? (
+              {allowDelete && !editing ? (
                 <Button
                   type="button"
                   variant="outline"

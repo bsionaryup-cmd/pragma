@@ -40,6 +40,10 @@ import {
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
+import {
+  isOtaImportedReservation,
+  OTA_RESERVATION_DELETE_MESSAGE,
+} from "@/lib/reservations/reservation-ota";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -618,9 +622,26 @@ export async function updateReservation(
   return updated;
 }
 
+export class OtaReservationDeleteError extends Error {
+  constructor(message = OTA_RESERVATION_DELETE_MESSAGE) {
+    super(message);
+    this.name = "OtaReservationDeleteError";
+  }
+}
+
 export async function deleteReservation(id: string) {
   const scope = await requireTenantDataScope();
-  const existing = await assertReservationInScope(scope, id);
+  await assertReservationInScope(scope, id);
+  const existing = await db.reservation.findUnique({
+    where: { id },
+    select: { platform: true, icalUid: true, propertyId: true },
+  });
+  if (!existing) {
+    throw new Error("Reserva no encontrada");
+  }
+  if (isOtaImportedReservation(existing)) {
+    throw new OtaReservationDeleteError();
+  }
   const property = await db.property.findUnique({
     where: { id: existing.propertyId },
     select: { ownerId: true },

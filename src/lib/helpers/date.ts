@@ -1,3 +1,4 @@
+import { toReservationDateKey } from "@/lib/dates";
 import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 
 const DEFAULT_TIMEZONE = PRAGMA_TIMEZONE;
@@ -6,14 +7,15 @@ export function formatDate(
   date: Date | string,
   options?: Intl.DateTimeFormatOptions,
 ): string {
-  const value = typeof date === "string" ? new Date(date) : date;
+  const key = toReservationDateKey(date);
+  const [y, m, d] = key.split("-").map(Number);
   return new Intl.DateTimeFormat("es-CO", {
-    timeZone: DEFAULT_TIMEZONE,
+    timeZone: "UTC",
     day: "numeric",
     month: "short",
     year: "numeric",
     ...options,
-  }).format(value);
+  }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
 /** Fecha y hora en es-CO con zona fija; evita mismatches de hidratación SSR/cliente. */
@@ -59,19 +61,22 @@ function dayDiff(from: Date, to: Date): number {
 
 /** Etiqueta relativa para tablas del panel (ej. Mañana, 19 may). */
 export function formatPanelDate(date: Date | string): string {
-  const value = typeof date === "string" ? new Date(date) : date;
-  const today = startOfDay();
-  const target = startOfDay(value);
-  const diff = dayDiff(today, target);
+  const targetKey = toReservationDateKey(date);
+  const todayKey = toReservationDateKey(startOfDay());
+  const [ty, tm, td] = todayKey.split("-").map(Number);
+  const [y, m, d] = targetKey.split("-").map(Number);
+  const diff = Math.round(
+    (Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86_400_000,
+  );
 
   if (diff === 0) return "Hoy";
   if (diff === 1) return "Mañana";
 
   return new Intl.DateTimeFormat("es-CO", {
-    timeZone: DEFAULT_TIMEZONE,
+    timeZone: "UTC",
     day: "numeric",
     month: "short",
   })
-    .format(target)
+    .format(new Date(Date.UTC(y, m - 1, d)))
     .replace(".", "");
 }

@@ -54,6 +54,7 @@ type MultiCalendarProps = {
   data: CalendarDataDto;
   canWrite: boolean;
   canManageGuestRegistration?: boolean;
+  canManagePayments?: boolean;
   propertyOptions: PropertyOption[];
   /** Abre detalle al montar (p. ej. /calendar?reservation=id) sin ir a /reservations */
   initialReservationId?: string | null;
@@ -63,6 +64,7 @@ export function MultiCalendar({
   data,
   canWrite,
   canManageGuestRegistration = canWrite,
+  canManagePayments = false,
   propertyOptions,
   initialReservationId = null,
 }: MultiCalendarProps) {
@@ -613,6 +615,7 @@ export function MultiCalendar({
         properties={propertyOptions}
         canWrite={canWrite}
         canManageGuestRegistration={canManageGuestRegistration}
+        canManagePayments={canManagePayments}
         initialCreateValues={createDefaults ?? undefined}
         detailLoading={detailLoading}
         refreshAfterDelete={false}

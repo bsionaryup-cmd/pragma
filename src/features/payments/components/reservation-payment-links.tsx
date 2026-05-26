@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Copy, ExternalLink, Link2, Wallet } from "lucide-react";
+import { Copy, ExternalLink, Link2, Wallet, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
+  cancelPaymentLinkAction,
   createReservationPaymentLinkAction,
   getReservationPaymentBalanceAction,
   listReservationPaymentLinksAction,
@@ -70,6 +71,18 @@ export function ReservationPaymentLinks({
   async function copyUrl(url: string) {
     await navigator.clipboard.writeText(url);
     toast.success("Enlace copiado");
+  }
+
+  function cancelLink(linkId: string) {
+    startTransition(async () => {
+      const result = await cancelPaymentLinkAction(linkId);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Enlace cancelado");
+      refresh();
+    });
   }
 
   if (!canManage) return null;
@@ -163,29 +176,42 @@ export function ReservationPaymentLinks({
                   {guestPaymentLinkStatusLabel(link.status)} ·{" "}
                   {formatMoney(Number(link.amount), link.currency)}
                 </span>
-                {link.wompiCheckoutUrl ? (
-                  <span className="flex gap-1">
+                <span className="flex gap-1">
+                  {link.wompiCheckoutUrl ? (
+                    <>
+                      <button
+                        type="button"
+                        className="rounded p-1 hover:bg-muted"
+                        onClick={() => copyUrl(link.wompiCheckoutUrl!)}
+                        aria-label="Copiar enlace"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <a
+                        href={link.wompiCheckoutUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded p-1 hover:bg-muted"
+                        aria-label="Abrir enlace"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </>
+                  ) : (
+                    <Link2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+                  )}
+                  {link.status !== "PAID" && link.status !== "CANCELLED" ? (
                     <button
                       type="button"
                       className="rounded p-1 hover:bg-muted"
-                      onClick={() => copyUrl(link.wompiCheckoutUrl!)}
-                      aria-label="Copiar enlace"
+                      onClick={() => cancelLink(link.id)}
+                      aria-label="Cancelar enlace"
+                      disabled={pending}
                     >
-                      <Copy className="h-3.5 w-3.5" />
+                      <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
                     </button>
-                    <a
-                      href={link.wompiCheckoutUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded p-1 hover:bg-muted"
-                      aria-label="Abrir enlace"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </span>
-                ) : (
-                  <Link2 className="h-3.5 w-3.5 text-muted-foreground/50" />
-                )}
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>

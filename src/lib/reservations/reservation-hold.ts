@@ -1,14 +1,27 @@
 /**
  * Reserva directa con pago pendiente: bloqueo temporal hasta depósito o expiración.
  */
-const DEFAULT_HOLD_HOURS = 24;
+const DEFAULT_HOLD_MINUTES = 30;
 const DEFAULT_MIN_DEPOSIT_RATIO = 0.5;
 
 export function reservationHoldDurationMs(): number {
-  const raw = process.env.RESERVATION_HOLD_HOURS;
-  const hours = raw ? Number.parseFloat(raw) : DEFAULT_HOLD_HOURS;
-  const safe = Number.isFinite(hours) && hours > 0 ? hours : DEFAULT_HOLD_HOURS;
-  return safe * 60 * 60 * 1000;
+  const rawMinutes = process.env.RESERVATION_HOLD_MINUTES;
+  if (rawMinutes) {
+    const minutes = Number.parseFloat(rawMinutes);
+    if (Number.isFinite(minutes) && minutes > 0) {
+      return minutes * 60 * 1000;
+    }
+  }
+
+  const rawHours = process.env.RESERVATION_HOLD_HOURS;
+  if (rawHours) {
+    const hours = Number.parseFloat(rawHours);
+    if (Number.isFinite(hours) && hours > 0) {
+      return hours * 60 * 60 * 1000;
+    }
+  }
+
+  return DEFAULT_HOLD_MINUTES * 60 * 1000;
 }
 
 export function reservationHoldMinDepositRatio(): number {
