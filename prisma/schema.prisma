@@ -21,6 +21,8 @@ model Organization {
   name      String
   status    OrganizationStatus @default(ACTIVE)
   suspendedAt DateTime?
+  deletedAt DateTime?
+  deletedReason String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
@@ -80,6 +82,7 @@ model User {
   platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
   platformAuditLogs      PlatformAuditLog[]
   supportTickets         SupportTicket[] @relation("SupportTicketCreator")
+  supportTicketsAssigned SupportTicket[] @relation("SupportTicketAssignee")
   guestPaymentLinks      GuestPaymentLink[] @relation("GuestPaymentLinkCreator")
   salesQuotesCreated     SalesQuote[] @relation("SalesQuoteCreator")
   salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
@@ -1110,10 +1113,11 @@ model PlatformAuditLog {
 
 enum SupportTicketStatus {
   OPEN
-  IN_REVIEW
-  WAITING_FOR_USER
+  IN_PROGRESS
+  WAITING_CLIENT
   RESOLVED
   CLOSED
+  ESCALATED
 }
 
 enum SupportTicketPriority {
@@ -1136,6 +1140,7 @@ model SupportTicket {
   id              String                @id @default(cuid())
   organizationId  String?
   createdById     String
+  assignedToId    String?
   subject         String
   category        SupportTicketCategory   @default(OTHER)
   priority        SupportTicketPriority   @default(NORMAL)
@@ -1151,9 +1156,11 @@ model SupportTicket {
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   createdBy    User          @relation("SupportTicketCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo   User?         @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   messages     SupportMessage[]
 
   @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([assignedToId, status, updatedAt(sort: Desc)])
   @@index([createdById, createdAt(sort: Desc)])
   @@map("support_tickets")
 }

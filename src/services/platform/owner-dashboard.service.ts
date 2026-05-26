@@ -7,6 +7,8 @@ import {
   resolveBillablePropertyCount,
 } from "@/modules/billing/domain/subscription-property-count";
 
+const PLATFORM_WOMPI_ORG_NAME = "PRAGMA Platform (Wompi)";
+
 export type OwnerClientSortField =
   | "createdAt"
   | "name"
@@ -176,6 +178,9 @@ export async function listOwnerClients(
     ...(query.billingStatus && query.billingStatus !== "ALL"
       ? { billingAccount: { status: query.billingStatus } }
       : {}),
+    // Internal platform org must not appear as a commercial tenant.
+    name: { not: PLATFORM_WOMPI_ORG_NAME },
+    deletedAt: null,
   };
 
   const [organizations, total] = await Promise.all([
@@ -399,6 +404,7 @@ export async function getOwnerClientDetail(organizationId: string) {
           trialEndsAt: org.billingAccount.trialEndsAt?.toISOString() ?? null,
           currentPeriodEnd:
             org.billingAccount.currentPeriodEnd?.toISOString() ?? null,
+          metadata: org.billingAccount.metadata,
           invoices: org.billingAccount.invoices.map((inv) => ({
             id: inv.id,
             amount: inv.amount.toString(),
@@ -431,6 +437,19 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
+  const platformOrg = await db.organization.findFirst({
+    where: { name: PLATFORM_WOMPI_ORG_NAME },
+    select: { id: true },
+  });
+  const platformOrgId = platformOrg?.id;
+
+  const billingAccountExclusion = platformOrgId
+    ? { organizationId: { not: platformOrgId } }
+    : {};
+  const propertyExclusion = platformOrgId
+    ? { organizationId: { not: platformOrgId } }
+    : {};
+
   const [
     totalTenants,
     activeTenants,
@@ -457,34 +476,58 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     upcomingBillingAccounts,
     recentPaidInvoices,
   ] = await Promise.all([
-    db.organization.count(),
-    db.organization.count({ where: { status: "ACTIVE" } }),
-    db.organization.count({ where: { status: "SUSPENDED" } }),
-    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.TRIAL } }),
-    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.ACTIVE } }),
-    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.PAST_DUE } }),
-    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.LOCKED } }),
-    db.billingAccount.count({ where: { status: BillingSubscriptionStatus.CANCELED } }),
+    db.organization.count({
+      where: { name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+    }),
+    db.organization.count({
+      where: { status: "ACTIVE", name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+    }),
+    db.organization.count({
+      where: { status: "SUSPENDED", name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.TRIAL, ...billingAccountExclusion },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.ACTIVE, ...billingAccountExclusion },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.PAST_DUE, ...billingAccountExclusion },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.LOCKED, ...billingAccountExclusion },
+    }),
+    db.billingAccount.count({
+      where: { status: BillingSubscriptionStatus.CANCELED, ...billingAccountExclusion },
+    }),
     db.billingAccount.count({
       where: {
         status: BillingSubscriptionStatus.TRIAL,
         trialEndsAt: { lte: in7Days, gte: now },
+        ...billingAccountExclusion,
       },
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "STARTER" },
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "STARTER", ...billingAccountExclusion },
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "PRO" },
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "PRO", ...billingAccountExclusion },
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "SCALE" },
+      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "SCALE", ...billingAccountExclusion },
     }),
-    db.property.count(),
+    db.property.count({ where: propertyExclusion }),
     db.user.count({ where: { deletedAt: null } }),
-    db.reservation.count({ where: { status: { not: "CANCELLED" } } }),
+    db.reservation.count({
+      where: {
+        status: { not: "CANCELLED" },
+        ...(platformOrgId
+          ? { property: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
+    }),
     db.billingAccount.findMany({
-      where: { status: BillingSubscriptionStatus.ACTIVE },
+      where: { status: BillingSubscriptionStatus.ACTIVE, ...billingAccountExclusion },
       select: {
         plan: true,
         metadata: true,
@@ -501,12 +544,22 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       },
     }),
     db.billingInvoice.aggregate({
-      where: { status: "OPEN" },
+      where: {
+        status: "OPEN",
+        ...(platformOrgId
+          ? { account: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
       _sum: { amount: true },
       _count: { _all: true },
     }),
     db.billingInvoice.findMany({
-      where: { status: "OPEN" },
+      where: {
+        status: "OPEN",
+        ...(platformOrgId
+          ? { account: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
       orderBy: { dueAt: "asc" },
       take: 15,
       include: {
@@ -522,15 +575,26 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       _sum: { amount: true },
     }),
     db.billingInvoice.aggregate({
-      where: { status: "PAID" },
+      where: {
+        status: "PAID",
+        ...(platformOrgId
+          ? { account: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
       _sum: { amount: true },
     }),
     db.reservation.aggregate({
-      where: { status: { not: "CANCELLED" } },
+      where: {
+        status: { not: "CANCELLED" },
+        ...(platformOrgId
+          ? { property: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
       _sum: { totalAmount: true },
     }),
     db.billingAccount.groupBy({
       by: ["status"],
+      where: Object.keys(billingAccountExclusion).length ? billingAccountExclusion : undefined,
       _count: { _all: true },
     }),
     db.billingAccount.findMany({
@@ -539,6 +603,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
           { currentPeriodEnd: { lte: in7Days, gte: now } },
           { trialEndsAt: { lte: in7Days, gte: now } },
         ],
+        ...billingAccountExclusion,
       },
       include: {
         organization: {
@@ -558,7 +623,12 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       take: 12,
     }),
     db.billingInvoice.findMany({
-      where: { status: "PAID" },
+      where: {
+        status: "PAID",
+        ...(platformOrgId
+          ? { account: { organizationId: { not: platformOrgId } } }
+          : {}),
+      },
       orderBy: { paidAt: "desc" },
       take: 12,
       include: {

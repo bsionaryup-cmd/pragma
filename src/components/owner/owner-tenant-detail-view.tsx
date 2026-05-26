@@ -24,11 +24,13 @@ import {
 import { KpiCard } from "@/components/ui/kpi-card";
 import { formatDate } from "@/lib/helpers/date";
 import type { BillingPlanCode } from "@prisma/client";
+import type { UserRole } from "@prisma/client";
 import {
   formatCop,
   getPlanDefinition,
   PLAN_CATALOG,
 } from "@/modules/billing/domain/plan-catalog";
+import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
 
 type TenantDetail = NonNullable<
   Awaited<
@@ -51,6 +53,15 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   const [billingStatus, setBillingStatus] = useState(
     tenant.billing?.status ?? "TRIAL",
   );
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<UserRole>("RECEPTIONIST");
+  const [tenantName, setTenantName] = useState(tenant.name);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [propertySlots, setPropertySlots] = useState(() => {
+    const meta = parseSalesBillingMetadata(tenant.billing?.metadata);
+    return String(meta.propertySlots ?? tenant.propertyCount ?? 1);
+  });
+  const [extendTrialDays, setExtendTrialDays] = useState("7");
 
   function formatCop(amount: number) {
     return new Intl.NumberFormat("es-CO", {
@@ -101,11 +112,16 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   async function runAction(
     url: string,
     onSuccess?: () => void,
+    body?: unknown,
   ) {
     setError(null);
     startTransition(async () => {
       try {
-        const res = await fetch(url, { method: "POST" });
+        const res = await fetch(url, {
+          method: "POST",
+          headers: body ? { "Content-Type": "application/json" } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
         const data = (await res.json()) as { ok?: boolean; error?: string; redirectUrl?: string };
         if (!res.ok) {
           setError(data.error ?? "Acción no completada");
@@ -137,6 +153,117 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
 
   function reactivate() {
     runAction(`/api/owner/tenant/${tenant.id}/reactivate`, () => setStatus("ACTIVE"));
+  }
+
+  async function inviteUser() {
+    if (!inviteEmail.trim()) {
+      setError("Ingresa un email para invitar");
+      return;
+    }
+    runAction(
+      `/api/owner/tenant/${tenant.id}/users/invite`,
+      () => {
+        setInviteEmail("");
+        router.refresh();
+      },
+      { email: inviteEmail.trim(), role: inviteRole },
+    );
+  }
+
+  async function patchUser(userId: string, path: string, body: unknown) {
+    setError(null);
+    return new Promise<boolean>((resolve) => {
+      startTransition(async () => {
+        try {
+          const res = await fetch(
+            `/api/owner/tenant/${tenant.id}/users/${userId}/${path}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            },
+          );
+          const data = (await res.json()) as { error?: string };
+          if (!res.ok) {
+            setError(data.error ?? "Acción no completada");
+            resolve(false);
+            return;
+          }
+          router.refresh();
+          resolve(true);
+        } catch {
+          setError("Error de red");
+          resolve(false);
+        }
+      });
+    });
+  }
+
+  function softDeleteUser(userId: string) {
+    runAction(`/api/owner/tenant/${tenant.id}/users/${userId}/delete`, () => router.refresh(), {
+      reason: "owner_ops",
+    });
+  }
+
+  async function updatePropertySlots() {
+    const slots = Number.parseInt(propertySlots, 10);
+    if (!Number.isFinite(slots) || slots < 1) {
+      setError("propertySlots inválido");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/owner/tenant/${tenant.id}/billing-actions/limits`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ propertySlots: slots, reason: "owner_ops" }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          setError(data.error ?? "Acción no completada");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
+  }
+
+  function billingAction(path: string, body?: unknown) {
+    runAction(`/api/owner/tenant/${tenant.id}/billing-actions/${path}`, () => router.refresh(), body);
+  }
+
+  async function saveTenantName() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/owner/tenant/${tenant.id}/update`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: tenantName, reason: "owner_ops" }),
+        });
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          setError(data.error ?? "Acción no completada");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
+  }
+
+  function softDeleteTenant() {
+    if (deleteReason.trim().length < 3) {
+      setError("Indica un reason (mínimo 3 caracteres)");
+      return;
+    }
+    runAction(`/api/owner/tenant/${tenant.id}/delete`, () => router.push("/owner-dashboard"), {
+      reason: deleteReason.trim(),
+    });
   }
 
   return (
@@ -189,6 +316,49 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
+          <h2 className="mb-4 font-heading text-lg font-semibold">Tenant Management</h2>
+          <div className="grid gap-3">
+            <label className="grid gap-1.5 text-sm">
+              <span className="text-muted-foreground">Nombre del negocio</span>
+              <input
+                className="h-10 rounded-xl border border-input bg-background px-3"
+                value={tenantName}
+                onChange={(e) => setTenantName(e.target.value)}
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" disabled={pending} onClick={saveTenantName}>
+                Guardar nombre
+              </Button>
+            </div>
+
+            <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+              <p className="text-sm font-semibold text-destructive">Soft delete tenant</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Desactiva usuarios (no owner), suspende tenant y cancela suscripción. No hard delete.
+              </p>
+              <input
+                className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                placeholder="Reason (ej. fraude, duplicado, solicitud cliente)…"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+              />
+              <div className="mt-2">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={pending}
+                  onClick={softDeleteTenant}
+                >
+                  Soft delete
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
           <h2 className="mb-4 font-heading text-lg font-semibold">Facturación</h2>
           {tenant.billing ? (
@@ -267,6 +437,74 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                   Guardar estado billing
                 </Button>
               </div>
+
+              <div className="mt-6 grid gap-3 rounded-xl border border-border/70 bg-muted/20 p-3">
+                <p className="text-sm font-semibold">Acciones billing (Owner)</p>
+                <label className="grid gap-1.5 text-sm">
+                  <span className="text-muted-foreground">Límite facturable (propertySlots)</span>
+                  <div className="flex gap-2">
+                    <input
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3"
+                      value={propertySlots}
+                      onChange={(e) => setPropertySlots(e.target.value.replace(/\\D/g, "").slice(0, 4))}
+                    />
+                    <Button type="button" variant="outline" disabled={pending} onClick={updatePropertySlots}>
+                      Guardar
+                    </Button>
+                  </div>
+                </label>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Extender trial (días)</span>
+                    <input
+                      className="h-10 rounded-xl border border-input bg-background px-3"
+                      value={extendTrialDays}
+                      onChange={(e) => setExtendTrialDays(e.target.value.replace(/\\D/g, "").slice(0, 2))}
+                    />
+                  </label>
+                  <div className="flex items-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() =>
+                        billingAction("extend-trial", {
+                          days: Number.parseInt(extendTrialDays || "7", 10),
+                          reason: "owner_ops",
+                        })
+                      }
+                    >
+                      Extender
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => billingAction("block-trial", { reason: "owner_ops" })}
+                    >
+                      Bloquear trial
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" disabled={pending} onClick={() => billingAction("activate", { reason: "owner_ops" })}>
+                    Activar suscripción
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => billingAction("pause", { reason: "owner_ops" })}>
+                    Pausar
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => billingAction("reactivate", { reason: "owner_ops" })}>
+                    Reactivar
+                  </Button>
+                  <Button type="button" size="sm" variant="destructive" disabled={pending} onClick={() => billingAction("cancel", { reason: "owner_ops" })}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Sin cuenta de facturación.</p>
@@ -302,6 +540,25 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
 
         <section className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
           <h2 className="mb-4 font-heading text-lg font-semibold">Usuarios del tenant</h2>
+          <div className="mb-4 grid gap-2 rounded-xl border border-border/80 bg-muted/20 p-3 sm:grid-cols-[1fr_auto_auto]">
+            <input
+              className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+              placeholder="Invitar admin/recepcionista (email)…"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+            <select
+              className="h-10 rounded-xl border border-input bg-background px-3 text-sm"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as UserRole)}
+            >
+              <option value="ADMIN">ADMIN</option>
+              <option value="RECEPTIONIST">RECEPTIONIST</option>
+            </select>
+            <Button type="button" disabled={pending} onClick={inviteUser}>
+              Invitar (Clerk)
+            </Button>
+          </div>
           <div className="overflow-x-auto rounded-xl border border-border">
             <Table>
               <TableHeader>
@@ -309,6 +566,8 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                   <TableHead>Nombre</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Rol</TableHead>
+                  <TableHead>Activo</TableHead>
+                  <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -323,7 +582,56 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                       ) : null}
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
+                    <TableCell>
+                      {user.isAccountOwner ? (
+                        <span className="text-sm">{user.role}</span>
+                      ) : (
+                        <select
+                          className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                          defaultValue={user.role}
+                          disabled={pending}
+                          onChange={(e) =>
+                            void patchUser(user.id, "role", {
+                              role: e.target.value,
+                              reason: "owner_ops",
+                            })
+                          }
+                        >
+                          <option value="ADMIN">ADMIN</option>
+                          <option value="RECEPTIONIST">RECEPTIONIST</option>
+                        </select>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm">{String((user as any).isActive ?? true)}</span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending || user.isAccountOwner}
+                          onClick={() =>
+                            void patchUser(user.id, "active", {
+                              isActive: !((user as any).isActive ?? true),
+                              reason: "owner_ops",
+                            })
+                          }
+                        >
+                          {((user as any).isActive ?? true) ? "Desactivar" : "Activar"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending || user.isAccountOwner}
+                          onClick={() => softDeleteUser(user.id)}
+                        >
+                          Soft delete
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

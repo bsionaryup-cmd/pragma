@@ -204,8 +204,23 @@ async function createSelfSignupUser(
   payload: ClerkUserPayload,
   options?: {
     touchLogin?: boolean;
+    organizationId?: string;
+    role?: UserRole;
+    isAccountOwner?: boolean;
   },
 ): Promise<User> {
+  if (options?.organizationId) {
+    // Invited users (Owner Operations) must be attached to an existing tenant,
+    // without creating new orgs/trials or consuming trial eligibility.
+    return db.user.create({
+      data: buildUserCreateData(payload, options.role ?? "RECEPTIONIST", {
+        touchLogin: options?.touchLogin,
+        isAccountOwner: options.isAccountOwner ?? false,
+        organizationId: options.organizationId,
+      }),
+    });
+  }
+
   if (isPlatformOwnerEmail(payload.email)) {
     return db.user.create({
       data: buildUserCreateData(payload, "ADMIN", {
@@ -479,7 +494,19 @@ export async function upsertUserFromClerk(
 export async function handleUserCreatedWebhook(data: ClerkWebhookUserData) {
   const payload = mapWebhookToPayload(data);
   console.info("[clerk-webhook] user.created", payload.email);
-  return upsertUserFromClerk(payload);
+  const meta = (data.public_metadata ?? {}) as Record<string, unknown>;
+  const invitedOrgId =
+    typeof meta.pragmaOrgId === "string" ? meta.pragmaOrgId : undefined;
+  const invitedRole =
+    meta.pragmaRole === "ADMIN" || meta.pragmaRole === "RECEPTIONIST"
+      ? (meta.pragmaRole as UserRole)
+      : undefined;
+
+  return upsertUserFromClerk(payload, {
+    organizationId: invitedOrgId,
+    role: invitedRole,
+    isAccountOwner: false,
+  });
 }
 
 export async function handleUserUpdatedWebhook(data: ClerkWebhookUserData) {

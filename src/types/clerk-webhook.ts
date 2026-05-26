@@ -4,6 +4,7 @@ export type ClerkWebhookUserData = {
   first_name: string | null;
   last_name: string | null;
   image_url: string | null;
+  public_metadata?: Record<string, unknown>;
   email_addresses: Array<{
     id: string;
     email_address: string;

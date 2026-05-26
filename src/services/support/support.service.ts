@@ -10,6 +10,8 @@ import { db } from "@/lib/db";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import type { User } from "@prisma/client";
+import { assertSuperAdminOwner } from "@/lib/platform/platform-owner";
+import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 
 export type SupportClientError = {
   message: string;
@@ -129,25 +131,148 @@ export async function listMySupportTickets(userId: string) {
   });
 }
 
-export async function listPlatformSupportTickets(options?: {
-  status?: SupportTicketStatus;
+export async function listTenantSupportTickets(options?: {
+  organizationId?: string | null;
   limit?: number;
 }) {
-  const limit = Math.min(options?.limit ?? 50, 100);
+  const ctx = await requireTenantContext();
+  const organizationId = options?.organizationId ?? ctx.organizationId;
+  if (!organizationId) return [];
+
+  const limit = Math.min(options?.limit ?? 30, 100);
   return db.supportTicket.findMany({
-    where: options?.status ? { status: options.status } : undefined,
+    where: { organizationId },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: {
+      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      createdBy: { select: { email: true, role: true } },
+      assignedTo: { select: { email: true } },
+    },
+  });
+}
+
+export async function getTenantSupportTicketDetail(ticketId: string) {
+  const ctx = await requireTenantContext();
+  if (!ctx.organizationId) return null;
+  return db.supportTicket.findFirst({
+    where: { id: ticketId, organizationId: ctx.organizationId },
+    include: {
+      messages: { orderBy: { createdAt: "asc" }, take: 200 },
+      createdBy: { select: { email: true, role: true } },
+      assignedTo: { select: { email: true } },
+    },
+  });
+}
+
+export async function listPlatformSupportTickets(options?: {
+  status?: SupportTicketStatus;
+  priority?: SupportTicketPriority;
+  tenantId?: string;
+  assignedToId?: string | null;
+  unresolvedOnly?: boolean;
+  search?: string;
+  limit?: number;
+}) {
+  const limit = Math.min(options?.limit ?? 50, 100);
+  const search = options?.search?.trim();
+  const unresolvedStatuses: SupportTicketStatus[] = [
+    "OPEN",
+    "IN_PROGRESS",
+    "WAITING_CLIENT",
+    "ESCALATED",
+  ];
+  return db.supportTicket.findMany({
+    where: {
+      ...(options?.status ? { status: options.status } : {}),
+      ...(options?.priority ? { priority: options.priority } : {}),
+      ...(options?.tenantId ? { organizationId: options.tenantId } : {}),
+      ...(options?.assignedToId === null ? { assignedToId: null } : {}),
+      ...(options?.assignedToId ? { assignedToId: options.assignedToId } : {}),
+      ...(options?.unresolvedOnly ? { status: { in: unresolvedStatuses } } : {}),
+      ...(search
+        ? {
+            OR: [
+              { subject: { contains: search, mode: "insensitive" } },
+              { id: { contains: search, mode: "insensitive" } },
+              { createdBy: { email: { contains: search, mode: "insensitive" } } },
+              { organization: { name: { contains: search, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    include: {
+      assignedTo: {
+        select: { id: true, email: true },
+      },
       createdBy: {
         select: { email: true, role: true, organizationId: true },
       },
       messages: {
         orderBy: { createdAt: "desc" },
-        take: 1,
+        take: 2,
       },
       organization: { select: { id: true, name: true } },
     },
+  });
+}
+
+export async function getPlatformSupportTicketDetail(ticketId: string) {
+  return db.supportTicket.findUnique({
+    where: { id: ticketId },
+    include: {
+      assignedTo: { select: { id: true, email: true } },
+      createdBy: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          organizationId: true,
+        },
+      },
+      organization: { select: { id: true, name: true } },
+      messages: {
+        orderBy: { createdAt: "asc" },
+        take: 200,
+      },
+    },
+  });
+}
+
+export async function assignPlatformSupportTicket(input: {
+  platformUser: User;
+  ticketId: string;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+
+  const ticket = await db.supportTicket.findUnique({
+    where: { id: input.ticketId },
+    select: { id: true, assignedToId: true, status: true, organizationId: true },
+  });
+  if (!ticket) throw new Error("Ticket no encontrado");
+
+  const nextStatus =
+    ticket.status === "OPEN" ? ("IN_PROGRESS" as const) : ticket.status;
+
+  await db.supportTicket.update({
+    where: { id: input.ticketId },
+    data: {
+      assignedToId: input.platformUser.id,
+      status: nextStatus,
+    },
+  });
+
+  await writePlatformAuditLog({
+    platformUserId: input.platformUser.id,
+    ownerEmail: input.platformUser.email,
+    action: "support_assign",
+    targetTenantId: ticket.organizationId ?? null,
+    previousState: { assignedToId: ticket.assignedToId, status: ticket.status },
+    newState: { assignedToId: input.platformUser.id, status: nextStatus },
+    metadata: { reason: input.reason ?? "owner_ops" },
   });
 }
 
@@ -159,6 +284,12 @@ export async function replyToSupportTicket(input: {
   isInternal?: boolean;
   nextStatus?: SupportTicketStatus;
 }) {
+  const ticket = await db.supportTicket.findUnique({
+    where: { id: input.ticketId },
+    select: { id: true, status: true, assignedToId: true, organizationId: true },
+  });
+  if (!ticket) throw new Error("Ticket no encontrado");
+
   const [message] = await db.$transaction([
     db.supportMessage.create({
       data: {
@@ -172,7 +303,7 @@ export async function replyToSupportTicket(input: {
     db.supportTicket.update({
       where: { id: input.ticketId },
       data: {
-        status: input.nextStatus,
+        status: input.nextStatus ?? ticket.status,
         updatedAt: new Date(),
         resolvedAt:
           input.nextStatus === "RESOLVED" || input.nextStatus === "CLOSED"
@@ -181,6 +312,24 @@ export async function replyToSupportTicket(input: {
       },
     }),
   ]);
+
+  if (input.authorKind === "platform") {
+    const actor = await db.user.findUnique({
+      where: { id: input.authorId },
+      select: { id: true, email: true, platformRole: true },
+    });
+    if (actor) {
+      await writePlatformAuditLog({
+        platformUserId: actor.id,
+        ownerEmail: actor.email,
+        action: "support_reply",
+        targetTenantId: ticket.organizationId ?? null,
+        previousState: { status: ticket.status, assignedToId: ticket.assignedToId },
+        newState: { status: input.nextStatus ?? ticket.status },
+        metadata: { internal: Boolean(input.isInternal) },
+      });
+    }
+  }
 
   return message;
 }
