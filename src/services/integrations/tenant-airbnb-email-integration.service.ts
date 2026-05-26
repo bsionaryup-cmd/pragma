@@ -213,6 +213,16 @@ export async function resolveOrganizationByInboundEmail(
   };
 }
 
+/** Siempre que el webhook identifica el tenant (antes de fetch/process). */
+export async function recordIntegrationInboundReceived(
+  integrationId: string,
+): Promise<void> {
+  await db.tenantAirbnbEmailIntegration.update({
+    where: { id: integrationId },
+    data: { lastEmailReceivedAt: new Date() },
+  });
+}
+
 export async function touchIntegrationEmailReceived(
   integrationId: string,
   processed: boolean,

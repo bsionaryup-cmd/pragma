@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
@@ -10,6 +11,7 @@ import {
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import { extractReservationSignals } from "@/modules/airbnb-email/parsing/extractors";
 import {
+  recordIntegrationInboundReceived,
   resolveOrganizationByInboundEmail,
   touchIntegrationEmailReceived,
 } from "@/services/integrations/tenant-airbnb-email-integration.service";
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
 
   const rawBody = await request.text();
   const headerPayload = await headers();
+  let integrationId: string | null = null;
 
   try {
     const event = verifyResendInboundWebhook(rawBody, {
@@ -58,6 +61,9 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ ok: true, status: "skipped_disabled" });
     }
+
+    integrationId = resolved.integrationId;
+    await recordIntegrationInboundReceived(integrationId);
 
     const email = await fetchResendReceivedEmail(event.data.email_id);
     const bodyText = email.text ?? "";
@@ -95,13 +101,16 @@ export async function POST(request: Request) {
     const success =
       outcome.status === "processed" ||
       outcome.status === "manual_review" ||
-      outcome.status === "ignored";
+      outcome.status === "ignored" ||
+      outcome.status === "skipped_duplicate";
 
     await touchIntegrationEmailReceived(
       resolved.integrationId,
       success,
       outcome.errorReason,
     );
+
+    revalidatePath("/integrations/airbnb");
 
     return NextResponse.json({ ok: true, outcome });
   } catch (error) {
@@ -110,6 +119,13 @@ export async function POST(request: Request) {
       message.includes("Svix") ||
       message.includes("RESEND_INBOUND") ||
       message.includes("Unauthorized");
+
+    if (integrationId && !isAuth) {
+      await touchIntegrationEmailReceived(integrationId, false, message).catch(
+        () => undefined,
+      );
+      revalidatePath("/integrations/airbnb");
+    }
 
     if (isAuth) {
       airbnbEmailLog.warn("webhook_auth_failed", { error: message });

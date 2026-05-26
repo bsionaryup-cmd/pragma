@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   disableAirbnbEmailSyncAction,
@@ -20,6 +20,10 @@ type Props = {
 export function AirbnbEmailSyncCard({ integration, canManage }: Props) {
   const [pending, startTransition] = useTransition();
   const [local, setLocal] = useState(integration);
+
+  useEffect(() => {
+    setLocal(integration);
+  }, [integration]);
 
   function refreshMaps() {
     startTransition(async () => {
