@@ -47,6 +47,8 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
     "ttlock",
     "pricelabs",
     "reports",
+    "sire",
+    "traa",
   ]),
   SCALE: new Set([
     "calendar",

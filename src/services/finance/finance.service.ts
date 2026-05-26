@@ -210,23 +210,15 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
     0,
   );
 
-  const reservationExpenses = currentReservations.reduce((sum, r) => {
-    const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
-    return sum + fee;
-  }, 0);
-  const prevReservationExpenses = previousReservations.reduce((sum, r) => {
-    const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
-    return sum + fee;
-  }, 0);
-
   const revenue = reservationRevenue + manualIncomeTotal;
   const prevRevenue = prevReservationRevenue + previousManual.incomeTotal;
 
-  const expenses = reservationExpenses + manualExpenseTotal;
-  const prevExpenses = prevReservationExpenses + previousManual.expenseTotal;
+  const expenses = manualExpenseTotal;
+  const prevExpenses = previousManual.expenseTotal;
 
   const netProfit = revenue - expenses;
   const prevProfit = prevRevenue - prevExpenses;
+  const reservationExpenses = 0;
 
   const revenueFlow: RevenueFlowRow[] = sortByDateDesc([
     ...currentReservations.map((r) => ({
@@ -253,22 +245,6 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   ]);
 
   const expenseFlow: ExpenseFlowRow[] = sortByDateDesc([
-    ...currentReservations
-      .filter((r) => r.property.cleaningFee)
-      .map((r) => ({
-        id: `exp-${r.id}`,
-        category: "Limpieza",
-        amount: Number(r.property.cleaningFee),
-        amountFormatted: formatMoney(
-          Number(r.property.cleaningFee),
-          undefined,
-          locale,
-        ),
-        date: r.checkIn.toISOString(),
-        propertyName: formatPropertyLabel(r.property),
-        responsible: "Reserva",
-        detail: r.guestName,
-      })),
     ...manualExpenses.map((row) => ({
       id: row.id,
       category: row.category,

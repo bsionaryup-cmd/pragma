@@ -26,6 +26,7 @@ import {
   isGuestRegistrationEligiblePlatform,
   isGuestRegistrationEligibleStatus,
 } from "@/services/guests/guest-registration.service";
+import { sendGuestRegistrationEmailForReservation } from "@/services/guests/guest-registration-email.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import { formatAccessCode } from "@/lib/access-code";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
@@ -72,6 +73,7 @@ type ReservationRow = {
   createdAt?: Date;
   platform: ReservationInboxItem["platform"];
   status: ReservationInboxItem["status"];
+  paymentStatus?: ReservationInboxItem["paymentStatus"];
   totalAmount: { toString(): string };
   currency: string;
   internalNotes: string | null;
@@ -112,6 +114,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     createdAt: r.createdAt?.toISOString(),
     platform: r.platform,
     status: r.status,
+    paymentStatus: r.paymentStatus,
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
     internalNotes: r.internalNotes,
@@ -452,6 +455,8 @@ export async function createReservation(data: ReservationWizardValues) {
       checkOut,
       platform: BookingPlatform.DIRECT,
       status,
+      paymentStatus:
+        data.totalAmount > 0 ? "PENDING" : "PAID",
       totalAmount: data.totalAmount,
       internalNotes: data.internalNotes?.trim() || null,
     },
@@ -475,6 +480,11 @@ export async function createReservation(data: ReservationWizardValues) {
     isGuestRegistrationEligibleStatus(created.status)
   ) {
     await ensureGuestRegistrationForReservation(created.id);
+    if (created.guestEmail?.trim()) {
+      await sendGuestRegistrationEmailForReservation(created.id).catch((err) => {
+        console.warn("[guest-registration-email] No enviado", created.id, err);
+      });
+    }
   }
 
   return created;

@@ -339,16 +339,8 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       ? Math.round(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100)
       : 0;
 
-  const monthlyExpenses =
-    monthReservations.reduce(
-      (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
-      0,
-    ) + currentManual.expenseTotal;
-  const prevMonthlyExpenses =
-    prevMonthReservations.reduce(
-      (sum, r) => sum + (r.property.cleaningFee ? Number(r.property.cleaningFee) : 0),
-      0,
-    ) + previousManual.expenseTotal;
+  const monthlyExpenses = currentManual.expenseTotal;
+  const prevMonthlyExpenses = previousManual.expenseTotal;
   const expenseTrend =
     prevMonthlyExpenses > 0
       ? Math.round(((monthlyExpenses - prevMonthlyExpenses) / prevMonthlyExpenses) * 100)

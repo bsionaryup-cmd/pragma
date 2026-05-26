@@ -56,7 +56,7 @@ export function InboxReservationSidebar({
             Número de reserva: {conversation.bookingCode}
           </p>
           <div className="mt-3">
-            <PlatformBadge platform="AIRBNB" />
+            <PlatformBadge platform={conversation.platform} />
           </div>
 
           <div className="mt-4 flex gap-3 border-t border-border pt-4">

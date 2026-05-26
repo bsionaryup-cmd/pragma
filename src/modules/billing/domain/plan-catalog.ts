@@ -55,6 +55,7 @@ export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
       "TTLock — códigos por reserva",
       "PriceLabs — precios dinámicos",
       "Finanzas, tareas y reportes",
+      "SIRE y TRAA — reportes gubernamentales",
       "Hasta 25 propiedades · 5 usuarios",
     ],
   },
@@ -70,7 +71,6 @@ export const PLAN_CATALOG: Record<BillingPlanCode, PlanDefinition> = {
     maxUsers: 999,
     features: [
       "Todo lo del plan Pro",
-      "SIRE y TRAA — reportes gubernamentales",
       "Capacidad ampliada (999+ propiedades)",
       "Usuarios ilimitados en la organización",
       "Onboarding asistido y soporte prioritario",

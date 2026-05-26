@@ -174,25 +174,28 @@ export function PropertyFormDrawer({
           <FormSection title="Información general">
             <FormField
               control={form.control}
-              name="name"
+              name="unitNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre</FormLabel>
+                  <FormLabel>Número de apartamento / unidad</FormLabel>
                   <FormControl>
-                    <Input placeholder="Loft Chapinero" {...field} />
+                    <Input placeholder="302, 801, Loft A…" {...field} />
                   </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Identificador principal en calendario, reservas e integraciones.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <FormField
               control={form.control}
-              name="unitNumber"
+              name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Número de apartamento</FormLabel>
+                  <FormLabel>Nombre en Airbnb / listing</FormLabel>
                   <FormControl>
-                    <Input placeholder="801, 802, 803…" {...field} />
+                    <Input placeholder="Loft 2P con vista premium…" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

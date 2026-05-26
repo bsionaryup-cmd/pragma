@@ -120,7 +120,7 @@ export default async function IntegrationsPage() {
           ) : canManage ? (
             <LockedIntegrationCard
               title="SIRE"
-              description="Disponible en plan Scale."
+              description="Disponible en plan Pro o Scale."
             />
           ) : null}
 
@@ -162,7 +162,7 @@ export default async function IntegrationsPage() {
           ) : canManage ? (
             <LockedIntegrationCard
               title="TRAA"
-              description="Disponible en plan Scale."
+              description="Disponible en plan Pro o Scale."
             />
           ) : null}
         </section>

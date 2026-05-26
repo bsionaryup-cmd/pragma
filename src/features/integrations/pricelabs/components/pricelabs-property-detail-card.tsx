@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSemanticBadgeClass } from "@/lib/ui/status-badge-styles";
 import { cn } from "@/lib/utils";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import {
   formatPriceLabsDate,
   formatPriceLabsMoney,
@@ -46,11 +47,13 @@ export function PriceLabsPropertyDetailCard({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <CardTitle className="text-base">{property.name}</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {property.unitNumber ? `Unidad ${property.unitNumber} · ` : ""}
-              {property.city}
-            </p>
+            <PropertyIdentity
+              name={property.name}
+              unitNumber={property.unitNumber}
+              listingName={insights.listingName}
+              size="md"
+            />
+            <p className="mt-1 text-sm text-muted-foreground">{property.city}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={syncBadge(property.syncStatus)}>

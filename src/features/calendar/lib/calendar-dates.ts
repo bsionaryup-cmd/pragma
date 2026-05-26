@@ -16,7 +16,7 @@ export const CALENDAR_DEFAULT_DAYS_BEFORE = 21;
 /** Mínimo de días pasados si no hay reservas previas. */
 export const CALENDAR_DAYS_BEFORE = 0;
 /** Días visibles después del ancla. */
-export const CALENDAR_DAYS_AFTER = 56;
+export const CALENDAR_DAYS_AFTER = 120;
 /** Tope al expandir hacia el pasado con ancla=hoy (evita miles de columnas DOM). */
 export const CALENDAR_MAX_DAYS_BEFORE = 120;
 

@@ -147,7 +147,7 @@ async function resolveCalendarDaysBefore(
   const earliest = await db.reservation.findFirst({
     where: withVisibleReservationsFilter(
       mergeReservationScope(scope, {
-        status: { notIn: ["CANCELLED"] },
+        status: { notIn: ["CANCELLED", "BLOCKED"] },
       }),
     ),
     orderBy: { checkIn: "asc" },
@@ -188,7 +188,7 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
-          status: { notIn: ["CANCELLED"] },
+          status: { notIn: ["CANCELLED", "BLOCKED"] },
           checkIn: { lte: rangeEnd },
           checkOut: { gt: rangeStart },
         }),

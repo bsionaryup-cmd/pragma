@@ -303,8 +303,13 @@ export async function syncPropertyIcalCalendarInner(
         continue;
       }
 
-      seenUids.add(event.uid);
       const blocked = isAirbnbBlockedSummary(event.summary);
+      if (blocked) {
+        skipped += 1;
+        continue;
+      }
+
+      seenUids.add(event.uid);
       const checkIn = dateKeyToPrismaDate(formatDateKey(event.dtstart));
       const checkOut = dateKeyToPrismaDate(formatDateKey(event.dtend));
       const guestName = parseGuestName(event.summary, blocked);

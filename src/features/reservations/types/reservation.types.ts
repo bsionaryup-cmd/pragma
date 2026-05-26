@@ -1,6 +1,7 @@
 import type {
   BookingPlatform,
   GuestRegistrationStatus,
+  PaymentStatus,
   PropertyType,
   ReservationGuestStatus,
   ReservationStatus,
@@ -72,6 +73,7 @@ export type ReservationInboxItem = {
   createdAt?: string;
   platform: BookingPlatform;
   status: ReservationStatus;
+  paymentStatus?: PaymentStatus;
   totalAmount: string;
   currency: string;
   internalNotes: string | null;

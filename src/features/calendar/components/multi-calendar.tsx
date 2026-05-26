@@ -19,7 +19,11 @@ import {
   saveCalendarViewSettings,
   type CalendarViewSettings,
 } from "@/features/calendar/lib/calendar-view-settings";
-import { resolveMonthFromScrollLeft, getTodayKey } from "@/features/calendar/lib/calendar-dates";
+import {
+  addDaysToKey,
+  resolveMonthFromScrollLeft,
+  getTodayKey,
+} from "@/features/calendar/lib/calendar-dates";
 import { sumBudgetReservationTotal } from "@/features/calendar/lib/daily-pricing";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { groupReservationsByProperty } from "@/features/calendar/lib/reservation-span";
@@ -98,6 +102,7 @@ export function MultiCalendar({
   const syncingRef = useRef(false);
   const gridScrollRafRef = useRef<number | null>(null);
   const scrolledRef = useRef<string | null>(null);
+  const extendingViewportRef = useRef(false);
   const openedInitialReservationRef = useRef(false);
   const drawerModeRef = useRef<ReservationDrawerMode>(null);
   const selectedReservationIdRef = useRef<string | null>(null);
@@ -340,9 +345,21 @@ export function MultiCalendar({
         headerScrollRef.current.scrollLeft = grid.scrollLeft;
       }
       updateDisplayMonth(grid.scrollLeft);
+
+      const maxScroll = Math.max(0, grid.scrollWidth - grid.clientWidth - 4);
+      if (
+        maxScroll > 0 &&
+        grid.scrollLeft >= maxScroll - CALENDAR_DAY_WIDTH * 3 &&
+        !extendingViewportRef.current
+      ) {
+        extendingViewportRef.current = true;
+        const nextAnchor = addDaysToKey(viewport.rangeEnd, 28);
+        router.push(`/calendar?anchor=${encodeURIComponent(nextAnchor)}`);
+      }
+
       syncingRef.current = false;
     });
-  }, [updateDisplayMonth]);
+  }, [updateDisplayMonth, router, viewport.rangeEnd]);
 
   useEffect(() => {
     return () => {

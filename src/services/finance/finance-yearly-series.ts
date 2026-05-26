@@ -143,10 +143,6 @@ export async function buildFinanceYearlySeries(
           }
           bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
         }
-        const fee = r.property.cleaningFee ? Number(r.property.cleaningFee) : 0;
-        if (fee > 0 && r.checkIn >= start && r.checkIn <= end) {
-          expenses += fee;
-        }
       }
 
       for (const row of manualExpenses) {

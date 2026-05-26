@@ -354,7 +354,7 @@ export function EmailPasswordSignUpForm() {
         : "Reenviar código";
 
     return (
-      <form className="space-y-6" onSubmit={handleVerify}>
+      <form className="flex flex-col gap-5" onSubmit={handleVerify}>
         <div className="space-y-1 text-center">
           <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
             Verifica tu correo
@@ -376,7 +376,7 @@ export function EmailPasswordSignUpForm() {
           </div>
         ) : null}
 
-        <div className="grid gap-2">
+        <div className="grid gap-1.5">
           <Label htmlFor="sign-up-code">Código de verificación</Label>
           <div className="relative">
             <KeyRound className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -388,7 +388,7 @@ export function EmailPasswordSignUpForm() {
               onChange={(event) =>
                 setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
               }
-              className="pl-9 tracking-[0.3em]"
+              className="h-11 pl-9 tracking-[0.3em]"
               placeholder="000000"
               maxLength={6}
               required
@@ -399,19 +399,36 @@ export function EmailPasswordSignUpForm() {
           </p>
         </div>
 
-        <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
-          {isFetching ? "Verificando…" : "Activar cuenta"}
-        </Button>
+        <div className="mt-1 flex flex-col gap-2.5 border-t border-border/60 pt-5">
+          <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+            {isFetching ? "Verificando…" : "Activar cuenta"}
+          </Button>
 
-        <Button
-          type="button"
-          variant="ghost"
-          className="w-full"
-          disabled={isFetching || resendCooldown > 0}
-          onClick={resendCode}
-        >
-          {resendLabel}
-        </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 w-full"
+            disabled={isFetching || resendCooldown > 0}
+            onClick={resendCode}
+          >
+            {resendLabel}
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-10 w-full text-muted-foreground"
+            disabled={isFetching}
+            onClick={() => {
+              setStep("register");
+              setCode("");
+              setError(null);
+              setInfo(null);
+            }}
+          >
+            Volver al registro
+          </Button>
+        </div>
       </form>
     );
   }

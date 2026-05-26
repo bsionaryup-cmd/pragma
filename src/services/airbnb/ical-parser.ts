@@ -21,12 +21,31 @@ function unfoldIcsLines(raw: string): string[] {
   return lines;
 }
 
+function parseIcsDateKey(value: string): string | null {
+  const trimmed = value.trim();
+  const compact = trimmed.match(/^(\d{4})(\d{2})(\d{2})/);
+  if (compact) {
+    return `${compact[1]}-${compact[2]}-${compact[3]}`;
+  }
+  const isoDate = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDate) {
+    return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+  }
+  return null;
+}
+
 function parseIcsDate(value: string, params: string): Date {
   const trimmed = value.trim();
   const dateOnly = params.includes("VALUE=DATE") || /^\d{8}$/.test(trimmed);
   if (dateOnly) {
-    const key = `${trimmed.slice(0, 4)}-${trimmed.slice(4, 6)}-${trimmed.slice(6, 8)}`;
-    return dateKeyToPrismaDate(key);
+    const key = parseIcsDateKey(trimmed);
+    if (key) return dateKeyToPrismaDate(key);
+  }
+
+  // Datetimes: use calendar date from the ICS string (avoid TZ drift vs Airbnb).
+  const keyFromDatetime = parseIcsDateKey(trimmed);
+  if (keyFromDatetime) {
+    return dateKeyToPrismaDate(keyFromDatetime);
   }
 
   const iso = trimmed.replace(

@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { Copy, Link2, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ import { ReservationSourceBadge } from "@/components/reservations/reservation-so
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { ReservationPaymentLinks } from "@/features/payments/components/reservation-payment-links";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
+import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
 
@@ -369,6 +370,64 @@ export function ReservationDetailPanel({
 
   return (
     <div className="flex h-full flex-col bg-background">
+      {registrationDueSoon && canManageGuestRegistration ? (
+        <div className="border-b border-pragma-cyan/30 bg-pragma-soft-cyan/30 px-5 py-3">
+          <p className="text-sm font-medium text-foreground">
+            Llegada próxima — registro de huéspedes pendiente
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Genera y envía el link de registro antes del check-in.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="brand"
+              disabled={isTokenPending}
+              onClick={generateRegistrationLink}
+            >
+              <Link2 className="mr-1.5 h-3.5 w-3.5" />
+              Generar link
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={isTokenPending || !registration?.url}
+              onClick={async () => {
+                const url = registration?.url ?? reservation.guestRegistrationUrl;
+                if (!url) return;
+                const welcome = [
+                  "¡Hola! Nos alegra recibirte pronto.",
+                  "",
+                  `Para tu estadía en ${reservation.property.unitNumber ? `${reservation.property.unitNumber} — ` : ""}${reservation.property.name}, completa el registro de huéspedes aquí:`,
+                  url,
+                  "",
+                  accessCode?.code
+                    ? buildAccessCodeGuestMessage({
+                        code: accessCode.code,
+                        propertyName: reservation.property.name,
+                        unitNumber: reservation.property.unitNumber,
+                        propertyType: reservation.property.propertyType,
+                        checkIn: reservation.checkIn,
+                        checkOut: reservation.checkOut,
+                        checkInTime: reservation.property.checkInTime,
+                        checkOutTime: reservation.property.checkOutTime,
+                      }) ?? ""
+                    : "Te compartiremos el código de acceso válido durante tu reserva una vez completes el registro.",
+                ]
+                  .filter(Boolean)
+                  .join("\n");
+                await navigator.clipboard.writeText(welcome);
+                toast.success("Mensaje de bienvenida copiado");
+              }}
+            >
+              Copiar mensaje
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="border-b border-border/60 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -394,6 +453,18 @@ export function ReservationDetailPanel({
               </span>
               {nights} {nights === 1 ? "noche" : "noches"}
             </p>
+            {reservation.paymentStatus ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Pago:{" "}
+                <span className="font-medium text-foreground">
+                  {reservation.paymentStatus === "PAID"
+                    ? "Pagado"
+                    : reservation.paymentStatus === "PARTIAL"
+                      ? "Parcial"
+                      : "Pendiente"}
+                </span>
+              </p>
+            ) : null}
           </div>
           {(canWrite && properties.length > 0) || (canDelete && !editing) ? (
             <div className="flex shrink-0 items-center gap-1.5">

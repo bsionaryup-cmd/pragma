@@ -594,6 +594,11 @@ export function ReservationCreateWizard({
                     {values.guestFirstName} {values.guestLastName}
                   </span>
                 </div>
+                <p className="rounded-lg border border-border/60 bg-background px-3 py-2 text-xs text-muted-foreground">
+                  La tarifa de aseo de la propiedad, si está configurada, se muestra en el
+                  presupuesto solo como referencia. No se registra automáticamente como gasto
+                  en finanzas.
+                </p>
               </div>
 
               <FormField
