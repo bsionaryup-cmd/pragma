@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE "Reservation" ADD COLUMN "holdExpiresAt" TIMESTAMP(3);
+ALTER TABLE "reservations" ADD COLUMN "holdExpiresAt" TIMESTAMP(3);
