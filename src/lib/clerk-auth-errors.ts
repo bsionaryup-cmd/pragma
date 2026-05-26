@@ -1,7 +1,13 @@
 import type { ClerkAPIError, SignInErrors, SignUpErrors } from "@clerk/shared/types";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 
+export function isMissingSignUpAttemptMessage(message: string): boolean {
+  return /no sign up attempt was found/i.test(message);
+}
+
 const CLERK_ERROR_MESSAGES: Record<string, string> = {
+  client_state_invalid:
+    "Tu registro expiró o se reinició. Vuelve a completar el formulario e intenta de nuevo.",
   form_password_incorrect:
     "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.",
   form_password_or_identifier_incorrect:
@@ -85,10 +91,25 @@ export function getClerkAuthErrorMessage(error: unknown, fallback: string): stri
   }
 
   if (error instanceof Error && error.message.trim()) {
+    if (isMissingSignUpAttemptMessage(error.message)) {
+      return CLERK_ERROR_MESSAGES.client_state_invalid ?? error.message;
+    }
     return error.message;
   }
 
   return fallback;
+}
+
+export function getSignUpGlobalErrorMessage(
+  fieldErrors: SignUpErrors | undefined,
+  fallback: string,
+): string | null {
+  const globalMessage = fieldErrors?.global?.[0]?.message;
+  if (!globalMessage) return null;
+  if (isMissingSignUpAttemptMessage(globalMessage)) {
+    return CLERK_ERROR_MESSAGES.client_state_invalid ?? globalMessage;
+  }
+  return globalMessage;
 }
 
 export function incompleteSignInStatusMessage(status: string | null | undefined): string {

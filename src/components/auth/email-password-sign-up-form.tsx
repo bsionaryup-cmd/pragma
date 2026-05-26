@@ -14,7 +14,9 @@ import { Label } from "@/components/ui/label";
 import {
   getClerkAuthErrorMessage,
   getSignUpFlowErrorMessage,
+  getSignUpGlobalErrorMessage,
 } from "@/lib/clerk-auth-errors";
+import { hasActiveSignUpAttempt } from "@/lib/auth/sign-up-attempt";
 import {
   PASSWORD_MIN_LENGTH,
   validateNewAccountPassword,
@@ -77,6 +79,7 @@ export function EmailPasswordSignUpForm() {
   const [captchaHintVisible, setCaptchaHintVisible] = useState(false);
   const [pending, startTransition] = useTransition();
   const verificationSendStartedRef = useRef(false);
+  const restoredSignUpStepRef = useRef(false);
 
   const clerkReady = Boolean(signUp);
   const isFetching = fetchStatus === "fetching" || pending;
@@ -137,6 +140,13 @@ export function EmailPasswordSignUpForm() {
   async function sendSignupEmailCode(options?: { force?: boolean }) {
     if (!signUp) {
       throw new Error("El servicio de autenticación no está listo.");
+    }
+
+    if (!hasActiveSignUpAttempt(signUp)) {
+      setStep("register");
+      throw new Error(
+        "Tu registro expiró o se reinició. Completa el formulario de nuevo.",
+      );
     }
 
     const emailVerification = signUp.verifications.emailAddress;
@@ -239,7 +249,15 @@ export function EmailPasswordSignUpForm() {
 
     startTransition(async () => {
       try {
-        await signUp.reset();
+        const emailChanged =
+          Boolean(signUp.emailAddress) &&
+          signUp.emailAddress!.toLowerCase() !== normalizedEmail;
+
+        if (hasActiveSignUpAttempt(signUp) && emailChanged) {
+          await signUp.reset();
+          verificationSendStartedRef.current = false;
+        }
+
         setCaptchaHintVisible(true);
 
         const result = await signUp.password({
@@ -278,6 +296,14 @@ export function EmailPasswordSignUpForm() {
   function handleVerify(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!clerkReady || !signUp) return;
+
+    if (!hasActiveSignUpAttempt(signUp)) {
+      setStep("register");
+      setError(
+        "Tu registro expiró o se reinició. Completa el formulario de nuevo.",
+      );
+      return;
+    }
 
     const trimmedCode = code.trim();
     if (trimmedCode.length < 6) {
@@ -420,10 +446,15 @@ export function EmailPasswordSignUpForm() {
             className="h-10 w-full text-muted-foreground"
             disabled={isFetching}
             onClick={() => {
-              setStep("register");
-              setCode("");
-              setError(null);
-              setInfo(null);
+              startTransition(async () => {
+                await signUp.reset();
+                verificationSendStartedRef.current = false;
+                restoredSignUpStepRef.current = false;
+                setStep("register");
+                setCode("");
+                setError(null);
+                setInfo(null);
+              });
             }}
           >
             Volver al registro
