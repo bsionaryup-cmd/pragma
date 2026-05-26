@@ -13,6 +13,7 @@ import {
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
 import { ReservationEditForm } from "@/features/reservations/components/reservation-edit-form";
+import { ReservationEmailEnrichmentSection } from "@/features/reservations/components/reservation-email-enrichment-section";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import {
   countNights,
@@ -507,6 +508,10 @@ export function ReservationDetailPanel({
               {reservation.guestName}
             </h3>
             <TitularContactSummary reservation={reservation} />
+            <ReservationEmailEnrichmentSection
+              reservationId={reservation.id}
+              platform={reservation.platform}
+            />
             <div className="mt-2">
               <PropertyIdentity
                 name={reservation.property.name}

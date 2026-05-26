@@ -36,6 +36,9 @@ model Organization {
   supportTickets         SupportTicket[]
   guestPaymentLinks      GuestPaymentLink[]
   salesQuotes            SalesQuote[]
+  airbnbEmailIntegration TenantAirbnbEmailIntegration?
+  airbnbListingEmailMaps AirbnbListingEmailMap[]
+  emailIngestionAudits   EmailIngestionAudit[]
 
   @@map("organizations")
 }
@@ -87,6 +90,7 @@ model User {
   salesQuotesCreated     SalesQuote[] @relation("SalesQuoteCreator")
   salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
   salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
+  airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
 
   @@index([role, isActive])
   @@index([organizationId])
@@ -169,6 +173,9 @@ model Property {
   propertyLock PropertyLock?
   priceLabs      PropertyPriceLabs?
   guestPaymentLinks GuestPaymentLink[]
+  emailIngestionAudits EmailIngestionAudit[]
+  airbnbEmailTasks     AirbnbEmailTask[]
+  listingEmailMaps     AirbnbListingEmailMap[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -231,6 +238,12 @@ model Reservation {
   tasks                   Task[]
   paymentInvoices         PaymentInvoice[]
   guestPaymentLinks       GuestPaymentLink[]
+  emailIngestionAudits    EmailIngestionAudit[]
+  emailEvents             ReservationEmailEvent[]
+  emailPayouts            ReservationPayout[]
+  emailCommunications     ReservationCommunication[]
+  emailReviews            ReservationReview[]
+  airbnbEmailTasks        AirbnbEmailTask[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -1341,4 +1354,265 @@ model SalesQuoteEvent {
 
   @@index([quoteId, createdAt])
   @@map("sales_quote_events")
+}
+
+// ─── Airbnb Email Ingestion Layer (incremental / fallback) ───
+// Sidecar tables — does not replace iCal as availability source of truth.
+
+enum AirbnbEmailProcessingStatus {
+  RECEIVED
+  CLASSIFIED
+  PROCESSED
+  SKIPPED_DUPLICATE
+  FAILED
+  MANUAL_REVIEW
+}
+
+enum AirbnbEmailEventKind {
+  CONFIRMED
+  CHECKIN_REMINDER
+  UPDATED
+  CANCELED
+  EXTENDED
+  PAYOUT_PROCESSED
+  RESERVATION_MESSAGE
+  HOST_REVIEW_REQUESTED
+  GUEST_REVIEW_SUBMITTED
+  GUEST_REVIEW_PUBLISHED
+  EARLY_CHECKIN_REQUEST
+  TRANSPORT_REQUEST
+  UNKNOWN
+}
+
+enum AirbnbEmailSenderChannel {
+  AUTOMATED
+  EXPRESS
+  OTHER
+}
+
+enum AirbnbEmailMatchMethod {
+  CONFIRMATION_CODE
+  LISTING_DATES
+  LISTING_GUEST_DATES
+  NONE
+}
+
+enum AirbnbEmailTaskKind {
+  EARLY_CHECKIN_REQUEST
+  TRANSPORT_REQUEST
+  REVIEW_RESPONSE_PENDING
+  ORPHAN_EMAIL_EVENT
+  PAYOUT_MISMATCH
+  MANUAL_REVIEW
+}
+
+enum AirbnbEmailPayoutStatus {
+  PROCESSED
+  PENDING
+  FAILED
+}
+
+enum AirbnbEmailReviewStatus {
+  REQUESTED
+  SUBMITTED
+  PUBLISHED
+  RESPONSE_PENDING
+}
+
+model EmailIngestionAudit {
+  id                 String                      @id @default(cuid())
+  messageId          String?                     @unique
+  contentHash        String                      @unique
+  fromAddress        String
+  toAddress          String?
+  subject            String
+  senderChannel      AirbnbEmailSenderChannel    @default(OTHER)
+  rawEmail           Json
+  classification     AirbnbEmailEventKind?
+  processingStatus   AirbnbEmailProcessingStatus @default(RECEIVED)
+  errorReason        String?
+  parsedPayload      Json?
+  organizationId     String?
+  propertyId         String?
+  reservationId      String?
+  matchMethod        AirbnbEmailMatchMethod?
+  matchConfidence    Decimal?                    @db.Decimal(5, 4)
+  processedAt        DateTime?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  organization     Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  property         Property?              @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  reservation      Reservation?           @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  reservationEvent ReservationEmailEvent?
+  payout           ReservationPayout?
+  communication    ReservationCommunication?
+  review           ReservationReview?
+  tasks            AirbnbEmailTask[]
+
+  @@index([processingStatus, createdAt(sort: Desc)])
+  @@index([reservationId])
+  @@index([propertyId])
+  @@map("email_ingestion_audit")
+}
+
+model ReservationEmailEvent {
+  id               String               @id @default(cuid())
+  auditId          String               @unique
+  reservationId    String?
+  eventKind        AirbnbEmailEventKind
+  confirmationCode String?
+  matchMethod      AirbnbEmailMatchMethod?
+  matchConfidence  Decimal?             @db.Decimal(5, 4)
+  payload          Json
+  enrichedFields   Json?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  audit       EmailIngestionAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  reservation Reservation?        @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId, eventKind])
+  @@index([confirmationCode])
+  @@map("reservation_email_events")
+}
+
+model ReservationPayout {
+  id                   String                  @id @default(cuid())
+  auditId              String                  @unique
+  reservationId        String?
+  grossAmount          Decimal?                @db.Decimal(12, 2)
+  hostFee              Decimal?                @db.Decimal(12, 2)
+  netPayout            Decimal?                @db.Decimal(12, 2)
+  currency             String                  @default("COP")
+  payoutStatus         AirbnbEmailPayoutStatus @default(PROCESSED)
+  expectedSettlementAt DateTime?
+  payoutAccountId      String?
+  reconciliationStatus String?
+  payload              Json
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  audit       EmailIngestionAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  reservation Reservation?        @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId])
+  @@map("reservation_payouts")
+}
+
+model ReservationCommunication {
+  id              String   @id @default(cuid())
+  auditId         String   @unique
+  reservationId   String?
+  senderType      String?
+  threadId        String?
+  rawMessage      String   @db.Text
+  parsedIntent    String?
+  requiresAction  Boolean  @default(false)
+  payload         Json
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  audit       EmailIngestionAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  reservation Reservation?        @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId, threadId])
+  @@map("reservation_communications")
+}
+
+model ReservationReview {
+  id                String                  @id @default(cuid())
+  auditId           String                  @unique
+  reservationId     String?
+  rating            Int?
+  reviewText        String?                 @db.Text
+  privateNote       String?                 @db.Text
+  responsePending   Boolean                 @default(false)
+  reviewStatus      AirbnbEmailReviewStatus @default(REQUESTED)
+  payload           Json
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  audit       EmailIngestionAudit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  reservation Reservation?        @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId, reviewStatus])
+  @@map("reservation_reviews")
+}
+
+model AirbnbEmailTask {
+  id            String              @id @default(cuid())
+  auditId       String?
+  reservationId String?
+  propertyId    String?
+  kind          AirbnbEmailTaskKind
+  title         String
+  description   String?
+  status        TaskStatus          @default(PENDING)
+  metadata      Json?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  audit       EmailIngestionAudit? @relation(fields: [auditId], references: [id], onDelete: SetNull)
+  reservation Reservation?         @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  property    Property?            @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId, status])
+  @@index([kind, status])
+  @@map("airbnb_email_tasks")
+}
+
+// ─── Airbnb Email Integration (tenant-scoped inbound) ────────
+
+enum AirbnbEmailIntegrationStatus {
+  DISABLED
+  ACTIVE
+  ERROR
+}
+
+enum AirbnbEmailInboundProvider {
+  RESEND
+  MANUAL
+}
+
+model TenantAirbnbEmailIntegration {
+  id                  String                       @id @default(cuid())
+  organizationId      String                       @unique
+  enabled             Boolean                      @default(false)
+  provider            AirbnbEmailInboundProvider   @default(RESEND)
+  inboundEmailAddress String                       @unique
+  syncStatus          AirbnbEmailIntegrationStatus @default(DISABLED)
+  lastEmailReceivedAt DateTime?
+  lastProcessedAt     DateTime?
+  lastError           String?
+  webhookConfiguredAt DateTime?
+  featureFlags        Json?
+  configuredById      String?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  configuredBy   User?        @relation("AirbnbEmailConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+
+  @@index([enabled, syncStatus])
+  @@map("tenant_airbnb_email_integrations")
+}
+
+model AirbnbListingEmailMap {
+  id              String   @id @default(cuid())
+  organizationId  String
+  propertyId      String
+  airbnbRoomId    String?
+  listingName     String
+  listingNameNorm String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, propertyId])
+  @@index([organizationId, listingNameNorm])
+  @@index([organizationId, airbnbRoomId])
+  @@map("airbnb_listing_email_maps")
 }

@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AirbnbImportDrawer } from "@/features/properties/components/airbnb-import-drawer";
 import { AirbnbHubActions } from "@/features/integrations/airbnb/components/airbnb-hub-actions";
+import { AirbnbEmailSyncCard } from "@/features/integrations/airbnb/components/airbnb-email-sync-card";
+import type { TenantAirbnbEmailIntegrationView } from "@/services/integrations/tenant-airbnb-email-integration.service";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
@@ -28,11 +30,15 @@ export type AirbnbIntegrationOverview = {
 type AirbnbIntegrationPanelProps = {
   overview: AirbnbIntegrationOverview;
   canSync: boolean;
+  emailIntegration: TenantAirbnbEmailIntegrationView | null;
+  canManageEmail: boolean;
 };
 
 export function AirbnbIntegrationPanel({
   overview,
   canSync,
+  emailIntegration,
+  canManageEmail,
 }: AirbnbIntegrationPanelProps) {
   const router = useRouter();
   const [importOpen, setImportOpen] = useState(false);
@@ -60,8 +66,8 @@ export function AirbnbIntegrationPanel({
                 Airbnb
               </h1>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Importa listings, sincroniza calendarios iCal y publica bloqueos.
-                La configuración por propiedad sigue en{" "}
+                Importa listings, sincroniza calendarios iCal, activa Airbnb Email
+                Sync y publica bloqueos. La configuración por propiedad sigue en{" "}
                 <Link href="/properties" className="font-medium text-primary hover:underline">
                   Propiedades
                 </Link>
@@ -101,6 +107,11 @@ export function AirbnbIntegrationPanel({
             </CardContent>
           </Card>
         </section>
+
+        <AirbnbEmailSyncCard
+          integration={emailIntegration}
+          canManage={canManageEmail}
+        />
 
         <Card>
           <CardHeader>

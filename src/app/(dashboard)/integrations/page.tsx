@@ -57,7 +57,8 @@ export default async function IntegrationsPage() {
             </span>
             <h2 className="mt-5 text-lg font-semibold">Airbnb</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Importación de listings, sync iCal y calendario de exportación.
+              Importación de listings, sync iCal, calendario de exportación y
+              Airbnb Email Sync (reenvío de correos).
             </p>
           </Link>
 

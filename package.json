@@ -35,6 +35,7 @@
     "brand:assets": "node scripts/generate-brand-assets.mjs",
     "brand:favicon": "node scripts/brand/generate-favicon.mjs",
     "test:billing": "npx tsx --test tests/billing/*.test.ts tests/rbac/*.test.ts tests/payments/*.test.ts tests/sales/*.test.ts",
+    "test:airbnb-email": "npx tsx --test tests/airbnb-email/**/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify:release": "node scripts/verify-release.mjs"
   },

@@ -1,0 +1,99 @@
+/** Deterministic HTML helpers for Airbnb transactional emails. */
+
+export function stripHtmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h\d)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function extractAnchorHrefs(html: string): string[] {
+  const hrefs: string[] = [];
+  for (const match of html.matchAll(/href=["']([^"']+)["']/gi)) {
+    if (match[1]) hrefs.push(match[1]);
+  }
+  return hrefs;
+}
+
+/** Label/value rows common in Airbnb templates (ES/EN). */
+export function extractLabeledValues(
+  text: string,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const patterns: Array<{ key: string; re: RegExp }> = [
+    {
+      key: "confirmationCode",
+      re: /(?:código de confirmación|confirmation code|reservation code)[:\s]+([A-Z0-9]{6,14})/i,
+    },
+    {
+      key: "guestName",
+      re: /(?:huésped|guest)[:\s]+([^\n|]+?)(?:\n|·|$)/i,
+    },
+    {
+      key: "listingName",
+      re: /(?:alojamiento|listing|property)[:\s]+([^\n|]+?)(?:\n|·|$)/i,
+    },
+    {
+      key: "checkIn",
+      re: /(?:check-?in|llegada|arrival)[:\s]+(\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4})/i,
+    },
+    {
+      key: "checkOut",
+      re: /(?:check-?out|salida|departure)[:\s]+(\d{4}-\d{2}-\d{2}|\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4})/i,
+    },
+    {
+      key: "grossAmount",
+      re: /(?:ingresos brutos|gross earnings|total earnings)[:\s]*[$€]?\s*([\d.,]+)/i,
+    },
+    {
+      key: "hostFee",
+      re: /(?:tarifa de servicio|host service fee|service fee)[:\s]*[-–]?\s*[$€]?\s*([\d.,]+)/i,
+    },
+    {
+      key: "netPayout",
+      re: /(?:total|net|payout|pago)[:\s]*[$€]?\s*([\d.,]+)/i,
+    },
+    {
+      key: "settlementDate",
+      re: /(?:fecha de pago|payout date|settlement)[:\s]+([^\n|]+)/i,
+    },
+    {
+      key: "payoutAccount",
+      re: /(?:cuenta|account|bank)[:\s#]+([^\n|]+)/i,
+    },
+  ];
+
+  for (const { key, re } of patterns) {
+    const m = text.match(re);
+    if (m?.[1]?.trim()) out[key] = m[1].trim();
+  }
+
+  return out;
+}
+
+export function extractMessageSnippet(text: string): string | null {
+  const patterns = [
+    /(?:escribió|wrote)[:\s]+["“]?([^"”\n]{10,800})/i,
+    /(?:mensaje|message)[:\s]+["“]?([^"”\n]{10,800})/i,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (m?.[1]?.trim()) return m[1].trim();
+  }
+  return null;
+}
+
+export function extractReviewText(text: string): string | null {
+  const m = text.match(
+    /(?:reseña|review)[:\s]+["“]?([^"”\n]{10,2000})/i,
+  );
+  return m?.[1]?.trim() ?? null;
+}
