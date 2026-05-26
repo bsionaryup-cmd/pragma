@@ -13,7 +13,7 @@ export function formatPropertyLabel(input: {
   unitNumber?: string | null;
 }): string {
   const unit = formatPropertyUnit(input.unitNumber);
-  if (unit) return `${unit} · ${input.name}`;
+  if (unit) return `${unit} — ${input.name}`;
   return input.name;
 }
 

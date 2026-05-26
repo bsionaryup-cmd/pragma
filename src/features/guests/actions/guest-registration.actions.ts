@@ -23,6 +23,7 @@ import {
   revokeGuestRegistrationToken,
   submitGuestRegistration,
 } from "@/services/guests/guest-registration.service";
+import { sendGuestRegistrationEmailForReservation } from "@/services/guests/guest-registration-email.service";
 
 function revalidateGuestRegistrationPaths() {
   revalidatePath("/reservations");
@@ -120,6 +121,24 @@ export async function regenerateGuestRegistrationTokenAction(
     const url = await regenerateGuestRegistrationToken(reservationId);
     revalidateGuestRegistrationPaths();
     return { success: true as const, url };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      error: toGuestRegistrationActionError(error),
+    };
+  }
+}
+
+export async function resendGuestRegistrationEmailAction(reservationId: string) {
+  try {
+    await requireGuestRegistrationPermission();
+    const result = await sendGuestRegistrationEmailForReservation(reservationId);
+    if (!result.ok) {
+      return { success: false as const, error: result.message };
+    }
+    revalidateGuestRegistrationPaths();
+    return { success: true as const };
   } catch (error) {
     if (isRedirectError(error)) throw error;
     return {

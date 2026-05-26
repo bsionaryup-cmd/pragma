@@ -212,6 +212,7 @@ model Reservation {
   platform                     BookingPlatform
   status                       ReservationStatus @default(CONFIRMED)
   paymentStatus                PaymentStatus     @default(PAID)
+  holdExpiresAt                DateTime?
   reservationCode              String?
   totalAmount                  Decimal           @db.Decimal(12, 2)
   currency                     String            @default("COP")

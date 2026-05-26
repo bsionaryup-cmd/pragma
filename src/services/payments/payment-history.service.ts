@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { guestPaymentIncomeLabel } from "@/lib/payments/guest-payment-categories";
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { formatMoney } from "@/lib/format-currency";
 import type { Locale } from "@/i18n/types";
 
@@ -51,9 +52,9 @@ export async function listOrganizationPaymentHistory(
 
   return links.map((link) => {
     const propertyLabel = link.reservation?.property
-      ? `${link.reservation.property.name}${link.reservation.property.unitNumber ? ` · ${link.reservation.property.unitNumber}` : ""}`
+      ? formatPropertyLabel(link.reservation.property)
       : link.property
-        ? `${link.property.name}${link.property.unitNumber ? ` · ${link.property.unitNumber}` : ""}`
+        ? formatPropertyLabel(link.property)
         : null;
 
     return {

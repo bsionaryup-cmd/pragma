@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Link2, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { Copy, Link2, Mail, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { AccessCodeDisplay } from "@/components/access/access-code-display";
 import {
   generateGuestRegistrationLinkAction,
   regenerateGuestRegistrationTokenAction,
+  resendGuestRegistrationEmailAction,
   revokeGuestRegistrationTokenAction,
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
@@ -35,6 +36,12 @@ import { ReservationSourceBadge } from "@/components/reservations/reservation-so
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { ReservationPaymentLinks } from "@/features/payments/components/reservation-payment-links";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
+import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
+import {
+  formatHoldExpiryLabel,
+  holdDepositPercentLabel,
+} from "@/lib/reservations/reservation-hold-display";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
@@ -290,6 +297,12 @@ export function ReservationDetailPanel({
     checkIn: reservation.checkIn,
     guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
   });
+  const holdActive = isReservationHoldActive({
+    holdExpiresAt: reservation.holdExpiresAt,
+    paymentStatus: reservation.paymentStatus,
+  });
+  const holdExpiryLabel = formatHoldExpiryLabel(reservation.holdExpiresAt);
+  const propertyLabel = formatPropertyLabel(reservation.property);
 
   async function handleDelete() {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -354,6 +367,17 @@ export function ReservationDetailPanel({
     });
   }
 
+  function resendRegistrationEmail() {
+    startTokenTransition(async () => {
+      const result = await resendGuestRegistrationEmailAction(reservation.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Correo de registro reenviado al huésped");
+    });
+  }
+
   function revokeRegistrationLink() {
     if (!confirm("¿Revocar el link de registro de huéspedes?")) return;
     startTokenTransition(async () => {
@@ -370,13 +394,29 @@ export function ReservationDetailPanel({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {registrationDueSoon && canManageGuestRegistration ? (
-        <div className="border-b border-pragma-cyan/30 bg-pragma-soft-cyan/30 px-5 py-3">
+      {holdActive ? (
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-3">
           <p className="text-sm font-medium text-foreground">
-            Llegada próxima — registro de huéspedes pendiente
+            Reserva en espera de pago
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Genera y envía el link de registro antes del check-in.
+            Las fechas están reservadas temporalmente. El huésped debe pagar al
+            menos el depósito ({holdDepositPercentLabel()}) antes de que venza el
+            plazo{holdExpiryLabel ? ` (${holdExpiryLabel.toLowerCase()})` : ""}.
+            Si no paga, la disponibilidad se libera automáticamente.
+          </p>
+        </div>
+      ) : null}
+
+      {registrationDueSoon && canManageGuestRegistration && !holdActive ? (
+        <div className="border-b border-pragma-cyan/30 bg-pragma-soft-cyan/30 px-5 py-3">
+          <p className="text-sm font-medium text-foreground">
+            Tu huésped llega pronto
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            El check-in es en los próximos 2 días y aún falta el registro en{" "}
+            {propertyLabel}. Comparte el enlace con calidez — un mensaje claro
+            reduce fricción en la llegada.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button
@@ -384,23 +424,45 @@ export function ReservationDetailPanel({
               size="sm"
               variant="brand"
               disabled={isTokenPending}
-              onClick={generateRegistrationLink}
+              onClick={
+                registration?.url || reservation.guestRegistrationUrl
+                  ? regenerateRegistrationLink
+                  : generateRegistrationLink
+              }
             >
               <Link2 className="mr-1.5 h-3.5 w-3.5" />
-              Generar link
+              {registration?.url || reservation.guestRegistrationUrl
+                ? "Regenerar link"
+                : "Generar link"}
             </Button>
+            {reservation.guestEmail?.trim() &&
+            (registration?.url || reservation.guestRegistrationUrl) ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isTokenPending}
+                onClick={resendRegistrationEmail}
+              >
+                <Mail className="mr-1.5 h-3.5 w-3.5" />
+                Reenviar por correo
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="sm"
               variant="outline"
-              disabled={isTokenPending || !registration?.url}
+              disabled={
+                isTokenPending ||
+                !(registration?.url ?? reservation.guestRegistrationUrl)
+              }
               onClick={async () => {
                 const url = registration?.url ?? reservation.guestRegistrationUrl;
                 if (!url) return;
                 const welcome = [
-                  "¡Hola! Nos alegra recibirte pronto.",
+                  `¡Hola${reservation.guestFirstName?.trim() ? ` ${reservation.guestFirstName.trim()}` : ""}! Nos alegra recibirte pronto.`,
                   "",
-                  `Para tu estadía en ${reservation.property.unitNumber ? `${reservation.property.unitNumber} — ` : ""}${reservation.property.name}, completa el registro de huéspedes aquí:`,
+                  `Para tu estadía en ${propertyLabel}, completa el registro de huéspedes (datos y acceso) en este enlace seguro:`,
                   url,
                   "",
                   accessCode?.code
@@ -414,7 +476,7 @@ export function ReservationDetailPanel({
                         checkInTime: reservation.property.checkInTime,
                         checkOutTime: reservation.property.checkOutTime,
                       }) ?? ""
-                    : "Te compartiremos el código de acceso válido durante tu reserva una vez completes el registro.",
+                    : "Cuando completes el registro, te compartiremos el código de acceso válido para tu estadía.",
                 ]
                   .filter(Boolean)
                   .join("\n");
@@ -514,29 +576,6 @@ export function ReservationDetailPanel({
 
         {!editing ? (
           <>
-            {registrationDueSoon ? (
-              <div className="mb-4 rounded-xl border border-warning/35 bg-warning/10 px-3 py-2.5 text-sm text-foreground">
-                <p className="font-medium text-warning">
-                  Registro de huéspedes pendiente
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  El check-in es en los próximos 2 días y el registro aún no está
-                  completo.
-                </p>
-                {canManageGuestRegistration && !registration ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="mt-2.5"
-                    onClick={generateRegistrationLink}
-                    disabled={isTokenPending}
-                  >
-                    Generar link de registro de huéspedes
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
-
             {accessCode ? (
               <ReservationDetailSection title="Código de acceso">
                 <AccessCodeDisplay

@@ -39,6 +39,7 @@ import {
 } from "@/lib/reservations/reservation-mutation-policy";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
+import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -74,6 +75,7 @@ type ReservationRow = {
   platform: ReservationInboxItem["platform"];
   status: ReservationInboxItem["status"];
   paymentStatus?: ReservationInboxItem["paymentStatus"];
+  holdExpiresAt?: Date | null;
   totalAmount: { toString(): string };
   currency: string;
   internalNotes: string | null;
@@ -115,6 +117,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     platform: r.platform,
     status: r.status,
     paymentStatus: r.paymentStatus,
+    holdExpiresAt: r.holdExpiresAt?.toISOString() ?? null,
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
     internalNotes: r.internalNotes,
@@ -232,6 +235,8 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       createdAt: true,
       platform: true,
       status: true,
+      paymentStatus: true,
+      holdExpiresAt: true,
       totalAmount: true,
       currency: true,
       internalNotes: true,
@@ -475,7 +480,15 @@ export async function createReservation(data: ReservationWizardValues) {
     ownerId: created.property.ownerId,
   });
 
-  if (
+  const requiresPaymentHold = data.totalAmount > 0;
+
+  if (requiresPaymentHold) {
+    await activateReservationPaymentHold({
+      reservationId: created.id,
+      createdById: tenantCtx.userId,
+      totalAmount: data.totalAmount,
+    });
+  } else if (
     isGuestRegistrationEligiblePlatform(created.platform) &&
     isGuestRegistrationEligibleStatus(created.status)
   ) {

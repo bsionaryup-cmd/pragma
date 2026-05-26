@@ -33,6 +33,7 @@ import {
   mapWompiPaymentMethod,
 } from "@/services/payments/wompi-transaction-lookup.service";
 import { guestPaymentIncomeLabel } from "@/lib/payments/guest-payment-categories";
+import { releaseReservationHoldIfDepositMet } from "@/services/reservations/reservation-hold.service";
 
 function mapWompiToLinkStatus(
   status: PaymentTransactionStatus,
@@ -72,6 +73,10 @@ async function syncReservationPaymentStatus(reservationId: string) {
     where: { id: reservationId },
     data: { paymentStatus },
   });
+
+  if (paymentStatus === PaymentStatus.PAID || paymentStatus === PaymentStatus.PARTIAL) {
+    await releaseReservationHoldIfDepositMet(reservationId);
+  }
 }
 
 export async function reconcileGuestPaymentFromWebhook(input: {
@@ -330,9 +335,14 @@ export async function reconcilePendingGuestPaymentsFromWompi(): Promise<{
 
 export async function runGuestPaymentReconciliationJob(): Promise<{
   expired: number;
+  holdsReleased: number;
   wompi: { scanned: number; reconciled: number; failed: number };
 }> {
   const expired = await expireStaleGuestPaymentLinks();
+  const { expireStaleReservationHolds } = await import(
+    "@/services/reservations/reservation-hold.service"
+  );
+  const holdsReleased = await expireStaleReservationHolds();
   const wompi = await reconcilePendingGuestPaymentsFromWompi();
-  return { expired, wompi };
+  return { expired, holdsReleased, wompi };
 }

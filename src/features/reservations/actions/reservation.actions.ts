@@ -42,6 +42,8 @@ function toInboxFromCreated(
     createdAt: r.createdAt.toISOString(),
     platform: r.platform,
     status: r.status,
+    paymentStatus: r.paymentStatus,
+    holdExpiresAt: r.holdExpiresAt?.toISOString() ?? null,
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
     internalNotes: r.internalNotes,

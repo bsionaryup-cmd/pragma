@@ -112,6 +112,10 @@ export function MultiCalendar({
     selectedReservationIdRef.current = selectedReservation?.id ?? null;
   }, [drawerMode, selectedReservation?.id]);
 
+  useEffect(() => {
+    extendingViewportRef.current = false;
+  }, [viewport.anchor, viewport.rangeEnd]);
+
   const filteredProperties = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return data.properties;

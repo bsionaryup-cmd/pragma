@@ -15,6 +15,7 @@ import { ReservationSourceBadge } from "@/components/reservations/reservation-so
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { formatCurrency } from "@/lib/helpers";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
+import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
 import { cn } from "@/lib/utils";
 
 type ReservationCardProps = {
@@ -41,6 +42,10 @@ function ReservationCardComponent({
     checkIn: reservation.checkIn,
     guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
   });
+  const holdActive = isReservationHoldActive({
+    holdExpiresAt: reservation.holdExpiresAt,
+    paymentStatus: reservation.paymentStatus,
+  });
 
   return (
     <button
@@ -66,7 +71,11 @@ function ReservationCardComponent({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          {registrationDueSoon ? (
+          {holdActive ? (
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-400">
+              Pago pendiente
+            </span>
+          ) : registrationDueSoon ? (
             <span className="rounded-full border border-warning/40 bg-warning/15 px-2 py-0.5 text-[9px] font-medium text-warning">
               Registro pendiente
             </span>

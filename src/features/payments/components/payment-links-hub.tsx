@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
 import { formatMoney } from "@/lib/format-currency";
+import { PropertyIdentity } from "@/components/properties/property-identity";
 import type { GuestPaymentLink } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 
@@ -142,6 +143,15 @@ export function PaymentLinksHub({
                         ? ` · ${link.reservation.guestName}`
                         : null}
                     </p>
+                    {link.property ? (
+                      <div className="mt-1">
+                        <PropertyIdentity
+                          name={link.property.name}
+                          unitNumber={link.property.unitNumber}
+                          size="sm"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">

@@ -8,6 +8,7 @@ import {
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { startOfDay } from "@/lib/helpers/date";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
@@ -399,7 +400,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       id: `res-${r.id}`,
       type: "reservation" as const,
       title: r.guestName,
-      subtitle: r.property.name,
+      subtitle: formatPropertyLabel(r.property),
       at: r.createdAt.toISOString(),
     })),
     ...recentTasks

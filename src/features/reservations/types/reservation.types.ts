@@ -74,6 +74,7 @@ export type ReservationInboxItem = {
   platform: BookingPlatform;
   status: ReservationStatus;
   paymentStatus?: PaymentStatus;
+  holdExpiresAt?: string | null;
   totalAmount: string;
   currency: string;
   internalNotes: string | null;

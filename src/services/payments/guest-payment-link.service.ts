@@ -240,6 +240,7 @@ export async function createReservationPaymentLink(input: {
   description?: string;
   createdById: string;
   issue?: boolean;
+  expiresAt?: Date;
 }) {
   const balance = await getReservationPaymentBalance(input.reservationId);
 
@@ -281,7 +282,8 @@ export async function createReservationPaymentLink(input: {
     propertyId: balance.propertyId,
     guestName: balance.guestName,
     createdById: input.createdById,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    expiresAt:
+      input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
   if (input.issue) {
