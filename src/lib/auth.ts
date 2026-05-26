@@ -8,7 +8,9 @@ import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@prisma/client";
 import { db } from "@/lib/db";
+import { TrialAlreadyConsumedError } from "@/lib/billing/trial-eligibility";
 import {
+  ExistingAccountConflictError,
   getUserByClerkId,
   mapClerkUserToPayload,
   syncClerkPublicMetadata,
@@ -164,21 +166,31 @@ export const requireDbUser = cache(async (): Promise<User> => {
   const clerkUser = await fetchClerkUser();
   if (!clerkUser) redirect("/sign-in");
 
-  if (!dbUser) {
-    dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
-      touchLogin: true,
-    });
-  } else {
-    const metadata = clerkUser.publicMetadata as ClerkPublicMetadata | undefined;
-    const needsMetadataSync =
-      !metadata?.dbUserId ||
-      metadata.dbUserId !== dbUser.id ||
-      metadata.role !== (dbUser.role as AppUserRole);
+  try {
+    if (!dbUser) {
+      dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
+        touchLogin: true,
+      });
+    } else {
+      const metadata = clerkUser.publicMetadata as ClerkPublicMetadata | undefined;
+      const needsMetadataSync =
+        !metadata?.dbUserId ||
+        metadata.dbUserId !== dbUser.id ||
+        metadata.role !== (dbUser.role as AppUserRole);
 
-    dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
-      touchLogin: true,
-      syncClerkMetadata: needsMetadataSync,
-    });
+      dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
+        touchLogin: true,
+        syncClerkMetadata: needsMetadataSync,
+      });
+    }
+  } catch (error) {
+    if (error instanceof ExistingAccountConflictError) {
+      redirect("/sign-in?existing_account=1");
+    }
+    if (error instanceof TrialAlreadyConsumedError) {
+      redirect("/sign-in?trial_consumed=1");
+    }
+    throw error;
   }
 
   return dbUser;

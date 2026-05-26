@@ -185,7 +185,7 @@ export function EmailPasswordSignUpForm() {
 
     if (signUp.isTransferable) {
       throw new Error(
-        "Ya existe una cuenta con este correo. Inicia sesión para continuar.",
+        "Ya existe una cuenta con este correo. Usa Iniciar sesión más abajo para continuar.",
       );
     }
 
@@ -485,7 +485,14 @@ export function EmailPasswordSignUpForm() {
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/sign-in" className="font-medium text-pragma-electric hover:underline">
+        <Link
+          href={
+            normalizedEmail
+              ? `/sign-in?email=${encodeURIComponent(normalizedEmail)}`
+              : "/sign-in"
+          }
+          className="font-medium text-pragma-electric hover:underline"
+        >
           Iniciar sesión
         </Link>
       </p>

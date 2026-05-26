@@ -3,6 +3,7 @@
 import { useAuth, useClerk, useSignIn } from "@clerk/nextjs";
 import type { SignInFutureResource } from "@clerk/shared/types";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { KeyRound, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -130,6 +131,9 @@ export function EmailPasswordSignInForm({
   postAuthPath = DEFAULT_POST_AUTH_PATH,
   clearStaleSession = false,
 }: EmailPasswordSignInFormProps) {
+  const searchParams = useSearchParams();
+  const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() ?? "";
+
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
@@ -140,7 +144,7 @@ export function EmailPasswordSignInForm({
     useState<VerificationStrategy | null>(null);
   const [verificationReasonState, setVerificationReasonState] =
     useState<VerificationReason | null>(null);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);

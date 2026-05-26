@@ -20,11 +20,185 @@ import type { ClerkWebhookUserData } from "@/types/clerk-webhook";
 import { clerkClient } from "@clerk/nextjs/server";
 import {
   createOrganizationWithTrialInTransaction,
+  ensureOrganizationBillingAccount,
 } from "@/services/organizations/organization.service";
 import { resolvePlatformRoleForEmail } from "@/lib/platform/resolve-platform-role";
 import { isPlatformOwnerEmail } from "@/lib/platform/platform-owner";
 import { assertCanAddUserForOrganization } from "@/lib/billing/plan-limits";
 import { assertUsersShareOrganization } from "@/lib/platform/tenant-access";
+import {
+  normalizeUserEmail,
+  selfSignupEmailReuseMessage,
+  shouldRejectSelfSignupEmailReuse,
+  shouldRejectSelfSignupForExistingUser,
+} from "@/lib/auth/clerk-user-upsert-policy";
+import {
+  assertEmailEligibleForNewSaasTrial,
+  TrialAlreadyConsumedError,
+} from "@/lib/billing/trial-eligibility";
+
+export {
+  normalizeUserEmail,
+  shouldRejectSelfSignupEmailReuse,
+  shouldRejectSelfSignupForExistingUser,
+} from "@/lib/auth/clerk-user-upsert-policy";
+
+/** Usuario activo en otro tenant (ej. recepcionista invitado) — no puede abrir cuenta nueva con el mismo correo. */
+export class ExistingAccountConflictError extends Error {
+  constructor(
+    message = "Este correo ya está registrado en PRAGMA. Inicia sesión para continuar.",
+  ) {
+    super(message);
+    this.name = "ExistingAccountConflictError";
+  }
+}
+
+function isPrismaUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2002"
+  );
+}
+
+async function findUserByEmailInsensitive(email: string): Promise<User | null> {
+  const normalized = normalizeUserEmail(email);
+  if (!normalized) return null;
+
+  try {
+    return await db.user.findFirst({
+      where: { email: { equals: normalized, mode: "insensitive" } },
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }],
+    });
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+    return null;
+  }
+}
+
+async function findUserForClerkUpsert(
+  clerkId: string,
+  email: string,
+): Promise<User | null> {
+  try {
+    const byClerk = await db.user.findUnique({ where: { clerkId } });
+    if (byClerk) return byClerk;
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
+
+  return findUserByEmailInsensitive(email);
+}
+
+async function findUserAfterUniqueViolation(
+  clerkId: string,
+  email: string,
+): Promise<User | null> {
+  try {
+    const byClerk = await db.user.findUnique({ where: { clerkId } });
+    if (byClerk) return byClerk;
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+  }
+
+  return findUserByEmailInsensitive(email);
+}
+
+function isAdminProvisionedUpsert(options?: ClerkUpsertOptions): boolean {
+  return Boolean(options?.organizationId);
+}
+
+async function relinkUserFromClerkSignup(
+  existing: User,
+  payload: ClerkUserPayload,
+  options?: ClerkUpsertOptions,
+): Promise<User> {
+  if (!isAdminProvisionedUpsert(options)) {
+    if (shouldRejectSelfSignupEmailReuse(existing, payload.id)) {
+      throw new ExistingAccountConflictError(
+        selfSignupEmailReuseMessage(existing),
+      );
+    }
+  } else if (shouldRejectSelfSignupForExistingUser(existing, payload.id)) {
+    throw new ExistingAccountConflictError();
+  }
+
+  const normalizedEmail = normalizeUserEmail(payload.email);
+  const profileUpdate = buildUserUpdateData(
+    { ...payload, email: normalizedEmail },
+    options,
+  );
+
+  const data: Prisma.UserUpdateInput = {
+    clerkId: payload.id,
+    email: normalizedEmail,
+    isActive: true,
+    deletedAt: null,
+    ...profileUpdate,
+  };
+
+  if (options?.organizationId) {
+    data.organization = { connect: { id: options.organizationId } };
+  }
+  if (options?.role) {
+    data.role = options.role;
+  }
+  if (options?.isAccountOwner !== undefined) {
+    data.isAccountOwner = options.isAccountOwner;
+  }
+
+  let updated: User;
+  try {
+    updated = await db.user.update({
+      where: { id: existing.id },
+      data,
+    });
+  } catch (error) {
+    rethrowUnlessUserSchemaDrift(error);
+    throw error;
+  }
+
+  if (updated.organizationId) {
+    await ensureOrganizationBillingAccount(updated.organizationId, {
+      ownerEmail: updated.isAccountOwner ? normalizedEmail : null,
+    });
+  }
+
+  if (options?.syncClerkMetadata !== false) {
+    await syncClerkPublicMetadata(payload.id, {
+      role: updated.role,
+      dbUserId: updated.id,
+    });
+  }
+
+  const normalized = await ensurePlatformOwnerTenancy(updated);
+  return withUserPreferenceDefaults(normalized);
+}
+
+type ClerkUpsertOptions = {
+  touchLogin?: boolean;
+  syncClerkMetadata?: boolean;
+  organizationId?: string;
+  role?: UserRole;
+  isAccountOwner?: boolean;
+};
+
+async function resolveUserAfterCreateConflict(
+  clerkId: string,
+  email: string,
+  payload: ClerkUserPayload,
+  options?: ClerkUpsertOptions,
+): Promise<User | null> {
+  const raced = await findUserAfterUniqueViolation(clerkId, email);
+  if (!raced) return null;
+
+  if (raced.clerkId !== clerkId) {
+    return relinkUserFromClerkSignup(raced, payload, options);
+  }
+
+  return withUserPreferenceDefaults(raced);
+}
 
 async function createSelfSignupUser(
   payload: ClerkUserPayload,
@@ -41,6 +215,8 @@ async function createSelfSignupUser(
       }),
     });
   }
+
+  await assertEmailEligibleForNewSaasTrial(payload.email);
 
   return db.$transaction(async (tx) => {
     const organization = await createOrganizationWithTrialInTransaction(tx, {
@@ -107,8 +283,9 @@ function buildUserUpdateData(
   const data: Prisma.UserUpdateInput = {};
 
   if (payload.email) {
-    data.email = payload.email;
-    data.platformRole = resolvePlatformRoleForEmail(payload.email);
+    const normalizedEmail = normalizeUserEmail(payload.email);
+    data.email = normalizedEmail;
+    data.platformRole = resolvePlatformRoleForEmail(normalizedEmail);
   }
   if (payload.firstName !== undefined) {
     data.firstName = payload.firstName;
@@ -137,7 +314,7 @@ function buildUserCreateData(
 ): Prisma.UserCreateInput {
   return {
     clerkId: payload.id,
-    email: payload.email,
+    email: normalizeUserEmail(payload.email),
     platformRole: resolvePlatformRoleForEmail(payload.email),
     firstName: payload.firstName,
     lastName: payload.lastName,
@@ -188,34 +365,46 @@ export async function upsertUserFromClerk(
   },
 ): Promise<User> {
   const validated = clerkUserPayloadSchema.parse(payload);
+  const clerkPayload: ClerkUserPayload = {
+    ...validated,
+    email: normalizeUserEmail(validated.email),
+  };
 
   let existing: User | null;
   try {
-    existing = await db.user.findUnique({
-      where: { clerkId: validated.id },
-    });
+    existing = await findUserForClerkUpsert(clerkPayload.id, clerkPayload.email);
   } catch (error) {
     rethrowUnlessUserSchemaDrift(error);
+    throw error;
   }
 
   if (existing) {
-    const updateData = buildUserUpdateData(validated, options);
+    if (existing.clerkId !== clerkPayload.id) {
+      return relinkUserFromClerkSignup(existing, clerkPayload, options);
+    }
+
+    const updateData = buildUserUpdateData(clerkPayload, options);
+    if (!existing.isActive || existing.deletedAt) {
+      updateData.isActive = true;
+      updateData.deletedAt = null;
+    }
 
     let updated: User;
     try {
       updated =
         Object.keys(updateData).length > 0
           ? await db.user.update({
-              where: { clerkId: validated.id },
+              where: { clerkId: clerkPayload.id },
               data: updateData,
             })
           : existing;
     } catch (error) {
       rethrowUnlessUserSchemaDrift(error);
+      throw error;
     }
 
     if (options?.syncClerkMetadata) {
-      await syncClerkPublicMetadata(validated.id, {
+      await syncClerkPublicMetadata(clerkPayload.id, {
         role: updated.role,
         dbUserId: updated.id,
       });
@@ -228,30 +417,27 @@ export async function upsertUserFromClerk(
     let created: User;
     try {
       created = await db.user.create({
-        data: buildUserCreateData(validated, options.role ?? "RECEPTIONIST", {
+        data: buildUserCreateData(clerkPayload, options.role ?? "RECEPTIONIST", {
           ...options,
           isAccountOwner: options.isAccountOwner ?? false,
           organizationId: options.organizationId,
         }),
       });
     } catch (error) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        error.code === "P2002"
-      ) {
-        const raced = await db.user.findUnique({
-          where: { clerkId: validated.id },
-        });
-        if (raced) {
-          return withUserPreferenceDefaults(raced);
-        }
+      if (isPrismaUniqueViolation(error)) {
+        const recovered = await resolveUserAfterCreateConflict(
+          clerkPayload.id,
+          clerkPayload.email,
+          clerkPayload,
+          options,
+        );
+        if (recovered) return recovered;
       }
       rethrowUnlessUserSchemaDrift(error);
+      throw error;
     }
 
-    await syncClerkPublicMetadata(validated.id, {
+    await syncClerkPublicMetadata(clerkPayload.id, {
       role: created.role,
       dbUserId: created.id,
     });
@@ -261,25 +447,28 @@ export async function upsertUserFromClerk(
 
   let created: User;
   try {
-    created = await createSelfSignupUser(validated, options);
+    created = await createSelfSignupUser(clerkPayload, options);
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      const raced = await db.user.findUnique({
-        where: { clerkId: validated.id },
-      });
-      if (raced) {
-        return withUserPreferenceDefaults(raced);
-      }
+    if (error instanceof ExistingAccountConflictError) {
+      throw error;
+    }
+    if (error instanceof TrialAlreadyConsumedError) {
+      throw error;
+    }
+    if (isPrismaUniqueViolation(error)) {
+      const recovered = await resolveUserAfterCreateConflict(
+        clerkPayload.id,
+        clerkPayload.email,
+        clerkPayload,
+        options,
+      );
+      if (recovered) return recovered;
     }
     rethrowUnlessUserSchemaDrift(error);
+    throw error;
   }
 
-  await syncClerkPublicMetadata(validated.id, {
+  await syncClerkPublicMetadata(clerkPayload.id, {
     role: created.role,
     dbUserId: created.id,
   });

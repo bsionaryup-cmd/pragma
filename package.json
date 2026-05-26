@@ -23,6 +23,8 @@
     "db:purge-demo": "node scripts/purge-demo-artifacts.mjs",
     "db:purge-test": "node scripts/purge-test-data.mjs",
     "db:purge-accounts": "node scripts/purge-tenant-accounts.mjs",
+    "db:pilot-reset": "node scripts/pilot-reset.mjs",
+    "db:bootstrap:platform": "node scripts/ensure-platform-bootstrap.mjs",
     "db:seed:demo": "node scripts/seed-demo-data.mjs",
     "db:provision:demo-user": "node scripts/provision-demo-test-user.mjs",
     "db:join:demo-org": "node scripts/join-demo-org.mjs",
