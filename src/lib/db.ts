@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260523200000_access_credential_suspended";
+const PRISMA_SCHEMA_VERSION = "20260526150000_tenant_airbnb_email_integration";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;

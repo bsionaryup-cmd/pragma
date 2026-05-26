@@ -48,9 +48,9 @@ export async function enforceTenantDashboardAccess(
   if (user.organizationId) {
     const org = await db.organization.findUnique({
       where: { id: user.organizationId },
-      select: { status: true, deletedAt: true },
+      select: { status: true },
     });
-    if (org?.deletedAt || org?.status === OrganizationStatus.SUSPENDED) {
+    if (org?.status === OrganizationStatus.SUSPENDED) {
       redirect("/account-suspended");
     }
   }

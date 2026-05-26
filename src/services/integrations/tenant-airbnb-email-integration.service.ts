@@ -27,15 +27,46 @@ function normalizeInboundLocalPart(value: string): string {
     .slice(0, 48);
 }
 
+export function getConfiguredInboundEmailDomain(): string {
+  return (
+    process.env.AIRBNB_INBOUND_EMAIL_DOMAIN?.trim() || "inbound.pragmapms.com"
+  );
+}
+
+function inboundEmailUsesConfiguredDomain(address: string): boolean {
+  const at = address.lastIndexOf("@");
+  if (at < 0) return false;
+  return (
+    address.slice(at + 1).toLowerCase() ===
+    getConfiguredInboundEmailDomain().toLowerCase()
+  );
+}
+
 export function buildDefaultInboundEmailAddress(organization: {
   id: string;
   name: string;
 }): string {
-  const domain =
-    process.env.AIRBNB_INBOUND_EMAIL_DOMAIN?.trim() || "inbound.pragmapms.com";
+  const domain = getConfiguredInboundEmailDomain();
   const slug = normalizeInboundLocalPart(organization.name) || "tenant";
   const suffix = organization.id.slice(-6).toLowerCase();
   return `${slug}-${suffix}@${domain}`;
+}
+
+/** Re-alinea inbound persistido si cambió AIRBNB_INBOUND_EMAIL_DOMAIN (sin tocar local-part salvo rebuild estándar). */
+async function alignInboundEmailAddressWithEnv(
+  organization: { id: string; name: string },
+  persistedAddress: string,
+): Promise<string> {
+  if (inboundEmailUsesConfiguredDomain(persistedAddress)) {
+    return persistedAddress;
+  }
+
+  const nextAddress = buildDefaultInboundEmailAddress(organization);
+  await db.tenantAirbnbEmailIntegration.update({
+    where: { organizationId: organization.id },
+    data: { inboundEmailAddress: nextAddress },
+  });
+  return nextAddress;
 }
 
 export async function getTenantAirbnbEmailIntegration(
@@ -46,6 +77,8 @@ export async function getTenantAirbnbEmailIntegration(
     include: {
       organization: {
         select: {
+          id: true,
+          name: true,
           _count: { select: { airbnbListingEmailMaps: true } },
         },
       },
@@ -54,12 +87,17 @@ export async function getTenantAirbnbEmailIntegration(
 
   if (!row) return null;
 
+  const inboundEmailAddress = await alignInboundEmailAddressWithEnv(
+    row.organization,
+    row.inboundEmailAddress,
+  );
+
   return {
     id: row.id,
     organizationId: row.organizationId,
     enabled: row.enabled,
     provider: row.provider,
-    inboundEmailAddress: row.inboundEmailAddress,
+    inboundEmailAddress,
     syncStatus: row.syncStatus,
     lastEmailReceivedAt: row.lastEmailReceivedAt?.toISOString() ?? null,
     lastProcessedAt: row.lastProcessedAt?.toISOString() ?? null,
