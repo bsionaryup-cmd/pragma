@@ -74,6 +74,7 @@ export function EmailPasswordSignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [captchaHintVisible, setCaptchaHintVisible] = useState(false);
   const [pending, startTransition] = useTransition();
   const verificationSendStartedRef = useRef(false);
 
@@ -233,11 +234,13 @@ export function EmailPasswordSignUpForm() {
 
     setError(null);
     setInfo(null);
+    setCaptchaHintVisible(false);
     verificationSendStartedRef.current = false;
 
     startTransition(async () => {
       try {
         await signUp.reset();
+        setCaptchaHintVisible(true);
 
         const result = await signUp.password({
           emailAddress: normalizedEmail,
@@ -255,6 +258,7 @@ export function EmailPasswordSignUpForm() {
           return;
         }
 
+        setCaptchaHintVisible(false);
         await completeSignUpIfReady();
       } catch (err) {
         setError(
@@ -265,6 +269,8 @@ export function EmailPasswordSignUpForm() {
                 "No se pudo crear la cuenta. Revisa los datos e intenta de nuevo.",
               ),
         );
+      } finally {
+        setCaptchaHintVisible(false);
       }
     });
   }
@@ -348,7 +354,7 @@ export function EmailPasswordSignUpForm() {
         : "Reenviar código";
 
     return (
-      <form className="space-y-5" onSubmit={handleVerify}>
+      <form className="space-y-6" onSubmit={handleVerify}>
         <div className="space-y-1 text-center">
           <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
             Verifica tu correo
@@ -370,7 +376,7 @@ export function EmailPasswordSignUpForm() {
           </div>
         ) : null}
 
-        <div className="grid gap-1.5">
+        <div className="grid gap-2">
           <Label htmlFor="sign-up-code">Código de verificación</Label>
           <div className="relative">
             <KeyRound className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -388,6 +394,9 @@ export function EmailPasswordSignUpForm() {
               required
             />
           </div>
+          <p className="text-xs text-muted-foreground">
+            Te enviamos un código de 6 dígitos. Revisa también spam/promociones.
+          </p>
         </div>
 
         <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
@@ -473,11 +482,16 @@ export function EmailPasswordSignUpForm() {
       {/* Clerk Smart CAPTCHA — required before signUp.password() in custom flows */}
       <div
         id="clerk-captcha"
-        className="flex min-h-[4rem] w-full justify-center"
+        className="flex min-h-[5.5rem] w-full items-center justify-center rounded-xl border border-border/60 bg-muted/20 px-3 py-2"
         data-cl-theme="dark"
         data-cl-size="flexible"
         data-cl-language="es-ES"
       />
+      {isFetching && captchaHintVisible ? (
+        <p className="text-center text-xs text-muted-foreground">
+          Si aparece “verifica que eres humano”, complétalo para continuar.
+        </p>
+      ) : null}
 
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
         {isFetching ? "Creando cuenta…" : "Crear cuenta"}
