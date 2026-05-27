@@ -30,7 +30,7 @@ describe("contextual match scoring", () => {
     assert.ok(score >= 0.9);
   });
 
-  it("el matcher exige HM antes de scoring (score solo es informativo)", () => {
+  it("puede puntuar sin HM usando contexto iCal", () => {
     const score = scoreContextualCandidate({
       candidate,
       hasConfirmationCode: false,
@@ -38,7 +38,7 @@ describe("contextual match scoring", () => {
       parsedCheckIn: null,
       parsedCheckOut: null,
     });
-    assert.ok(score >= 0.84);
+    assert.ok(score >= 0.78);
   });
 
   it("guestNameMatches parcial", () => {

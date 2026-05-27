@@ -288,7 +288,7 @@ export async function matchReservationFromEmailSignals(
     }
   }
 
-  if (propertyId && hasConfirmationCode) {
+  if (propertyId) {
     const contextual = await matchByListingContextual({
       propertyId,
       organizationId,

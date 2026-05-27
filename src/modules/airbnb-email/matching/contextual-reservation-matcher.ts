@@ -54,19 +54,26 @@ export function scoreContextualCandidate(input: {
   parsedCheckIn: Date | null;
   parsedCheckOut: Date | null;
 }): number {
-  let score = 0.78;
-  if (input.hasConfirmationCode) score += 0.08;
+  const now = new Date();
+  const startsInDays = Math.round(
+    (input.candidate.checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const proximityBonus =
+    startsInDays <= 3 ? 0.14 : startsInDays <= 14 ? 0.09 : startsInDays <= 45 ? 0.05 : 0;
+
+  let score = 0.58 + proximityBonus;
+  if (input.hasConfirmationCode) score += 0.04; // metadata signal only
   if (input.candidate.icalUid) score += 0.04;
   if (
     guestNameMatches(input.guestName, input.candidate.guestName) &&
     !isPlaceholderGuestName(input.candidate.guestName)
   ) {
-    score += 0.06;
+    score += 0.2;
   } else if (
     input.guestName?.trim() &&
     isPlaceholderGuestName(input.candidate.guestName)
   ) {
-    score += 0.04;
+    score += 0.1;
   }
   if (
     datesOverlap(
@@ -76,9 +83,9 @@ export function scoreContextualCandidate(input: {
       input.parsedCheckOut,
     )
   ) {
-    score += 0.04;
+    score += 0.08;
   }
-  return Math.min(score, 0.94);
+  return Math.min(score, 0.95);
 }
 
 async function loadContextualCandidates(input: {
@@ -163,13 +170,6 @@ export async function matchByListingContextual(input: {
   parsedCheckOut: Date | null;
 }): Promise<ContextualMatchBase | null> {
   const hasConfirmationCode = Boolean(input.signals.confirmationCode?.trim());
-  if (!hasConfirmationCode) {
-    airbnbEmailLog.info("contextual_match_rejected", {
-      propertyId: input.propertyId,
-      reason: "missing_confirmation_code",
-    });
-    return null;
-  }
 
   const candidates = await loadContextualCandidates({
     propertyId: input.propertyId,
@@ -185,6 +185,13 @@ export async function matchByListingContextual(input: {
   });
 
   if (candidates.length === 0) {
+    airbnbEmailLog.info("ical_context_candidates", {
+      propertyId: input.propertyId,
+      candidateCount: 0,
+      hasGuestName: Boolean(input.signals.guestName),
+      hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
+      hasConfirmationCode,
+    });
     airbnbEmailLog.info("contextual_match_rejected", {
       propertyId: input.propertyId,
       reason: "no_active_ical_candidates",
@@ -197,25 +204,63 @@ export async function matchByListingContextual(input: {
     candidateCount: candidates.length,
     reservationIds: candidates.map((c) => c.id).join(","),
   });
+  const evaluated = candidates.map((candidate) => {
+    const guestMatch = guestNameMatches(input.signals.guestName, candidate.guestName);
+    const dateOverlap = datesOverlap(
+      candidate.checkIn,
+      candidate.checkOut,
+      input.parsedCheckIn,
+      input.parsedCheckOut,
+    );
+    const confidence = scoreContextualCandidate({
+      candidate,
+      hasConfirmationCode,
+      guestName: input.signals.guestName,
+      parsedCheckIn: input.parsedCheckIn,
+      parsedCheckOut: input.parsedCheckOut,
+    });
+    return { candidate, guestMatch, dateOverlap, confidence };
+  });
 
-  const narrowed = narrowContextualCandidates(
-    candidates,
-    input.signals,
-    input.parsedCheckIn,
-    input.parsedCheckOut,
-  );
+  airbnbEmailLog.info("ical_context_candidates", {
+    propertyId: input.propertyId,
+    candidateCount: evaluated.length,
+    hasGuestName: Boolean(input.signals.guestName),
+    hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
+    hasConfirmationCode,
+    candidates: evaluated
+      .map(
+        (row) =>
+          `${row.candidate.id}:${row.confidence.toFixed(2)}:guest=${row.guestMatch ? 1 : 0}:dates=${row.dateOverlap ? 1 : 0}`,
+      )
+      .join("|"),
+  });
 
-  if (narrowed.length !== 1) {
+  const ranked = [...evaluated].sort((a, b) => b.confidence - a.confidence);
+  const top = ranked[0]!;
+  const second = ranked[1] ?? null;
+  if (!top || top.confidence < 0.78) {
     airbnbEmailLog.warn("contextual_match_rejected", {
       propertyId: input.propertyId,
-      reason: narrowed.length === 0 ? "ambiguous_or_no_match" : "multiple_candidates",
-      candidateCount: candidates.length,
-      narrowedCount: narrowed.length,
+      reason: "low_context_confidence",
+      topConfidence: top?.confidence ?? 0,
     });
     return null;
   }
 
-  const selected = narrowed[0]!;
+  if (second && top.confidence - second.confidence < 0.08) {
+    airbnbEmailLog.warn("ical_context_ambiguous", {
+      propertyId: input.propertyId,
+      topReservationId: top.candidate.id,
+      secondReservationId: second.candidate.id,
+      topConfidence: top.confidence,
+      secondConfidence: second.confidence,
+      reason: "confidence_too_close",
+    });
+    return null;
+  }
+
+  const selected = top.candidate;
   const confidence = scoreContextualCandidate({
     candidate: selected,
     hasConfirmationCode,
@@ -224,7 +269,7 @@ export async function matchByListingContextual(input: {
     parsedCheckOut: input.parsedCheckOut,
   });
 
-  if (confidence < 0.84) {
+  if (confidence < 0.82) {
     airbnbEmailLog.warn("contextual_match_rejected", {
       propertyId: input.propertyId,
       reservationId: selected.id,
@@ -233,6 +278,30 @@ export async function matchByListingContextual(input: {
     });
     return null;
   }
+
+  airbnbEmailLog.info("ical_context_selected", {
+    propertyId: input.propertyId,
+    reservationId: selected.id,
+    confidence,
+    guestNameMatch: Boolean(
+      guestNameMatches(input.signals.guestName, selected.guestName),
+    ),
+    dateOverlap: Boolean(
+      input.parsedCheckIn &&
+        input.parsedCheckOut &&
+        datesOverlap(
+          selected.checkIn,
+          selected.checkOut,
+          input.parsedCheckIn,
+          input.parsedCheckOut,
+        ),
+    ),
+    hasConfirmationCode,
+    reason:
+      guestNameMatches(input.signals.guestName, selected.guestName)
+        ? "property+guest+ical_context"
+        : "property+ical_context",
+  });
 
   airbnbEmailLog.info("contextual_match_selected", {
     propertyId: input.propertyId,
