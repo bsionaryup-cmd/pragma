@@ -27,6 +27,42 @@ function normalizeInboundLocalPart(value: string): string {
     .slice(0, 48);
 }
 
+/** Extrae email bare de headers tipo `Nombre <addr@dominio>` o lista CSV. */
+export function parseInboundEmailAddress(raw: string): string | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+
+  const angle = trimmed.match(/<([^>]+@[^>]+)>/);
+  if (angle?.[1]) return angle[1].trim();
+
+  const emailMatch = trimmed.match(
+    /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,
+  );
+  if (emailMatch?.[0]) return emailMatch[0].toLowerCase();
+
+  return trimmed.includes("@") ? trimmed : null;
+}
+
+export function normalizeInboundRecipientList(
+  toAddresses: string[],
+): string[] {
+  const unique = new Set<string>();
+  for (const raw of toAddresses) {
+    const parts = raw.split(",");
+    for (const part of parts) {
+      const parsed = parseInboundEmailAddress(part);
+      if (parsed) unique.add(parsed);
+    }
+  }
+  return [...unique];
+}
+
+function getInboundLocalPart(address: string): string | null {
+  const at = address.lastIndexOf("@");
+  if (at < 1) return null;
+  return address.slice(0, at).toLowerCase();
+}
+
 export function getConfiguredInboundEmailDomain(): string {
   return (
     process.env.AIRBNB_INBOUND_EMAIL_DOMAIN?.trim() || "inbound.pragmapms.com"
@@ -189,11 +225,12 @@ export async function resolveOrganizationByInboundEmail(
   organizationId: string;
   integrationId: string;
   enabled: boolean;
+  matchedAddress: string;
 } | null> {
-  const normalized = toAddresses.map((a) => a.trim().toLowerCase()).filter(Boolean);
+  const normalized = normalizeInboundRecipientList(toAddresses);
   if (!normalized.length) return null;
 
-  const integration = await db.tenantAirbnbEmailIntegration.findFirst({
+  const exact = await db.tenantAirbnbEmailIntegration.findFirst({
     where: {
       inboundEmailAddress: { in: normalized },
     },
@@ -201,16 +238,73 @@ export async function resolveOrganizationByInboundEmail(
       id: true,
       organizationId: true,
       enabled: true,
+      inboundEmailAddress: true,
     },
   });
 
-  if (!integration) return null;
+  if (exact) {
+    return {
+      organizationId: exact.organizationId,
+      integrationId: exact.id,
+      enabled: exact.enabled,
+      matchedAddress: exact.inboundEmailAddress,
+    };
+  }
 
-  return {
-    organizationId: integration.organizationId,
-    integrationId: integration.id,
-    enabled: integration.enabled,
-  };
+  const configuredDomain = getConfiguredInboundEmailDomain().toLowerCase();
+  const onConfiguredDomain = normalized.filter((address) =>
+    address.endsWith(`@${configuredDomain}`),
+  );
+  if (!onConfiguredDomain.length) return null;
+
+  const integrations = await db.tenantAirbnbEmailIntegration.findMany({
+    select: {
+      id: true,
+      organizationId: true,
+      enabled: true,
+      inboundEmailAddress: true,
+      organization: { select: { id: true, name: true } },
+    },
+  });
+
+  for (const candidate of onConfiguredDomain) {
+    const candidateLocal = getInboundLocalPart(candidate);
+    if (!candidateLocal) continue;
+
+    for (const row of integrations) {
+      const aligned = await alignInboundEmailAddressWithEnv(
+        row.organization,
+        row.inboundEmailAddress,
+      );
+      const alignedLower = aligned.toLowerCase();
+
+      if (alignedLower === candidate) {
+        return {
+          organizationId: row.organizationId,
+          integrationId: row.id,
+          enabled: row.enabled,
+          matchedAddress: alignedLower,
+        };
+      }
+
+      if (getInboundLocalPart(alignedLower) === candidateLocal) {
+        if (alignedLower !== candidate) {
+          await db.tenantAirbnbEmailIntegration.update({
+            where: { id: row.id },
+            data: { inboundEmailAddress: candidate },
+          });
+        }
+        return {
+          organizationId: row.organizationId,
+          integrationId: row.id,
+          enabled: row.enabled,
+          matchedAddress: candidate,
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Siempre que el webhook identifica el tenant (antes de fetch/process). */

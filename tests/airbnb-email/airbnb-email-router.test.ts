@@ -86,7 +86,7 @@ describe("hashEmailContent", () => {
 });
 
 describe("applyMatchPolicy", () => {
-  it("no permite enrich en medium sin código en DB match", () => {
+  it("permite enrich en medium LISTING_DATES con código HM en email", () => {
     const match = applyMatchPolicy(
       {
         reservationId: "res_1",
@@ -98,7 +98,7 @@ describe("applyMatchPolicy", () => {
       { hasConfirmationCodeInEmail: true },
     );
     assert.equal(match.tier, "medium");
-    assert.equal(match.allowReservationEnrichment, false);
+    assert.equal(match.allowReservationEnrichment, true);
   });
 
   it("permite enrich en high con confirmation code", () => {

@@ -27,6 +27,9 @@ export type ExtractedReservationSignals = {
   listingName?: string | null;
   guestName?: string | null;
   guestEmail?: string | null;
+  guestPhone?: string | null;
+  /** Total guests when email exposes a single count (maps to `adults` if still default). */
+  guestCount?: number | null;
   checkIn?: string | null;
   checkOut?: string | null;
   grossAmount?: number | null;

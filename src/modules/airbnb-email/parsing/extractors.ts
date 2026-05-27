@@ -7,6 +7,9 @@ import {
 } from "@/modules/airbnb-email/parsing/html-parse";
 
 const CONFIRMATION_CODE_RE = /\b(HM[A-Z0-9]{6,12})\b/i;
+const EMAIL_RE = /\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/gi;
+const GUEST_COUNT_RE =
+  /\b(\d{1,2})\s*(?:huéspedes|guests|viajeros|travelers)\b/gi;
 const DATE_RANGE_RE =
   /(\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4})\s*(?:→|–|-|to|a)\s*(\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)[a-z]*\.?\s+\d{4})/i;
 const ISO_DATE_RANGE_RE =
@@ -31,6 +34,62 @@ function parseMoneyToken(raw: string | undefined): number | null {
   }
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function extractGuestEmail(text: string): string | null {
+  const labeled = text.match(
+    /(?:correo|email|e-mail)[:\s]+([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i,
+  )?.[1];
+  if (labeled && !isAirbnbOwnedEmail(labeled)) return labeled.toLowerCase();
+
+  for (const match of text.matchAll(EMAIL_RE)) {
+    const candidate = match[1]?.trim().toLowerCase();
+    if (candidate && !isAirbnbOwnedEmail(candidate)) return candidate;
+  }
+  return null;
+}
+
+function isAirbnbOwnedEmail(email: string): boolean {
+  const lower = email.toLowerCase();
+  return (
+    lower.endsWith("@airbnb.com") ||
+    lower.endsWith("@airbnbmail.com") ||
+    lower.includes("noreply") ||
+    lower.includes("no-reply")
+  );
+}
+
+function extractGuestPhone(text: string, merged: Record<string, string>): string | null {
+  const labeled = merged.guestPhone?.trim();
+  if (labeled) return normalizePhone(labeled);
+
+  const match = text.match(
+    /(?:teléfono|telefono|phone|móvil|mobile|celular)[:\s]+([+\d][\d\s().-]{7,18})/i,
+  );
+  return match?.[1] ? normalizePhone(match[1]) : null;
+}
+
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/[^\d+]/g, "").trim();
+  return digits.length >= 8 ? digits : raw.trim();
+}
+
+function parseGuestCount(text: string, merged: Record<string, string>): number | null {
+  const labeledDigits = merged.guestCount?.match(/\d{1,2}/)?.[0];
+  if (labeledDigits) {
+    const n = Number(labeledDigits);
+    if (Number.isFinite(n) && n > 0 && n <= 30) return n;
+  }
+
+  let last: number | null = null;
+  for (const match of text.matchAll(GUEST_COUNT_RE)) {
+    const index = match.index ?? 0;
+    const before = text.charAt(index - 1);
+    if (before === "-") continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n) && n > 0 && n <= 30) last = n;
+  }
+  return last;
 }
 
 function parseMoneyValues(text: string): number[] {
@@ -65,8 +124,8 @@ export function extractReservationSignals(input: {
   const merged = { ...labeled, ...labeledHtml };
 
   const confirmation =
-    input.body.match(CONFIRMATION_CODE_RE) ??
     input.subject.match(CONFIRMATION_CODE_RE) ??
+    input.body.match(CONFIRMATION_CODE_RE) ??
     merged.confirmationCode?.match(CONFIRMATION_CODE_RE);
 
   const dateRange =
@@ -74,8 +133,14 @@ export function extractReservationSignals(input: {
     input.body.match(ISO_DATE_RANGE_RE);
   const money = parseMoneyValues(input.body);
   const rating = input.body.match(RATING_RE);
-  const guestName =
+  const guestNameRaw =
     merged.guestName ?? input.body.match(GUEST_NAME_RE)?.[1] ?? null;
+  const guestName = guestNameRaw
+    ? guestNameRaw.split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]?.trim()
+    : null;
+  const guestEmail = extractGuestEmail(`${input.body}\n${htmlText}`);
+  const guestPhone = extractGuestPhone(input.body, merged);
+  const guestCount = parseGuestCount(input.body, merged);
   const messageBody =
     extractMessageSnippet(input.body) ?? input.body.slice(0, 8000);
   const reviewText = extractReviewText(input.body);
@@ -84,7 +149,9 @@ export function extractReservationSignals(input: {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
     listingName: merged.listingName ?? null,
     guestName: guestName?.trim() ?? null,
-    guestEmail: null,
+    guestEmail,
+    guestPhone,
+    guestCount,
     checkIn: merged.checkIn ?? dateRange?.[1] ?? null,
     checkOut: merged.checkOut ?? dateRange?.[2] ?? null,
     grossAmount:

@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
 import { db } from "@/lib/db";
+import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -25,10 +26,12 @@ export async function persistReservationEmailEvent(input: {
   signals: ExtractedReservationSignals;
   payload: Prisma.InputJsonValue;
 }) {
-  const enrichedFields = await maybeEnrichReservationCode(
-    input.match,
-    input.signals,
-  );
+  const enrichedFields = await applySafeReservationEnrichment({
+    match: input.match,
+    signals: input.signals,
+    eventKind: input.eventKind,
+    mode: "reservation",
+  });
 
   await db.reservationEmailEvent.create({
     data: {
@@ -39,39 +42,10 @@ export async function persistReservationEmailEvent(input: {
       matchMethod: input.match.method,
       matchConfidence: input.match.confidence,
       payload: input.payload,
-      enrichedFields: enrichedFields ?? undefined,
+      enrichedFields:
+        Object.keys(enrichedFields).length > 0 ? enrichedFields : undefined,
     },
   });
 
-  return enrichedFields;
-}
-
-/** Phase 1+: only `reservationCode` when high-confidence policy allows. */
-async function maybeEnrichReservationCode(
-  match: ReservationMatchResult,
-  signals: ExtractedReservationSignals,
-): Promise<Record<string, string> | null> {
-  if (
-    !match.reservationId ||
-    !match.allowReservationEnrichment ||
-    !signals.confirmationCode?.trim()
-  ) {
-    return null;
-  }
-
-  const existing = await db.reservation.findUnique({
-    where: { id: match.reservationId },
-    select: { reservationCode: true },
-  });
-
-  if (existing?.reservationCode?.trim() === signals.confirmationCode.trim()) {
-    return null;
-  }
-
-  await db.reservation.update({
-    where: { id: match.reservationId },
-    data: { reservationCode: signals.confirmationCode.trim() },
-  });
-
-  return { reservationCode: signals.confirmationCode.trim() };
+  return Object.keys(enrichedFields).length > 0 ? enrichedFields : null;
 }

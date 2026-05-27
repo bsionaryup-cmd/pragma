@@ -35,7 +35,19 @@ export function extractLabeledValues(
     },
     {
       key: "guestName",
-      re: /(?:huésped|guest)[:\s]+([^\n|]+?)(?:\n|·|$)/i,
+      re: /(?:huésped|guest|viajero|traveler)[:\s]+([^\n|]+?)(?:\n|·|$)/i,
+    },
+    {
+      key: "guestEmail",
+      re: /(?:correo|email|e-mail)[:\s]+([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})/i,
+    },
+    {
+      key: "guestPhone",
+      re: /(?:teléfono|telefono|phone|móvil|mobile|celular)[:\s]+([+\d][\d\s().-]{7,18})/i,
+    },
+    {
+      key: "guestCount",
+      re: /(\d{1,2})\s*(?:huéspedes|guests|viajeros|travelers)\b/i,
     },
     {
       key: "listingName",

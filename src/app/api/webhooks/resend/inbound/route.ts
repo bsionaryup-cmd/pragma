@@ -42,18 +42,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, skipped: true });
     }
 
-    const resolved = await resolveOrganizationByInboundEmail(
-      event.data.to ?? [],
-    );
+    const webhookTo = event.data.to ?? [];
+    let resolved = await resolveOrganizationByInboundEmail(webhookTo);
+
+    const email = await fetchResendReceivedEmail(event.data.email_id);
+
+    if (!resolved) {
+      resolved = await resolveOrganizationByInboundEmail([
+        ...webhookTo,
+        ...(email.to ?? []),
+      ]);
+    }
+
     if (!resolved) {
       airbnbEmailLog.warn("inbound_address_unknown", {
-        to: event.data.to?.join(",") ?? "",
+        toRaw: webhookTo.join(",") || undefined,
+        toFetched: email.to?.join(",") || undefined,
+        configuredDomain:
+          process.env.AIRBNB_INBOUND_EMAIL_DOMAIN?.trim() ||
+          "inbound.pragmapms.com",
       });
       return NextResponse.json(
         { ok: false, error: "Inbound address no registrado" },
         { status: 404 },
       );
     }
+
+    airbnbEmailLog.info("inbound_tenant_resolved", {
+      organizationId: resolved.organizationId,
+      matchedAddress: resolved.matchedAddress,
+    });
 
     if (!resolved.enabled) {
       airbnbEmailLog.info("skipped_disabled", {
@@ -64,9 +82,8 @@ export async function POST(request: Request) {
 
     integrationId = resolved.integrationId;
     await recordIntegrationInboundReceived(integrationId);
-
-    const email = await fetchResendReceivedEmail(event.data.email_id);
     const bodyText = email.text ?? "";
+
     const signals = extractReservationSignals({
       subject: email.subject,
       body: bodyText,

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
+import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { db } from "@/lib/db";
 import type {
   ExtractedReservationSignals,
@@ -39,6 +40,14 @@ export async function persistReservationPayout(input: {
       : hasAmounts
         ? "MATCHED"
         : "PARTIAL";
+
+  if (input.match.reservationId && input.match.allowReservationEnrichment) {
+    await applySafeReservationEnrichment({
+      match: input.match,
+      signals: input.signals,
+      mode: "financial",
+    });
+  }
 
   await db.reservationPayout.create({
     data: {

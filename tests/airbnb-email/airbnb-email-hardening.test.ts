@@ -7,7 +7,9 @@ import {
   hashEmailContent,
 } from "../../src/modules/airbnb-email/parsing/extractors";
 import {
+  allowTrustedForwardedAirbnbEmail,
   extractEmailAddress,
+  isForwardedEmail,
   isLikelyAirbnbSender,
   shouldProcessAirbnbEmail,
 } from "../../src/modules/airbnb-email/lib/sender-guard";
@@ -60,6 +62,37 @@ describe("isLikelyAirbnbSender", () => {
         body: "Código de confirmación HM8K2P9Q4X check-in airbnb",
       }),
       true,
+    );
+  });
+
+  it("rechaza forward sin señales fuertes", () => {
+    assert.equal(
+      shouldProcessAirbnbEmail({
+        from: "owner@gmail.com",
+        subject: "Fwd: hola",
+        body: "solo texto random sin airbnb ni HM",
+      }),
+      false,
+    );
+  });
+
+  it("detecta prefijos de reenvío ES/EN", () => {
+    assert.equal(isForwardedEmail("Reenviado: Reserva", ""), true);
+    assert.equal(isForwardedEmail("FW: Booking", ""), true);
+    assert.equal(isForwardedEmail("RV: Reserva", ""), true);
+  });
+
+  it("trusted forward exige HM + múltiples señales", () => {
+    assert.equal(
+      allowTrustedForwardedAirbnbEmail(
+        "Fwd: Reserva",
+        "HM8K2P9Q4X airbnb check-in 2026-06-01 check-out 2026-06-05",
+      ),
+      true,
+    );
+    assert.equal(
+      allowTrustedForwardedAirbnbEmail("Fwd: spam", "HM8K2P9Q4X airbnb sola"),
+      false,
     );
   });
 });
@@ -159,7 +192,7 @@ describe("extractReservationSignals edge cases", () => {
 });
 
 describe("enrichment policy", () => {
-  it("no enrich medium tier", () => {
+  it("no enrich medium tier sin código HM en email", () => {
     const match = applyMatchPolicy(
       {
         reservationId: "r1",
@@ -168,7 +201,7 @@ describe("enrichment policy", () => {
         method: AirbnbEmailMatchMethod.LISTING_DATES,
         confidence: 0.82,
       },
-      { hasConfirmationCodeInEmail: true },
+      { hasConfirmationCodeInEmail: false },
     );
     assert.equal(match.allowReservationEnrichment, false);
   });

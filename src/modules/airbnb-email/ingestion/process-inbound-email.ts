@@ -29,7 +29,10 @@ import {
 } from "@/modules/airbnb-email/domains/task.domain";
 import { matchReservationFromEmailSignals } from "@/modules/airbnb-email/matching/reservation-matcher";
 import {
+  allowTrustedForwardedAirbnbEmail,
   extractEmailAddress,
+  isForwardedEmail,
+  isLikelyAirbnbSender,
   shouldProcessAirbnbEmail,
 } from "@/modules/airbnb-email/lib/sender-guard";
 import {
@@ -62,18 +65,47 @@ export async function processInboundAirbnbEmail(
   }
 
   const bodyPreview = buildEmailBody(payload);
-  if (
-    !shouldProcessAirbnbEmail({
-      from: payload.from,
-      subject: payload.subject,
-      body: bodyPreview,
-    })
-  ) {
-    airbnbEmailLog.warn("ignored_non_airbnb_sender", {
-      from: extractEmailAddress(payload.from),
+  const fromAddress = extractEmailAddress(payload.from);
+  const directAirbnbSender = isLikelyAirbnbSender(payload.from);
+  const forwarded = isForwardedEmail(payload.subject, bodyPreview);
+  const trustedForward = allowTrustedForwardedAirbnbEmail(
+    payload.subject,
+    bodyPreview,
+  );
+  const shouldProcess = shouldProcessAirbnbEmail({
+    from: payload.from,
+    subject: payload.subject,
+    body: bodyPreview,
+  });
+
+  if (!shouldProcess) {
+    if (forwarded || (!directAirbnbSender && !trustedForward)) {
+      airbnbEmailLog.warn("forward_rejected", {
+        from: fromAddress,
+        subject: payload.subject.slice(0, 120),
+        forwarded,
+        trustedForward,
+        organizationId,
+      });
+    } else {
+      airbnbEmailLog.warn("ignored_non_airbnb_sender", {
+        from: fromAddress,
+        organizationId,
+      });
+    }
+    return { auditId: "", status: "ignored" };
+  }
+
+  if (forwarded && !directAirbnbSender) {
+    airbnbEmailLog.info("forward_detected", {
+      from: fromAddress,
+      subject: payload.subject.slice(0, 120),
       organizationId,
     });
-    return { auditId: "", status: "ignored" };
+    airbnbEmailLog.info("forward_airbnb_validated", {
+      from: fromAddress,
+      organizationId,
+    });
   }
 
   if (options?.propertyId && organizationId) {
@@ -132,10 +164,28 @@ export async function processInboundAirbnbEmail(
     receivedAt: payload.receivedAt ?? new Date().toISOString(),
   };
 
-  airbnbEmailLog.info("received", {
+  airbnbEmailLog.info("inbound_received", {
     subject: payload.subject.slice(0, 120),
     eventKind: classified.eventKind,
     organizationId,
+    from: extractEmailAddress(payload.from),
+  });
+
+  airbnbEmailLog.info("parser_extracted", {
+    organizationId,
+    confirmationCode: signals.confirmationCode ?? undefined,
+    listingName: signals.listingName?.slice(0, 80) ?? undefined,
+    guestNamePresent: Boolean(signals.guestName),
+    guestEmailPresent: Boolean(signals.guestEmail),
+    guestPhonePresent: Boolean(signals.guestPhone),
+    guestCount: signals.guestCount ?? undefined,
+    checkIn: signals.checkIn ?? undefined,
+    checkOut: signals.checkOut ?? undefined,
+    hasAmount:
+      signals.grossAmount != null ||
+      signals.netPayout != null ||
+      signals.hostFee != null,
+    currency: signals.currency ?? undefined,
   });
 
   if (classified.eventKind === AirbnbEmailEventKind.UNKNOWN) {
@@ -245,13 +295,20 @@ export async function processInboundAirbnbEmail(
     let communicationIntent: SafeCommunicationIntent | null = null;
 
     if (isReservationEventKind(classified.eventKind)) {
-      await persistReservationEmailEvent({
+      const enrichedFields = await persistReservationEmailEvent({
         auditId: audit.id,
         eventKind: classified.eventKind,
         match,
         signals,
         payload: parsedPayload,
       });
+      if (enrichedFields && Object.keys(enrichedFields).length > 0) {
+        airbnbEmailLog.info("enrichment_result", {
+          auditId: audit.id,
+          reservationId: match.reservationId,
+          fields: Object.keys(enrichedFields).join(","),
+        });
+      }
     }
 
     if (isFinancialEventKind(classified.eventKind)) {

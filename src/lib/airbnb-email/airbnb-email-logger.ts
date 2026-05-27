@@ -5,26 +5,42 @@ type AirbnbEmailLogPayload = Record<
   string | number | boolean | null | undefined
 >;
 
+function formatPayload(payload?: AirbnbEmailLogPayload): string {
+  if (!payload) return "";
+  return Object.entries(payload)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" | ");
+}
+
 function emit(
   level: AirbnbEmailLogLevel,
   event: string,
   payload?: AirbnbEmailLogPayload,
 ) {
-  const line = {
+  const at = new Date().toISOString();
+  const details = formatPayload(payload);
+  const summary = details
+    ? `[airbnb-email] ${event} | ${details}`
+    : `[airbnb-email] ${event}`;
+
+  const structured = {
     scope: "airbnb-email",
     level,
     event,
-    at: new Date().toISOString(),
+    at,
     ...payload,
   };
 
-  const message = `[airbnb-email] ${event}`;
   if (level === "error") {
-    console.error(message, line);
+    console.error(summary);
+    console.error(structured);
   } else if (level === "warn") {
-    console.warn(message, line);
+    console.warn(summary);
+    console.warn(structured);
   } else {
-    console.info(message, line);
+    console.log(summary);
+    console.log(structured);
   }
 }
 

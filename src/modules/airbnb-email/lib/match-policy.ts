@@ -26,12 +26,15 @@ export function applyMatchPolicy(
     tier === "low" ||
     (tier === "medium" && base.method !== AirbnbEmailMatchMethod.CONFIRMATION_CODE);
 
+  const listingDatesWithCode =
+    base.method === AirbnbEmailMatchMethod.LISTING_DATES &&
+    Boolean(options.hasConfirmationCodeInEmail) &&
+    (tier === "high" || (tier === "medium" && base.confidence >= 0.82));
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
-    Boolean(options.hasConfirmationCodeInEmail) &&
-    tier === "high" &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
-      base.method === AirbnbEmailMatchMethod.LISTING_DATES);
+      listingDatesWithCode);
 
   return {
     ...base,
