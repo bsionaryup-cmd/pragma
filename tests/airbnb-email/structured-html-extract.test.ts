@@ -11,6 +11,7 @@ import {
 import {
   extractStructuredAirbnbFields,
   isDegradedForwardPlainText,
+  sanitizeHtmlForVisibleListingExtract,
 } from "../../src/modules/airbnb-email/parsing/structured-html-extract";
 
 describe("structured HTML extraction", () => {
@@ -43,11 +44,27 @@ describe("structured HTML extraction", () => {
       <tr><td>Check-in</td><td>2026-07-01</td></tr>
       <p>Loft amplio 4P con Vista Panorámica | Laureles Top</p>
     `;
+    const sanitized = sanitizeHtmlForVisibleListingExtract(html);
+    assert.doesNotMatch(sanitized, /safety-info/);
     const structured = extractStructuredAirbnbFields(html);
     assert.equal(structured.listingName, "Loft amplio 4P con Vista Panorámica | Laureles Top");
     assert.equal(
       isPlausibleVisibleListingName("s/1659842170040094387/details/safety-info>"),
       false,
+    );
+  });
+
+  it("prefiere tabla Alojamiento sobre anchor basura en forward real", () => {
+    const html = `
+      <table>
+        <tr><td>Alojamiento</td><td>Loft amplio 4P con Vista Panorámica | Laureles Top</td></tr>
+      </table>
+      <a href="https://www.airbnb.com/rooms/1659842170040094387/details/safety-info">ver detalles</a>
+    `;
+    const structured = extractStructuredAirbnbFields(html);
+    assert.equal(
+      structured.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
     );
   });
 

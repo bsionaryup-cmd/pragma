@@ -6,7 +6,7 @@
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { stripHtmlToText } from "@/modules/airbnb-email/parsing/html-parse";
 import {
-  isPlausibleVisibleListingName,
+  listingCandidateRejectReason,
   normalizeVisibleListingName,
   scoreVisibleListingCandidate,
 } from "@/modules/airbnb-email/parsing/listing-name-extract";
@@ -49,6 +49,8 @@ const SECTION_LISTING_LABELS = [
   "where you'll stay",
   "where you will stay",
   "your stay",
+  "reservation confirmed",
+  "reserva confirmada",
   "alojamiento",
   "lugar",
 ];
@@ -62,6 +64,7 @@ type ListingCandidate = {
   text: string;
   source: string;
   score: number;
+  reason: string;
 };
 
 function decodeHtmlEntities(value: string): string {
@@ -78,13 +81,24 @@ function stripTags(fragment: string): string {
   return decodeHtmlEntities(fragment.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
 }
 
+/** Remove anchors/URLs before visible-text traversal so href paths never become listingName. */
+export function sanitizeHtmlForVisibleListingExtract(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<a\b[^>]*href=["'][^"']*(?:rooms\/\d+|\/details\/|safety-info)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, " ")
+    .replace(/<a\b[^>]*href=["'][^"']+["'][^>]*>([\s\S]*?)<\/a>/gi, (_full, inner) => {
+      const innerText = stripTags(inner ?? "");
+      const reject = listingCandidateRejectReason(innerText);
+      return reject ? " " : ` ${innerText} `;
+    })
+    .replace(/\bhref=["'][^"']+["']/gi, " ")
+    .replace(/https?:\/\/[^\s"'<>]+/gi, " ")
+    .replace(/\bs\/\d{5,}(?:\/[^\s"'<>]+)?/gi, " ");
+}
+
 function isGarbageValue(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length < 2) return true;
-  if (GARBAGE_VALUE_RE.test(trimmed)) return true;
-  if (/^s\/\d+/.test(trimmed)) return true;
-  if (!isPlausibleVisibleListingName(trimmed) && /[/\\]/.test(trimmed)) return true;
-  return false;
+  return listingCandidateRejectReason(value) !== null;
 }
 
 function normalizeLabel(label: string): string {
@@ -115,6 +129,46 @@ function fieldKeyForLabel(label: string): keyof StructuredAirbnbExtract | null {
 function normalizeIsoDateFieldValue(value: string): string | null {
   const iso = value.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
   return iso ?? null;
+}
+
+function pushListingCandidate(
+  candidates: ListingCandidate[],
+  rawText: string,
+  source: string,
+): void {
+  const reject = listingCandidateRejectReason(rawText);
+  if (reject) {
+    airbnbEmailLog.info("html_visible_listing_candidate", {
+      text: rawText.slice(0, 120),
+      source,
+      score: 0,
+      reason: `rejected:${reject}`,
+    });
+    return;
+  }
+  const normalized = normalizeVisibleListingName(rawText);
+  if (!normalized) {
+    airbnbEmailLog.info("html_visible_listing_candidate", {
+      text: rawText.slice(0, 120),
+      source,
+      score: 0,
+      reason: "rejected:normalize_failed",
+    });
+    return;
+  }
+  const score = scoreVisibleListingCandidate(normalized, source);
+  candidates.push({
+    text: normalized,
+    source,
+    score,
+    reason: `accepted:score=${score}`,
+  });
+  airbnbEmailLog.info("html_visible_listing_candidate", {
+    text: normalized,
+    source,
+    score,
+    reason: `accepted:score=${score}`,
+  });
 }
 
 function extractParagraphLabelRows(html: string): Array<{ label: string; value: string }> {
@@ -162,19 +216,21 @@ function extractSectionListingCandidates(html: string): ListingCandidate[] {
   for (const label of SECTION_LISTING_LABELS) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const sectionRe = new RegExp(
-      `${escaped}[\\s\\S]{0,900}?<(?:div|p|span|h\\d|td|a|strong)[^>]*>([\\s\\S]{8,220}?)<\\/(?:div|p|span|h\\d|td|a|strong)>`,
+      `${escaped}[\\s\\S]{0,900}?<(?:div|p|span|h\\d|strong|b|td)[^>]*>([\\s\\S]{8,220}?)<\\/(?:div|p|span|h\\d|strong|b|td)>`,
       "gi",
     );
     for (const match of html.matchAll(sectionRe)) {
-      const normalized = normalizeVisibleListingName(stripTags(match[1] ?? ""));
-      if (!normalized) continue;
-      const source = `section:${label}`;
-      candidates.push({
-        text: normalized,
-        source,
-        score: scoreVisibleListingCandidate(normalized, source),
-      });
+      pushListingCandidate(candidates, stripTags(match[1] ?? ""), `section:${label}`);
     }
+  }
+  return candidates;
+}
+
+function extractHeadingListingCandidates(html: string): ListingCandidate[] {
+  const candidates: ListingCandidate[] = [];
+  const headingRe = /<h[1-4][^>]*>([\s\S]{8,220}?)<\/h[1-4]>/gi;
+  for (const match of html.matchAll(headingRe)) {
+    pushListingCandidate(candidates, stripTags(match[1] ?? ""), "heading:h");
   }
   return candidates;
 }
@@ -182,22 +238,15 @@ function extractSectionListingCandidates(html: string): ListingCandidate[] {
 function extractVisibleBlockCandidates(html: string): ListingCandidate[] {
   const candidates: ListingCandidate[] = [];
   const blockRe =
-    /<(?:h[1-4]|strong|b|p|div|span|td)[^>]*>([\s\S]{10,220}?)<\/(?:h[1-4]|strong|b|p|div|span|td)>/gi;
+    /<(?:strong|b|p|div|span|td)[^>]*>([\s\S]{10,220}?)<\/(?:strong|b|p|div|span|td)>/gi;
   for (const match of html.matchAll(blockRe)) {
     const raw = match[1] ?? "";
-    if (/href\s*=|airbnb\.com\/(?:rooms|h\/)/i.test(raw)) continue;
+    if (/href\s*=|airbnb\.com|rooms\/\d|safety-info|\/details\//i.test(raw)) continue;
     const stripped = stripTags(raw);
     if (/^(?:check-?in|check-?out|hu[eé]sped|guest|c[oó]digo)/i.test(stripped)) {
       continue;
     }
-    const normalized = normalizeVisibleListingName(stripped);
-    if (!normalized) continue;
-    const source = "visible_block";
-    candidates.push({
-      text: normalized,
-      source,
-      score: scoreVisibleListingCandidate(normalized, source),
-    });
+    pushListingCandidate(candidates, stripped, "visible_block");
   }
   return candidates;
 }
@@ -206,36 +255,28 @@ function extractVisibleLineCandidates(html: string): ListingCandidate[] {
   const candidates: ListingCandidate[] = [];
   const plain = stripHtmlToText(html);
   for (const line of plain.split("\n")) {
-    const normalized = normalizeVisibleListingName(line);
-    if (!normalized) continue;
-    const source = "visible_line";
-    candidates.push({
-      text: normalized,
-      source,
-      score: scoreVisibleListingCandidate(normalized, source),
-    });
+    pushListingCandidate(candidates, line, "visible_line");
   }
   return candidates;
 }
 
 function extractVisibleListingCandidates(html: string): ListingCandidate[] {
   const candidates: ListingCandidate[] = [];
+  const labeledRows = [
+    ...extractParagraphLabelRows(html),
+    ...extractTableLabelRows(html),
+    ...extractDivLabelPairs(html),
+  ];
 
-  for (const row of [...extractTableLabelRows(html), ...extractDivLabelPairs(html)]) {
+  for (const row of labeledRows) {
     const key = fieldKeyForLabel(row.label);
     if (key !== "listingName") continue;
-    const normalized = normalizeVisibleListingName(row.value);
-    if (!normalized) continue;
-    const source = `table:${row.label}`;
-    candidates.push({
-      text: normalized,
-      source,
-      score: scoreVisibleListingCandidate(normalized, source),
-    });
+    pushListingCandidate(candidates, row.value, `table:${row.label}`);
   }
 
   candidates.push(
     ...extractSectionListingCandidates(html),
+    ...extractHeadingListingCandidates(html),
     ...extractVisibleBlockCandidates(html),
     ...extractVisibleLineCandidates(html),
   );
@@ -256,8 +297,24 @@ function pickBestListingCandidate(candidates: ListingCandidate[]): ListingCandid
   const ranked = [...candidates].sort((a, b) => b.score - a.score);
   const top = ranked[0]!;
   const second = ranked[1];
-  if (second && top.score - second.score < 8 && top.score < 70) return null;
-  if (top.score < 25) return null;
+  if (second && top.score - second.score < 8 && top.score < 70) {
+    airbnbEmailLog.warn("structured_listing_ambiguous", {
+      topText: top.text,
+      topScore: top.score,
+      secondText: second.text,
+      secondScore: second.score,
+    });
+    return null;
+  }
+  if (top.score < 20) {
+    airbnbEmailLog.warn("structured_listing_skipped", {
+      reason: "top_score_below_threshold",
+      topText: top.text,
+      topScore: top.score,
+      candidateCount: ranked.length,
+    });
+    return null;
+  }
   return top;
 }
 
@@ -287,27 +344,33 @@ export function extractStructuredAirbnbFields(
   };
   if (!html?.trim()) return empty;
 
+  const sanitizedHtml = sanitizeHtmlForVisibleListingExtract(html);
   const result = { ...empty, sources: [] as string[] };
-  const listingCandidates = extractVisibleListingCandidates(html);
-
-  for (const candidate of listingCandidates) {
-    airbnbEmailLog.info("html_visible_listing_candidate", {
-      candidate: candidate.text,
-      source: candidate.source,
-      score: candidate.score,
-    });
-  }
+  const listingCandidates = extractVisibleListingCandidates(sanitizedHtml);
 
   const bestListing = pickBestListingCandidate(listingCandidates);
   if (bestListing) {
     result.listingName = bestListing.text;
     result.sources.push(bestListing.source);
+    airbnbEmailLog.info("structured_listing_extracted", {
+      listingName: bestListing.text,
+      selectedText: bestListing.text,
+      source: bestListing.source,
+      score: bestListing.score,
+      reason: bestListing.reason,
+      candidateCount: listingCandidates.length,
+    });
+  } else {
+    airbnbEmailLog.warn("structured_listing_skipped", {
+      reason: "no_acceptable_visible_listing_candidate",
+      candidateCount: listingCandidates.length,
+    });
   }
 
   const labeledRows = [
-    ...extractParagraphLabelRows(html),
-    ...extractTableLabelRows(html),
-    ...extractDivLabelPairs(html),
+    ...extractParagraphLabelRows(sanitizedHtml),
+    ...extractTableLabelRows(sanitizedHtml),
+    ...extractDivLabelPairs(sanitizedHtml),
   ];
 
   for (const row of labeledRows) {
@@ -340,7 +403,7 @@ export function extractStructuredAirbnbFields(
     }
   }
 
-  const plainFromHtml = stripHtmlToText(html);
+  const plainFromHtml = stripHtmlToText(sanitizedHtml);
   if (!result.confirmationCode) {
     const code = plainFromHtml.match(CONFIRMATION_CODE_RE)?.[1];
     if (code) {
@@ -350,7 +413,7 @@ export function extractStructuredAirbnbFields(
   }
 
   if (!result.checkIn || !result.checkOut) {
-    const isoFallback = extractIsoDatesFromHtml(html);
+    const isoFallback = extractIsoDatesFromHtml(sanitizedHtml);
     if (!result.checkIn && isoFallback.checkIn) {
       result.checkIn = isoFallback.checkIn;
       result.sources.push("html_iso:checkIn");

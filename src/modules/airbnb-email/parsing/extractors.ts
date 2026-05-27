@@ -34,7 +34,7 @@ const ISO_DATE_RANGE_RE =
 const MONEY_INLINE_RE = /(?:\$|USD|COP|€)\s*([\d.,]+)/gi;
 const RATING_RE = /(\d(?:\.\d)?)\s*(?:estrellas|stars|★|\/5)/i;
 const GUEST_NAME_RE =
-  /(?:huésped|guest|viajero|traveler)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/gi;
+  /(?:huésped|guest|viajero|traveler)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ .'-]{1,60})/gi;
 const UNIT_NUMBER_RE =
   /(?:unidad|unit|apto|apt|apartamento)\s*(?:#|n[°º.]?|no\.?)?\s*([a-z0-9-]{1,12})/i;
 const DATE_TOKEN_RE =
@@ -277,11 +277,6 @@ export function extractReservationSignals(input: {
   );
 
   if (structured.listingName) {
-    airbnbEmailLog.info("structured_listing_extracted", {
-      listingName: structured.listingName,
-      selectedText: structured.listingName,
-      sources: structured.sources.join(","),
-    });
     airbnbEmailLog.info("listing_normalized", {
       raw: structured.listingName,
       normalized: normalizeListingNameForMatch(structured.listingName),
@@ -322,14 +317,15 @@ export function extractReservationSignals(input: {
     merged.unitNumber?.trim() ??
     extractionText.match(UNIT_NUMBER_RE)?.[1]?.trim() ??
     null;
-  const listingName =
-    normalizeVisibleListingName(structured.listingName) ??
-    extractListingName(extractionText, merged);
+  const listingName = input.html?.trim()
+    ? normalizeVisibleListingName(structured.listingName)
+    : normalizeVisibleListingName(structured.listingName) ??
+      extractListingName(extractionText, merged);
 
-  if (listingName && !isPlausibleVisibleListingName(listingName)) {
+  if (input.html?.trim() && !listingName) {
     airbnbEmailLog.warn("structured_listing_rejected", {
-      candidate: listingName,
-      reason: "not_plausible_visible_listing",
+      reason: "html_present_but_no_visible_listing_selected",
+      hadStructuredListing: Boolean(structured.listingName),
     });
   }
   const checkIn =

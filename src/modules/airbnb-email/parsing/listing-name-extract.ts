@@ -24,6 +24,9 @@ export function isPlausibleVisibleListingName(
   if (PATH_LIKE_RE.test(cleaned)) return false;
   if (NON_LISTING_PREFIX_RE.test(cleaned)) return false;
   if (/[<>]/.test(cleaned)) return false;
+  if ((cleaned.match(/\//g) ?? []).length >= 1 && /details|safety-info|rooms\/\d/i.test(cleaned)) {
+    return false;
+  }
   if ((cleaned.match(/\//g) ?? []).length >= 2) return false;
 
   const letters = (cleaned.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
@@ -60,6 +63,28 @@ export function normalizeListingNameForMatch(value: string): string {
     .replace(/[^a-z0-9áéíóúñü\s-]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function listingCandidateRejectReason(
+  value: string | null | undefined,
+): string | null {
+  if (!value?.trim()) return "empty";
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  if (cleaned.length < 8) return "too_short";
+  if (cleaned.length > 200) return "too_long";
+  if (GARBAGE_LISTING_RE.test(cleaned)) return "url_or_tracking_garbage";
+  if (PATH_LIKE_RE.test(cleaned)) return "path_like";
+  if (NON_LISTING_PREFIX_RE.test(cleaned)) return "non_listing_label_prefix";
+  if (/[<>]/.test(cleaned)) return "html_remnant";
+  if ((cleaned.match(/\//g) ?? []).length >= 1 && /details|safety-info|rooms\/\d/i.test(cleaned)) {
+    return "airbnb_internal_path";
+  }
+  if ((cleaned.match(/\//g) ?? []).length >= 2) return "too_many_slashes";
+  const letters = (cleaned.match(/[A-Za-zÀ-ÿ]/g) ?? []).length;
+  if (letters < 10) return "insufficient_letters";
+  const words = cleaned.split(/\s+/).filter((w) => /[A-Za-zÀ-ÿ]{2,}/.test(w));
+  if (words.length < 2) return "insufficient_words";
+  return null;
 }
 
 export function scoreVisibleListingCandidate(text: string, source: string): number {

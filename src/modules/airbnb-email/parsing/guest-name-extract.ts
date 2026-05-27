@@ -31,8 +31,12 @@ export function sanitizeGuestNameCandidate(
 ): string | null {
   if (!raw?.trim()) return null;
   const cleaned =
-    raw.trim().split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]?.trim() ??
-    raw.trim();
+    raw
+      .trim()
+      .split(/\n/)[0]
+      ?.trim()
+      .split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]
+      ?.trim() ?? raw.trim();
   if (
     /^(?:alojamiento|listing|lugar|check-?in|check-?out|c[oó]digo de confirmaci[oó]n|confirmation code)\s*:/i.test(
       cleaned,
