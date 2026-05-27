@@ -5,6 +5,10 @@ import {
   extractReservationSignals,
 } from "../../src/modules/airbnb-email/parsing/extractors";
 import {
+  isPlausibleVisibleListingName,
+  normalizeVisibleListingName,
+} from "../../src/modules/airbnb-email/parsing/listing-name-extract";
+import {
   extractStructuredAirbnbFields,
   isDegradedForwardPlainText,
 } from "../../src/modules/airbnb-email/parsing/structured-html-extract";
@@ -19,23 +23,44 @@ describe("structured HTML extraction", () => {
     </table>
   `;
 
-  it("extrae listing y fechas desde tabla HTML", () => {
+  it("extrae listing visible completo desde tabla HTML", () => {
     const structured = extractStructuredAirbnbFields(tableHtml);
-    assert.equal(structured.listingName, "Loft amplio 4P con Vista Panorámica");
+    assert.equal(
+      structured.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
+    );
     assert.equal(structured.checkIn, "2026-06-12");
     assert.equal(structured.checkOut, "2026-06-15");
     assert.equal(structured.confirmationCode, "HM4SPXSTS2");
     assert.ok(structured.sources.length > 0);
   });
 
-  it("rechaza basura tipo safety-info en valores", () => {
+  it("rechaza basura tipo safety-info y no usa href como listing", () => {
     const html = `
-      <tr><td>Listing</td><td>s/1659842170040094387/details/safety-info></td></tr>
+      <a href="https://www.airbnb.com/rooms/1659842170040094387/details/safety-info">
+        s/1659842170040094387/details/safety-info>
+      </a>
       <tr><td>Check-in</td><td>2026-07-01</td></tr>
+      <p>Loft amplio 4P con Vista Panorámica | Laureles Top</p>
     `;
     const structured = extractStructuredAirbnbFields(html);
-    assert.equal(structured.listingName, null);
-    assert.equal(structured.checkIn, "2026-07-01");
+    assert.equal(structured.listingName, "Loft amplio 4P con Vista Panorámica | Laureles Top");
+    assert.equal(
+      isPlausibleVisibleListingName("s/1659842170040094387/details/safety-info>"),
+      false,
+    );
+  });
+
+  it("extrae listing desde sección Dónde te hospedarás", () => {
+    const html = `
+      <div>Dónde te hospedarás</div>
+      <div><strong>Loft amplio 4P con Vista Panorámica | Laureles Top</strong></div>
+    `;
+    const structured = extractStructuredAirbnbFields(html);
+    assert.equal(
+      structured.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
+    );
   });
 
   it("detecta forward degradado y usa HTML en buildEmailBody", () => {
@@ -58,9 +83,19 @@ describe("structured HTML extraction", () => {
       body: "---------- Forwarded message ---------",
       html: tableHtml,
     });
-    assert.equal(signals.listingName, "Loft amplio 4P con Vista Panorámica");
+    assert.equal(
+      signals.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
+    );
     assert.equal(signals.checkIn, "2026-06-12");
     assert.equal(signals.checkOut, "2026-06-15");
     assert.equal(signals.confirmationCode, "HM4SPXSTS2");
+  });
+
+  it("rechaza property: path en texto plano", () => {
+    const garbage = normalizeVisibleListingName(
+      "property s/1659842170040094387/details/safety-info>",
+    );
+    assert.equal(garbage, null);
   });
 });

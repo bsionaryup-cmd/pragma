@@ -33,6 +33,13 @@ export function sanitizeGuestNameCandidate(
   const cleaned =
     raw.trim().split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]?.trim() ??
     raw.trim();
+  if (
+    /^(?:alojamiento|listing|lugar|check-?in|check-?out|c[oó]digo de confirmaci[oó]n|confirmation code)\s*:/i.test(
+      cleaned,
+    )
+  ) {
+    return null;
+  }
   return isPlausibleGuestName(cleaned) ? cleaned : null;
 }
 

@@ -137,11 +137,30 @@ async function resolveByNormalizedPropertyName(input: {
     select: { id: true, name: true },
   });
 
+  const normalizedListing = normalizeAirbnbListingForMatch(input.listingName);
+  airbnbEmailLog.info("listing_normalized", {
+    organizationId: input.organizationId,
+    raw: input.listingName,
+    normalized: normalizedListing,
+  });
+
   const picked = pickUniquePropertyByListingName({
     listingName: input.listingName,
     properties: properties.map((p) => ({ propertyId: p.id, name: p.name })),
   });
   if (picked.propertyId) {
+    airbnbEmailLog.info("property_name_match_found", {
+      organizationId: input.organizationId,
+      listingName: input.listingName,
+      normalizedListing,
+      propertyId: picked.propertyId,
+    });
+    airbnbEmailLog.info("property_name_match_selected", {
+      organizationId: input.organizationId,
+      listingName: input.listingName,
+      propertyId: picked.propertyId,
+      method: "normalized_property_name",
+    });
     return {
       propertyId: picked.propertyId,
       ambiguous: false,
@@ -149,6 +168,12 @@ async function resolveByNormalizedPropertyName(input: {
     };
   }
   if (picked.ambiguous) {
+    airbnbEmailLog.warn("property_name_match_found", {
+      organizationId: input.organizationId,
+      listingName: input.listingName,
+      normalizedListing,
+      ambiguous: true,
+    });
     return {
       propertyId: null,
       ambiguous: true,

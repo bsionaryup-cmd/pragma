@@ -81,7 +81,7 @@ export function extractLabeledValues(
     },
     {
       key: "listingName",
-      re: /(?:alojamiento|listing|property)[:\s]+([^\n|]+?)(?:\n|·|$)/i,
+      re: /(?:alojamiento|listing(?:\s+name)?|lugar|where you(?:'|&#39;)?ll stay)[:\s]+([^\n]{8,180}?)(?:\n|·|$)/i,
     },
     {
       key: "checkIn",

@@ -13,6 +13,11 @@ import {
   resolveGuestNameFromSignals,
 } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import {
+  isPlausibleVisibleListingName,
+  normalizeListingNameForMatch,
+  normalizeVisibleListingName,
+} from "@/modules/airbnb-email/parsing/listing-name-extract";
+import {
   extractStructuredAirbnbFields,
   htmlPayloadRichness,
   isDegradedForwardPlainText,
@@ -29,17 +34,15 @@ const ISO_DATE_RANGE_RE =
 const MONEY_INLINE_RE = /(?:\$|USD|COP|€)\s*([\d.,]+)/gi;
 const RATING_RE = /(\d(?:\.\d)?)\s*(?:estrellas|stars|★|\/5)/i;
 const GUEST_NAME_RE =
-  /(?:huésped|guest|viajero|traveler)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/i;
+  /(?:huésped|guest|viajero|traveler)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/gi;
 const UNIT_NUMBER_RE =
   /(?:unidad|unit|apto|apt|apartamento)\s*(?:#|n[°º.]?|no\.?)?\s*([a-z0-9-]{1,12})/i;
 const DATE_TOKEN_RE =
   /\b(\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-záéíóúñ.]+\s+de\s+\d{4}|\d{1,2}\s+[a-záéíóúñ.]+\s+\d{4})\b/i;
 const LISTING_LABEL_RE =
-  /(?:alojamiento|listing|property)\s*:?\s*([^\n]{3,220})/i;
+  /(?:alojamiento|listing(?:\s+name)?|lugar|where you(?:'|&#39;)?ll stay)\s*:?\s*([^\n]{8,220})/i;
 const CHECKIN_RE = /(?:check-?in|llegada|arrival)\s*:?\s*([^\n]{3,80})/i;
 const CHECKOUT_RE = /(?:check-?out|salida|departure)\s*:?\s*([^\n]{3,80})/i;
-const STOP_WORDS_RE =
-  /\b(c[oó]digo de confirmaci[oó]n|confirmation code|ver itinerario|view itinerary|el viajero|guest|hu[eé]sped)\b/i;
 const MONTHS: Record<string, number> = {
   ene: 1,
   enero: 1,
@@ -187,26 +190,13 @@ function normalizeDateToken(value: string | null | undefined): string | null {
   return `${year}-${mm}-${dd}`;
 }
 
-function cleanListingName(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  let cleaned = value.replace(/\s+/g, " ").trim();
-  cleaned = cleaned.split(/[|•]/)[0]?.trim() ?? cleaned;
-  cleaned = cleaned.split(/(?:\s{2,}|(?:\s-\s))/)[0]?.trim() ?? cleaned;
-  if (STOP_WORDS_RE.test(cleaned)) {
-    cleaned = cleaned.split(STOP_WORDS_RE)[0]?.trim() ?? cleaned;
-  }
-  if (!cleaned || cleaned.length < 3) return null;
-  if (/es adecuado para niñ/i.test(cleaned)) return null;
-  return cleaned.slice(0, 140);
-}
-
 function extractListingName(text: string, merged: Record<string, string>): string | null {
-  const byLabel = cleanListingName(merged.listingName);
-  if (byLabel) return byLabel;
+  const fromMerged = normalizeVisibleListingName(merged.listingName);
+  if (fromMerged) return fromMerged;
 
   const direct = text.match(LISTING_LABEL_RE)?.[1];
-  const cleaned = cleanListingName(direct);
-  if (cleaned) return cleaned;
+  const fromLabel = normalizeVisibleListingName(direct);
+  if (fromLabel) return fromLabel;
 
   return null;
 }
@@ -289,7 +279,12 @@ export function extractReservationSignals(input: {
   if (structured.listingName) {
     airbnbEmailLog.info("structured_listing_extracted", {
       listingName: structured.listingName,
+      selectedText: structured.listingName,
       sources: structured.sources.join(","),
+    });
+    airbnbEmailLog.info("listing_normalized", {
+      raw: structured.listingName,
+      normalized: normalizeListingNameForMatch(structured.listingName),
     });
   }
   if (structured.checkIn || structured.checkOut) {
@@ -310,10 +305,15 @@ export function extractReservationSignals(input: {
     extractionText.match(ISO_DATE_RANGE_RE);
   const money = parseMoneyValues(extractionText);
   const rating = extractionText.match(RATING_RE);
+  let bodyGuestMatch: string | null = null;
+  for (const match of extractionText.matchAll(GUEST_NAME_RE)) {
+    const candidate = match[1]?.trim();
+    if (candidate) bodyGuestMatch = candidate;
+  }
   const guestName = resolveGuestNameFromSignals({
     subject: input.subject,
     mergedGuestName: merged.guestName,
-    bodyGuestMatch: extractionText.match(GUEST_NAME_RE)?.[1] ?? null,
+    bodyGuestMatch,
   });
   const listingRefs = extractAirbnbListingRefs(
     [input.html ?? "", extractionText].filter(Boolean).join("\n"),
@@ -323,16 +323,23 @@ export function extractReservationSignals(input: {
     extractionText.match(UNIT_NUMBER_RE)?.[1]?.trim() ??
     null;
   const listingName =
-    cleanListingName(structured.listingName) ??
+    normalizeVisibleListingName(structured.listingName) ??
     extractListingName(extractionText, merged);
+
+  if (listingName && !isPlausibleVisibleListingName(listingName)) {
+    airbnbEmailLog.warn("structured_listing_rejected", {
+      candidate: listingName,
+      reason: "not_plausible_visible_listing",
+    });
+  }
   const checkIn =
-    normalizeDateToken(structured.checkIn) ??
     extractCheckDate(extractionText, merged, "in") ??
+    normalizeDateToken(structured.checkIn) ??
     normalizeDateToken(dateRange?.[1]) ??
     null;
   const checkOut =
-    normalizeDateToken(structured.checkOut) ??
     extractCheckDate(extractionText, merged, "out") ??
+    normalizeDateToken(structured.checkOut) ??
     normalizeDateToken(dateRange?.[2]) ??
     null;
   const guestEmail = extractGuestEmail(extractionText);
@@ -344,7 +351,10 @@ export function extractReservationSignals(input: {
 
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
-    listingName,
+    listingName:
+      listingName && isPlausibleVisibleListingName(listingName)
+        ? listingName
+        : null,
     guestName: guestName ?? null,
     guestEmail,
     guestPhone,
