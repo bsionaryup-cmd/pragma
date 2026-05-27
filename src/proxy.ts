@@ -26,6 +26,7 @@ const isPublicRoute = createRouteMatcher([
   "/demo",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/forgot-password",
   `${OWNER_LOGIN_PATH}(.*)`,
   "/account-suspended",
   "/api/webhooks(.*)",

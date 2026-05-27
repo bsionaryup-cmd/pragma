@@ -16,24 +16,14 @@ import { SectionCard } from "@/components/ui/section-card";
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
 import { formatMoney } from "@/lib/format-currency";
 import { PropertyIdentity } from "@/components/properties/property-identity";
-import type { GuestPaymentLink } from "@prisma/client";
+import type { SerializedGuestPaymentLinkForHub } from "@/lib/payments/guest-payment-link-serializer";
 import { Button } from "@/components/ui/button";
-
-type LinkWithRelations = GuestPaymentLink & {
-  reservation: {
-    id: string;
-    guestName: string;
-    checkIn: Date;
-    checkOut: Date;
-  } | null;
-  property: { id: string; name: string; unitNumber: string | null } | null;
-};
 
 export function PaymentLinksHub({
   initialLinks,
   canWrite,
 }: {
-  initialLinks: LinkWithRelations[];
+  initialLinks: SerializedGuestPaymentLinkForHub[];
   canWrite: boolean;
 }) {
   const router = useRouter();
@@ -156,7 +146,7 @@ export function PaymentLinksHub({
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   <p className="w-full text-sm font-semibold text-foreground sm:w-auto sm:text-end">
-                    {formatMoney(Number(link.amount), link.currency)}
+                    {formatMoney(link.amount, link.currency)}
                   </p>
                   {link.wompiCheckoutUrl ? (
                     <>

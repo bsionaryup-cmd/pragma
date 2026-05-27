@@ -25,6 +25,13 @@ import {
   getTodayKey,
 } from "@/features/calendar/lib/calendar-dates";
 import { sumBudgetReservationTotal } from "@/features/calendar/lib/daily-pricing";
+import {
+  clampSelectableCheckOut,
+  findStayRangeConflict,
+  formatCalendarStayConflictMessage,
+  isNightUnavailable,
+  isStayRangeAvailable,
+} from "@/features/calendar/lib/stay-availability";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { groupReservationsByProperty } from "@/features/calendar/lib/reservation-span";
 import type {
@@ -386,6 +393,19 @@ export function MultiCalendar({
     syncingRef.current = false;
   }, []);
 
+  const getPropertyStays = useCallback(
+    (propertyId: string) => reservationsByProperty.get(propertyId) ?? [],
+    [reservationsByProperty],
+  );
+
+  const isPropertyNightBooked = useCallback(
+    (propertyId: string, dateKey: string) => {
+      const property = data.properties.find((p) => p.id === propertyId);
+      return property?.dailyPricesByDate[dateKey]?.isBooked ?? false;
+    },
+    [data.properties],
+  );
+
   const handleDayHover = useCallback(
     (propertyId: string, dateKey: string | null) => {
       if (!selection || selection.checkOut !== null) return;
@@ -393,9 +413,34 @@ export function MultiCalendar({
         setSelectionHoverDate(null);
         return;
       }
-      setSelectionHoverDate(dateKey);
+
+      const stays = getPropertyStays(propertyId);
+      const isNightBooked = (night: string) =>
+        isPropertyNightBooked(propertyId, night);
+
+      if (
+        isNightUnavailable(dateKey, stays, isNightBooked(dateKey)) &&
+        !isStayRangeAvailable(selection.checkIn, dateKey, stays, isNightBooked)
+      ) {
+        const clamped = clampSelectableCheckOut(
+          selection.checkIn,
+          dateKey,
+          stays,
+          isNightBooked,
+        );
+        setSelectionHoverDate(clamped);
+        return;
+      }
+
+      const clamped = clampSelectableCheckOut(
+        selection.checkIn,
+        dateKey,
+        stays,
+        isNightBooked,
+      );
+      setSelectionHoverDate(clamped ?? dateKey);
     },
-    [selection],
+    [getPropertyStays, isPropertyNightBooked, selection],
   );
 
   const handleDayClick = useCallback(
@@ -404,6 +449,24 @@ export function MultiCalendar({
         toast.error(
           "Modo restringido o sin permiso: no puedes crear reservas. Ve a Mi Suscripción.",
         );
+        return;
+      }
+
+      const stays = getPropertyStays(propertyId);
+      const isNightBooked = (night: string) =>
+        isPropertyNightBooked(propertyId, night);
+
+      const isCompletingRange =
+        selection != null &&
+        selection.propertyId === propertyId &&
+        selection.checkOut === null &&
+        dateKey > selection.checkIn;
+
+      if (
+        !isCompletingRange &&
+        isNightUnavailable(dateKey, stays, isNightBooked(dateKey))
+      ) {
+        toast.error("No disponible: esa fecha ya está ocupada o bloqueada.");
         return;
       }
 
@@ -425,17 +488,38 @@ export function MultiCalendar({
       }
 
       if (dateKey <= checkIn) {
+        if (isNightUnavailable(dateKey, stays, isNightBooked(dateKey))) {
+          toast.error("No disponible: esa fecha ya está ocupada o bloqueada.");
+          return;
+        }
         setSelectionHoverDate(null);
         setSelection({ propertyId, checkIn: dateKey, checkOut: null });
         return;
       }
 
+      const checkOut = dateKey;
+      if (
+        !isStayRangeAvailable(checkIn, checkOut, stays, isNightBooked)
+      ) {
+        const conflict = findStayRangeConflict(checkIn, checkOut, stays);
+        if (conflict) {
+          toast.error(formatCalendarStayConflictMessage(conflict));
+        } else {
+          toast.error(
+            "No disponible: el rango incluye fechas ocupadas o sincronizadas desde OTA.",
+          );
+        }
+        setSelectionHoverDate(null);
+        setSelection(null);
+        return;
+      }
+
       setSelectionHoverDate(null);
       setSelection(null);
-      setPendingCreate({ propertyId, checkIn, checkOut: dateKey });
+      setPendingCreate({ propertyId, checkIn, checkOut });
       setBudgetDialogOpen(true);
     },
-    [canWrite, selection],
+    [canWrite, getPropertyStays, isPropertyNightBooked, selection],
   );
 
   function closeDrawer() {

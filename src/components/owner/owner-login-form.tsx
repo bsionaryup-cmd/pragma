@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Shield, Mail, KeyRound } from "lucide-react";
 import Link from "next/link";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,6 +14,7 @@ import {
 } from "@/lib/platform/constants.client";
 
 type Step = "email" | "code";
+type CodeFactorType = "first" | "second";
 
 export function OwnerLoginForm() {
   const { isLoaded, signIn, setActive } = useSignIn();
@@ -21,7 +23,9 @@ export function OwnerLoginForm() {
   const nextPath = searchParams.get("next") ?? OWNER_DASHBOARD_PATH;
 
   const [step, setStep] = useState<Step>("email");
+  const [codeFactorType, setCodeFactorType] = useState<CodeFactorType>("first");
   const [email, setEmail] = useState(PLATFORM_OWNER_EMAIL);
+  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -53,8 +57,74 @@ export function OwnerLoginForm() {
     });
 
     setStep("code");
+    setCodeFactorType("first");
     setInfo(`Enviamos un código de verificación a ${normalized}`);
     return true;
+  }
+
+  function signInWithPassword() {
+    if (!isLoaded || !signIn) return;
+
+    const normalized = email.trim().toLowerCase();
+    if (!validateOwnerEmail(normalized)) {
+      setError("Este acceso está restringido al Super Admin Owner autorizado.");
+      return;
+    }
+
+    if (!password) {
+      setError("Ingresa tu contraseña.");
+      return;
+    }
+
+    setError(null);
+    setInfo(null);
+
+    startTransition(async () => {
+      try {
+        const result = await signIn.create({
+          identifier: normalized,
+          password,
+        });
+
+        if (result.status === "complete" && result.createdSessionId) {
+          await setActive({ session: result.createdSessionId });
+          router.push(nextPath.startsWith("/") ? nextPath : OWNER_DASHBOARD_PATH);
+          router.refresh();
+          return;
+        }
+
+        if (result.status === "needs_second_factor") {
+          const emailFactor = signIn.supportedSecondFactors?.find(
+            (factor) => factor.strategy === "email_code",
+          );
+
+          if (!emailFactor || emailFactor.strategy !== "email_code") {
+            setError(
+              "Se requiere verificación adicional. Habilita código por correo en Clerk para este usuario.",
+            );
+            return;
+          }
+
+          await signIn.prepareSecondFactor({
+            strategy: "email_code",
+            emailAddressId: emailFactor.emailAddressId,
+          });
+
+          setCodeFactorType("second");
+          setStep("code");
+          setInfo(`Enviamos un código de verificación a ${normalized}`);
+          return;
+        }
+
+        setError("Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.");
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.";
+        setError(message);
+      }
+    });
   }
 
   function sendCode() {
@@ -95,10 +165,16 @@ export function OwnerLoginForm() {
 
     startTransition(async () => {
       try {
-        const result = await signIn.attemptFirstFactor({
-          strategy: "email_code",
-          code: trimmed,
-        });
+        const result =
+          codeFactorType === "second"
+            ? await signIn.attemptSecondFactor({
+                strategy: "email_code",
+                code: trimmed,
+              })
+            : await signIn.attemptFirstFactor({
+                strategy: "email_code",
+                code: trimmed,
+              });
 
         if (result.status !== "complete" || !result.createdSessionId) {
           setError("Verificación incompleta. Revisa el código e intenta de nuevo.");
@@ -143,7 +219,7 @@ export function OwnerLoginForm() {
           Owner Login
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Acceso exclusivo Super Admin · verificación por código en correo
+          Acceso exclusivo Super Admin · correo y contraseña o código por email
         </p>
         <p className="mt-2 font-mono text-xs text-muted-foreground">
           {PLATFORM_OWNER_EMAIL}
@@ -179,10 +255,28 @@ export function OwnerLoginForm() {
               />
             </div>
           </label>
+          <PasswordInput
+            id="owner-login-password"
+            label="Contraseña"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            required
+          />
           <Button
             type="button"
             className="w-full"
             variant="brand"
+            disabled={pending || !isLoaded}
+            onClick={signInWithPassword}
+          >
+            Iniciar sesión
+          </Button>
+          <Button
+            type="button"
+            className="w-full"
+            variant="ghost"
             disabled={pending || !isLoaded}
             onClick={sendCode}
           >
@@ -225,6 +319,21 @@ export function OwnerLoginForm() {
             onClick={resendCode}
           >
             Reenviar código
+          </Button>
+          <Button
+            type="button"
+            className="w-full"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => {
+              setStep("email");
+              setCode("");
+              setCodeFactorType("first");
+              setError(null);
+              setInfo(null);
+            }}
+          >
+            Volver
           </Button>
         </div>
       )}

@@ -18,7 +18,7 @@ import { getDictionary } from "@/i18n/get-dictionary";
 import { getServerLocale } from "@/i18n/locale.server";
 import { getOrganizationPlanContextForUser } from "@/lib/billing/organization-plan";
 import {
-  getMainNavigationForRole,
+  getNavigationModulesForRole,
   getSettingsNavItem,
 } from "@/lib/navigation";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
@@ -59,7 +59,7 @@ export default async function DashboardLayout({
 
   const role = tenantContext.effectiveRole as AppUserRole;
   const planContext = await getOrganizationPlanContextForUser(user.id);
-  const navItems = getMainNavigationForRole(role, planContext?.plan);
+  const navModules = getNavigationModulesForRole(role, planContext?.plan);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb =
     hasPermission(role, "properties:write") &&
@@ -92,7 +92,7 @@ export default async function DashboardLayout({
           className={
             isPlatformOwnerSession ? "min-h-0 flex-1 max-h-none" : undefined
           }
-          navItems={navItems}
+          navModules={navModules}
           settingsItem={settingsItem}
           user={{
             firstName: user.firstName,

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePlatformOwnerUser, platformOwnerErrorResponse } from "@/lib/platform/require-platform-owner";
 import {
-  getOwnerDashboardAnalytics,
   getOwnerDashboardSnapshot,
   listOwnerClients,
   type OwnerClientsQuery,

@@ -13,7 +13,7 @@ import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-l
 import { PaymentChargeDialog } from "@/components/payments/payment-charge-dialog";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format-currency";
-import type { GuestPaymentLink } from "@prisma/client";
+import type { SerializedGuestPaymentLink } from "@/lib/payments/guest-payment-link-serializer";
 
 type ReservationPaymentLinksProps = {
   reservationId: string;
@@ -34,7 +34,7 @@ export function ReservationPaymentLinks({
     currency: string;
     guestName: string;
   } | null>(null);
-  const [links, setLinks] = useState<GuestPaymentLink[]>([]);
+  const [links, setLinks] = useState<SerializedGuestPaymentLink[]>([]);
 
   function refresh() {
     startTransition(async () => {
@@ -174,7 +174,7 @@ export function ReservationPaymentLinks({
               >
                 <span className="text-muted-foreground">
                   {guestPaymentLinkStatusLabel(link.status)} ·{" "}
-                  {formatMoney(Number(link.amount), link.currency)}
+                  {formatMoney(link.amount, link.currency)}
                 </span>
                 <span className="flex gap-1">
                   {link.wompiCheckoutUrl ? (

@@ -696,6 +696,18 @@ export function EmailPasswordSignInForm({
           placeholder="••••••••"
           required
         />
+        <p className="text-right text-xs">
+          <Link
+            href={
+              normalizedEmail
+                ? `/forgot-password?email=${encodeURIComponent(normalizedEmail)}`
+                : "/forgot-password"
+            }
+            className="font-medium text-pragma-electric hover:underline"
+          >
+            Olvidé mi contraseña
+          </Link>
+        </p>
       </div>
 
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>

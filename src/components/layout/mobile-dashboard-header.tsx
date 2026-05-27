@@ -3,23 +3,23 @@
 import { Menu } from "lucide-react";
 import { useState } from "react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
-import { Sidebar } from "@/components/layout/sidebar";
+import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import {
   Sheet,
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import type { NavItem } from "@/lib/navigation";
+import type { NavItem, NavModule } from "@/lib/navigation";
 
 type MobileDashboardHeaderProps = {
-  navItems: NavItem[];
+  navModules: NavModule[];
   settingsItem: NavItem | null;
   user: SidebarUser;
 };
 
 export function MobileDashboardHeader({
-  navItems,
+  navModules,
   settingsItem,
   user,
 }: MobileDashboardHeaderProps) {
@@ -47,14 +47,13 @@ export function MobileDashboardHeader({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="left"
-          className="w-[min(100vw,280px)] gap-0 p-0 sm:max-w-[280px]"
+          className="w-[min(100vw,460px)] gap-0 p-0 sm:max-w-[460px]"
         >
           <SheetTitle className="sr-only">Navegación principal</SheetTitle>
-          <Sidebar
-            items={navItems}
+          <DashboardNavigation
+            modules={navModules}
             settingsItem={settingsItem}
             user={user}
-            forceExpanded
             onNavigate={() => setOpen(false)}
             className="h-full w-full border-0 shadow-none"
           />

@@ -187,6 +187,9 @@
   --cal-reservation-blocked-bg: #f0f0f0;
   /** Banda de ocupación continua (estilo Lodgify) */
   --cal-booked-fill: #e8e8e8;
+  /** Overlay OTA sin reserva PRAGMA (mismo gris neutro que la banda) */
+  --cal-bg-occupied-external: #e8e8e8;
+  --cal-text-occupied: var(--cal-text-secondary);
   --cal-header-cell-bg: #f7f7f7;
   --cal-pill-border: #111111;
 }

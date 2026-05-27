@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 type CalendarDayPriceProps = {
   pricing: CalendarDayPricingDto | undefined;
   highlighted?: boolean;
+  occupied?: boolean;
   showPrice?: boolean;
   showMinimumStay?: boolean;
 };
@@ -20,6 +21,7 @@ function formatLodgifyPrice(value: number): string {
 export function CalendarDayPrice({
   pricing,
   highlighted = false,
+  occupied = false,
   showPrice = false,
   showMinimumStay = false,
 }: CalendarDayPriceProps) {
@@ -30,41 +32,51 @@ export function CalendarDayPrice({
   const minStay =
     pricing.minStay != null && pricing.minStay > 0 ? pricing.minStay : null;
 
+  const showMinStayLabel = showMinimumStay && minStay != null;
+  const showPriceLabel = showPrice && display != null;
+
   return (
-    <>
-      {showMinimumStay && minStay != null ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute top-1.5 right-1.5 z-[2] flex items-center gap-0.5 text-[10px] font-normal tabular-nums",
-            highlighted
-              ? "text-[var(--cal-text-range-select)]"
-              : "text-[var(--cal-text-muted)]",
-            !highlighted && pricing.isBooked && "opacity-60",
-          )}
-        >
-          <Users className="h-3 w-3 shrink-0" aria-hidden />
-          <span>{minStay}</span>
+    <div className="pointer-events-none absolute inset-0 z-[5]">
+      {showMinStayLabel || showPriceLabel ? (
+        <div className="absolute right-1.5 bottom-1.5 flex flex-col items-end gap-0.5 text-right">
+          {showMinStayLabel ? (
+            <div
+              className={cn(
+                "flex items-center gap-0.5 text-[10px] font-normal tabular-nums leading-none",
+                highlighted
+                  ? "text-[var(--cal-text-range-select)]"
+                  : occupied
+                    ? "text-[var(--cal-text-occupied)] opacity-80"
+                    : "text-[var(--cal-text-muted)]",
+                !highlighted && !occupied && pricing.isBooked && "opacity-60",
+              )}
+            >
+              <Users className="h-3 w-3 shrink-0" aria-hidden />
+              <span>{minStay}</span>
+            </div>
+          ) : null}
+          {showPriceLabel ? (
+            <div
+              className={cn(
+                !highlighted && !occupied && pricing.isBooked && "opacity-55",
+              )}
+            >
+              <span
+                className={cn(
+                  "text-[12px] font-semibold tabular-nums leading-none",
+                  highlighted
+                    ? "text-[var(--cal-text-range-select)]"
+                    : occupied
+                      ? "text-[var(--cal-text-occupied)] opacity-90"
+                      : "text-[var(--cal-text-day)]",
+                )}
+              >
+                {formatLodgifyPrice(display)}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
-      {showPrice && display != null ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute right-1.5 bottom-1.5 z-[2] text-right",
-            !highlighted && pricing.isBooked && "opacity-55",
-          )}
-        >
-          <span
-            className={cn(
-              "text-[12px] font-medium tabular-nums",
-              highlighted
-                ? "text-[var(--cal-text-range-select)]"
-                : "text-[var(--cal-text-secondary)]",
-            )}
-          >
-            {formatLodgifyPrice(display)}
-          </span>
-        </div>
-      ) : null}
-    </>
+    </div>
   );
 }

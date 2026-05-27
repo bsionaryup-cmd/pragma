@@ -43,8 +43,8 @@ export function PragmaAuthLayout({
         </p>
       </div>
 
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-10">
-        <div className="mx-auto flex w-full max-w-[420px] flex-col items-center gap-4 py-2 sm:gap-5">
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-4">
+        <div className="flex w-full max-w-[min(100%,26rem)] shrink-0 flex-col items-center gap-2 sm:max-w-md sm:gap-3">
           {backHref ? (
             <div className="w-full">
               <BackLink href={backHref} label={backLabel} />
@@ -55,19 +55,21 @@ export function PragmaAuthLayout({
               variant="full"
               tone="light"
               priority
-              fullClassName="h-20 w-auto max-w-[min(100%,20rem)] sm:h-24"
+              fullClassName="h-14 w-auto max-w-[min(100%,18rem)] sm:h-16"
             />
           </div>
 
           {hint ? (
-            <div className="w-full text-center [&_p]:mx-auto [&_p]:max-w-md">{hint}</div>
+            <div className="w-full shrink-0 text-center text-xs sm:text-sm [&_p]:mx-auto [&_p]:max-w-md [&_p]:leading-snug">
+              {hint}
+            </div>
           ) : null}
 
-          <div className="w-full rounded-2xl border border-border bg-card p-5 shadow-pragma-soft sm:p-6">
+          <div className="w-full shrink-0 rounded-2xl border border-border bg-card p-4 shadow-pragma-soft sm:p-5">
             {children}
           </div>
 
-          <p className="w-full text-center text-xs text-muted-foreground lg:hidden">
+          <p className="w-full shrink-0 text-center text-[10px] text-muted-foreground sm:text-xs lg:hidden">
             {BRAND.tagline}
           </p>
         </div>

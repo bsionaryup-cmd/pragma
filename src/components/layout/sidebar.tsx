@@ -9,16 +9,25 @@ import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
-import type { NavItem } from "@/lib/navigation";
-import { isNavPathActive } from "@/lib/navigation-active";
+import {
+  isNavGroupModule,
+  isNavModuleActive,
+  type NavGroupModule,
+  type NavItem,
+  type NavModule,
+} from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
-  items: NavItem[];
+  modules: NavModule[];
   settingsItem: NavItem | null;
   user: SidebarUser;
   className?: string;
   forceExpanded?: boolean;
+  openModuleId?: string | null;
+  isModuleStrongActive?: (module: NavModule) => boolean;
+  onGroupClick?: (module: NavGroupModule) => void;
+  onMainLinkNavigate?: () => void;
   onNavigate?: () => void;
 };
 
@@ -75,6 +84,49 @@ function SidebarNavLink({
   );
 }
 
+function SidebarNavGroupButton({
+  module,
+  isStrongActive,
+  collapsed,
+  title,
+  onGroupClick,
+}: {
+  module: NavGroupModule;
+  isStrongActive: boolean;
+  collapsed: boolean;
+  title: string;
+  onGroupClick: (module: NavGroupModule) => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={collapsed ? title : undefined}
+      onClick={() => onGroupClick(module)}
+      className={cn(
+        "group flex w-full items-center rounded-xl text-[14px] font-medium transition-all duration-200",
+        collapsed
+          ? "mx-auto h-10 w-10 justify-center"
+          : "gap-3 px-3 py-2",
+        isStrongActive
+          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft dark:bg-primary/15"
+          : "text-pragma-mid-gray hover:bg-white/80 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
+      )}
+    >
+      <NavIcon
+        name={module.icon}
+        className={cn(
+          "shrink-0 transition-colors",
+          collapsed ? "h-[18px] w-[18px]" : "h-4 w-4",
+          isStrongActive
+            ? "text-pragma-electric"
+            : "text-pragma-mid-gray group-hover:text-pragma-electric",
+        )}
+      />
+      {!collapsed ? <span className="min-w-0 flex-1 truncate text-left">{title}</span> : null}
+    </button>
+  );
+}
+
 function BrandMark({ collapsed }: { collapsed: boolean }) {
   const { t } = useI18n();
 
@@ -102,11 +154,15 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
 }
 
 export function Sidebar({
-  items,
+  modules,
   settingsItem,
   user,
   className,
   forceExpanded = false,
+  openModuleId = null,
+  isModuleStrongActive,
+  onGroupClick,
+  onMainLinkNavigate,
   onNavigate,
 }: SidebarProps) {
   const pathname = usePathname();
@@ -166,16 +222,40 @@ export function Sidebar({
         )}
         aria-label="Navegación principal"
       >
-        {items.map((item) => (
-          <SidebarNavLink
-            key={`${item.href}-${item.labelKey}`}
-            item={item}
-            collapsed={collapsed}
-            title={t(item.labelKey)}
-            isActive={isNavPathActive(pathname, item.href)}
-            onNavigate={onNavigate}
-          />
-        ))}
+        {modules.map((module) => {
+          if (isNavGroupModule(module)) {
+            if (!onGroupClick) return null;
+            const strongActive = isModuleStrongActive
+              ? isModuleStrongActive(module)
+              : openModuleId === module.id ||
+                isNavModuleActive(pathname, module);
+            return (
+              <SidebarNavGroupButton
+                key={module.id}
+                module={module}
+                collapsed={collapsed}
+                title={t(module.labelKey)}
+                isStrongActive={strongActive}
+                onGroupClick={onGroupClick}
+              />
+            );
+          }
+
+          const strongActive = isModuleStrongActive
+            ? isModuleStrongActive(module)
+            : isNavModuleActive(pathname, module);
+
+          return (
+            <SidebarNavLink
+              key={`${module.href}-${module.labelKey}`}
+              item={module}
+              collapsed={collapsed}
+              title={t(module.labelKey)}
+              isActive={strongActive}
+              onNavigate={onMainLinkNavigate ?? onNavigate}
+            />
+          );
+        })}
       </nav>
 
       <div
@@ -189,7 +269,7 @@ export function Sidebar({
             item={settingsItem}
             collapsed={collapsed}
             title={t(settingsItem.labelKey)}
-            isActive={isNavPathActive(pathname, settingsItem.href)}
+            isActive={isNavModuleActive(pathname, { type: "link", ...settingsItem })}
             onNavigate={onNavigate}
           />
         ) : null}

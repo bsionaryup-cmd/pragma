@@ -45,14 +45,21 @@ export function CalendarCreateBudgetDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-2">
-          <Button type="button" className="h-10 w-full" onClick={onChooseWithBudget}>
-            Reserva con presupuesto
-            {hasSelectedDates && budgetTotal > 0 ? (
-              <span className="ml-1 font-normal opacity-80">
-                ({formatCurrency(budgetTotal)})
-              </span>
+          <div className="flex flex-col gap-1">
+            <Button type="button" className="h-10 w-full" onClick={onChooseWithBudget}>
+              Reserva con presupuesto
+              {hasSelectedDates && budgetTotal > 0 ? (
+                <span className="ml-1 font-normal opacity-80">
+                  ({formatCurrency(budgetTotal)})
+                </span>
+              ) : null}
+            </Button>
+            {hasSelectedDates ? (
+              <p className="text-center text-xs text-muted-foreground">
+                El total incluye la tarifa de aseo de la propiedad.
+              </p>
             ) : null}
-          </Button>
+          </div>
           <Button
             type="button"
             variant="outline"

@@ -188,7 +188,7 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
-          status: { notIn: ["CANCELLED", "BLOCKED"] },
+          status: { notIn: ["CANCELLED"] },
           checkIn: { lte: rangeEnd },
           checkOut: { gt: rangeStart },
         }),

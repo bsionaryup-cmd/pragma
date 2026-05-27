@@ -19,6 +19,7 @@ import {
   listReservationPaymentHistory,
 } from "@/services/payments/payment-history.service";
 import { getServerLocale } from "@/i18n/locale.server";
+import { serializeGuestPaymentLink } from "@/lib/payments/guest-payment-link-serializer";
 
 const manualLinkSchema = z.object({
   category: z.enum([
@@ -49,7 +50,9 @@ export async function getReservationPaymentBalanceAction(reservationId: string) 
 
 export async function listReservationPaymentLinksAction(reservationId: string) {
   await requirePermission("reservations:read");
-  const links = await listGuestPaymentLinksForReservation(reservationId);
+  const links = (await listGuestPaymentLinksForReservation(reservationId)).map(
+    serializeGuestPaymentLink,
+  );
   return { success: true as const, links };
 }
 
@@ -73,7 +76,7 @@ export async function createReservationPaymentLinkAction(input: {
     revalidatePath("/reservations");
     revalidatePath("/finance/payment-links");
     revalidatePath("/finance");
-    return { success: true as const, link };
+    return { success: true as const, link: serializeGuestPaymentLink(link) };
   } catch (error) {
     return {
       success: false as const,
@@ -103,7 +106,10 @@ export async function createManualPaymentLinkAction(
 
     revalidatePath("/finance/payment-links");
     revalidatePath("/reservations");
-    return { success: true as const, link };
+    return {
+      success: true as const,
+      link: serializeGuestPaymentLink(link),
+    };
   } catch (error) {
     return {
       success: false as const,
@@ -117,7 +123,7 @@ export async function issuePaymentLinkAction(linkId: string) {
   try {
     const link = await issueGuestPaymentLink(linkId);
     revalidatePath("/finance/payment-links");
-    return { success: true as const, link };
+    return { success: true as const, link: serializeGuestPaymentLink(link) };
   } catch (error) {
     return {
       success: false as const,
@@ -148,7 +154,7 @@ export async function duplicatePaymentLinkAction(linkId: string) {
     const link = await duplicateGuestPaymentLink(linkId, user.id);
     revalidatePath("/finance/payment-links");
     revalidatePath("/reservations");
-    return { success: true as const, link };
+    return { success: true as const, link: serializeGuestPaymentLink(link) };
   } catch (error) {
     return {
       success: false as const,

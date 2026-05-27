@@ -11,6 +11,7 @@ import {
 import type { BillingPlanCode } from "@prisma/client";
 import type { TranslationKey } from "@/i18n/translate";
 import type { AppUserRole } from "@/types/auth";
+import { isNavPathActive } from "@/lib/navigation-active";
 
 export type NavIconName =
   | "layout-dashboard"
@@ -39,79 +40,92 @@ export type NavItem = {
   hiddenForRoles?: AppUserRole[];
 };
 
-const mainNavItems: NavItem[] = [
-  {
-    labelKey: "nav.overview",
-    href: "/panel",
-    icon: "layout-dashboard",
-    permission: "dashboard:read",
-  },
+export type NavChildLink = {
+  labelKey: TranslationKey;
+  href: string;
+  permission: Permission;
+  planFeature?: PlanFeature;
+  /** Solo visible con permiso integrations:manage (SIRE, Wompi, TRAA). */
+  requiresIntegrationsManage?: boolean;
+  hiddenForRoles?: AppUserRole[];
+};
+
+export type NavLinkModule = NavItem & { type: "link" };
+
+export type NavGroupModule = {
+  type: "group";
+  id: string;
+  labelKey: TranslationKey;
+  href: string;
+  icon: NavIconName;
+  permission: Permission;
+  planFeature?: PlanFeature;
+  hiddenForRoles?: AppUserRole[];
+  children: NavChildLink[];
+};
+
+export type NavModule = NavLinkModule | NavGroupModule;
+
+const panelNavItem: NavItem = {
+  labelKey: "nav.overview",
+  href: "/panel",
+  icon: "layout-dashboard",
+  permission: "dashboard:read",
+};
+
+const messagesNavItem: NavItem = {
+  labelKey: "nav.messages",
+  href: "/inbox",
+  icon: "message-circle",
+  permission: "reservations:read",
+  hiddenForRoles: ["RECEPTIONIST"],
+};
+
+const operationsNavGroup: Omit<NavGroupModule, "children"> = {
+  type: "group",
+  id: "operations",
+  labelKey: "nav.operations",
+  href: "/reservations",
+  icon: "clipboard-list",
+  permission: "reservations:read",
+};
+
+const operationsNavChildren: NavChildLink[] = [
   {
     labelKey: "nav.reservations",
     href: "/reservations",
-    icon: "clipboard-list",
     permission: "reservations:read",
   },
   {
     labelKey: "nav.calendar",
     href: "/calendar",
-    icon: "calendar-days",
     permission: "calendar:read",
   },
   {
     labelKey: "nav.tasks",
     href: "/tasks",
-    icon: "list-checks",
     permission: "tasks:read",
     planFeature: "tasks",
   },
   {
-    labelKey: "nav.messages",
-    href: "/inbox",
-    icon: "message-circle",
-    permission: "reservations:read",
-    hiddenForRoles: ["RECEPTIONIST"],
-  },
-  {
     labelKey: "nav.properties",
     href: "/properties",
-    icon: "building-2",
     permission: "properties:read",
   },
   {
     labelKey: "nav.revenue",
     href: "/revenue",
-    icon: "line-chart",
     permission: "finance:revenue:read",
     planFeature: "revenue",
   },
-  {
-    labelKey: "nav.smartAccess",
-    href: "/smart-access",
-    icon: "key-round",
-    permission: "access:read",
-    planFeature: "ttlock",
-  },
-  {
-    labelKey: "nav.integrations",
-    href: "/integrations",
-    icon: "ribbon",
-    permission: "integrations:read",
-  },
 ];
 
-const financeNavItem: NavItem = {
+const financeNavGroup: Omit<NavGroupModule, "children"> = {
+  type: "group",
+  id: "finance",
   labelKey: "nav.finance",
   href: "/finance",
   icon: "wallet",
-  permission: "finance:read",
-  planFeature: "finance",
-};
-
-const paymentLinksNavItem: NavItem = {
-  labelKey: "nav.paymentLinks",
-  href: "/finance/payment-links",
-  icon: "credit-card",
   permission: "finance:read",
   planFeature: "finance",
 };
@@ -136,12 +150,76 @@ export const financeSecondaryLinks: Pick<NavItem, "labelKey" | "href" | "permiss
     },
   ];
 
-const usersNavItem: NavItem = {
-  labelKey: "nav.users",
-  href: "/users",
-  icon: "clipboard-list",
-  permission: "users:read",
+const configurationNavGroup: Omit<NavGroupModule, "children"> = {
+  type: "group",
+  id: "configuration",
+  labelKey: "nav.settings",
+  href: "/settings",
+  icon: "settings",
+  permission: "settings:read",
 };
+
+const configurationNavChildren: NavChildLink[] = [
+  {
+    labelKey: "nav.integrations",
+    href: "/integrations",
+    permission: "integrations:read",
+  },
+  {
+    labelKey: "nav.integrationsAirbnb",
+    href: "/integrations/airbnb",
+    permission: "integrations:read",
+  },
+  {
+    labelKey: "nav.integrationsPriceLabs",
+    href: "/integrations/pricelabs",
+    permission: "integrations:read",
+    planFeature: "pricelabs",
+  },
+  {
+    labelKey: "nav.integrationsTtlock",
+    href: "/integrations/ttlock",
+    permission: "integrations:read",
+    planFeature: "ttlock",
+  },
+  {
+    labelKey: "nav.integrationsSire",
+    href: "/integrations/sire",
+    permission: "integrations:read",
+    planFeature: "sire",
+    requiresIntegrationsManage: true,
+  },
+  {
+    labelKey: "nav.integrationsWompi",
+    href: "/integrations/wompi",
+    permission: "integrations:read",
+    planFeature: "finance",
+    requiresIntegrationsManage: true,
+  },
+  {
+    labelKey: "nav.integrationsTraa",
+    href: "/integrations/traa",
+    permission: "integrations:read",
+    planFeature: "traa",
+    requiresIntegrationsManage: true,
+  },
+  {
+    labelKey: "nav.smartAccess",
+    href: "/smart-access",
+    permission: "access:read",
+    planFeature: "ttlock",
+  },
+  {
+    labelKey: "nav.users",
+    href: "/users",
+    permission: "users:read",
+  },
+  {
+    labelKey: "nav.settings",
+    href: "/settings",
+    permission: "settings:read",
+  },
+];
 
 const settingsNavItem: NavItem = {
   labelKey: "nav.settings",
@@ -162,7 +240,7 @@ export function getSecondaryRouteLinksForRole(
 }
 
 function navItemAllowedForPlan(
-  item: NavItem,
+  item: Pick<NavItem, "planFeature">,
   plan: BillingPlanCode | null | undefined,
 ): boolean {
   if (!item.planFeature) return true;
@@ -170,30 +248,177 @@ function navItemAllowedForPlan(
   return planHasFeature(plan, item.planFeature);
 }
 
+function navChildAllowedForRole(
+  child: NavChildLink,
+  role: AppUserRole,
+  plan: BillingPlanCode | null | undefined,
+): boolean {
+  if (child.hiddenForRoles?.includes(role)) return false;
+  if (!hasPermission(role, child.permission)) return false;
+  if (!navItemAllowedForPlan(child, plan)) return false;
+  if (
+    child.requiresIntegrationsManage &&
+    !hasPermission(role, "integrations:manage")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function filterNavChildren(
+  children: NavChildLink[],
+  role: AppUserRole,
+  plan: BillingPlanCode | null | undefined,
+): NavChildLink[] {
+  return children.filter((child) => navChildAllowedForRole(child, role, plan));
+}
+
+function navLinkModule(item: NavItem): NavLinkModule {
+  return { type: "link", ...item };
+}
+
+function navLinkAllowed(
+  item: NavItem,
+  role: AppUserRole,
+  plan: BillingPlanCode | null | undefined,
+): boolean {
+  if (item.hiddenForRoles?.includes(role)) return false;
+  if (!hasPermission(role, item.permission)) return false;
+  return navItemAllowedForPlan(item, plan);
+}
+
+export function isNavGroupModule(module: NavModule): module is NavGroupModule {
+  return module.type === "group";
+}
+
+/** Hijo activo único por grupo (ruta más específica gana). */
+export function getActiveNavChild(
+  pathname: string,
+  children: NavChildLink[],
+): NavChildLink | null {
+  let best: NavChildLink | null = null;
+
+  for (const child of children) {
+    if (!isNavPathActive(pathname, child.href)) continue;
+    if (!best || child.href.length > best.href.length) {
+      best = child;
+    }
+  }
+
+  return best;
+}
+
+export function isNavModuleActive(pathname: string, module: NavModule): boolean {
+  if (module.type === "link") {
+    return isNavPathActive(pathname, module.href);
+  }
+
+  if (getActiveNavChild(pathname, module.children)) return true;
+  return isNavPathActive(pathname, module.href);
+}
+
+/** Id del grupo que contiene la ruta actual, si aplica. */
+export function getActiveNavGroupId(
+  pathname: string,
+  modules: NavModule[],
+): string | null {
+  for (const module of modules) {
+    if (!isNavGroupModule(module)) continue;
+    if (isNavModuleActive(pathname, module)) return module.id;
+  }
+  return null;
+}
+
+export function getNavigationModulesForRole(
+  role: AppUserRole,
+  plan?: BillingPlanCode | null,
+): NavModule[] {
+  const modules: NavModule[] = [];
+
+  if (navLinkAllowed(panelNavItem, role, plan)) {
+    modules.push(navLinkModule(panelNavItem));
+  }
+
+  const operationsChildren = filterNavChildren(operationsNavChildren, role, plan);
+  if (operationsChildren.length > 0) {
+    modules.push({ ...operationsNavGroup, children: operationsChildren });
+  }
+
+  if (navLinkAllowed(messagesNavItem, role, plan)) {
+    modules.push(navLinkModule(messagesNavItem));
+  }
+
+  if (
+    hasAnyPermission(role, ["finance:read", "finance:operations:read"]) &&
+    navItemAllowedForPlan(financeNavGroup, plan)
+  ) {
+    const financeChildren = filterNavChildren(
+      financeSecondaryLinks as NavChildLink[],
+      role,
+      plan,
+    );
+    if (financeChildren.length > 0) {
+      modules.push({ ...financeNavGroup, children: financeChildren });
+    }
+  }
+
+  const configurationChildren: NavChildLink[] = [];
+
+  if (hasPermission(role, "integrations:read")) {
+    configurationChildren.push(
+      ...filterNavChildren(
+        configurationNavChildren.filter((child) =>
+          child.href.startsWith("/integrations"),
+        ),
+        role,
+        plan,
+      ),
+    );
+  }
+
+  const smartAccessChild = configurationNavChildren.find(
+    (child) => child.href === "/smart-access",
+  );
+  if (
+    smartAccessChild &&
+    navChildAllowedForRole(smartAccessChild, role, plan)
+  ) {
+    configurationChildren.push(smartAccessChild);
+  }
+
+  const usersChild = configurationNavChildren.find(
+    (child) => child.href === "/users",
+  );
+  if (usersChild && navChildAllowedForRole(usersChild, role, plan)) {
+    configurationChildren.push(usersChild);
+  }
+
+  const settingsChild = configurationNavChildren.find(
+    (child) => child.href === "/settings",
+  );
+  if (settingsChild && navChildAllowedForRole(settingsChild, role, plan)) {
+    configurationChildren.push(settingsChild);
+  }
+
+  if (configurationChildren.length > 0) {
+    const canReadSettings = hasPermission(role, "settings:read");
+    modules.push({
+      ...configurationNavGroup,
+      permission: canReadSettings ? "settings:read" : "integrations:read",
+      children: configurationChildren,
+    });
+  }
+
+  return modules;
+}
+
 export function getMainNavigationForRole(
   role: AppUserRole,
   plan?: BillingPlanCode | null,
 ): NavItem[] {
-  const items = mainNavItems.filter(
-    (item) =>
-      hasPermission(role, item.permission) &&
-      navItemAllowedForPlan(item, plan) &&
-      !(item.hiddenForRoles?.includes(role)),
-  );
-
-  if (
-    hasAnyPermission(role, ["finance:read", "finance:operations:read"]) &&
-    navItemAllowedForPlan(financeNavItem, plan)
-  ) {
-    items.push(paymentLinksNavItem);
-    items.push(financeNavItem);
-  }
-
-  if (hasPermission(role, "users:read")) {
-    items.push(usersNavItem);
-  }
-
-  return items;
+  return getNavigationModulesForRole(role, plan)
+    .filter((module): module is NavLinkModule => module.type === "link")
+    .map(({ type: _type, ...item }) => item);
 }
 
 export function isNavHrefAllowedForPlan(
@@ -206,14 +431,12 @@ export function isNavHrefAllowedForPlan(
   return planHasFeature(plan, feature);
 }
 
-export function getSettingsNavItem(role: AppUserRole): NavItem | null {
-  return hasPermission(role, settingsNavItem.permission) ? settingsNavItem : null;
+/** Configuración vive en el grupo principal; no duplicar en el pie del sidebar. */
+export function getSettingsNavItem(_role: AppUserRole): NavItem | null {
+  return null;
 }
 
 /** @deprecated Usar getMainNavigationForRole + getSettingsNavItem */
 export function getNavigationForRole(role: AppUserRole): NavItem[] {
-  const settings = getSettingsNavItem(role);
-  return settings
-    ? [...getMainNavigationForRole(role), settings]
-    : getMainNavigationForRole(role);
+  return getMainNavigationForRole(role);
 }

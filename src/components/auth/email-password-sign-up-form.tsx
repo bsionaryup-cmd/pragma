@@ -14,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import {
   getClerkAuthErrorMessage,
   getSignUpFlowErrorMessage,
-  getSignUpGlobalErrorMessage,
 } from "@/lib/clerk-auth-errors";
 import { hasActiveSignUpAttempt } from "@/lib/auth/sign-up-attempt";
 import {
@@ -425,7 +424,7 @@ export function EmailPasswordSignUpForm() {
           </p>
         </div>
 
-        <div className="mt-1 flex flex-col gap-2.5 border-t border-border/60 pt-5">
+        <div className="mt-8 flex flex-col gap-2.5 border-t border-border/60 pt-5">
           <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
             {isFetching ? "Verificando…" : "Activar cuenta"}
           </Button>
@@ -465,7 +464,7 @@ export function EmailPasswordSignUpForm() {
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleRegister}>
+    <form className="space-y-4" onSubmit={handleRegister}>
       <div className="space-y-1 text-center">
         <h1 className="font-heading text-xl font-semibold tracking-tight text-foreground">
           Crear cuenta
@@ -527,23 +526,25 @@ export function EmailPasswordSignUpForm() {
         />
       </div>
 
-      {/* Clerk Smart CAPTCHA — required before signUp.password() in custom flows */}
-      <div
-        id="clerk-captcha"
-        className="flex min-h-[5.5rem] w-full items-center justify-center rounded-xl border border-border/60 bg-muted/20 px-3 py-2"
-        data-cl-theme="dark"
-        data-cl-size="flexible"
-        data-cl-language="es-ES"
-      />
-      {isFetching && captchaHintVisible ? (
-        <p className="text-center text-xs text-muted-foreground">
-          Si aparece “verifica que eres humano”, complétalo para continuar.
-        </p>
-      ) : null}
+      <div className="-mt-1 space-y-1.5">
+        {/* Clerk Smart CAPTCHA — required before signUp.password() in custom flows */}
+        <div
+          id="clerk-captcha"
+          className="flex min-h-9 w-full items-center justify-center rounded-xl border border-border/60 bg-muted/20 px-3 py-1"
+          data-cl-theme="dark"
+          data-cl-size="flexible"
+          data-cl-language="es-ES"
+        />
+        {isFetching && captchaHintVisible ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Si aparece “verifica que eres humano”, complétalo para continuar.
+          </p>
+        ) : null}
 
-      <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
-        {isFetching ? "Creando cuenta…" : "Crear cuenta"}
-      </Button>
+        <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+          {isFetching ? "Creando cuenta…" : "Crear cuenta"}
+        </Button>
+      </div>
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tienes cuenta?{" "}

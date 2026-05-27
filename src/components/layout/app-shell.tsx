@@ -1,13 +1,13 @@
+import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
 import { MobileDashboardHeader } from "@/components/layout/mobile-dashboard-header";
-import { Sidebar } from "@/components/layout/sidebar";
 import { ThemedMainContent } from "@/components/layout/themed-main-content";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
-import type { NavItem } from "@/lib/navigation";
+import type { NavItem, NavModule } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
   children: React.ReactNode;
-  navItems: NavItem[];
+  navModules: NavModule[];
   settingsItem: NavItem | null;
   user: SidebarUser;
   className?: string;
@@ -15,7 +15,7 @@ type AppShellProps = {
 
 export function AppShell({
   children,
-  navItems,
+  navModules,
   settingsItem,
   user,
   className,
@@ -27,8 +27,8 @@ export function AppShell({
         className,
       )}
     >
-      <Sidebar
-        items={navItems}
+      <DashboardNavigation
+        modules={navModules}
         settingsItem={settingsItem}
         user={user}
         className="hidden lg:flex"
@@ -36,7 +36,7 @@ export function AppShell({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <MobileDashboardHeader
-          navItems={navItems}
+          navModules={navModules}
           settingsItem={settingsItem}
           user={user}
         />
