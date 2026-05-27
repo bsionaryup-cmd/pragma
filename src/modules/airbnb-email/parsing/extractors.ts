@@ -1,3 +1,4 @@
+import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import {
   extractLabeledValues,
@@ -11,6 +12,11 @@ import {
   buildEmailMatchBlob,
   resolveGuestNameFromSignals,
 } from "@/modules/airbnb-email/parsing/guest-name-extract";
+import {
+  extractStructuredAirbnbFields,
+  htmlPayloadRichness,
+  isDegradedForwardPlainText,
+} from "@/modules/airbnb-email/parsing/structured-html-extract";
 
 const CONFIRMATION_CODE_RE = /\b(HM[A-Z0-9]{6,12})\b/i;
 const EMAIL_RE = /\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/gi;
@@ -231,9 +237,30 @@ export function buildEmailBody(payload: {
   subject: string;
 }): string {
   const text = payload.text?.trim();
-  if (text) return normalizeAirbnbForwardedText(`${payload.subject}\n${text}`);
   const html = payload.html?.trim();
-  if (html) return normalizeAirbnbForwardedText(`${payload.subject}\n${stripHtmlToText(html)}`);
+  const htmlText = html ? stripHtmlToText(html) : "";
+
+  if (html) {
+    airbnbEmailLog.info("html_payload_detected", {
+      htmlBytes: html.length,
+      textBytes: text?.length ?? 0,
+      richness: htmlPayloadRichness(html),
+      degradedPlainText: text ? isDegradedForwardPlainText(text) : true,
+    });
+  }
+
+  if (!text && htmlText) {
+    return normalizeAirbnbForwardedText(`${payload.subject}\n${htmlText}`);
+  }
+
+  if (text && htmlText && isDegradedForwardPlainText(text)) {
+    return normalizeAirbnbForwardedText(
+      `${payload.subject}\n${text}\n${htmlText}`,
+    );
+  }
+
+  if (text) return normalizeAirbnbForwardedText(`${payload.subject}\n${text}`);
+  if (htmlText) return normalizeAirbnbForwardedText(`${payload.subject}\n${htmlText}`);
   return normalizeAirbnbForwardedText(payload.subject);
 }
 
@@ -246,10 +273,32 @@ export function extractReservationSignals(input: {
   const labeled = extractLabeledValues(normalizedBody);
   const htmlText = input.html ? stripHtmlToText(input.html) : "";
   const labeledHtml = htmlText ? extractLabeledValues(htmlText) : {};
-  const merged = { ...labeled, ...labeledHtml };
+  const structured = extractStructuredAirbnbFields(input.html);
+  const merged: Record<string, string> = { ...labeled, ...labeledHtml };
+  if (structured.listingName) merged.listingName = structured.listingName;
+  if (structured.checkIn) merged.checkIn = structured.checkIn;
+  if (structured.checkOut) merged.checkOut = structured.checkOut;
+  if (structured.guestName) merged.guestName = structured.guestName;
+  if (structured.confirmationCode) {
+    merged.confirmationCode = structured.confirmationCode;
+  }
   const extractionText = normalizeAirbnbForwardedText(
     [input.subject, normalizedBody, htmlText].filter(Boolean).join("\n"),
   );
+
+  if (structured.listingName) {
+    airbnbEmailLog.info("structured_listing_extracted", {
+      listingName: structured.listingName,
+      sources: structured.sources.join(","),
+    });
+  }
+  if (structured.checkIn || structured.checkOut) {
+    airbnbEmailLog.info("structured_dates_extracted", {
+      checkIn: structured.checkIn ?? undefined,
+      checkOut: structured.checkOut ?? undefined,
+      sources: structured.sources.join(","),
+    });
+  }
 
   const confirmation =
     input.subject.match(CONFIRMATION_CODE_RE) ??
@@ -273,12 +322,16 @@ export function extractReservationSignals(input: {
     merged.unitNumber?.trim() ??
     extractionText.match(UNIT_NUMBER_RE)?.[1]?.trim() ??
     null;
-  const listingName = extractListingName(extractionText, merged);
+  const listingName =
+    cleanListingName(structured.listingName) ??
+    extractListingName(extractionText, merged);
   const checkIn =
+    normalizeDateToken(structured.checkIn) ??
     extractCheckDate(extractionText, merged, "in") ??
     normalizeDateToken(dateRange?.[1]) ??
     null;
   const checkOut =
+    normalizeDateToken(structured.checkOut) ??
     extractCheckDate(extractionText, merged, "out") ??
     normalizeDateToken(dateRange?.[2]) ??
     null;

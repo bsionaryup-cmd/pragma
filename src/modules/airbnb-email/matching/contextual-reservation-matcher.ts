@@ -275,6 +275,17 @@ export async function matchByListingContextual(input: {
   });
 
   const ranked = [...evaluated].sort((a, b) => b.confidence - a.confidence);
+
+  airbnbEmailLog.info("candidate_score_breakdown", {
+    propertyId: input.propertyId ?? undefined,
+    ranked: ranked
+      .slice(0, 5)
+      .map(
+        (row) =>
+          `${row.candidate.id}:${row.confidence.toFixed(3)}:guest=${row.guestMatch ? 1 : 0}:dates=${row.dateOverlap ? 1 : 0}`,
+      )
+      .join("|"),
+  });
   const top = ranked[0]!;
   const second = ranked[1] ?? null;
   if (!top || top.confidence < 0.8) {
@@ -323,28 +334,37 @@ export async function matchByListingContextual(input: {
     return null;
   }
 
+  const guestNameMatch = guestNameMatches(
+    input.signals.guestName,
+    selected.guestName,
+  );
+  const dateOverlapSelected = Boolean(
+    input.parsedCheckIn &&
+      input.parsedCheckOut &&
+      datesOverlap(
+        selected.checkIn,
+        selected.checkOut,
+        input.parsedCheckIn,
+        input.parsedCheckOut,
+      ),
+  );
+  const decisiveSignal = guestNameMatch
+    ? dateOverlapSelected
+      ? "guestName+dates+ical"
+      : "guestName+ical"
+    : dateOverlapSelected
+      ? "dates+ical"
+      : "ical_proximity";
+
   airbnbEmailLog.info("ical_context_selected", {
     propertyId: input.propertyId ?? undefined,
     reservationId: selected.id,
     confidence,
-    guestNameMatch: Boolean(
-      guestNameMatches(input.signals.guestName, selected.guestName),
-    ),
-    dateOverlap: Boolean(
-      input.parsedCheckIn &&
-        input.parsedCheckOut &&
-        datesOverlap(
-          selected.checkIn,
-          selected.checkOut,
-          input.parsedCheckIn,
-          input.parsedCheckOut,
-        ),
-    ),
+    guestNameMatch,
+    dateOverlap: dateOverlapSelected,
     hasConfirmationCode,
-    reason:
-      guestNameMatches(input.signals.guestName, selected.guestName)
-        ? "guest+temporal+ical"
-        : "temporal+ical",
+    decisiveSignal,
+    reason: decisiveSignal,
   });
 
   airbnbEmailLog.info("contextual_match_selected", {

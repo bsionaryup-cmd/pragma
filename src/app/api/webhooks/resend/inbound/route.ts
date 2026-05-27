@@ -9,7 +9,10 @@ import {
   verifyResendInboundWebhook,
 } from "@/modules/airbnb-email/integrations/resend-inbound.client";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
-import { extractReservationSignals } from "@/modules/airbnb-email/parsing/extractors";
+import {
+  buildEmailBody,
+  extractReservationSignals,
+} from "@/modules/airbnb-email/parsing/extractors";
 import {
   recordIntegrationInboundReceived,
   resolveOrganizationByInboundEmail,
@@ -82,11 +85,15 @@ export async function POST(request: Request) {
 
     integrationId = resolved.integrationId;
     await recordIntegrationInboundReceived(integrationId);
-    const bodyText = email.text ?? "";
+    const bodyPreview = buildEmailBody({
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    });
 
     const signals = extractReservationSignals({
       subject: email.subject,
-      body: bodyText,
+      body: bodyPreview,
       html: email.html,
     });
 

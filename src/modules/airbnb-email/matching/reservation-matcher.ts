@@ -108,16 +108,22 @@ async function matchByListingDates(
   checkIn: Date,
   checkOut: Date,
   options: { hasConfirmationCode: boolean; organizationId?: string | null },
-): Promise<Omit<
-  ReservationMatchResult,
-  "tier" | "allowReservationEnrichment" | "requiresManualReview"
-> | null> {
+): Promise<{
+  match: Omit<
+    ReservationMatchResult,
+    "tier" | "allowReservationEnrichment" | "requiresManualReview"
+  > | null;
+  overlapCount: number;
+  decisiveSignal: string | null;
+}> {
   const overlapCount = await countOverlappingAirbnb(
     propertyId,
     checkIn,
     checkOut,
   );
-  if (overlapCount === 0) return null;
+  if (overlapCount === 0) {
+    return { match: null, overlapCount: 0, decisiveSignal: null };
+  }
 
   const reservation = await findOverlappingReservation(
     propertyId,
@@ -126,7 +132,7 @@ async function matchByListingDates(
   );
 
   if (!reservation || reservation.platform !== BookingPlatform.AIRBNB) {
-    return null;
+    return { match: null, overlapCount, decisiveSignal: null };
   }
 
   if (
@@ -136,7 +142,7 @@ async function matchByListingDates(
       options.organizationId,
     ))
   ) {
-    return null;
+    return { match: null, overlapCount, decisiveSignal: null };
   }
 
   const property = await db.property.findUnique({
@@ -146,14 +152,21 @@ async function matchByListingDates(
 
   const unique = overlapCount === 1;
   const confidence =
-    unique && options.hasConfirmationCode ? 0.92 : unique ? 0.82 : 0.7;
+    unique && options.hasConfirmationCode ? 0.92 : unique ? 0.88 : 0.7;
+  const decisiveSignal = unique
+    ? "property+ical_dates_unique"
+    : "property+ical_dates_overlap";
 
   return {
-    reservationId: reservation.id,
-    propertyId,
-    organizationId: property?.organizationId ?? null,
-    method: AirbnbEmailMatchMethod.LISTING_DATES,
-    confidence,
+    overlapCount,
+    decisiveSignal,
+    match: {
+      reservationId: reservation.id,
+      propertyId,
+      organizationId: property?.organizationId ?? null,
+      method: AirbnbEmailMatchMethod.LISTING_DATES,
+      confidence,
+    },
   };
 }
 
@@ -225,70 +238,12 @@ export async function matchReservationFromEmailSignals(
     hasGuestName: Boolean(signals.guestName),
     guestName: signals.guestName ?? undefined,
     hasConfirmationCode,
+    hasListingName: Boolean(signals.listingName),
+    hasCheckIn: Boolean(signals.checkIn),
+    hasCheckOut: Boolean(signals.checkOut),
     providedPropertyId: Boolean(options?.propertyId),
     listingAmbiguous: Boolean(options?.listingAmbiguous),
   });
-
-  if (signals.confirmationCode) {
-    const byCode = await matchByConfirmationCode(
-      signals.confirmationCode,
-      organizationId,
-    );
-    if (byCode) {
-      airbnbEmailLog.info("match_branch_selected", {
-        branch: "CONFIRMATION_CODE",
-        reservationId: byCode.reservationId,
-      });
-      if (
-        organizationId &&
-        byCode.organizationId &&
-        byCode.organizationId !== organizationId
-      ) {
-        return applyMatchPolicy(
-          { ...emptyBase, confidence: 0 },
-          { hasConfirmationCodeInEmail: hasConfirmationCode },
-        );
-      }
-      return applyMatchPolicy(byCode, { hasConfirmationCodeInEmail: true });
-    }
-    airbnbEmailLog.info("match_branch_skipped", {
-      branch: "CONFIRMATION_CODE",
-      reason: "no_db_reservation_with_code",
-    });
-  }
-
-  if (canAttemptIcalContextualMatch({ organizationId, guestName: signals.guestName })) {
-    const contextual = await matchByListingContextual({
-      propertyId: options?.propertyId ?? null,
-      organizationId: organizationId!,
-      signals,
-      parsedCheckIn: checkIn,
-      parsedCheckOut: checkOut,
-    });
-    if (contextual) {
-      airbnbEmailLog.info("match_branch_selected", {
-        branch: "ICAL_CONTEXTUAL_MATCH",
-        reservationId: contextual.reservationId,
-        propertyId: contextual.propertyId,
-        confidence: contextual.confidence,
-      });
-      return applyMatchPolicy(contextual, {
-        hasConfirmationCodeInEmail: hasConfirmationCode,
-      });
-    }
-    airbnbEmailLog.info("match_branch_skipped", {
-      branch: "ICAL_CONTEXTUAL_MATCH",
-      reason: "no_unique_ical_context_match",
-    });
-  } else {
-    airbnbEmailLog.warn("ical_context_skipped", {
-      organizationId: organizationId ?? undefined,
-      reason: !organizationId
-        ? "missing_organization_id"
-        : "missing_or_invalid_guest_name",
-      guestName: signals.guestName ?? undefined,
-    });
-  }
 
   let propertyId = options?.propertyId ?? null;
   let propertyResolutionAmbiguous = false;
@@ -304,28 +259,60 @@ export async function matchReservationFromEmailSignals(
       airbnbEmailLog.warn("property_mapping_failed", {
         organizationId,
         reason: "ambiguous_property_resolution",
-        note: "non_blocking_for_ical_contextual",
+        listingName: signals.listingName ?? undefined,
       });
     } else if (!propertyId) {
       airbnbEmailLog.warn("property_mapping_failed", {
         organizationId,
         reason: "no_metadata_match",
-        note: "non_blocking_for_ical_contextual",
+        listingName: signals.listingName ?? undefined,
+      });
+    } else {
+      airbnbEmailLog.info("property_mapping_resolved", {
+        organizationId,
+        propertyId,
+        method: resolved.resolutionMethod,
+        listingName: signals.listingName ?? undefined,
       });
     }
   }
 
   if (propertyId && checkIn && checkOut) {
-    const byDates = await matchByListingDates(propertyId, checkIn, checkOut, {
+    airbnbEmailLog.info("ical_date_match_started", {
+      propertyId,
+      checkIn: signals.checkIn ?? undefined,
+      checkOut: signals.checkOut ?? undefined,
+    });
+
+    const dateMatch = await matchByListingDates(propertyId, checkIn, checkOut, {
       hasConfirmationCode,
       organizationId,
     });
-    if (byDates) {
+
+    if (dateMatch.overlapCount > 0) {
+      airbnbEmailLog.info("ical_date_match_found", {
+        propertyId,
+        overlapCount: dateMatch.overlapCount,
+        checkIn: signals.checkIn ?? undefined,
+        checkOut: signals.checkOut ?? undefined,
+      });
+    }
+
+    if (dateMatch.match) {
+      airbnbEmailLog.info("ical_date_match_selected", {
+        propertyId,
+        reservationId: dateMatch.match.reservationId,
+        overlapCount: dateMatch.overlapCount,
+        decisiveSignal: dateMatch.decisiveSignal ?? "property+ical_dates",
+        method: dateMatch.match.method,
+        confidence: dateMatch.match.confidence,
+      });
       airbnbEmailLog.info("match_branch_selected", {
         branch: "LISTING_DATES",
-        reservationId: byDates.reservationId,
+        reservationId: dateMatch.match.reservationId,
+        decisiveSignal: dateMatch.decisiveSignal,
       });
-      return applyMatchPolicy(byDates, {
+      return applyMatchPolicy(dateMatch.match, {
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });
     }
@@ -339,6 +326,12 @@ export async function matchReservationFromEmailSignals(
         organizationId,
       );
       if (byGuest) {
+        airbnbEmailLog.info("ical_date_match_selected", {
+          propertyId,
+          reservationId: byGuest.reservationId,
+          decisiveSignal: "property+exact_dates+guestName",
+          method: byGuest.method,
+        });
         airbnbEmailLog.info("match_branch_selected", {
           branch: "LISTING_GUEST_DATES",
           reservationId: byGuest.reservationId,
@@ -363,11 +356,75 @@ export async function matchReservationFromEmailSignals(
         branch: "ICAL_CONTEXTUAL_MATCH",
         reservationId: contextualWithProperty.reservationId,
         propertyIdHint: propertyId,
+        decisiveSignal: "property+ical_context",
       });
       return applyMatchPolicy(contextualWithProperty, {
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });
     }
+  }
+
+  if (canAttemptIcalContextualMatch({ organizationId, guestName: signals.guestName })) {
+    const contextual = await matchByListingContextual({
+      propertyId: null,
+      organizationId: organizationId!,
+      signals,
+      parsedCheckIn: checkIn,
+      parsedCheckOut: checkOut,
+    });
+    if (contextual) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "ICAL_CONTEXTUAL_MATCH",
+        reservationId: contextual.reservationId,
+        propertyId: contextual.propertyId,
+        decisiveSignal: "guestName+ical_context",
+        confidence: contextual.confidence,
+      });
+      return applyMatchPolicy(contextual, {
+        hasConfirmationCodeInEmail: hasConfirmationCode,
+      });
+    }
+    airbnbEmailLog.info("match_branch_skipped", {
+      branch: "ICAL_CONTEXTUAL_MATCH",
+      reason: "no_unique_ical_context_match",
+    });
+  } else {
+    airbnbEmailLog.warn("ical_context_skipped", {
+      organizationId: organizationId ?? undefined,
+      reason: !organizationId
+        ? "missing_organization_id"
+        : "missing_or_invalid_guest_name",
+      guestName: signals.guestName ?? undefined,
+    });
+  }
+
+  if (signals.confirmationCode) {
+    const byCode = await matchByConfirmationCode(
+      signals.confirmationCode,
+      organizationId,
+    );
+    if (byCode) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "CONFIRMATION_CODE",
+        reservationId: byCode.reservationId,
+        decisiveSignal: "hm_code_in_db",
+      });
+      if (
+        organizationId &&
+        byCode.organizationId &&
+        byCode.organizationId !== organizationId
+      ) {
+        return applyMatchPolicy(
+          { ...emptyBase, confidence: 0 },
+          { hasConfirmationCodeInEmail: hasConfirmationCode },
+        );
+      }
+      return applyMatchPolicy(byCode, { hasConfirmationCodeInEmail: true });
+    }
+    airbnbEmailLog.info("match_branch_skipped", {
+      branch: "CONFIRMATION_CODE",
+      reason: "no_db_reservation_with_code",
+    });
   }
 
   if (propertyResolutionAmbiguous) {
@@ -380,6 +437,9 @@ export async function matchReservationFromEmailSignals(
   airbnbEmailLog.warn("match_flow_no_match", {
     organizationId,
     hasGuestName: Boolean(signals.guestName),
+    hasListingName: Boolean(signals.listingName),
+    hasCheckIn: Boolean(signals.checkIn),
+    hasCheckOut: Boolean(signals.checkOut),
     providedPropertyId: Boolean(options?.propertyId),
     propertyResolutionAmbiguous,
   });
