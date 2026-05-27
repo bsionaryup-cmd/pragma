@@ -192,6 +192,12 @@ export async function matchByListingContextual(input: {
     return null;
   }
 
+  airbnbEmailLog.info("contextual_candidate_found", {
+    propertyId: input.propertyId,
+    candidateCount: candidates.length,
+    reservationIds: candidates.map((c) => c.id).join(","),
+  });
+
   const narrowed = narrowContextualCandidates(
     candidates,
     input.signals,

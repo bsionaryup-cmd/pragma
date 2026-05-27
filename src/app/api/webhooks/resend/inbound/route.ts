@@ -96,6 +96,14 @@ export async function POST(request: Request) {
       null,
     );
 
+    airbnbEmailLog.info("property_resolution", {
+      organizationId: resolved.organizationId,
+      propertyId: propertyResolution.propertyId ?? undefined,
+      ambiguous: propertyResolution.ambiguous,
+      method: propertyResolution.resolutionMethod,
+      airbnbRoomId: signals.airbnbRoomId ?? undefined,
+    });
+
     const outcome = await processInboundAirbnbEmail(
       {
         messageId: email.message_id ?? event.data.message_id ?? email.id,

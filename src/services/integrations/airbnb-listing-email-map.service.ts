@@ -1,5 +1,6 @@
 import { PropertyStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { parseAirbnbRoomId } from "@/services/airbnb/airbnb-import.service";
 
 function normalizeListingName(name: string): string {
   return name.trim().toLowerCase();
@@ -18,11 +19,17 @@ export async function syncListingEmailMapsForOrganization(
       id: true,
       name: true,
       airbnbRoomId: true,
+      airbnbListingUrl: true,
     },
   });
 
   let upserted = 0;
   for (const property of properties) {
+    const roomId =
+      property.airbnbRoomId?.trim() ||
+      (property.airbnbListingUrl
+        ? parseAirbnbRoomId(property.airbnbListingUrl)
+        : null);
     await db.airbnbListingEmailMap.upsert({
       where: {
         organizationId_propertyId: {
@@ -33,12 +40,12 @@ export async function syncListingEmailMapsForOrganization(
       create: {
         organizationId,
         propertyId: property.id,
-        airbnbRoomId: property.airbnbRoomId,
+        airbnbRoomId: roomId,
         listingName: property.name,
         listingNameNorm: normalizeListingName(property.name),
       },
       update: {
-        airbnbRoomId: property.airbnbRoomId,
+        airbnbRoomId: roomId,
         listingName: property.name,
         listingNameNorm: normalizeListingName(property.name),
       },

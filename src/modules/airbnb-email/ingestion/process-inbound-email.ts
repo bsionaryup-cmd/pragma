@@ -174,8 +174,11 @@ export async function processInboundAirbnbEmail(
   airbnbEmailLog.info("parser_extracted", {
     organizationId,
     confirmationCode: signals.confirmationCode ?? undefined,
+    airbnbRoomId: signals.airbnbRoomId ?? undefined,
+    unitNumber: signals.unitNumber ?? undefined,
     listingName: signals.listingName?.slice(0, 80) ?? undefined,
     guestNamePresent: Boolean(signals.guestName),
+    guestName: signals.guestName?.slice(0, 60) ?? undefined,
     guestEmailPresent: Boolean(signals.guestEmail),
     guestPhonePresent: Boolean(signals.guestPhone),
     guestCount: signals.guestCount ?? undefined,
@@ -285,6 +288,7 @@ export async function processInboundAirbnbEmail(
       airbnbEmailLog.warn("match_none_inputs", {
         auditId: audit.id,
         hasConfirmationCode: Boolean(signals.confirmationCode),
+        hasAirbnbRoomId: Boolean(signals.airbnbRoomId),
         hasListingName: Boolean(signals.listingName),
         hasGuestName: Boolean(signals.guestName),
         hasCheckIn: Boolean(signals.checkIn),
