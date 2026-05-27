@@ -8,6 +8,7 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
+import { matchByListingContextual } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import type {
   ExtractedReservationSignals,
@@ -284,6 +285,21 @@ export async function matchReservationFromEmailSignals(
           hasConfirmationCodeInEmail: hasConfirmationCode,
         });
       }
+    }
+  }
+
+  if (propertyId && hasConfirmationCode) {
+    const contextual = await matchByListingContextual({
+      propertyId,
+      organizationId,
+      signals,
+      parsedCheckIn: checkIn,
+      parsedCheckOut: checkOut,
+    });
+    if (contextual) {
+      return applyMatchPolicy(contextual, {
+        hasConfirmationCodeInEmail: hasConfirmationCode,
+      });
     }
   }
 

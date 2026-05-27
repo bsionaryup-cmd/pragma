@@ -31,10 +31,16 @@ export function applyMatchPolicy(
     Boolean(options.hasConfirmationCodeInEmail) &&
     (tier === "high" || (tier === "medium" && base.confidence >= 0.82));
 
+  const listingContextualWithCode =
+    base.method === AirbnbEmailMatchMethod.LISTING_CONTEXTUAL_MATCH &&
+    Boolean(options.hasConfirmationCodeInEmail) &&
+    (tier === "high" || (tier === "medium" && base.confidence >= 0.84));
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
-      listingDatesWithCode);
+      listingDatesWithCode ||
+      listingContextualWithCode);
 
   return {
     ...base,
