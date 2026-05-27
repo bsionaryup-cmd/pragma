@@ -6,6 +6,7 @@ import {
   extractGuestNameFromSubject,
   isPlausibleGuestName,
 } from "../../src/modules/airbnb-email/parsing/guest-name-extract";
+import { pickUniquePropertyByListingName } from "../../src/services/integrations/airbnb-property-metadata-resolver.service";
 
 describe("extractAirbnbListingRefs", () => {
   it("extrae room id numérico y slug /h/ por separado", () => {
@@ -53,5 +54,43 @@ describe("extractReservationSignals metadata", () => {
     assert.equal(signals.airbnbRoomId, "urbanova803");
     assert.equal(signals.airbnbRoomIdNumeric, "1659842170040094387");
     assert.ok(signals.emailMatchBlob?.includes("urbanova803"));
+  });
+});
+
+describe("normalized listing -> property name mapping", () => {
+  it("acepta match único con sufijo de unidad", () => {
+    const picked = pickUniquePropertyByListingName({
+      listingName: "Loft amplio 4P con Vista Panorámica | Laureles Top",
+      properties: [
+        {
+          propertyId: "p804",
+          name: "Loft amplio 4P con Vista Panorámica | Laureles Top - 804",
+        },
+        {
+          propertyId: "p801",
+          name: "Loft moderno para 4 personas | Laureles | A 10 min",
+        },
+      ],
+    });
+    assert.equal(picked.propertyId, "p804");
+    assert.equal(picked.ambiguous, false);
+  });
+
+  it("bloquea cuando hay múltiples matches parecidos", () => {
+    const picked = pickUniquePropertyByListingName({
+      listingName: "Loft amplio 4P con Vista Panorámica | Laureles Top",
+      properties: [
+        {
+          propertyId: "p804",
+          name: "Loft amplio 4P con Vista Panorámica | Laureles Top - 804",
+        },
+        {
+          propertyId: "p904",
+          name: "Loft amplio 4P con Vista Panorámica | Laureles Top - 904",
+        },
+      ],
+    });
+    assert.equal(picked.propertyId, null);
+    assert.equal(picked.ambiguous, true);
   });
 });

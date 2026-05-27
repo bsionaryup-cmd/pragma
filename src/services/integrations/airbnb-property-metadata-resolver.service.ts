@@ -10,6 +10,7 @@ import { resolvePropertyFromListingMap } from "@/services/integrations/airbnb-li
 
 export type PropertyMetadataResolutionMethod =
   | "explicit"
+  | "normalized_property_name"
   | "airbnb_room_id_property"
   | "airbnb_room_id_listing_map"
   | "airbnb_slug_email_fragment"
@@ -49,6 +50,113 @@ export type PropertyMetadataResolution = {
   airbnbRoomId?: string | null;
   unitNumber?: string | null;
 };
+
+type PropertyNameCandidate = {
+  propertyId: string;
+  name: string;
+};
+
+export function normalizeAirbnbListingForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&amp;|&lt;|&gt;/g, " ")
+    .replace(/[|•]/g, " ")
+    .replace(/[^a-z0-9áéíóúñü\s-]/gi, " ")
+    .replace(/\b(?:codigo|c[oó]digo|confirmation|confirmaci[oó]n|check-?in|check-?out|llega|arrives)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripTrailingUnitSuffix(normName: string): string {
+  return normName.replace(/\s*-\s*[a-z0-9]{1,8}$/i, "").trim();
+}
+
+export function pickUniquePropertyByListingName(input: {
+  listingName: string;
+  properties: PropertyNameCandidate[];
+}): { propertyId: string | null; ambiguous: boolean } {
+  const normListing = normalizeAirbnbListingForMatch(input.listingName);
+  if (normListing.length < 8) return { propertyId: null, ambiguous: false };
+
+  const scored = input.properties
+    .map((property) => {
+      const normProperty = normalizeAirbnbListingForMatch(property.name);
+      const baseProperty = stripTrailingUnitSuffix(normProperty);
+      let score = 0;
+
+      if (normProperty === normListing || baseProperty === normListing) score = 100;
+      else if (
+        normProperty.startsWith(normListing) ||
+        baseProperty.startsWith(normListing)
+      ) {
+        score = 90;
+      } else if (
+        normListing.startsWith(baseProperty) &&
+        baseProperty.length >= 12
+      ) {
+        score = 85;
+      } else if (
+        (normProperty.includes(normListing) || baseProperty.includes(normListing)) &&
+        normListing.length >= 16
+      ) {
+        score = 70;
+      }
+
+      return { propertyId: property.propertyId, score };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) return { propertyId: null, ambiguous: false };
+  if (scored.length === 1) return { propertyId: scored[0]!.propertyId, ambiguous: false };
+
+  const first = scored[0]!;
+  const second = scored[1]!;
+  if (first.score - second.score >= 15) {
+    return { propertyId: first.propertyId, ambiguous: false };
+  }
+
+  return { propertyId: null, ambiguous: true };
+}
+
+async function resolveByNormalizedPropertyName(input: {
+  organizationId: string;
+  listingName: string;
+}): Promise<PropertyMetadataResolution | null> {
+  const properties = await db.property.findMany({
+    where: {
+      organizationId: input.organizationId,
+      status: PropertyStatus.ACTIVE,
+      OR: [
+        { airbnbListingUrl: { not: null } },
+        { airbnbRoomId: { not: null } },
+        { icalUrl: { not: null } },
+      ],
+    },
+    select: { id: true, name: true },
+  });
+
+  const picked = pickUniquePropertyByListingName({
+    listingName: input.listingName,
+    properties: properties.map((p) => ({ propertyId: p.id, name: p.name })),
+  });
+  if (picked.propertyId) {
+    return {
+      propertyId: picked.propertyId,
+      ambiguous: false,
+      method: "normalized_property_name",
+    };
+  }
+  if (picked.ambiguous) {
+    return {
+      propertyId: null,
+      ambiguous: true,
+      method: "normalized_property_name",
+    };
+  }
+  return null;
+}
 
 async function resolveByAirbnbRoomIdOnProperty(input: {
   organizationId: string;
@@ -293,6 +401,30 @@ export async function resolvePropertyFromKnownMetadata(input: {
     };
   }
 
+  const listingName = input.listingName?.trim();
+  if (listingName && listingName.length >= 8) {
+    const byNormalizedName = await resolveByNormalizedPropertyName({
+      organizationId: input.organizationId,
+      listingName,
+    });
+    if (byNormalizedName?.propertyId) {
+      logPropertyMappingFound({
+        organizationId: input.organizationId,
+        propertyId: byNormalizedName.propertyId,
+        method: "normalized_property_name",
+        note: "normalized_listing_to_property_name",
+      });
+      return byNormalizedName;
+    }
+    if (byNormalizedName?.ambiguous) {
+      airbnbEmailLog.warn("property_mapping_failed", {
+        organizationId: input.organizationId,
+        reason: "ambiguous_normalized_property_name",
+      });
+      return byNormalizedName;
+    }
+  }
+
   const slugCandidates = [
     ...(input.airbnbRoomSlugs ?? []),
     ...(input.airbnbRoomId?.trim() && !/^\d+$/.test(input.airbnbRoomId.trim())
@@ -459,7 +591,6 @@ export async function resolvePropertyFromKnownMetadata(input: {
     return byGuest;
   }
 
-  const listingName = input.listingName?.trim();
   if (listingName && listingName.length >= 4) {
     const fromName = await resolvePropertyFromListingMap({
       organizationId: input.organizationId,
