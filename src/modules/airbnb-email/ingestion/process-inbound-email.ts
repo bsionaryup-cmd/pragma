@@ -186,6 +186,7 @@ export async function processInboundAirbnbEmail(
       signals.netPayout != null ||
       signals.hostFee != null,
     currency: signals.currency ?? undefined,
+    extractionPreview: body.slice(0, 220).replace(/\s+/g, " "),
   });
 
   if (classified.eventKind === AirbnbEmailEventKind.UNKNOWN) {
@@ -280,6 +281,19 @@ export async function processInboundAirbnbEmail(
       manualReview: match.requiresManualReview,
       organizationId,
     });
+    if (match.method === AirbnbEmailMatchMethod.NONE) {
+      airbnbEmailLog.warn("match_none_inputs", {
+        auditId: audit.id,
+        hasConfirmationCode: Boolean(signals.confirmationCode),
+        hasListingName: Boolean(signals.listingName),
+        hasGuestName: Boolean(signals.guestName),
+        hasCheckIn: Boolean(signals.checkIn),
+        hasCheckOut: Boolean(signals.checkOut),
+        providedPropertyId: Boolean(options?.propertyId),
+        listingAmbiguous: Boolean(options?.listingAmbiguous),
+        organizationId,
+      });
+    }
 
     await db.emailIngestionAudit.update({
       where: { id: audit.id },

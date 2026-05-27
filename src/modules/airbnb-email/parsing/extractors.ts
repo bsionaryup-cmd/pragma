@@ -2,6 +2,7 @@ import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import {
   extractLabeledValues,
   extractMessageSnippet,
+  normalizeAirbnbForwardedText,
   extractReviewText,
   stripHtmlToText,
 } from "@/modules/airbnb-email/parsing/html-parse";
@@ -18,6 +19,56 @@ const MONEY_INLINE_RE = /(?:\$|USD|COP|€)\s*([\d.,]+)/gi;
 const RATING_RE = /(\d(?:\.\d)?)\s*(?:estrellas|stars|★|\/5)/i;
 const GUEST_NAME_RE =
   /(?:huésped|guest)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/i;
+const DATE_TOKEN_RE =
+  /\b(\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-záéíóúñ.]+\s+de\s+\d{4}|\d{1,2}\s+[a-záéíóúñ.]+\s+\d{4})\b/i;
+const LISTING_LABEL_RE =
+  /(?:alojamiento|listing|property)\s*:?\s*([^\n]{3,220})/i;
+const CHECKIN_RE = /(?:check-?in|llegada|arrival)\s*:?\s*([^\n]{3,80})/i;
+const CHECKOUT_RE = /(?:check-?out|salida|departure)\s*:?\s*([^\n]{3,80})/i;
+const STOP_WORDS_RE =
+  /\b(c[oó]digo de confirmaci[oó]n|confirmation code|ver itinerario|view itinerary|el viajero|guest|hu[eé]sped)\b/i;
+const MONTHS: Record<string, number> = {
+  ene: 1,
+  enero: 1,
+  jan: 1,
+  january: 1,
+  feb: 2,
+  febrero: 2,
+  february: 2,
+  mar: 3,
+  marzo: 3,
+  march: 3,
+  abr: 4,
+  abril: 4,
+  apr: 4,
+  april: 4,
+  may: 5,
+  mayo: 5,
+  jun: 6,
+  junio: 6,
+  june: 6,
+  jul: 7,
+  julio: 7,
+  july: 7,
+  ago: 8,
+  agosto: 8,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  septiembre: 9,
+  september: 9,
+  oct: 10,
+  octubre: 10,
+  october: 10,
+  nov: 11,
+  noviembre: 11,
+  november: 11,
+  dic: 12,
+  diciembre: 12,
+  dec: 12,
+  december: 12,
+};
 
 function parseMoneyToken(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
@@ -101,16 +152,82 @@ function parseMoneyValues(text: string): number[] {
   return values;
 }
 
+function normalizeDateToken(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  const raw = value.trim().toLowerCase().replace(/\.$/, "");
+  const iso = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  if (iso) return iso;
+
+  const deMatch = raw.match(/^(\d{1,2})\s+de\s+([a-záéíóúñ.]+)\s+de\s+(\d{4})$/i);
+  const plainMatch = raw.match(/^(\d{1,2})\s+([a-záéíóúñ.]+)\s+(\d{4})$/i);
+  const match = deMatch ?? plainMatch;
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const monthKey = match[2].replace(/\./g, "");
+  const year = Number(match[3]);
+  const month = MONTHS[monthKey];
+  if (!month || !Number.isFinite(day) || !Number.isFinite(year)) return null;
+
+  const dd = String(day).padStart(2, "0");
+  const mm = String(month).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
+function cleanListingName(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  let cleaned = value.replace(/\s+/g, " ").trim();
+  cleaned = cleaned.split(/[|•]/)[0]?.trim() ?? cleaned;
+  cleaned = cleaned.split(/(?:\s{2,}|(?:\s-\s))/)[0]?.trim() ?? cleaned;
+  if (STOP_WORDS_RE.test(cleaned)) {
+    cleaned = cleaned.split(STOP_WORDS_RE)[0]?.trim() ?? cleaned;
+  }
+  if (!cleaned || cleaned.length < 3) return null;
+  if (/es adecuado para niñ/i.test(cleaned)) return null;
+  return cleaned.slice(0, 140);
+}
+
+function extractListingName(text: string, merged: Record<string, string>): string | null {
+  const byLabel = cleanListingName(merged.listingName);
+  if (byLabel) return byLabel;
+
+  const direct = text.match(LISTING_LABEL_RE)?.[1];
+  const cleaned = cleanListingName(direct);
+  if (cleaned) return cleaned;
+
+  return null;
+}
+
+function extractCheckDate(
+  text: string,
+  merged: Record<string, string>,
+  mode: "in" | "out",
+): string | null {
+  const mergedDate = mode === "in" ? merged.checkIn : merged.checkOut;
+  const normalizedMerged = normalizeDateToken(mergedDate);
+  if (normalizedMerged) return normalizedMerged;
+
+  const re = mode === "in" ? CHECKIN_RE : CHECKOUT_RE;
+  const lineValue = text.match(re)?.[1] ?? null;
+  const fromLine = normalizeDateToken(lineValue);
+  if (fromLine) return fromLine;
+
+  const token = lineValue?.match(DATE_TOKEN_RE)?.[1] ?? null;
+  const fromToken = normalizeDateToken(token);
+  if (fromToken) return fromToken;
+  return null;
+}
+
 export function buildEmailBody(payload: {
   html?: string | null;
   text?: string | null;
   subject: string;
 }): string {
   const text = payload.text?.trim();
-  if (text) return `${payload.subject}\n${text}`;
+  if (text) return normalizeAirbnbForwardedText(`${payload.subject}\n${text}`);
   const html = payload.html?.trim();
-  if (html) return `${payload.subject}\n${stripHtmlToText(html)}`;
-  return payload.subject;
+  if (html) return normalizeAirbnbForwardedText(`${payload.subject}\n${stripHtmlToText(html)}`);
+  return normalizeAirbnbForwardedText(payload.subject);
 }
 
 export function extractReservationSignals(input: {
@@ -118,42 +235,55 @@ export function extractReservationSignals(input: {
   body: string;
   html?: string | null;
 }): ExtractedReservationSignals {
-  const labeled = extractLabeledValues(input.body);
+  const normalizedBody = normalizeAirbnbForwardedText(input.body);
+  const labeled = extractLabeledValues(normalizedBody);
   const htmlText = input.html ? stripHtmlToText(input.html) : "";
   const labeledHtml = htmlText ? extractLabeledValues(htmlText) : {};
   const merged = { ...labeled, ...labeledHtml };
+  const extractionText = normalizeAirbnbForwardedText(
+    [input.subject, normalizedBody, htmlText].filter(Boolean).join("\n"),
+  );
 
   const confirmation =
     input.subject.match(CONFIRMATION_CODE_RE) ??
-    input.body.match(CONFIRMATION_CODE_RE) ??
+    extractionText.match(CONFIRMATION_CODE_RE) ??
     merged.confirmationCode?.match(CONFIRMATION_CODE_RE);
 
   const dateRange =
-    input.body.match(DATE_RANGE_RE) ??
-    input.body.match(ISO_DATE_RANGE_RE);
-  const money = parseMoneyValues(input.body);
-  const rating = input.body.match(RATING_RE);
+    extractionText.match(DATE_RANGE_RE) ??
+    extractionText.match(ISO_DATE_RANGE_RE);
+  const money = parseMoneyValues(extractionText);
+  const rating = extractionText.match(RATING_RE);
   const guestNameRaw =
-    merged.guestName ?? input.body.match(GUEST_NAME_RE)?.[1] ?? null;
+    merged.guestName ?? extractionText.match(GUEST_NAME_RE)?.[1] ?? null;
   const guestName = guestNameRaw
     ? guestNameRaw.split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]?.trim()
     : null;
-  const guestEmail = extractGuestEmail(`${input.body}\n${htmlText}`);
-  const guestPhone = extractGuestPhone(input.body, merged);
-  const guestCount = parseGuestCount(input.body, merged);
+  const listingName = extractListingName(extractionText, merged);
+  const checkIn =
+    extractCheckDate(extractionText, merged, "in") ??
+    normalizeDateToken(dateRange?.[1]) ??
+    null;
+  const checkOut =
+    extractCheckDate(extractionText, merged, "out") ??
+    normalizeDateToken(dateRange?.[2]) ??
+    null;
+  const guestEmail = extractGuestEmail(extractionText);
+  const guestPhone = extractGuestPhone(extractionText, merged);
+  const guestCount = parseGuestCount(extractionText, merged);
   const messageBody =
-    extractMessageSnippet(input.body) ?? input.body.slice(0, 8000);
-  const reviewText = extractReviewText(input.body);
+    extractMessageSnippet(extractionText) ?? extractionText.slice(0, 8000);
+  const reviewText = extractReviewText(extractionText);
 
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
-    listingName: merged.listingName ?? null,
+    listingName,
     guestName: guestName?.trim() ?? null,
     guestEmail,
     guestPhone,
     guestCount,
-    checkIn: merged.checkIn ?? dateRange?.[1] ?? null,
-    checkOut: merged.checkOut ?? dateRange?.[2] ?? null,
+    checkIn,
+    checkOut,
     grossAmount:
       parseMoneyToken(merged.grossAmount) ?? money[0] ?? null,
     hostFee: parseMoneyToken(merged.hostFee) ?? money[1] ?? null,
@@ -162,11 +292,11 @@ export function extractReservationSignals(input: {
       money[2] ??
       money[money.length - 1] ??
       null,
-    currency: /\bUSD\b/i.test(input.body)
+    currency: /\bUSD\b/i.test(extractionText)
       ? "USD"
-      : /\bCOP\b/i.test(input.body)
+      : /\bCOP\b/i.test(extractionText)
         ? "COP"
-        : /\bEUR\b/i.test(input.body)
+        : /\bEUR\b/i.test(extractionText)
           ? "EUR"
           : null,
     payoutSettlementDate: merged.settlementDate ?? null,

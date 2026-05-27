@@ -1,7 +1,7 @@
 /** Deterministic HTML helpers for Airbnb transactional emails. */
 
 export function stripHtmlToText(html: string): string {
-  return html
+  const stripped = html
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -10,9 +10,39 @@ export function stripHtmlToText(html: string): string {
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/\s+/g, " ")
+    .replace(/&gt;/gi, ">");
+
+  return normalizeAirbnbForwardedText(stripped);
+}
+
+/** Normalize noisy Gmail/Outlook forwarded text while keeping labels on separate lines. */
+export function normalizeAirbnbForwardedText(text: string): string {
+  return text
+    .replace(/\r/g, "\n")
+    .replace(/=\n/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((line) => !isForwardNoiseLine(line))
+    .join("\n")
     .trim();
+}
+
+function isForwardNoiseLine(line: string): boolean {
+  const lower = line.toLowerCase();
+  if (
+    lower === "forwarded message" ||
+    lower === "mensaje reenviado" ||
+    lower === "original message" ||
+    lower === "mensaje original"
+  ) {
+    return true;
+  }
+
+  return /^(from|de|to|para|cc|date|fecha|subject|asunto):\s+/i.test(line);
 }
 
 export function extractAnchorHrefs(html: string): string[] {

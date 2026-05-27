@@ -71,6 +71,28 @@ describe("extractReservationSignals", () => {
     assert.equal(signals.hostFee, 180);
     assert.equal(signals.netPayout, 1020);
   });
+
+  it("tolera forward quoted y extrae listing + fechas", () => {
+    const signals = extractReservationSignals({
+      subject: "Fwd: Reserva confirmada HM4SPXSTS2",
+      body: `
+        Fwd: Reserva confirmada
+        ---------- Forwarded message ---------
+        From: Airbnb <automated@airbnb.com>
+        Subject: Reserva confirmada HM4SPXSTS2
+        Alojamiento: Loft Chapinero 2 BR
+        Check-in: 2026-06-11
+        Check-out: 2026-06-14
+        Huésped: Carlos Vega
+        Ver itinerario
+      `,
+      html: null,
+    });
+    assert.equal(signals.confirmationCode, "HM4SPXSTS2");
+    assert.equal(signals.listingName, "Loft Chapinero 2 BR");
+    assert.equal(signals.checkIn, "2026-06-11");
+    assert.equal(signals.checkOut, "2026-06-14");
+  });
 });
 
 describe("hashEmailContent", () => {
