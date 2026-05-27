@@ -115,4 +115,44 @@ describe("structured HTML extraction", () => {
     );
     assert.equal(garbage, null);
   });
+
+  it("extrae listing desde img alt en forward Gmail (sin texto plano)", () => {
+    const html = `
+      <div>---------- Forwarded message ---------</div>
+      <div>From: Airbnb &lt;automated@airbnb.com&gt;</div>
+      <div>Subject: Reserva confirmada</div>
+      <table><tr><td>
+        <img width="560" height="280" alt="Loft amplio 4P con Vista Panorámica | Laureles Top" src="https://a0.muscache.com/im/pictures/hero.jpg" />
+        <h1>Reserva confirmada</h1>
+        <p>Check-in: 12 jun 2026</p>
+      </td></tr></table>
+      <a href="https://www.airbnb.com/rooms/1659842170040094387/details/safety-info">detalles</a>
+    `;
+    const structured = extractStructuredAirbnbFields(html);
+    assert.equal(
+      structured.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
+    );
+  });
+
+  it("extrae listing desde JSON-LD embebido", () => {
+    const html = `
+      <script type="application/ld+json">
+        {"@type":"LodgingReservation","reservationFor":{"@type":"LodgingBusiness","name":"Loft amplio 4P con Vista Panorámica | Laureles Top"}}
+      </script>
+      <h1>Reserva confirmada</h1>
+    `;
+    const structured = extractStructuredAirbnbFields(html);
+    assert.equal(
+      structured.listingName,
+      "Loft amplio 4P con Vista Panorámica | Laureles Top",
+    );
+  });
+
+  it("rechaza headings genéricos de Airbnb", () => {
+    const structured = extractStructuredAirbnbFields(
+      "<h1>Reserva confirmada</h1><h2>Payment details</h2>",
+    );
+    assert.equal(structured.listingName, null);
+  });
 });

@@ -14,6 +14,10 @@ const NON_LISTING_PREFIX_RE =
 const LABEL_PREFIX_STRIP_RE =
   /^(?:alojamiento|listing(?:\s+name)?|lugar|where you(?:'|&#39;)?ll stay)\s*:?\s*/i;
 
+/** Headings/labels that are not property titles in Airbnb templates. */
+const GENERIC_AIRBNB_UI_RE =
+  /^(?:reservation confirmed|reserva confirmada|booking confirmed|forwarded message|mensaje reenviado|get the app|help center|centro de ayuda|unsubscribe|darse de baja|message from|mensaje de|payment details|detalles del pago|your receipt|tu recibo|total(?:\s+payout)?|airbnb,? inc\.?)$/i;
+
 export function isPlausibleVisibleListingName(
   value: string | null | undefined,
 ): boolean {
@@ -23,6 +27,8 @@ export function isPlausibleVisibleListingName(
   if (GARBAGE_LISTING_RE.test(cleaned)) return false;
   if (PATH_LIKE_RE.test(cleaned)) return false;
   if (NON_LISTING_PREFIX_RE.test(cleaned)) return false;
+  if (GENERIC_AIRBNB_UI_RE.test(cleaned)) return false;
+  if (/^photo(?:\s+de)?\s*(?:la\s+)?(?:propiedad|listing)?\s*\d*$/i.test(cleaned)) return false;
   if (/[<>]/.test(cleaned)) return false;
   if ((cleaned.match(/\//g) ?? []).length >= 1 && /details|safety-info|rooms\/\d/i.test(cleaned)) {
     return false;
@@ -75,6 +81,10 @@ export function listingCandidateRejectReason(
   if (GARBAGE_LISTING_RE.test(cleaned)) return "url_or_tracking_garbage";
   if (PATH_LIKE_RE.test(cleaned)) return "path_like";
   if (NON_LISTING_PREFIX_RE.test(cleaned)) return "non_listing_label_prefix";
+  if (GENERIC_AIRBNB_UI_RE.test(cleaned)) return "generic_airbnb_ui";
+  if (/^photo(?:\s+de)?\s*(?:la\s+)?(?:propiedad|listing)?/i.test(cleaned)) {
+    return "photo_placeholder";
+  }
   if (/[<>]/.test(cleaned)) return "html_remnant";
   if ((cleaned.match(/\//g) ?? []).length >= 1 && /details|safety-info|rooms\/\d/i.test(cleaned)) {
     return "airbnb_internal_path";
@@ -89,9 +99,15 @@ export function listingCandidateRejectReason(
 
 export function scoreVisibleListingCandidate(text: string, source: string): number {
   let score = 0;
-  if (source.startsWith("table:")) score += 60;
-  if (source.startsWith("section:")) score += 50;
-  if (source.startsWith("heading:")) score += 35;
+  if (source.includes("img:alt")) score += 85;
+  if (source.includes("jsonld:")) score += 80;
+  if (source.includes("meta:og:title")) score += 75;
+  if (source.includes("attr:")) score += 70;
+  if (source.startsWith("table:") || source.includes(":table:")) score += 60;
+  if (source.includes("table_cell:")) score += 55;
+  if (source.includes("section:")) score += 50;
+  if (source.includes("embedded_slice:")) score += 12;
+  if (source.includes("heading:")) score += 8;
   if (/\|/.test(text)) score += 25;
   if (/\b(loft|apartamento|habitaci[oó]n|vista|suite|panor[aá]mica|laureles|chapinero)\b/i.test(text)) {
     score += 20;
@@ -99,6 +115,7 @@ export function scoreVisibleListingCandidate(text: string, source: string): numb
   if (text.length >= 24 && text.length <= 160) score += 15;
   if (/\d{1,2}p\b/i.test(text)) score += 8;
   if (NON_LISTING_PREFIX_RE.test(text)) score -= 100;
+  if (GENERIC_AIRBNB_UI_RE.test(text)) score -= 100;
   if (/^c[oó]digo de confirmaci[oó]n/i.test(text)) score -= 100;
   if (/\//.test(text)) score -= 80;
   if (/details|safety-info|rooms/i.test(text)) score -= 80;

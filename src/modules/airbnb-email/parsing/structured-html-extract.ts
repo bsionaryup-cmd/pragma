@@ -235,6 +235,184 @@ function extractHeadingListingCandidates(html: string): ListingCandidate[] {
   return candidates;
 }
 
+function extractAttributeListingCandidates(html: string): ListingCandidate[] {
+  const candidates: ListingCandidate[] = [];
+  const patterns: Array<{ re: RegExp; source: string }> = [
+    { re: /<img\b[^>]*\salt=["']([^"']{10,220})["'][^>]*>/gi, source: "img:alt" },
+    {
+      re: /\saria-label=["']([^"']{10,220})["']/gi,
+      source: "attr:aria-label",
+    },
+    { re: /\stitle=["']([^"']{10,220})["']/gi, source: "attr:title" },
+    {
+      re: /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']{10,220})["'][^>]*>/gi,
+      source: "meta:og:title",
+    },
+    {
+      re: /<meta[^>]+content=["']([^"']{10,220})["'][^>]+property=["']og:title["'][^>]*>/gi,
+      source: "meta:og:title",
+    },
+  ];
+
+  for (const { re, source } of patterns) {
+    for (const match of html.matchAll(re)) {
+      pushListingCandidate(candidates, decodeHtmlEntities(match[1] ?? ""), source);
+    }
+  }
+  return candidates;
+}
+
+function collectJsonLdNameFields(value: unknown, out: string[]): void {
+  if (!value) return;
+  if (typeof value === "string") return;
+  if (Array.isArray(value)) {
+    for (const item of value) collectJsonLdNameFields(item, out);
+    return;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (typeof record.name === "string") out.push(record.name);
+    for (const nested of Object.values(record)) {
+      collectJsonLdNameFields(nested, out);
+    }
+  }
+}
+
+function extractJsonLdListingCandidates(html: string): ListingCandidate[] {
+  const candidates: ListingCandidate[] = [];
+  for (const match of html.matchAll(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  )) {
+    const raw = match[1]?.trim();
+    if (!raw) continue;
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      const names: string[] = [];
+      collectJsonLdNameFields(parsed, names);
+      for (const name of names) {
+        pushListingCandidate(candidates, name, "jsonld:name");
+      }
+    } catch {
+      // ignore malformed JSON-LD blocks
+    }
+  }
+  return candidates;
+}
+
+function extractNestedTableCellCandidates(html: string): ListingCandidate[] {
+  const candidates: ListingCandidate[] = [];
+  for (const match of html.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
+    const cellHtml = match[1] ?? "";
+    if (/href\s*=\s*["'][^"']*(?:rooms\/\d+|safety-info)/i.test(cellHtml)) {
+      continue;
+    }
+    const text = stripTags(cellHtml);
+    if (text.length < 12) continue;
+    pushListingCandidate(candidates, text, "table_cell:td");
+  }
+  return candidates;
+}
+
+/** Gmail/Outlook forwards wrap Airbnb HTML; isolate the inner reservation block first. */
+export function extractAirbnbEmbeddedHtmlSlices(html: string): string[] {
+  const parts = html
+    .split(
+      /(?:---------- Forwarded message|Mensaje reenviado|Begin forwarded message|-----Original Message-----)/gi,
+    )
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const slices = parts.length > 0 ? parts : [html];
+  const ranked = slices
+    .map((slice, index) => ({
+      slice,
+      index,
+      score:
+        (slice.match(/airbnb\.com/gi) ?? []).length * 4 +
+        (slice.match(/\bHM[A-Z0-9]{6,12}\b/g) ?? []).length * 12 +
+        (slice.match(/check-?in|llegada|arrival/gi) ?? []).length * 2 +
+        (slice.match(/<img[^>]+alt=/gi) ?? []).length * 10 +
+        (slice.match(/dónde te hospedarás|where you(?:'|&#39;)?ll stay/gi) ?? []).length * 8,
+    }))
+    .filter((row) => row.score >= 4)
+    .sort((a, b) => b.score - a.score);
+
+  if (ranked.length === 0) return [html];
+
+  for (const row of ranked.slice(0, 3)) {
+    airbnbEmailLog.info("airbnb_html_slice_selected", {
+      sliceIndex: row.index,
+      sliceScore: row.score,
+      sliceBytes: row.slice.length,
+    });
+  }
+
+  return ranked.map((row) => row.slice);
+}
+
+function extractVisibleListingCandidatesFromHtml(
+  html: string,
+  sliceLabel: string,
+): ListingCandidate[] {
+  const candidates: ListingCandidate[] = [];
+
+  // JSON-LD / img alt / meta must be read before sanitizeHtml strips <script> tags.
+  candidates.push(
+    ...extractAttributeListingCandidates(html),
+    ...extractJsonLdListingCandidates(html),
+  );
+
+  const sanitized = sanitizeHtmlForVisibleListingExtract(html);
+  const labeledRows = [
+    ...extractParagraphLabelRows(sanitized),
+    ...extractTableLabelRows(sanitized),
+    ...extractDivLabelPairs(sanitized),
+  ];
+
+  for (const row of labeledRows) {
+    const key = fieldKeyForLabel(row.label);
+    if (key !== "listingName") continue;
+    pushListingCandidate(candidates, row.value, `table:${row.label}`);
+  }
+
+  candidates.push(
+    ...extractNestedTableCellCandidates(sanitized),
+    ...extractSectionListingCandidates(sanitized),
+    ...extractHeadingListingCandidates(sanitized),
+    ...extractVisibleBlockCandidates(sanitized),
+    ...extractVisibleLineCandidates(sanitized),
+  );
+
+  for (const candidate of candidates) {
+    candidate.source = `${sliceLabel}:${candidate.source}`;
+  }
+  return candidates;
+}
+
+function extractVisibleListingCandidates(html: string): ListingCandidate[] {
+  const slices = extractAirbnbEmbeddedHtmlSlices(html);
+  const all: ListingCandidate[] = [];
+  for (const [index, slice] of slices.entries()) {
+    all.push(
+      ...extractVisibleListingCandidatesFromHtml(slice, `embedded_slice:${index}`),
+    );
+  }
+
+  if (slices.length === 1) {
+    all.push(...extractVisibleListingCandidatesFromHtml(html, "full_html"));
+  }
+
+  const deduped = new Map<string, ListingCandidate>();
+  for (const candidate of all) {
+    const key = candidate.text.toLowerCase();
+    const existing = deduped.get(key);
+    if (!existing || candidate.score > existing.score) {
+      deduped.set(key, candidate);
+    }
+  }
+  return [...deduped.values()];
+}
+
 function extractVisibleBlockCandidates(html: string): ListingCandidate[] {
   const candidates: ListingCandidate[] = [];
   const blockRe =
@@ -258,38 +436,6 @@ function extractVisibleLineCandidates(html: string): ListingCandidate[] {
     pushListingCandidate(candidates, line, "visible_line");
   }
   return candidates;
-}
-
-function extractVisibleListingCandidates(html: string): ListingCandidate[] {
-  const candidates: ListingCandidate[] = [];
-  const labeledRows = [
-    ...extractParagraphLabelRows(html),
-    ...extractTableLabelRows(html),
-    ...extractDivLabelPairs(html),
-  ];
-
-  for (const row of labeledRows) {
-    const key = fieldKeyForLabel(row.label);
-    if (key !== "listingName") continue;
-    pushListingCandidate(candidates, row.value, `table:${row.label}`);
-  }
-
-  candidates.push(
-    ...extractSectionListingCandidates(html),
-    ...extractHeadingListingCandidates(html),
-    ...extractVisibleBlockCandidates(html),
-    ...extractVisibleLineCandidates(html),
-  );
-
-  const deduped = new Map<string, ListingCandidate>();
-  for (const candidate of candidates) {
-    const key = candidate.text.toLowerCase();
-    const existing = deduped.get(key);
-    if (!existing || candidate.score > existing.score) {
-      deduped.set(key, candidate);
-    }
-  }
-  return [...deduped.values()];
 }
 
 function pickBestListingCandidate(candidates: ListingCandidate[]): ListingCandidate | null {
@@ -346,7 +492,8 @@ export function extractStructuredAirbnbFields(
 
   const sanitizedHtml = sanitizeHtmlForVisibleListingExtract(html);
   const result = { ...empty, sources: [] as string[] };
-  const listingCandidates = extractVisibleListingCandidates(sanitizedHtml);
+  // Listing extraction must use raw HTML (JSON-LD, img alt) before <script> is stripped.
+  const listingCandidates = extractVisibleListingCandidates(html);
 
   const bestListing = pickBestListingCandidate(listingCandidates);
   if (bestListing) {
