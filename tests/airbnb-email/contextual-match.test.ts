@@ -41,8 +41,10 @@ describe("contextual match scoring", () => {
     assert.ok(score >= 0.78);
   });
 
-  it("guestNameMatches parcial", () => {
-    assert.equal(guestNameMatches("María García", "María López"), true);
+  it("guestNameMatches por nombre y apellido", () => {
+    assert.equal(guestNameMatches("Karla Durán", "Karla Durán"), true);
+    assert.equal(guestNameMatches("Karla Durán", "Karla"), true);
+    assert.equal(guestNameMatches("María García", "María López"), false);
     assert.equal(guestNameMatches("Pedro", "María López"), false);
   });
 

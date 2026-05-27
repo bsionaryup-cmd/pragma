@@ -32,9 +32,22 @@ export function guestNameMatches(
   reservationGuest: string,
 ): boolean {
   if (!emailGuest?.trim()) return false;
-  const token = emailGuest.trim().split(/\s+/)[0]?.toLowerCase();
-  if (!token || token.length < 2) return false;
-  return reservationGuest.toLowerCase().includes(token);
+  const tokens = emailGuest
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length >= 2);
+  if (tokens.length === 0) return false;
+  const reservationLower = reservationGuest.toLowerCase();
+  const reservationTokens = reservationGuest
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((token) => token.length >= 2);
+  if (!reservationLower.includes(tokens[0]!)) return false;
+  if (tokens.length === 1) return true;
+  if (reservationTokens.length === 1) return true;
+  return tokens.every((token) => reservationLower.includes(token));
 }
 
 function datesOverlap(
@@ -168,6 +181,23 @@ export async function matchByListingContextual(input: {
   parsedCheckOut: Date | null;
 }): Promise<ContextualMatchBase | null> {
   const hasConfirmationCode = Boolean(input.signals.confirmationCode?.trim());
+
+  airbnbEmailLog.info("ical_context_match_started", {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId ?? undefined,
+    hasGuestName: Boolean(input.signals.guestName),
+    hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
+    hasConfirmationCode,
+    guestName: input.signals.guestName ?? undefined,
+  });
+
+  if (!input.propertyId && !input.signals.guestName?.trim()) {
+    airbnbEmailLog.warn("ical_context_skipped", {
+      organizationId: input.organizationId,
+      reason: "missing_guest_name_for_tenant_wide_match",
+    });
+    return null;
+  }
 
   const candidates = await loadContextualCandidates({
     propertyId: input.propertyId ?? null,

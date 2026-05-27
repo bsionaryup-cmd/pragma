@@ -4,12 +4,14 @@ import {
   ReservationStatus,
 } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
+import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import { matchByListingContextual } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -194,12 +196,21 @@ async function matchByListingGuestDates(
   };
 }
 
+function canAttemptIcalContextualMatch(input: {
+  organizationId: string | null;
+  guestName: string | null | undefined;
+}): boolean {
+  return Boolean(input.organizationId && isPlausibleGuestName(input.guestName));
+}
+
 export async function matchReservationFromEmailSignals(
   signals: ExtractedReservationSignals,
   options?: MatchReservationOptions,
 ): Promise<ReservationMatchResult> {
   const organizationId = options?.organizationId ?? null;
   const hasConfirmationCode = Boolean(signals.confirmationCode?.trim());
+  const checkIn = parseDateKey(signals.checkIn);
+  const checkOut = parseDateKey(signals.checkOut);
 
   const emptyBase = {
     reservationId: null as string | null,
@@ -209,12 +220,25 @@ export async function matchReservationFromEmailSignals(
     confidence: 0,
   };
 
+  airbnbEmailLog.info("match_flow_started", {
+    organizationId,
+    hasGuestName: Boolean(signals.guestName),
+    guestName: signals.guestName ?? undefined,
+    hasConfirmationCode,
+    providedPropertyId: Boolean(options?.propertyId),
+    listingAmbiguous: Boolean(options?.listingAmbiguous),
+  });
+
   if (signals.confirmationCode) {
     const byCode = await matchByConfirmationCode(
       signals.confirmationCode,
       organizationId,
     );
     if (byCode) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "CONFIRMATION_CODE",
+        reservationId: byCode.reservationId,
+      });
       if (
         organizationId &&
         byCode.organizationId &&
@@ -227,26 +251,69 @@ export async function matchReservationFromEmailSignals(
       }
       return applyMatchPolicy(byCode, { hasConfirmationCodeInEmail: true });
     }
+    airbnbEmailLog.info("match_branch_skipped", {
+      branch: "CONFIRMATION_CODE",
+      reason: "no_db_reservation_with_code",
+    });
+  }
+
+  if (canAttemptIcalContextualMatch({ organizationId, guestName: signals.guestName })) {
+    const contextual = await matchByListingContextual({
+      propertyId: options?.propertyId ?? null,
+      organizationId: organizationId!,
+      signals,
+      parsedCheckIn: checkIn,
+      parsedCheckOut: checkOut,
+    });
+    if (contextual) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "ICAL_CONTEXTUAL_MATCH",
+        reservationId: contextual.reservationId,
+        propertyId: contextual.propertyId,
+        confidence: contextual.confidence,
+      });
+      return applyMatchPolicy(contextual, {
+        hasConfirmationCodeInEmail: hasConfirmationCode,
+      });
+    }
+    airbnbEmailLog.info("match_branch_skipped", {
+      branch: "ICAL_CONTEXTUAL_MATCH",
+      reason: "no_unique_ical_context_match",
+    });
+  } else {
+    airbnbEmailLog.warn("ical_context_skipped", {
+      organizationId: organizationId ?? undefined,
+      reason: !organizationId
+        ? "missing_organization_id"
+        : "missing_or_invalid_guest_name",
+      guestName: signals.guestName ?? undefined,
+    });
   }
 
   let propertyId = options?.propertyId ?? null;
+  let propertyResolutionAmbiguous = false;
   if (!propertyId && organizationId) {
     const resolved = await resolvePropertyIdFromEmailSignals(
       organizationId,
       signals,
       options?.propertyId,
     );
-    if (resolved.ambiguous) {
-      return applyMatchPolicy(
-        { ...emptyBase, confidence: 0 },
-        { hasConfirmationCodeInEmail: hasConfirmationCode },
-      );
-    }
+    propertyResolutionAmbiguous = resolved.ambiguous;
     propertyId = resolved.propertyId;
+    if (resolved.ambiguous) {
+      airbnbEmailLog.warn("property_mapping_failed", {
+        organizationId,
+        reason: "ambiguous_property_resolution",
+        note: "non_blocking_for_ical_contextual",
+      });
+    } else if (!propertyId) {
+      airbnbEmailLog.warn("property_mapping_failed", {
+        organizationId,
+        reason: "no_metadata_match",
+        note: "non_blocking_for_ical_contextual",
+      });
+    }
   }
-
-  const checkIn = parseDateKey(signals.checkIn);
-  const checkOut = parseDateKey(signals.checkOut);
 
   if (propertyId && checkIn && checkOut) {
     const byDates = await matchByListingDates(propertyId, checkIn, checkOut, {
@@ -254,6 +321,10 @@ export async function matchReservationFromEmailSignals(
       organizationId,
     });
     if (byDates) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "LISTING_DATES",
+        reservationId: byDates.reservationId,
+      });
       return applyMatchPolicy(byDates, {
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });
@@ -268,6 +339,10 @@ export async function matchReservationFromEmailSignals(
         organizationId,
       );
       if (byGuest) {
+        airbnbEmailLog.info("match_branch_selected", {
+          branch: "LISTING_GUEST_DATES",
+          reservationId: byGuest.reservationId,
+        });
         return applyMatchPolicy(byGuest, {
           hasConfirmationCodeInEmail: hasConfirmationCode,
         });
@@ -275,20 +350,39 @@ export async function matchReservationFromEmailSignals(
     }
   }
 
-  if (organizationId) {
-    const contextual = await matchByListingContextual({
-      propertyId: propertyId ?? null,
+  if (propertyId && organizationId) {
+    const contextualWithProperty = await matchByListingContextual({
+      propertyId,
       organizationId,
       signals,
       parsedCheckIn: checkIn,
       parsedCheckOut: checkOut,
     });
-    if (contextual) {
-      return applyMatchPolicy(contextual, {
+    if (contextualWithProperty) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "ICAL_CONTEXTUAL_MATCH",
+        reservationId: contextualWithProperty.reservationId,
+        propertyIdHint: propertyId,
+      });
+      return applyMatchPolicy(contextualWithProperty, {
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });
     }
   }
+
+  if (propertyResolutionAmbiguous) {
+    airbnbEmailLog.warn("match_flow_manual_review", {
+      organizationId,
+      reason: "property_mapping_ambiguous",
+    });
+  }
+
+  airbnbEmailLog.warn("match_flow_no_match", {
+    organizationId,
+    hasGuestName: Boolean(signals.guestName),
+    providedPropertyId: Boolean(options?.propertyId),
+    propertyResolutionAmbiguous,
+  });
 
   return applyMatchPolicy(emptyBase, {
     hasConfirmationCodeInEmail: hasConfirmationCode,
