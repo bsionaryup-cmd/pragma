@@ -12,10 +12,35 @@ export type PropertyMetadataResolutionMethod =
   | "explicit"
   | "airbnb_room_id_property"
   | "airbnb_room_id_listing_map"
+  | "airbnb_slug_email_fragment"
   | "unit_number"
   | "reservation_guest_context"
   | "listing_name_text"
   | "none";
+
+function logPropertyMappingFound(input: {
+  organizationId: string;
+  propertyId: string | null;
+  method: PropertyMetadataResolutionMethod;
+  airbnbRoomId?: string | null;
+  unitNumber?: string | null;
+  note?: string;
+}) {
+  airbnbEmailLog.info("property_mapping_found", {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    method: input.method,
+    airbnbRoomId: input.airbnbRoomId ?? undefined,
+    unitNumber: input.unitNumber ?? undefined,
+    note: input.note,
+  });
+  airbnbEmailLog.info("property_mapping_resolved", {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    method: input.method,
+    airbnbRoomId: input.airbnbRoomId ?? undefined,
+  });
+}
 
 export type PropertyMetadataResolution = {
   propertyId: string | null;
@@ -24,13 +49,6 @@ export type PropertyMetadataResolution = {
   airbnbRoomId?: string | null;
   unitNumber?: string | null;
 };
-
-function guestFirstToken(guestName: string | null | undefined): string | null {
-  if (!guestName?.trim()) return null;
-  const token = guestName.trim().split(/\s+/)[0]?.toLowerCase();
-  if (!token || token.length < 2) return null;
-  return token;
-}
 
 async function resolveByAirbnbRoomIdOnProperty(input: {
   organizationId: string;
@@ -106,8 +124,15 @@ async function resolveByReservationGuestContext(input: {
   parsedCheckIn: Date | null;
   parsedCheckOut: Date | null;
 }): Promise<PropertyMetadataResolution | null> {
-  const token = guestFirstToken(input.guestName);
-  if (!token) return null;
+  const guestQuery = input.guestName?.trim();
+  if (!guestQuery || guestQuery.length < 3) return null;
+
+  const tokens = guestQuery
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
+  const primaryToken = tokens[0] ?? guestQuery.toLowerCase();
+  if (!primaryToken || primaryToken.length < 2) return null;
 
   const now = new Date();
   const windowStart = new Date(now);
@@ -121,7 +146,7 @@ async function resolveByReservationGuestContext(input: {
     where: withVisibleReservationsFilter({
       platform: BookingPlatform.AIRBNB,
       status: { not: ReservationStatus.CANCELLED },
-      guestName: { contains: token, mode: "insensitive" },
+      guestName: { contains: primaryToken, mode: "insensitive" },
       property: {
         organizationId: input.organizationId,
         status: PropertyStatus.ACTIVE,
@@ -133,10 +158,18 @@ async function resolveByReservationGuestContext(input: {
         ? { gt: input.parsedCheckIn! }
         : { gte: windowStart },
     }),
-    select: { propertyId: true },
+    select: { propertyId: true, guestName: true },
   });
 
-  const propertyIds = [...new Set(reservations.map((r) => r.propertyId))];
+  const narrowed =
+    tokens.length > 1
+      ? reservations.filter((r) => {
+          const gn = r.guestName.toLowerCase();
+          return tokens.every((t) => gn.includes(t));
+        })
+      : reservations;
+
+  const propertyIds = [...new Set(narrowed.map((r) => r.propertyId))];
   if (propertyIds.length === 1) {
     return {
       propertyId: propertyIds[0]!,
@@ -154,10 +187,93 @@ async function resolveByReservationGuestContext(input: {
   return null;
 }
 
+async function resolveByUniqueSlugInEmailBlob(input: {
+  organizationId: string;
+  emailMatchBlob: string;
+  slugs: string[];
+}): Promise<PropertyMetadataResolution | null> {
+  const blob = input.emailMatchBlob.toLowerCase();
+  if (!blob.trim()) return null;
+
+  const properties = await db.property.findMany({
+    where: {
+      organizationId: input.organizationId,
+      status: PropertyStatus.ACTIVE,
+      airbnbRoomId: { not: null },
+    },
+    select: { id: true, airbnbRoomId: true },
+  });
+
+  const matched = properties.filter((property) => {
+    const slug = property.airbnbRoomId?.trim().toLowerCase();
+    if (!slug || slug.length < 3) return false;
+    if (input.slugs.includes(slug)) return true;
+    return (
+      blob.includes(slug) ||
+      blob.includes(`/h/${slug}`) ||
+      blob.includes(`h/${slug}`)
+    );
+  });
+
+  if (matched.length === 1) {
+    return {
+      propertyId: matched[0]!.id,
+      ambiguous: false,
+      method: "airbnb_slug_email_fragment",
+      airbnbRoomId: matched[0]!.airbnbRoomId,
+    };
+  }
+  if (matched.length > 1) {
+    return {
+      propertyId: null,
+      ambiguous: true,
+      method: "airbnb_slug_email_fragment",
+    };
+  }
+  return null;
+}
+
+async function resolveRoomIdToProperty(input: {
+  organizationId: string;
+  roomId: string;
+}): Promise<PropertyMetadataResolution | null> {
+  const onProperty = await resolveByAirbnbRoomIdOnProperty({
+    organizationId: input.organizationId,
+    airbnbRoomId: input.roomId,
+  });
+  if (onProperty) return onProperty;
+
+  const fromMap = await resolvePropertyFromListingMap({
+    organizationId: input.organizationId,
+    airbnbRoomId: input.roomId,
+    listingName: null,
+  });
+  if (fromMap && !fromMap.ambiguous && fromMap.propertyId) {
+    return {
+      propertyId: fromMap.propertyId,
+      ambiguous: false,
+      method: "airbnb_room_id_listing_map",
+      airbnbRoomId: input.roomId,
+    };
+  }
+  if (fromMap?.ambiguous) {
+    return {
+      propertyId: null,
+      ambiguous: true,
+      method: "airbnb_room_id_listing_map",
+      airbnbRoomId: input.roomId,
+    };
+  }
+  return null;
+}
+
 export async function resolvePropertyFromKnownMetadata(input: {
   organizationId: string;
   explicitPropertyId?: string | null;
   airbnbRoomId?: string | null;
+  airbnbRoomIdNumeric?: string | null;
+  airbnbRoomSlugs?: string[];
+  emailMatchBlob?: string | null;
   unitNumber?: string | null;
   listingName?: string | null;
   guestName?: string | null;
@@ -165,6 +281,11 @@ export async function resolvePropertyFromKnownMetadata(input: {
   parsedCheckOut?: Date | null;
 }): Promise<PropertyMetadataResolution> {
   if (input.explicitPropertyId) {
+    logPropertyMappingFound({
+      organizationId: input.organizationId,
+      propertyId: input.explicitPropertyId,
+      method: "explicit",
+    });
     return {
       propertyId: input.explicitPropertyId,
       ambiguous: false,
@@ -172,58 +293,120 @@ export async function resolvePropertyFromKnownMetadata(input: {
     };
   }
 
-  const roomId = input.airbnbRoomId?.trim();
-  if (roomId) {
+  const slugCandidates = [
+    ...(input.airbnbRoomSlugs ?? []),
+    ...(input.airbnbRoomId?.trim() && !/^\d+$/.test(input.airbnbRoomId.trim())
+      ? [input.airbnbRoomId.trim().toLowerCase()]
+      : []),
+  ];
+  const uniqueSlugs = [...new Set(slugCandidates.filter(Boolean))];
+
+  const numericId = input.airbnbRoomIdNumeric?.trim() ?? null;
+  const primaryRoomId = input.airbnbRoomId?.trim() ?? null;
+
+  if (primaryRoomId || numericId || uniqueSlugs.length) {
     airbnbEmailLog.info("listing_id_detected", {
       organizationId: input.organizationId,
-      airbnbRoomId: roomId,
+      airbnbRoomId: primaryRoomId ?? undefined,
+      airbnbRoomIdNumeric: numericId ?? undefined,
+      slugCount: uniqueSlugs.length,
     });
+  }
 
-    const onProperty = await resolveByAirbnbRoomIdOnProperty({
+  for (const slug of uniqueSlugs) {
+    const resolved = await resolveRoomIdToProperty({
       organizationId: input.organizationId,
-      airbnbRoomId: roomId,
+      roomId: slug,
     });
-    if (onProperty) {
-      airbnbEmailLog.info("property_mapping_resolved", {
-        organizationId: input.organizationId,
-        propertyId: onProperty.propertyId,
-        method: onProperty.method,
-        airbnbRoomId: roomId,
-      });
-      return onProperty;
+    if (resolved) {
+      if (resolved.propertyId) {
+        logPropertyMappingFound({
+          organizationId: input.organizationId,
+          propertyId: resolved.propertyId,
+          method: resolved.method,
+          airbnbRoomId: slug,
+        });
+      } else if (resolved.ambiguous) {
+        airbnbEmailLog.warn("property_mapping_failed", {
+          organizationId: input.organizationId,
+          reason: "ambiguous_room_slug",
+          airbnbRoomId: slug,
+        });
+      }
+      return resolved;
     }
+  }
 
-    const fromMap = await resolvePropertyFromListingMap({
+  if (primaryRoomId && /^\d+$/.test(primaryRoomId)) {
+    const resolved = await resolveRoomIdToProperty({
       organizationId: input.organizationId,
-      airbnbRoomId: roomId,
-      listingName: null,
+      roomId: primaryRoomId,
     });
-    if (fromMap && !fromMap.ambiguous && fromMap.propertyId) {
-      airbnbEmailLog.info("property_mapping_resolved", {
-        organizationId: input.organizationId,
-        propertyId: fromMap.propertyId,
-        method: "airbnb_room_id_listing_map",
-        airbnbRoomId: roomId,
-      });
-      return {
-        propertyId: fromMap.propertyId,
-        ambiguous: false,
-        method: "airbnb_room_id_listing_map",
-        airbnbRoomId: roomId,
-      };
+    if (resolved) {
+      if (resolved.propertyId) {
+        logPropertyMappingFound({
+          organizationId: input.organizationId,
+          propertyId: resolved.propertyId,
+          method: resolved.method,
+          airbnbRoomId: primaryRoomId,
+        });
+      } else if (resolved.ambiguous) {
+        airbnbEmailLog.warn("property_mapping_failed", {
+          organizationId: input.organizationId,
+          reason: "ambiguous_room_id_numeric",
+          airbnbRoomId: primaryRoomId,
+        });
+      }
+      return resolved;
     }
-    if (fromMap?.ambiguous) {
-      airbnbEmailLog.warn("property_mapping_failed", {
-        organizationId: input.organizationId,
-        reason: "ambiguous_room_id_listing_map",
-        airbnbRoomId: roomId,
-      });
-      return {
-        propertyId: null,
-        ambiguous: true,
-        method: "airbnb_room_id_listing_map",
-        airbnbRoomId: roomId,
-      };
+  }
+
+  if (numericId && numericId !== primaryRoomId) {
+    const resolved = await resolveRoomIdToProperty({
+      organizationId: input.organizationId,
+      roomId: numericId,
+    });
+    if (resolved) {
+      if (resolved.propertyId) {
+        logPropertyMappingFound({
+          organizationId: input.organizationId,
+          propertyId: resolved.propertyId,
+          method: resolved.method,
+          airbnbRoomId: numericId,
+        });
+      } else if (resolved.ambiguous) {
+        airbnbEmailLog.warn("property_mapping_failed", {
+          organizationId: input.organizationId,
+          reason: "ambiguous_room_id_numeric",
+          airbnbRoomId: numericId,
+        });
+      }
+      return resolved;
+    }
+  }
+
+  if (input.emailMatchBlob?.trim()) {
+    const byFragment = await resolveByUniqueSlugInEmailBlob({
+      organizationId: input.organizationId,
+      emailMatchBlob: input.emailMatchBlob,
+      slugs: uniqueSlugs,
+    });
+    if (byFragment) {
+      if (byFragment.propertyId) {
+        logPropertyMappingFound({
+          organizationId: input.organizationId,
+          propertyId: byFragment.propertyId,
+          method: byFragment.method,
+          airbnbRoomId: byFragment.airbnbRoomId,
+          note: "slug_fragment_in_email",
+        });
+      } else if (byFragment.ambiguous) {
+        airbnbEmailLog.warn("property_mapping_failed", {
+          organizationId: input.organizationId,
+          reason: "ambiguous_slug_email_fragment",
+        });
+      }
+      return byFragment;
     }
   }
 
@@ -235,7 +418,7 @@ export async function resolvePropertyFromKnownMetadata(input: {
     });
     if (byUnit) {
       if (byUnit.propertyId) {
-        airbnbEmailLog.info("property_mapping_resolved", {
+        logPropertyMappingFound({
           organizationId: input.organizationId,
           propertyId: byUnit.propertyId,
           method: byUnit.method,
@@ -260,11 +443,11 @@ export async function resolvePropertyFromKnownMetadata(input: {
   });
   if (byGuest) {
     if (byGuest.propertyId) {
-      airbnbEmailLog.info("property_mapping_resolved", {
+      logPropertyMappingFound({
         organizationId: input.organizationId,
         propertyId: byGuest.propertyId,
         method: byGuest.method,
-        guestNameSignal: Boolean(input.guestName),
+        note: "reservation_guest_context",
       });
     } else {
       airbnbEmailLog.warn("property_mapping_failed", {
@@ -284,7 +467,7 @@ export async function resolvePropertyFromKnownMetadata(input: {
       airbnbRoomId: null,
     });
     if (fromName && !fromName.ambiguous && fromName.propertyId) {
-      airbnbEmailLog.info("property_mapping_resolved", {
+      logPropertyMappingFound({
         organizationId: input.organizationId,
         propertyId: fromName.propertyId,
         method: "listing_name_text",
@@ -312,7 +495,8 @@ export async function resolvePropertyFromKnownMetadata(input: {
   airbnbEmailLog.warn("property_mapping_failed", {
     organizationId: input.organizationId,
     reason: "no_metadata_match",
-    hadRoomId: Boolean(roomId),
+    hadRoomId: Boolean(primaryRoomId || numericId),
+    hadSlugs: uniqueSlugs.length > 0,
     hadUnit: Boolean(unit),
     hadGuestName: Boolean(input.guestName),
     hadListingName: Boolean(listingName),

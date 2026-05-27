@@ -43,7 +43,11 @@ export type ExtractedReservationSignals = {
   reviewText?: string | null;
   /** Parsed from airbnb.com/rooms/… URLs in HTML (stable metadata). */
   airbnbRoomId?: string | null;
+  airbnbRoomIdNumeric?: string | null;
+  airbnbRoomSlugs?: string[];
   airbnbListingUrl?: string | null;
+  /** Lowercased subject+body+html for slug fragment matching. */
+  emailMatchBlob?: string | null;
   /** Internal unit label when explicitly present in email. */
   unitNumber?: string | null;
 };

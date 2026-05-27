@@ -7,6 +7,10 @@ import {
   stripHtmlToText,
 } from "@/modules/airbnb-email/parsing/html-parse";
 import { extractAirbnbListingRefs } from "@/modules/airbnb-email/parsing/airbnb-url-extract";
+import {
+  buildEmailMatchBlob,
+  resolveGuestNameFromSignals,
+} from "@/modules/airbnb-email/parsing/guest-name-extract";
 
 const CONFIRMATION_CODE_RE = /\b(HM[A-Z0-9]{6,12})\b/i;
 const EMAIL_RE = /\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/gi;
@@ -18,10 +22,8 @@ const ISO_DATE_RANGE_RE =
   /(\d{4}-\d{2}-\d{2})\s*(?:→|–|-|to|a)\s*(\d{4}-\d{2}-\d{2})/;
 const MONEY_INLINE_RE = /(?:\$|USD|COP|€)\s*([\d.,]+)/gi;
 const RATING_RE = /(\d(?:\.\d)?)\s*(?:estrellas|stars|★|\/5)/i;
-const SUBJECT_GUEST_RE =
-  /(?:reserva confirmada|reservation confirmed|booking confirmed)\s*:\s*([^:\n]+?)(?:\s+llega|\s+arrives|\s+check|\s*$)/i;
 const GUEST_NAME_RE =
-  /(?:huésped|guest)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/i;
+  /(?:huésped|guest|viajero|traveler)[:\s]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,60})/i;
 const UNIT_NUMBER_RE =
   /(?:unidad|unit|apto|apt|apartamento)\s*(?:#|n[°º.]?|no\.?)?\s*([a-z0-9-]{1,12})/i;
 const DATE_TOKEN_RE =
@@ -259,15 +261,11 @@ export function extractReservationSignals(input: {
     extractionText.match(ISO_DATE_RANGE_RE);
   const money = parseMoneyValues(extractionText);
   const rating = extractionText.match(RATING_RE);
-  const subjectGuest = input.subject.match(SUBJECT_GUEST_RE)?.[1]?.trim() ?? null;
-  const guestNameRaw =
-    merged.guestName ??
-    subjectGuest ??
-    extractionText.match(GUEST_NAME_RE)?.[1] ??
-    null;
-  const guestName = guestNameRaw
-    ? guestNameRaw.split(/\s+(?:alojamiento|listing|property)\s*:/i)[0]?.trim()
-    : null;
+  const guestName = resolveGuestNameFromSignals({
+    subject: input.subject,
+    mergedGuestName: merged.guestName,
+    bodyGuestMatch: extractionText.match(GUEST_NAME_RE)?.[1] ?? null,
+  });
   const listingRefs = extractAirbnbListingRefs(
     [input.html ?? "", extractionText].filter(Boolean).join("\n"),
   );
@@ -294,7 +292,7 @@ export function extractReservationSignals(input: {
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
     listingName,
-    guestName: guestName?.trim() ?? null,
+    guestName: guestName ?? null,
     guestEmail,
     guestPhone,
     guestCount,
@@ -321,7 +319,14 @@ export function extractReservationSignals(input: {
     reviewText,
     messageBody,
     airbnbRoomId: listingRefs.airbnbRoomId,
+    airbnbRoomIdNumeric: listingRefs.airbnbRoomIdNumeric,
+    airbnbRoomSlugs: listingRefs.airbnbRoomSlugs,
     airbnbListingUrl: listingRefs.airbnbListingUrl,
+    emailMatchBlob: buildEmailMatchBlob({
+      subject: input.subject,
+      body: normalizedBody,
+      html: input.html,
+    }),
     unitNumber,
   };
 }
