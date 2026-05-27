@@ -135,4 +135,19 @@ describe("contextual match policy", () => {
     );
     assert.equal(match.allowReservationEnrichment, false);
   });
+
+  it("permite enrich en ICAL_CONTEXTUAL_MATCH high conservador", () => {
+    const match = applyMatchPolicy(
+      {
+        reservationId: "res_1",
+        propertyId: "prop_1",
+        organizationId: "org_1",
+        method: AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
+        confidence: 0.91,
+      },
+      { hasConfirmationCodeInEmail: false },
+    );
+    assert.equal(match.allowReservationEnrichment, true);
+    assert.equal(match.requiresManualReview, false);
+  });
 });

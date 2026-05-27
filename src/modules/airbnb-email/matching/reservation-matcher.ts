@@ -201,19 +201,6 @@ export async function matchReservationFromEmailSignals(
   const organizationId = options?.organizationId ?? null;
   const hasConfirmationCode = Boolean(signals.confirmationCode?.trim());
 
-  if (options?.listingAmbiguous) {
-    return applyMatchPolicy(
-      {
-        reservationId: null,
-        propertyId: null,
-        organizationId,
-        method: AirbnbEmailMatchMethod.NONE,
-        confidence: 0,
-      },
-      { hasConfirmationCodeInEmail: hasConfirmationCode },
-    );
-  }
-
   const emptyBase = {
     reservationId: null as string | null,
     propertyId: options?.propertyId ?? null,
@@ -288,9 +275,9 @@ export async function matchReservationFromEmailSignals(
     }
   }
 
-  if (propertyId) {
+  if (organizationId) {
     const contextual = await matchByListingContextual({
-      propertyId,
+      propertyId: propertyId ?? null,
       organizationId,
       signals,
       parsedCheckIn: checkIn,

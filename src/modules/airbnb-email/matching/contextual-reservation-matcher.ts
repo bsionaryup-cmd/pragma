@@ -89,8 +89,8 @@ export function scoreContextualCandidate(input: {
 }
 
 async function loadContextualCandidates(input: {
-  propertyId: string;
-  organizationId?: string | null;
+  organizationId: string;
+  propertyId?: string | null;
 }): Promise<ContextualCandidate[]> {
   const now = new Date();
   const windowStart = new Date(now);
@@ -100,14 +100,12 @@ async function loadContextualCandidates(input: {
 
   const rows = await db.reservation.findMany({
     where: withVisibleReservationsFilter({
-      propertyId: input.propertyId,
+      ...(input.propertyId ? { propertyId: input.propertyId } : {}),
       platform: BookingPlatform.AIRBNB,
       status: { not: ReservationStatus.CANCELLED },
       checkOut: { gte: windowStart },
       checkIn: { lte: windowEnd },
-      ...(input.organizationId
-        ? { property: { organizationId: input.organizationId } }
-        : {}),
+      property: { organizationId: input.organizationId },
     }),
     select: {
       id: true,
@@ -163,8 +161,8 @@ export function narrowContextualCandidates(
 }
 
 export async function matchByListingContextual(input: {
-  propertyId: string;
-  organizationId?: string | null;
+  propertyId?: string | null;
+  organizationId: string;
   signals: ExtractedReservationSignals;
   parsedCheckIn: Date | null;
   parsedCheckOut: Date | null;
@@ -172,12 +170,12 @@ export async function matchByListingContextual(input: {
   const hasConfirmationCode = Boolean(input.signals.confirmationCode?.trim());
 
   const candidates = await loadContextualCandidates({
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? null,
     organizationId: input.organizationId,
   });
 
   airbnbEmailLog.info("contextual_match_candidate", {
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? undefined,
     candidateCount: candidates.length,
     hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
     hasGuestName: Boolean(input.signals.guestName),
@@ -186,21 +184,25 @@ export async function matchByListingContextual(input: {
 
   if (candidates.length === 0) {
     airbnbEmailLog.info("ical_context_candidates", {
-      propertyId: input.propertyId,
+      propertyId: input.propertyId ?? undefined,
       candidateCount: 0,
       hasGuestName: Boolean(input.signals.guestName),
       hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
       hasConfirmationCode,
     });
     airbnbEmailLog.info("contextual_match_rejected", {
-      propertyId: input.propertyId,
+      propertyId: input.propertyId ?? undefined,
       reason: "no_active_ical_candidates",
+    });
+    airbnbEmailLog.warn("ical_context_rejected", {
+      propertyId: input.propertyId ?? undefined,
+      reason: "no_candidates",
     });
     return null;
   }
 
   airbnbEmailLog.info("contextual_candidate_found", {
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? undefined,
     candidateCount: candidates.length,
     reservationIds: candidates.map((c) => c.id).join(","),
   });
@@ -212,18 +214,24 @@ export async function matchByListingContextual(input: {
       input.parsedCheckIn,
       input.parsedCheckOut,
     );
-    const confidence = scoreContextualCandidate({
+    const confidenceRaw = scoreContextualCandidate({
       candidate,
       hasConfirmationCode,
       guestName: input.signals.guestName,
       parsedCheckIn: input.parsedCheckIn,
       parsedCheckOut: input.parsedCheckOut,
     });
-    return { candidate, guestMatch, dateOverlap, confidence };
+    const propertySignal =
+      Boolean(input.propertyId) && candidate.propertyId === input.propertyId;
+    const confidence = Math.min(
+      confidenceRaw + (propertySignal ? 0.06 : 0),
+      0.97,
+    );
+    return { candidate, guestMatch, dateOverlap, confidence, propertySignal };
   });
 
   airbnbEmailLog.info("ical_context_candidates", {
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? undefined,
     candidateCount: evaluated.length,
     hasGuestName: Boolean(input.signals.guestName),
     hasParsedDates: Boolean(input.parsedCheckIn && input.parsedCheckOut),
@@ -231,7 +239,7 @@ export async function matchByListingContextual(input: {
     candidates: evaluated
       .map(
         (row) =>
-          `${row.candidate.id}:${row.confidence.toFixed(2)}:guest=${row.guestMatch ? 1 : 0}:dates=${row.dateOverlap ? 1 : 0}`,
+          `${row.candidate.id}:${row.confidence.toFixed(2)}:guest=${row.guestMatch ? 1 : 0}:dates=${row.dateOverlap ? 1 : 0}:property=${row.propertySignal ? 1 : 0}`,
       )
       .join("|"),
   });
@@ -239,18 +247,24 @@ export async function matchByListingContextual(input: {
   const ranked = [...evaluated].sort((a, b) => b.confidence - a.confidence);
   const top = ranked[0]!;
   const second = ranked[1] ?? null;
-  if (!top || top.confidence < 0.78) {
+  if (!top || top.confidence < 0.8) {
     airbnbEmailLog.warn("contextual_match_rejected", {
-      propertyId: input.propertyId,
+      propertyId: input.propertyId ?? undefined,
       reason: "low_context_confidence",
       topConfidence: top?.confidence ?? 0,
+    });
+    airbnbEmailLog.warn("ical_context_rejected", {
+      propertyId: input.propertyId ?? undefined,
+      reason: "low_confidence",
+      topConfidence: top?.confidence ?? 0,
+      candidateCount: ranked.length,
     });
     return null;
   }
 
-  if (second && top.confidence - second.confidence < 0.08) {
+  if (second && top.confidence - second.confidence < 0.1) {
     airbnbEmailLog.warn("ical_context_ambiguous", {
-      propertyId: input.propertyId,
+      propertyId: input.propertyId ?? undefined,
       topReservationId: top.candidate.id,
       secondReservationId: second.candidate.id,
       topConfidence: top.confidence,
@@ -261,17 +275,17 @@ export async function matchByListingContextual(input: {
   }
 
   const selected = top.candidate;
-  const confidence = scoreContextualCandidate({
-    candidate: selected,
-    hasConfirmationCode,
-    guestName: input.signals.guestName,
-    parsedCheckIn: input.parsedCheckIn,
-    parsedCheckOut: input.parsedCheckOut,
-  });
+  const confidence = top.confidence;
 
-  if (confidence < 0.82) {
+  if (confidence < 0.84) {
     airbnbEmailLog.warn("contextual_match_rejected", {
-      propertyId: input.propertyId,
+      propertyId: input.propertyId ?? undefined,
+      reservationId: selected.id,
+      reason: "confidence_below_threshold",
+      confidence,
+    });
+    airbnbEmailLog.warn("ical_context_rejected", {
+      propertyId: input.propertyId ?? undefined,
       reservationId: selected.id,
       reason: "confidence_below_threshold",
       confidence,
@@ -280,7 +294,7 @@ export async function matchByListingContextual(input: {
   }
 
   airbnbEmailLog.info("ical_context_selected", {
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? undefined,
     reservationId: selected.id,
     confidence,
     guestNameMatch: Boolean(
@@ -299,12 +313,12 @@ export async function matchByListingContextual(input: {
     hasConfirmationCode,
     reason:
       guestNameMatches(input.signals.guestName, selected.guestName)
-        ? "property+guest+ical_context"
-        : "property+ical_context",
+        ? "guest+temporal+ical"
+        : "temporal+ical",
   });
 
   airbnbEmailLog.info("contextual_match_selected", {
-    propertyId: input.propertyId,
+    propertyId: input.propertyId ?? undefined,
     reservationId: selected.id,
     confidence,
     hasIcalUid: Boolean(selected.icalUid),
@@ -327,7 +341,7 @@ export async function matchByListingContextual(input: {
     reservationId: selected.id,
     propertyId: selected.propertyId,
     organizationId: selected.organizationId,
-    method: AirbnbEmailMatchMethod.LISTING_CONTEXTUAL_MATCH,
+    method: AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
     confidence,
   };
 }

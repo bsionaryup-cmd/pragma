@@ -36,11 +36,17 @@ export function applyMatchPolicy(
     Boolean(options.hasConfirmationCodeInEmail) &&
     (tier === "high" || (tier === "medium" && base.confidence >= 0.84));
 
+  const icalContextualConservative =
+    base.method === AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH &&
+    tier === "high" &&
+    base.confidence >= 0.9;
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
       listingDatesWithCode ||
-      listingContextualWithCode);
+      listingContextualWithCode ||
+      icalContextualConservative);
 
   return {
     ...base,
