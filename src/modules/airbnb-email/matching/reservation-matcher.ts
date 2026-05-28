@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import { matchByListingContextual } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
+import { matchReservationByPropertyContext } from "@/modules/airbnb-email/matching/property-reservation-matcher";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import type {
@@ -186,8 +187,8 @@ async function matchByListingGuestDates(
       propertyId,
       platform: BookingPlatform.AIRBNB,
       status: { not: ReservationStatus.CANCELLED },
-      checkIn,
-      checkOut,
+      checkIn: { lt: checkOut },
+      checkOut: { gt: checkIn },
       guestName: { contains: firstToken, mode: "insensitive" },
       ...organizationReservationFilter(organizationId),
     }),
@@ -273,6 +274,27 @@ export async function matchReservationFromEmailSignals(
         propertyId,
         method: resolved.resolutionMethod,
         listingName: signals.listingName ?? undefined,
+      });
+    }
+  }
+
+  if (propertyId && organizationId) {
+    const propertyScoped = await matchReservationByPropertyContext({
+      propertyId,
+      organizationId,
+      signals,
+      parsedCheckIn: checkIn,
+      parsedCheckOut: checkOut,
+    });
+    if (propertyScoped) {
+      airbnbEmailLog.info("match_branch_selected", {
+        branch: "PROPERTY_RESERVATION_MATCH",
+        reservationId: propertyScoped.reservationId,
+        propertyId,
+        decisiveSignal: "property_scoped_reservation",
+      });
+      return applyMatchPolicy(propertyScoped, {
+        hasConfirmationCodeInEmail: hasConfirmationCode,
       });
     }
   }

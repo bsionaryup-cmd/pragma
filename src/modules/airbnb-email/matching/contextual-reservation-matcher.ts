@@ -7,6 +7,7 @@ import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { checkInWithinSlack } from "@/modules/airbnb-email/matching/stay-date-resolve";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
 type ContextualCandidate = {
@@ -160,6 +161,26 @@ export function narrowContextualCandidates(
       );
       if (byGuest.length === 1) return byGuest;
       return [];
+    }
+  }
+
+  if (parsedCheckIn && !parsedCheckOut) {
+    const byCheckInSlack = candidates.filter((c) =>
+      checkInWithinSlack(c.checkIn, parsedCheckIn),
+    );
+    if (byCheckInSlack.length === 1) return byCheckInSlack;
+    if (byCheckInSlack.length > 1) {
+      const byGuest = byCheckInSlack.filter((c) =>
+        guestNameMatches(signals.guestName, c.guestName),
+      );
+      if (byGuest.length === 1) return byGuest;
+      if (
+        byGuest.length === 0 &&
+        signals.guestName?.trim() &&
+        byCheckInSlack.every((c) => isPlaceholderGuestName(c.guestName))
+      ) {
+        return [];
+      }
     }
   }
 

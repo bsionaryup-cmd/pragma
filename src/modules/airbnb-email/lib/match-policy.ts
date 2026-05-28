@@ -21,11 +21,6 @@ export function applyMatchPolicy(
 ): ReservationMatchResult {
   const tier = confidenceToTier(base.confidence);
 
-  const requiresManualReview =
-    !base.reservationId ||
-    tier === "low" ||
-    (tier === "medium" && base.method !== AirbnbEmailMatchMethod.CONFIRMATION_CODE);
-
   const listingDatesWithCode =
     base.method === AirbnbEmailMatchMethod.LISTING_DATES &&
     Boolean(options.hasConfirmationCodeInEmail) &&
@@ -46,18 +41,33 @@ export function applyMatchPolicy(
     tier === "high" &&
     base.confidence >= 0.9;
 
+  const icalContextualPropertyAuto =
+    base.method === AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH &&
+    base.confidence >= 0.88;
+
+  const propertyScopedAutoLink =
+    icalContextualPropertyAuto && Boolean(base.reservationId);
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
       listingDatesWithCode ||
       listingContextualWithCode ||
       icalContextualWithCode ||
-      icalContextualConservative);
+      icalContextualConservative ||
+      icalContextualPropertyAuto);
+
+  const requiresManualReviewResolved =
+    !base.reservationId ||
+    tier === "low" ||
+    (tier === "medium" &&
+      base.method !== AirbnbEmailMatchMethod.CONFIRMATION_CODE &&
+      !propertyScopedAutoLink);
 
   return {
     ...base,
     tier,
-    requiresManualReview,
+    requiresManualReview: requiresManualReviewResolved,
     allowReservationEnrichment,
   };
 }

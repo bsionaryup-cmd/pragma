@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
+import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import type {
@@ -33,7 +34,7 @@ export async function persistReservationEmailEvent(input: {
     mode: "reservation",
   });
 
-  await db.reservationEmailEvent.create({
+  const event = await db.reservationEmailEvent.create({
     data: {
       auditId: input.auditId,
       reservationId: input.match.reservationId,
@@ -45,6 +46,14 @@ export async function persistReservationEmailEvent(input: {
       enrichedFields:
         Object.keys(enrichedFields).length > 0 ? enrichedFields : undefined,
     },
+  });
+
+  airbnbEmailLog.info("reservation_email_event_created", {
+    auditId: input.auditId,
+    eventId: event.id,
+    reservationId: input.match.reservationId ?? undefined,
+    eventKind: input.eventKind,
+    enrichedFieldCount: Object.keys(enrichedFields).length,
   });
 
   return Object.keys(enrichedFields).length > 0 ? enrichedFields : null;

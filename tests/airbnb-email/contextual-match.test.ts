@@ -7,14 +7,15 @@ import {
   narrowContextualCandidates,
   scoreContextualCandidate,
 } from "../../src/modules/airbnb-email/matching/contextual-reservation-matcher";
+import { checkInWithinSlack } from "../../src/modules/airbnb-email/matching/stay-date-resolve";
 
 describe("contextual match scoring", () => {
   const candidate = {
     id: "res_1",
     propertyId: "prop_1",
     guestName: "María López",
-    checkIn: new Date("2026-06-01T12:00:00.000Z"),
-    checkOut: new Date("2026-06-05T12:00:00.000Z"),
+    checkIn: new Date("2026-06-19T15:00:00.000Z"),
+    checkOut: new Date("2026-06-23T10:00:00.000Z"),
     icalUid: "ical-1",
     organizationId: "org_1",
   };
@@ -72,6 +73,22 @@ describe("contextual match scoring", () => {
       null,
     );
     assert.equal(selected.length, 0);
+  });
+
+  it("narrow con solo check-in y slack selecciona reserva única", () => {
+    const emailCheckIn = new Date("2026-06-19T12:00:00.000Z");
+    const selected = narrowContextualCandidates(
+      [candidate],
+      { guestName: "Karla Durán", confirmationCode: "HM4SPXSTS2" },
+      emailCheckIn,
+      null,
+    );
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0]?.id, "res_1");
+    assert.equal(
+      checkInWithinSlack(candidate.checkIn, emailCheckIn),
+      true,
+    );
   });
 
   it("desambigua por guestName con múltiples candidatos", () => {
@@ -136,6 +153,21 @@ describe("contextual match policy", () => {
       { hasConfirmationCodeInEmail: false },
     );
     assert.equal(match.allowReservationEnrichment, false);
+  });
+
+  it("permite enrich en ICAL_CONTEXTUAL property auto 0.88+ sin HM", () => {
+    const match = applyMatchPolicy(
+      {
+        reservationId: "res_1",
+        propertyId: "prop_1",
+        organizationId: "org_1",
+        method: AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
+        confidence: 0.89,
+      },
+      { hasConfirmationCodeInEmail: false },
+    );
+    assert.equal(match.allowReservationEnrichment, true);
+    assert.equal(match.requiresManualReview, false);
   });
 
   it("permite enrich en ICAL_CONTEXTUAL_MATCH medium 0.84+ con HM", () => {

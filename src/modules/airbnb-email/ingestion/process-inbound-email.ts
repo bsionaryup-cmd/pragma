@@ -310,6 +310,21 @@ export async function processInboundAirbnbEmail(
       },
     });
 
+    if (match.reservationId) {
+      airbnbEmailLog.info("reservation_audit_linked", {
+        auditId: audit.id,
+        reservationId: match.reservationId,
+        propertyId: match.propertyId ?? options?.propertyId ?? undefined,
+        matchMethod: match.method,
+        matchConfidence: match.confidence,
+      });
+      airbnbEmailLog.info("reservation_link_created", {
+        auditId: audit.id,
+        reservationId: match.reservationId,
+        organizationId: match.organizationId ?? organizationId ?? undefined,
+      });
+    }
+
     let communicationIntent: SafeCommunicationIntent | null = null;
 
     if (isReservationEventKind(classified.eventKind)) {
@@ -325,6 +340,20 @@ export async function processInboundAirbnbEmail(
           auditId: audit.id,
           reservationId: match.reservationId,
           fields: Object.keys(enrichedFields).join(","),
+        });
+      }
+      if (match.reservationId) {
+        const linkedEvents = await db.reservationEmailEvent.count({
+          where: { reservationId: match.reservationId },
+        });
+        const linkedAudits = await db.emailIngestionAudit.count({
+          where: { reservationId: match.reservationId },
+        });
+        airbnbEmailLog.info("ui_enrichment_relation_verified", {
+          auditId: audit.id,
+          reservationId: match.reservationId,
+          linkedAuditCount: linkedAudits,
+          reservationEmailEventCount: linkedEvents,
         });
       }
     }
