@@ -46,7 +46,9 @@ export function applyMatchPolicy(
     base.confidence >= 0.88;
 
   const propertyScopedAutoLink =
-    icalContextualPropertyAuto && Boolean(base.reservationId);
+    icalContextualPropertyAuto &&
+    Boolean(base.reservationId) &&
+    base.confidence >= 0.85;
 
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&

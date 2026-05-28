@@ -4,6 +4,7 @@ import {
   checkInWithinSlack,
   inferStayDatesFromPropertyCandidates,
   stayDatesOverlap,
+  stayDatesOverlapByCalendarDay,
 } from "../../src/modules/airbnb-email/matching/stay-date-resolve";
 
 describe("stay-date-resolve", () => {
@@ -32,6 +33,19 @@ describe("stay-date-resolve", () => {
     assert.equal(
       resolved.checkOut?.toISOString(),
       candidate.checkOut.toISOString(),
+    );
+  });
+
+  it("overlap por día calendario con iCal midnight", () => {
+    const candidate = {
+      checkIn: new Date("2026-06-19T00:00:00.000Z"),
+      checkOut: new Date("2026-06-23T00:00:00.000Z"),
+    };
+    const emailCheckIn = new Date("2026-06-19T12:00:00.000Z");
+    const emailCheckOut = new Date("2026-06-23T12:00:00.000Z");
+    assert.equal(
+      stayDatesOverlapByCalendarDay(candidate, emailCheckIn, emailCheckOut),
+      true,
     );
   });
 

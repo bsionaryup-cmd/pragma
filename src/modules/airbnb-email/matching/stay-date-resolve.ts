@@ -17,6 +17,25 @@ export function checkInWithinSlack(
   return diff <= slackDays * DAY_MS;
 }
 
+function toCalendarDayKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+/** Inclusive calendar-day overlap (robust vs iCal midnight / timezone drift). */
+export function stayDatesOverlapByCalendarDay(
+  candidate: StayDateCandidate,
+  emailCheckIn: Date | null,
+  emailCheckOut: Date | null,
+): boolean {
+  if (!emailCheckIn) return false;
+  const emailOut = emailCheckOut ?? emailCheckIn;
+  const cIn = toCalendarDayKey(candidate.checkIn);
+  const cOut = toCalendarDayKey(candidate.checkOut);
+  const eIn = toCalendarDayKey(emailCheckIn);
+  const eOut = toCalendarDayKey(emailOut);
+  return cIn <= eOut && cOut >= eIn;
+}
+
 export function stayDatesOverlap(
   candidate: StayDateCandidate,
   emailCheckIn: Date | null,
@@ -24,6 +43,9 @@ export function stayDatesOverlap(
   slackDays = PROPERTY_DATE_SLACK_DAYS,
 ): boolean {
   if (!emailCheckIn) return false;
+  if (emailCheckOut && stayDatesOverlapByCalendarDay(candidate, emailCheckIn, emailCheckOut)) {
+    return true;
+  }
   if (emailCheckOut) {
     return (
       candidate.checkIn < emailCheckOut && candidate.checkOut > emailCheckIn

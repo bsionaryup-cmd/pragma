@@ -19,10 +19,8 @@ import {
   persistReservationReview,
   isReputationEventKind,
 } from "@/modules/airbnb-email/domains/reputation.domain";
-import {
-  isReservationEventKind,
-  persistReservationEmailEvent,
-} from "@/modules/airbnb-email/domains/reservation-event.domain";
+import { isReservationEventKind } from "@/modules/airbnb-email/domains/reservation-event.domain";
+import { persistReservationMatchLinkage } from "@/modules/airbnb-email/matching/reservation-match-persist";
 import {
   createEmailDerivedTask,
   createTasksForEmailEvent,
@@ -299,63 +297,43 @@ export async function processInboundAirbnbEmail(
       });
     }
 
-    await db.emailIngestionAudit.update({
-      where: { id: audit.id },
-      data: {
-        reservationId: match.reservationId,
-        propertyId: match.propertyId ?? options?.propertyId ?? null,
-        organizationId: match.organizationId ?? organizationId,
-        matchMethod: match.method,
-        matchConfidence: match.confidence,
-      },
-    });
-
-    if (match.reservationId) {
-      airbnbEmailLog.info("reservation_audit_linked", {
-        auditId: audit.id,
-        reservationId: match.reservationId,
-        propertyId: match.propertyId ?? options?.propertyId ?? undefined,
-        matchMethod: match.method,
-        matchConfidence: match.confidence,
-      });
-      airbnbEmailLog.info("reservation_link_created", {
-        auditId: audit.id,
-        reservationId: match.reservationId,
-        organizationId: match.organizationId ?? organizationId ?? undefined,
-      });
-    }
-
     let communicationIntent: SafeCommunicationIntent | null = null;
 
-    if (isReservationEventKind(classified.eventKind)) {
-      const enrichedFields = await persistReservationEmailEvent({
-        auditId: audit.id,
-        eventKind: classified.eventKind,
-        match,
-        signals,
-        payload: parsedPayload,
+    if (match.reservationId) {
+      try {
+        await persistReservationMatchLinkage({
+          auditId: audit.id,
+          match,
+          eventKind: classified.eventKind,
+          signals,
+          payload: parsedPayload,
+          organizationId,
+          propertyId: match.propertyId ?? options?.propertyId ?? null,
+        });
+      } catch (persistError) {
+        airbnbEmailLog.error("reservation_match_persist_failed", {
+          auditId: audit.id,
+          reservationId: match.reservationId,
+          error:
+            persistError instanceof Error
+              ? persistError.message
+              : "Error desconocido",
+          stack:
+            persistError instanceof Error ? persistError.stack : undefined,
+        });
+        throw persistError;
+      }
+    } else {
+      await db.emailIngestionAudit.update({
+        where: { id: audit.id },
+        data: {
+          reservationId: null,
+          propertyId: match.propertyId ?? options?.propertyId ?? null,
+          organizationId: match.organizationId ?? organizationId,
+          matchMethod: match.method,
+          matchConfidence: match.confidence,
+        },
       });
-      if (enrichedFields && Object.keys(enrichedFields).length > 0) {
-        airbnbEmailLog.info("enrichment_result", {
-          auditId: audit.id,
-          reservationId: match.reservationId,
-          fields: Object.keys(enrichedFields).join(","),
-        });
-      }
-      if (match.reservationId) {
-        const linkedEvents = await db.reservationEmailEvent.count({
-          where: { reservationId: match.reservationId },
-        });
-        const linkedAudits = await db.emailIngestionAudit.count({
-          where: { reservationId: match.reservationId },
-        });
-        airbnbEmailLog.info("ui_enrichment_relation_verified", {
-          auditId: audit.id,
-          reservationId: match.reservationId,
-          linkedAuditCount: linkedAudits,
-          reservationEmailEventCount: linkedEvents,
-        });
-      }
     }
 
     if (isFinancialEventKind(classified.eventKind)) {
