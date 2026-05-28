@@ -28,9 +28,6 @@ type PropertyReservationCandidate = {
   guestName: string;
   checkIn: Date;
   checkOut: Date;
-  status: ReservationStatus;
-  source: string;
-  createdAt: Date;
   icalUid: string | null;
   organizationId: string | null;
   reservationCode: string | null;
@@ -75,9 +72,6 @@ async function loadPropertyReservationCandidates(input: {
       guestName: true,
       checkIn: true,
       checkOut: true,
-      status: true,
-      source: true,
-      createdAt: true,
       icalUid: true,
       reservationCode: true,
       property: { select: { organizationId: true } },
@@ -91,9 +85,6 @@ async function loadPropertyReservationCandidates(input: {
     guestName: row.guestName,
     checkIn: row.checkIn,
     checkOut: row.checkOut,
-    status: row.status,
-    source: row.source,
-    createdAt: row.createdAt,
     icalUid: row.icalUid,
     organizationId: row.property.organizationId,
     reservationCode: row.reservationCode,
@@ -107,7 +98,6 @@ async function scanPropertyReservationsForDebug(input: {
   Array<{
     id: string;
     status: ReservationStatus;
-    source: string;
     guestName: string;
     checkIn: Date;
     checkOut: Date;
@@ -131,7 +121,6 @@ async function scanPropertyReservationsForDebug(input: {
     select: {
       id: true,
       status: true,
-      source: true,
       guestName: true,
       checkIn: true,
       checkOut: true,
@@ -479,7 +468,7 @@ export async function matchReservationByPropertyContext(input: {
             debugReservations.map((r) => ({
               reservationId: r.id,
               status: r.status,
-              source: r.source,
+              source: "unknown",
               guestName: r.guestName,
               checkIn: r.checkIn.toISOString(),
               checkOut: r.checkOut.toISOString(),
