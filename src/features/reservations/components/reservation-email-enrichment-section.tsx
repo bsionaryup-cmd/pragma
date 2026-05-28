@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
+import {
+  getReservationEmailEnrichmentAction,
+  manualReservationEnrichmentResolverAction,
+} from "@/features/reservations/actions/reservation-email-enrichment.actions";
+import { Button } from "@/components/ui/button";
 import { reservationHasVisibleEmailEnrichment } from "@/lib/airbnb-email/reservation-enrichment-visibility";
 import { formatDateTime } from "@/lib/helpers/date";
 import type { ReservationEmailEnrichmentDetail } from "@/services/reservations/reservation-email-enrichment.service";
@@ -28,12 +32,20 @@ export function ReservationEmailEnrichmentSection({
     null,
   );
   const [loaded, setLoaded] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
+
+  const reloadDetail = () =>
+    getReservationEmailEnrichmentAction(reservationId).then((data) => {
+      setDetail(data);
+      return data;
+    });
 
   useEffect(() => {
     if (platform !== "AIRBNB") return;
     let cancelled = false;
     setLoaded(false);
-    void getReservationEmailEnrichmentAction(reservationId)
+    void reloadDetail()
       .then((data) => {
         if (!cancelled) setDetail(data);
       })
@@ -79,6 +91,38 @@ export function ReservationEmailEnrichmentSection({
         <p className="text-xs text-muted-foreground">
           Reenvía el correo de confirmación o revisa que el huésped y las fechas coincidan con el iCal.
         </p>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isLinking}
+            onClick={() => {
+              setIsLinking(true);
+              setLinkMessage(null);
+              void manualReservationEnrichmentResolverAction(reservationId)
+                .then((result) => {
+                  if (result.status === "linked") {
+                    setLinkMessage("Vinculación Airbnb aplicada correctamente.");
+                  } else {
+                    setLinkMessage("No se encontró una coincidencia razonable para vincular.");
+                  }
+                  return reloadDetail();
+                })
+                .catch(() => {
+                  setLinkMessage("No fue posible vincular automáticamente el correo Airbnb.");
+                })
+                .finally(() => {
+                  setIsLinking(false);
+                });
+            }}
+          >
+            {isLinking ? "Vinculando..." : "Vincular automáticamente"}
+          </Button>
+          {linkMessage ? (
+            <p className="text-xs text-muted-foreground">{linkMessage}</p>
+          ) : null}
+        </div>
       </section>
     );
   }

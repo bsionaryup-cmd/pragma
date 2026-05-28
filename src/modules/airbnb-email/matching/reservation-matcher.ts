@@ -279,6 +279,16 @@ export async function matchReservationFromEmailSignals(
   }
 
   if (propertyId && organizationId) {
+    airbnbEmailLog.info("matcher_invocation_context", {
+      propertyId,
+      listingName: signals.listingName ?? undefined,
+      guestName: signals.guestName ?? undefined,
+      checkIn: signals.checkIn ?? undefined,
+      checkOut: signals.checkOut ?? undefined,
+      confirmationCode: signals.confirmationCode ?? undefined,
+      source: "PROPERTY_RESERVATION_MATCH",
+      canAttemptMatch: true,
+    });
     const propertyScoped = await matchReservationByPropertyContext({
       propertyId,
       organizationId,
@@ -309,6 +319,21 @@ export async function matchReservationFromEmailSignals(
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });
     }
+  } else {
+    const missingFields: string[] = [];
+    if (!propertyId) missingFields.push("propertyId");
+    if (!organizationId) missingFields.push("organizationId");
+    airbnbEmailLog.warn("matcher_invocation_skipped", {
+      reason: "missing_property_or_organization",
+      missingFields: missingFields.join(","),
+      missingFieldsCount: missingFields.length,
+      canAttemptMatch: false,
+      propertyId: propertyId ?? undefined,
+      guestName: signals.guestName ?? undefined,
+      checkIn: signals.checkIn ?? undefined,
+      checkOut: signals.checkOut ?? undefined,
+      source: "PROPERTY_RESERVATION_MATCH",
+    });
   }
 
   if (propertyId && checkIn && checkOut) {

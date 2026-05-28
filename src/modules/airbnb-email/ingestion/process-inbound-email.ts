@@ -162,6 +162,14 @@ export async function processInboundAirbnbEmail(
     receivedAt: payload.receivedAt ?? new Date().toISOString(),
   };
 
+  if (signals.confirmationCode) {
+    airbnbEmailLog.info("confirmation_code_extracted", {
+      organizationId: organizationId ?? undefined,
+      confirmationCode: signals.confirmationCode,
+      source: "normalized_reservation_context",
+    });
+  }
+
   airbnbEmailLog.info("inbound_received", {
     subject: payload.subject.slice(0, 120),
     eventKind: classified.eventKind,
