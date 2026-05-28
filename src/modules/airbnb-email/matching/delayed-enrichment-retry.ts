@@ -5,7 +5,7 @@ import { persistReservationMatchLinkage } from "@/modules/airbnb-email/matching/
 import { matchReservationFromEmailSignals } from "@/modules/airbnb-email/matching/reservation-matcher";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
-const RETRY_DELAYS_MS = [30_000, 60_000, 120_000] as const;
+const RETRY_DELAYS_MS = [30_000, 120_000, 300_000] as const;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

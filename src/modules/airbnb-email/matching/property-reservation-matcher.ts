@@ -47,6 +47,40 @@ const MIN_AUTO_LINK_CONFIDENCE = 0.88;
 const MIN_DATE_OVERLAP_FOR_SAFE = 0.95;
 const MIN_NORMALIZED_GUEST_SCORE = 0.85;
 
+function logReconciliationInputSnapshot(input: {
+  organizationId: string;
+  propertyId: string;
+  signals: ExtractedReservationSignals;
+  normalizedListing: string | null;
+  scored: ScoredPropertyCandidate[];
+  selectedReservationId: string | null;
+}): void {
+  airbnbEmailLog.info("reconciliation_input_snapshot", {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    extractedListing: input.signals.listingName ?? undefined,
+    normalizedListing: input.normalizedListing ?? undefined,
+    extractedGuestName: input.signals.guestName ?? undefined,
+    extractedCheckIn: input.signals.checkIn ?? undefined,
+    extractedCheckOut: input.signals.checkOut ?? undefined,
+    candidatesFound: input.scored.length,
+    candidateScores:
+      input.scored.length > 0
+        ? JSON.stringify(
+            input.scored.map((row) => ({
+              reservationId: row.candidate.id,
+              guestScore: Number(row.guestScore.toFixed(3)),
+              dateOverlap: Number(row.dateOverlap.toFixed(3)),
+              overlapDays: row.overlapDays,
+              confidence: Number(row.confidence.toFixed(3)),
+              hmMatch: row.hmMatch,
+            })),
+          )
+        : "[]",
+    selectedReservationId: input.selectedReservationId ?? undefined,
+  });
+}
+
 async function loadPropertyReservationCandidates(input: {
   propertyId: string;
   organizationId: string;
@@ -610,6 +644,16 @@ export async function matchReservationByPropertyContext(input: {
   }
 
   const tryAutoLink = (winner: ScoredPropertyCandidate, decisiveSignal: string) => {
+    logReconciliationInputSnapshot({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      signals: input.signals,
+      normalizedListing: input.signals.listingName
+        ? normalizeGuestName(input.signals.listingName)
+        : null,
+      scored,
+      selectedReservationId: winner.candidate.id,
+    });
     winner.selectedReason = decisiveSignal;
     logAllFailedCandidates(
       input.propertyId,
@@ -655,6 +699,16 @@ export async function matchReservationByPropertyContext(input: {
   }
 
   if (safeCandidates.length > 1) {
+    logReconciliationInputSnapshot({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      signals: input.signals,
+      normalizedListing: input.signals.listingName
+        ? normalizeGuestName(input.signals.listingName)
+        : null,
+      scored,
+      selectedReservationId: null,
+    });
     airbnbEmailLog.warn("auto_link_rejected_multiple_candidates", {
       propertyId: input.propertyId,
       candidateCount: safeCandidates.length,
@@ -731,6 +785,16 @@ export async function matchReservationByPropertyContext(input: {
     narrowedCount: narrowed.length,
     hasGuestName,
     hasResolvedCheckIn: Boolean(resolvedDates.checkIn),
+  });
+  logReconciliationInputSnapshot({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    signals: input.signals,
+    normalizedListing: input.signals.listingName
+      ? normalizeGuestName(input.signals.listingName)
+      : null,
+    scored,
+    selectedReservationId: null,
   });
 
   return null;

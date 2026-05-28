@@ -4,6 +4,7 @@ import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
 import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
 import {
   isReservationEventKind,
 } from "@/modules/airbnb-email/domains/reservation-event.domain";
@@ -32,12 +33,14 @@ export async function persistReservationMatchLinkage(
   input: PersistReservationMatchInput,
 ): Promise<PersistReservationMatchResult | null> {
   if (!input.match.reservationId) return null;
+  const persistedMatchMethod = toPersistedMatchMethod(input.match.method);
 
   airbnbEmailLog.info("reservation_match_persist_started", {
     auditId: input.auditId,
     reservationId: input.match.reservationId,
     propertyId: input.propertyId ?? input.match.propertyId ?? undefined,
     matchMethod: input.match.method,
+    persistedMatchMethod,
     matchConfidence: input.match.confidence,
   });
 
@@ -49,7 +52,7 @@ export async function persistReservationMatchLinkage(
           reservationId: input.match.reservationId,
           propertyId: input.match.propertyId ?? input.propertyId,
           organizationId: input.match.organizationId ?? input.organizationId,
-          matchMethod: input.match.method,
+          matchMethod: persistedMatchMethod,
           matchConfidence: input.match.confidence,
         },
       });
@@ -75,7 +78,7 @@ export async function persistReservationMatchLinkage(
             reservationId: input.match.reservationId,
             eventKind: input.eventKind,
             confirmationCode: input.signals.confirmationCode,
-            matchMethod: input.match.method,
+            matchMethod: persistedMatchMethod,
             matchConfidence: input.match.confidence,
             payload: input.payload,
             enrichedFields:
@@ -133,6 +136,7 @@ export async function persistReservationMatchLinkage(
       reservationId: input.match.reservationId,
       propertyId: input.propertyId ?? input.match.propertyId ?? undefined,
       matchMethod: input.match.method,
+      persistedMatchMethod,
     });
 
     airbnbEmailLog.info("reservation_link_created", {

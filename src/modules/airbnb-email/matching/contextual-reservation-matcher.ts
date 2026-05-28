@@ -46,6 +46,24 @@ function datesOverlap(
   return checkIn < parsedCheckOut && checkOut > parsedCheckIn;
 }
 
+function nightsBetween(start: Date | null, end: Date | null): number | null {
+  if (!start || !end) return null;
+  const diffMs = end.getTime() - start.getTime();
+  if (diffMs <= 0) return null;
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+}
+
+function nightDeltaForCandidate(
+  candidate: ContextualCandidate,
+  parsedCheckIn: Date | null,
+  parsedCheckOut: Date | null,
+): number | null {
+  const emailNights = nightsBetween(parsedCheckIn, parsedCheckOut);
+  const candidateNights = nightsBetween(candidate.checkIn, candidate.checkOut);
+  if (emailNights == null || candidateNights == null) return null;
+  return Math.abs(emailNights - candidateNights);
+}
+
 export function scoreContextualCandidate(input: {
   candidate: ContextualCandidate;
   hasConfirmationCode: boolean;
@@ -61,6 +79,19 @@ export function scoreContextualCandidate(input: {
     startsInDays <= 3 ? 0.14 : startsInDays <= 14 ? 0.09 : startsInDays <= 45 ? 0.05 : 0;
 
   let score = 0.58 + proximityBonus;
+  const emailNights = nightsBetween(input.parsedCheckIn, input.parsedCheckOut);
+  const candidateNights = nightsBetween(
+    input.candidate.checkIn,
+    input.candidate.checkOut,
+  );
+
+  // Tie-break overlap candidates using stay-length consistency.
+  if (emailNights && candidateNights) {
+    const delta = Math.abs(emailNights - candidateNights);
+    if (delta === 0) score += 0.05;
+    else if (delta === 1) score += 0.02;
+  }
+
   if (input.hasConfirmationCode) score += 0.04; // metadata signal only
   if (input.candidate.icalUid) score += 0.04;
   if (
@@ -387,6 +418,32 @@ export async function matchByListingContextual(input: {
   }
 
   if (second && top.confidence - second.confidence < 0.1) {
+    const topNightDelta = nightDeltaForCandidate(
+      top.candidate,
+      input.parsedCheckIn,
+      input.parsedCheckOut,
+    );
+    const secondNightDelta = nightDeltaForCandidate(
+      second.candidate,
+      input.parsedCheckIn,
+      input.parsedCheckOut,
+    );
+    const canBreakTieByStayLength =
+      topNightDelta != null &&
+      secondNightDelta != null &&
+      topNightDelta === 0 &&
+      secondNightDelta >= 2;
+
+    if (canBreakTieByStayLength) {
+      airbnbEmailLog.info("ical_context_tie_broken", {
+        propertyId: input.propertyId ?? undefined,
+        topReservationId: top.candidate.id,
+        secondReservationId: second.candidate.id,
+        topConfidence: top.confidence,
+        secondConfidence: second.confidence,
+        reason: "exact_stay_length_alignment",
+      });
+    } else {
     airbnbEmailLog.warn("ical_context_ambiguous", {
       propertyId: input.propertyId ?? undefined,
       topReservationId: top.candidate.id,
@@ -396,6 +453,7 @@ export async function matchByListingContextual(input: {
       reason: "confidence_too_close",
     });
     return null;
+    }
   }
 
   const selected = top.candidate;

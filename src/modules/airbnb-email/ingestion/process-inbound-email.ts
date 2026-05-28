@@ -40,6 +40,7 @@ import {
   assertReservationInOrganization,
 } from "@/modules/airbnb-email/lib/tenant-guard";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
+import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
 import {
   buildEmailBody,
   extractReservationSignals,
@@ -52,6 +53,32 @@ import type {
   ProcessInboundEmailOptions,
   SafeCommunicationIntent,
 } from "@/modules/airbnb-email/types";
+
+function logEmailProcessingTerminal(input: {
+  event: "email_processing_completed" | "email_processing_failed";
+  stage: string;
+  reason: string;
+  auditId: string | null;
+  organizationId: string | null;
+  auditPersisted: boolean;
+  reservationLinked: boolean;
+  duplicateDetected: boolean;
+}): void {
+  const payload = {
+    stage: input.stage,
+    reason: input.reason,
+    auditId: input.auditId ?? undefined,
+    organizationId: input.organizationId ?? undefined,
+    auditPersisted: input.auditPersisted,
+    reservationLinked: input.reservationLinked,
+    duplicateDetected: input.duplicateDetected,
+  };
+  if (input.event === "email_processing_failed") {
+    airbnbEmailLog.error(input.event, payload);
+    return;
+  }
+  airbnbEmailLog.info(input.event, payload);
+}
 
 export async function processInboundAirbnbEmail(
   payload: InboundAirbnbEmailPayload,
@@ -92,6 +119,16 @@ export async function processInboundAirbnbEmail(
         organizationId,
       });
     }
+    logEmailProcessingTerminal({
+      event: "email_processing_completed",
+      stage: "sender_guard",
+      reason: "ignored_non_airbnb_or_untrusted_forward",
+      auditId: null,
+      organizationId,
+      auditPersisted: false,
+      reservationLinked: false,
+      duplicateDetected: false,
+    });
     return { auditId: "", status: "ignored" };
   }
 
@@ -140,6 +177,16 @@ export async function processInboundAirbnbEmail(
       auditId: existing.id,
       messageId: payload.messageId ?? undefined,
       organizationId,
+    });
+    logEmailProcessingTerminal({
+      event: "email_processing_completed",
+      stage: "duplicate_guard",
+      reason: "skipped_duplicate",
+      auditId: existing.id,
+      organizationId,
+      auditPersisted: true,
+      reservationLinked: false,
+      duplicateDetected: true,
     });
     return {
       auditId: existing.id,
@@ -244,6 +291,16 @@ export async function processInboundAirbnbEmail(
           auditId: raced.id,
           organizationId,
         });
+        logEmailProcessingTerminal({
+          event: "email_processing_completed",
+          stage: "duplicate_guard",
+          reason: "skipped_duplicate_race",
+          auditId: raced.id,
+          organizationId,
+          auditPersisted: true,
+          reservationLinked: false,
+          duplicateDetected: true,
+        });
         return { auditId: raced.id, status: "skipped_duplicate" };
       }
     }
@@ -341,7 +398,7 @@ export async function processInboundAirbnbEmail(
           reservationId: null,
           propertyId: unresolvedPropertyId,
           organizationId: match.organizationId ?? organizationId,
-          matchMethod: match.method,
+          matchMethod: toPersistedMatchMethod(match.method),
           matchConfidence: match.confidence,
         },
       });
@@ -360,7 +417,7 @@ export async function processInboundAirbnbEmail(
           auditId: audit.id,
           organizationId,
           propertyId: unresolvedPropertyId,
-          retryDelaysSeconds: "30,60,120",
+          retryDelaysSeconds: "30,120,300",
         });
         scheduleDelayedEnrichmentRetry({
           auditId: audit.id,
@@ -433,6 +490,16 @@ export async function processInboundAirbnbEmail(
       eventKind: classified.eventKind,
       reservationId: match.reservationId,
     });
+    logEmailProcessingTerminal({
+      event: "email_processing_completed",
+      stage: "pipeline_finalized",
+      reason: match.requiresManualReview ? "manual_review" : "processed",
+      auditId: audit.id,
+      organizationId,
+      auditPersisted: true,
+      reservationLinked: Boolean(match.reservationId),
+      duplicateDetected: false,
+    });
 
     return {
       auditId: audit.id,
@@ -457,6 +524,16 @@ export async function processInboundAirbnbEmail(
       auditId: audit.id,
       error: message,
       organizationId,
+    });
+    logEmailProcessingTerminal({
+      event: "email_processing_failed",
+      stage: "pipeline_failed",
+      reason: message,
+      auditId: audit.id,
+      organizationId,
+      auditPersisted: true,
+      reservationLinked: false,
+      duplicateDetected: false,
     });
 
     await createEmailDerivedTask({
