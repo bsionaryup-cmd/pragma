@@ -29,6 +29,22 @@ export type PersistReservationMatchResult = {
   enrichedFieldKeys: string[];
 };
 
+function buildStructuredMetadataFields(
+  signals: ExtractedReservationSignals,
+): Record<string, string | number> {
+  const metadata: Record<string, string | number> = {};
+  if (signals.guestCountTotal != null) metadata.guestCountTotal = signals.guestCountTotal;
+  if (signals.adultCount != null) metadata.adultCount = signals.adultCount;
+  if (signals.childCount != null) metadata.childCount = signals.childCount;
+  if (signals.infantCount != null) metadata.infantCount = signals.infantCount;
+  if (signals.petCount != null) metadata.petCount = signals.petCount;
+  if (signals.guestTotalPaid != null) metadata.guestTotalPaid = signals.guestTotalPaid;
+  if (signals.hostPayoutAmount != null) metadata.hostPayoutAmount = signals.hostPayoutAmount;
+  if (signals.currency?.trim()) metadata.currency = signals.currency.trim();
+  if (signals.nightCount != null) metadata.nightCount = signals.nightCount;
+  return metadata;
+}
+
 export async function persistReservationMatchLinkage(
   input: PersistReservationMatchInput,
 ): Promise<PersistReservationMatchResult | null> {
@@ -64,12 +80,17 @@ export async function persistReservationMatchLinkage(
           reservationId: input.match.reservationId,
           eventKind: input.eventKind,
         });
-        const enrichedFields = await applySafeReservationEnrichment({
+        const reservationEnrichedFields = await applySafeReservationEnrichment({
           match: input.match,
           signals: input.signals,
           eventKind: input.eventKind,
           mode: "reservation",
         });
+        const metadataFields = buildStructuredMetadataFields(input.signals);
+        const enrichedFields = {
+          ...reservationEnrichedFields,
+          ...metadataFields,
+        };
         enrichedFieldKeys = Object.keys(enrichedFields);
 
         const event = await tx.reservationEmailEvent.create({

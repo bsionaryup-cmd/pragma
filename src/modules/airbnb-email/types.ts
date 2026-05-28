@@ -30,11 +30,19 @@ export type ExtractedReservationSignals = {
   guestPhone?: string | null;
   /** Total guests when email exposes a single count (maps to `adults` if still default). */
   guestCount?: number | null;
+  guestCountTotal?: number | null;
+  adultCount?: number | null;
+  childCount?: number | null;
+  infantCount?: number | null;
+  petCount?: number | null;
   checkIn?: string | null;
   checkOut?: string | null;
   grossAmount?: number | null;
   hostFee?: number | null;
   netPayout?: number | null;
+  guestTotalPaid?: number | null;
+  hostPayoutAmount?: number | null;
+  nightCount?: number | null;
   currency?: string | null;
   payoutSettlementDate?: string | null;
   payoutAccountId?: string | null;

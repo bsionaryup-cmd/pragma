@@ -7,6 +7,7 @@ import {
 } from "@/features/reservations/actions/reservation-email-enrichment.actions";
 import { Button } from "@/components/ui/button";
 import { reservationHasVisibleEmailEnrichment } from "@/lib/airbnb-email/reservation-enrichment-visibility";
+import { formatCurrency } from "@/lib/helpers/currency";
 import { formatDateTime } from "@/lib/helpers/date";
 import type { ReservationEmailEnrichmentDetail } from "@/services/reservations/reservation-email-enrichment.service";
 
@@ -22,6 +23,14 @@ function Row({ label, value }: { label: string; value: string | null }) {
       <span className="font-medium text-foreground">{label}:</span> {value}
     </p>
   );
+}
+
+function formatMoneyLine(
+  amount: number | null,
+  currency: string | null,
+): string | null {
+  if (amount == null) return null;
+  return formatCurrency(amount, currency ?? "COP");
 }
 
 export function ReservationEmailEnrichmentSection({
@@ -142,6 +151,32 @@ export function ReservationEmailEnrichmentSection({
           value={detail.reservationCodeFromEmail}
         />
         <Row label="Último evento" value={detail.lastEventKind} />
+        {detail.guestCountTotal != null ? (
+          <Row label="Huéspedes" value={String(detail.guestCountTotal)} />
+        ) : null}
+        {detail.adultCount != null ? (
+          <Row label="- Adultos" value={String(detail.adultCount)} />
+        ) : null}
+        {detail.childCount != null ? (
+          <Row label="- Niños" value={String(detail.childCount)} />
+        ) : null}
+        {detail.infantCount != null ? (
+          <Row label="- Bebés" value={String(detail.infantCount)} />
+        ) : null}
+        {detail.petCount != null ? (
+          <Row label="- Mascotas" value={String(detail.petCount)} />
+        ) : null}
+        <Row
+          label="Total huésped"
+          value={formatMoneyLine(detail.guestTotalPaid, detail.metadataCurrency)}
+        />
+        <Row
+          label="Ganancia anfitrión"
+          value={formatMoneyLine(
+            detail.hostPayoutAmount,
+            detail.metadataCurrency,
+          )}
+        />
         {detail.lastMatchConfidence != null ? (
           <Row
             label="Confianza match"

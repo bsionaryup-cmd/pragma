@@ -26,6 +26,8 @@ import {
   extractVisibleStayDates,
   normalizeVisibleStayDate,
 } from "@/modules/airbnb-email/parsing/visible-stay-date-extract";
+import { extractGuestCountSignals } from "@/modules/airbnb-email/parsing/guest-count-extract";
+import { extractReservationFinancialSignals } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 
 const CONFIRMATION_CODE_RE = /\b(HM[A-Z0-9]{6,12})\b/i;
 const EMAIL_RE = /\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/gi;
@@ -300,6 +302,17 @@ export function extractReservationSignals(input: {
   const messageBody =
     extractMessageSnippet(extractionText) ?? extractionText.slice(0, 8000);
   const reviewText = extractReviewText(extractionText);
+  const guestCounts = extractGuestCountSignals(extractionText);
+  if (guestCounts.guestCountTotal != null) {
+    airbnbEmailLog.info("guest_count_extracted", {
+      adultCount: guestCounts.adultCount ?? 0,
+      childCount: guestCounts.childCount ?? 0,
+      infantCount: guestCounts.infantCount ?? 0,
+      petCount: guestCounts.petCount ?? 0,
+      guestCountTotal: guestCounts.guestCountTotal,
+    });
+  }
+  const reservationFinancials = extractReservationFinancialSignals(extractionText);
 
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
@@ -311,6 +324,11 @@ export function extractReservationSignals(input: {
     guestEmail,
     guestPhone,
     guestCount,
+    guestCountTotal: guestCounts.guestCountTotal,
+    adultCount: guestCounts.adultCount,
+    childCount: guestCounts.childCount,
+    infantCount: guestCounts.infantCount,
+    petCount: guestCounts.petCount,
     checkIn,
     checkOut,
     grossAmount:
@@ -321,13 +339,16 @@ export function extractReservationSignals(input: {
       money[2] ??
       money[money.length - 1] ??
       null,
+    guestTotalPaid: reservationFinancials.guestTotalPaid,
+    hostPayoutAmount: reservationFinancials.hostPayoutAmount,
+    nightCount: reservationFinancials.nightCount,
     currency: /\bUSD\b/i.test(extractionText)
       ? "USD"
       : /\bCOP\b/i.test(extractionText)
         ? "COP"
         : /\bEUR\b/i.test(extractionText)
           ? "EUR"
-          : null,
+          : reservationFinancials.currency,
     payoutSettlementDate: merged.settlementDate ?? null,
     payoutAccountId: merged.payoutAccount ?? null,
     rating: rating ? Number(rating[1]) : null,

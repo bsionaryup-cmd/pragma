@@ -59,16 +59,20 @@ function ReservationCardComponent({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium leading-tight text-foreground">
-            {reservation.guestName}
-          </p>
-          <div className="mt-0.5">
+          <div className="mb-0.5">
             <PropertyIdentity
               name={reservation.property.name}
               unitNumber={reservation.property.unitNumber}
+              showName={false}
               size="sm"
             />
           </div>
+          <p className="truncate text-base font-semibold leading-tight text-foreground">
+            {reservation.guestName}
+          </p>
+          <p className="mt-0.5 truncate text-base text-foreground/80">
+            {reservation.property.name}
+          </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {holdActive ? (
@@ -92,7 +96,7 @@ function ReservationCardComponent({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-base text-foreground/80">
           <span className="tabular-nums">
             {formatStayRange(reservation.checkIn, reservation.checkOut)}
           </span>
@@ -105,7 +109,7 @@ function ReservationCardComponent({
             showLabel={false}
           />
         </div>
-        <span className="shrink-0 text-xs font-medium tabular-nums text-foreground">
+        <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
           {formatCurrency(Number(reservation.totalAmount), reservation.currency)}
         </span>
       </div>

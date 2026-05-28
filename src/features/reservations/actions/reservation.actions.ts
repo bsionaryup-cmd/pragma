@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { BookingPlatform } from "@prisma/client";
 import {
   reservationWizardSchema,
   reservationEditSchema,
@@ -110,6 +111,16 @@ export async function updateReservationAction(
   await requirePermission("reservations:write");
   await assertBillingUnlocked();
   const parsed = reservationEditSchema.parse(data);
+  const existing = await getReservationForInbox(id);
+  if (!existing) {
+    return { success: false as const, error: "Reserva no encontrada" };
+  }
+  if (existing.platform === BookingPlatform.AIRBNB) {
+    return {
+      success: false as const,
+      error: "Las reservas de Airbnb no se pueden editar manualmente.",
+    };
+  }
 
   try {
     await updateReservation(id, parsed);

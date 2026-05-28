@@ -11,6 +11,8 @@ import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import { persistReservationMatchLinkage } from "@/modules/airbnb-email/matching/reservation-match-persist";
+import { extractGuestCountSignals } from "@/modules/airbnb-email/parsing/guest-count-extract";
+import { extractReservationFinancialSignals } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
 export { reservationHasVisibleEmailEnrichment } from "@/lib/airbnb-email/reservation-enrichment-visibility";
@@ -44,6 +46,15 @@ export type ReservationEmailEnrichmentDetail = {
   pendingTaskKinds: string[];
   manualReviewPending: boolean;
   lastProcessedAt: string | null;
+  guestCountTotal: number | null;
+  adultCount: number | null;
+  childCount: number | null;
+  infantCount: number | null;
+  petCount: number | null;
+  guestTotalPaid: number | null;
+  hostPayoutAmount: number | null;
+  nightCount: number | null;
+  metadataCurrency: string | null;
 };
 
 export type ReservationEmailEnrichmentSummary = ReservationEmailEnrichmentDetail;
@@ -69,6 +80,18 @@ function readStringField(record: Prisma.JsonValue | null, field: string): string
   const obj = record as Record<string, unknown>;
   const raw = obj[field];
   return typeof raw === "string" ? raw : null;
+}
+
+function readNumberField(record: Prisma.JsonValue | null, field: string): number | null {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  const obj = record as Record<string, unknown>;
+  const raw = obj[field];
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function extractGuestNameFromEvent(event: {
@@ -398,7 +421,7 @@ export async function getReservationEmailEnrichmentSummary(
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 5,
+      take: 50,
     }),
     db.reservationPayout.findMany({
       where: { reservationId },
@@ -486,6 +509,83 @@ export async function getReservationEmailEnrichmentSummary(
   const fallbackGuestName = reservation?.guestName?.trim() || null;
   const airbnbGuestName = eventGuestName ?? fallbackGuestName ?? null;
   const latestAuditId = audits[0]?.id ?? null;
+  const latestEventWithStructured = events.find((event) => {
+    const fields = event.enrichedFields;
+    if (!fields || typeof fields !== "object" || Array.isArray(fields)) return false;
+    return (
+      "guestCountTotal" in fields ||
+      "guestTotalPaid" in fields ||
+      "hostPayoutAmount" in fields
+    );
+  });
+  const latestEventWithSignals = events.find((event) => {
+    if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) {
+      return false;
+    }
+    const payload = event.payload as Record<string, unknown>;
+    return Boolean(
+      payload.signals &&
+        typeof payload.signals === "object" &&
+        !Array.isArray(payload.signals),
+    );
+  });
+  const structuredFields = latestEventWithStructured?.enrichedFields ?? null;
+  const payloadSignals =
+    latestEventWithSignals?.payload &&
+    typeof latestEventWithSignals.payload === "object" &&
+    !Array.isArray(latestEventWithSignals.payload) &&
+    (latestEventWithSignals.payload as Record<string, unknown>).signals &&
+    typeof (latestEventWithSignals.payload as Record<string, unknown>).signals === "object" &&
+    !Array.isArray((latestEventWithSignals.payload as Record<string, unknown>).signals)
+      ? ((latestEventWithSignals.payload as Record<string, unknown>)
+          .signals as Prisma.JsonValue)
+      : null;
+
+  const guestCountTotal =
+    readNumberField(structuredFields, "guestCountTotal") ??
+    readNumberField(payloadSignals, "guestCountTotal");
+  const adultCount =
+    readNumberField(structuredFields, "adultCount") ??
+    readNumberField(payloadSignals, "adultCount");
+  const childCount =
+    readNumberField(structuredFields, "childCount") ??
+    readNumberField(payloadSignals, "childCount");
+  const infantCount =
+    readNumberField(structuredFields, "infantCount") ??
+    readNumberField(payloadSignals, "infantCount");
+  const petCount =
+    readNumberField(structuredFields, "petCount") ??
+    readNumberField(payloadSignals, "petCount");
+  const guestTotalPaid =
+    readNumberField(structuredFields, "guestTotalPaid") ??
+    readNumberField(payloadSignals, "guestTotalPaid");
+  const hostPayoutAmount =
+    readNumberField(structuredFields, "hostPayoutAmount") ??
+    readNumberField(payloadSignals, "hostPayoutAmount");
+  const nightCount =
+    readNumberField(structuredFields, "nightCount") ??
+    readNumberField(payloadSignals, "nightCount");
+  const metadataCurrency =
+    readStringField(structuredFields, "currency") ??
+    readStringField(payloadSignals, "currency");
+  const emailMatchBlob = readStringField(payloadSignals, "emailMatchBlob");
+  const fallbackGuestCounts = emailMatchBlob
+    ? extractGuestCountSignals(emailMatchBlob)
+    : {
+        guestCountTotal: null,
+        adultCount: null,
+        childCount: null,
+        infantCount: null,
+        petCount: null,
+      };
+  const fallbackFinancials = emailMatchBlob
+    ? extractReservationFinancialSignals(emailMatchBlob)
+    : {
+        guestTotalPaid: null,
+        hostPayoutAmount: null,
+        currency: null,
+        nightCount: null,
+      };
   airbnbEmailLog.info("enrichment_guest_name_persist_check", {
     reservationId,
     auditId: latestAuditId ?? undefined,
@@ -534,5 +634,15 @@ export async function getReservationEmailEnrichmentSummary(
     pendingTaskKinds: tasks.map((t) => t.kind),
     manualReviewPending: manualReviewAudits > 0,
     lastProcessedAt: audits[0]?.processedAt?.toISOString() ?? null,
+    guestCountTotal: guestCountTotal ?? fallbackGuestCounts.guestCountTotal ?? null,
+    adultCount: adultCount ?? fallbackGuestCounts.adultCount ?? null,
+    childCount: childCount ?? fallbackGuestCounts.childCount ?? null,
+    infantCount: infantCount ?? fallbackGuestCounts.infantCount ?? null,
+    petCount: petCount ?? fallbackGuestCounts.petCount ?? null,
+    guestTotalPaid: guestTotalPaid ?? fallbackFinancials.guestTotalPaid ?? null,
+    hostPayoutAmount:
+      hostPayoutAmount ?? fallbackFinancials.hostPayoutAmount ?? null,
+    nightCount: nightCount ?? fallbackFinancials.nightCount ?? null,
+    metadataCurrency: metadataCurrency ?? fallbackFinancials.currency ?? null,
   };
 }

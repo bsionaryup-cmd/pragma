@@ -225,10 +225,10 @@ export function ReservationsInbox({
         <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-background md:max-w-[400px] lg:max-w-[420px]">
           <header className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-4">
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold tracking-tight">
+              <h1 className="text-xl font-semibold tracking-tight">
                 {t("reservations.moduleTitle")}
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-lg text-foreground/80">
                 {t("reservations.total", { count: reservations.length })}
                 {" · "}
                 Próximas llegadas
@@ -302,7 +302,7 @@ export function ReservationsInbox({
                     setQuery("");
                     setPropertyFilter("all");
                   }}
-                  className="text-xs text-primary underline-offset-4 hover:underline"
+                  className="text-sm text-primary underline-offset-4 hover:underline"
                 >
                   Limpiar filtros
                 </button>
@@ -316,8 +316,8 @@ export function ReservationsInbox({
           >
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-                <p className="text-sm text-foreground">Sin reservas ni huéspedes</p>
-                <p className="max-w-xs text-xs text-muted-foreground">
+                <p className="text-base text-foreground">Sin reservas ni huéspedes</p>
+                <p className="max-w-xs text-base text-foreground/75">
                   {hasActiveFilters
                     ? "No hay resultados para tu búsqueda o filtros."
                     : "Usa el botón inferior para crear la primera reserva."}

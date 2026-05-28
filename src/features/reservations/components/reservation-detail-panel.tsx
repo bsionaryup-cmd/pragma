@@ -1,8 +1,18 @@
 "use client";
 
-import { Copy, Link2, Mail, Pencil, RefreshCw, Trash2, XCircle } from "lucide-react";
+import {
+  Copy,
+  Link2,
+  Mail,
+  Moon,
+  Pencil,
+  RefreshCw,
+  Trash2,
+  User,
+  XCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AccessCodeDisplay } from "@/components/access/access-code-display";
 import {
@@ -13,7 +23,7 @@ import {
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
 import { ReservationEditForm } from "@/features/reservations/components/reservation-edit-form";
-import { ReservationEmailEnrichmentSection } from "@/features/reservations/components/reservation-email-enrichment-section";
+import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import {
   countNights,
@@ -47,6 +57,7 @@ import { isOtaImportedReservation } from "@/lib/reservations/reservation-ota";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
+import type { ReservationEmailEnrichmentDetail } from "@/services/reservations/reservation-email-enrichment.service";
 
 function ReservationDetailSection({
   title,
@@ -67,7 +78,7 @@ function ReservationDetailSection({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <h4 className="text-xs font-medium text-muted-foreground">{title}</h4>
+        <h4 className="text-base font-medium text-foreground/80">{title}</h4>
         {headerAside}
       </div>
       <div className="space-y-1">{children}</div>
@@ -88,7 +99,7 @@ function ReservationMetaRow({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="shrink-0 text-base text-foreground/85">{label}</span>
       {children ?? (
         <span
           className={cn(
@@ -198,7 +209,7 @@ function TitularContactSummary({
   if (!contactLine && !localeLine) return null;
 
   return (
-    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+    <div className="mt-1.5 space-y-0.5 text-base text-foreground/80">
       {contactLine ? <p className="break-words">{contactLine}</p> : null}
       {localeLine ? <p>{localeLine}</p> : null}
     </div>
@@ -230,7 +241,7 @@ function RegisteredGuestsCompactList({
             key={guest.id}
             className="flex gap-2.5 px-3 py-2.5 hover:bg-muted/20"
           >
-            <span className="w-5 shrink-0 pt-0.5 text-center text-[10px] tabular-nums text-muted-foreground">
+            <span className="w-5 shrink-0 pt-0.5 text-center text-[10px] tabular-nums text-foreground/65">
               {index + 1}
             </span>
             <div className="min-w-0 flex-1">
@@ -239,19 +250,19 @@ function RegisteredGuestsCompactList({
                   {name}
                 </span>
                 {role ? (
-                  <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-muted-foreground">
+                  <span className="rounded-full bg-muted px-1.5 py-px text-[10px] font-medium text-foreground/65">
                     {role}
                   </span>
                 ) : null}
-                <span className="ml-auto text-[10px] text-muted-foreground">
+                <span className="ml-auto text-[10px] text-foreground/65">
                   {guestStatusLabels[guest.status]}
                 </span>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="mt-0.5 text-base text-foreground/80">
                 {documentLabel} · {guest.documentNumber}
               </p>
               {metaParts.length > 0 ? (
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                <p className="mt-0.5 truncate text-[11px] text-foreground/65">
                   {metaParts.join(" · ")}
                 </p>
               ) : null}
@@ -278,6 +289,8 @@ export function ReservationDetailPanel({
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [emailEnrichment, setEmailEnrichment] =
+    useState<ReservationEmailEnrichmentDetail | null>(null);
   const [isTokenPending, startTokenTransition] = useTransition();
   const displayStatus = resolveDisplayStatus(
     reservation.status,
@@ -310,6 +323,31 @@ export function ReservationDetailPanel({
     icalUid: reservation.icalUid,
   });
   const allowDelete = canDelete && !otaImported;
+  const allowManualEdit = canWrite && properties.length > 0 && reservation.platform !== "AIRBNB";
+  const displayReservationId =
+    reservation.platform === "AIRBNB"
+      ? emailEnrichment?.reservationCodeFromEmail?.trim() || reservationCode
+      : reservationCode;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (reservation.platform !== "AIRBNB") {
+      setEmailEnrichment(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    void getReservationEmailEnrichmentAction(reservation.id)
+      .then((detail) => {
+        if (!cancelled) setEmailEnrichment(detail);
+      })
+      .catch(() => {
+        if (!cancelled) setEmailEnrichment(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reservation.id, reservation.platform]);
 
   async function handleDelete() {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -406,7 +444,7 @@ export function ReservationDetailPanel({
           <p className="text-sm font-medium text-foreground">
             Reserva en espera de pago
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-foreground/65">
             Las fechas están reservadas temporalmente (30 min). El huésped debe
             pagar al menos el depósito ({holdDepositPercentLabel()})
             {holdExpiryLabel ? ` — ${holdExpiryLabel.toLowerCase()}` : ""}. Si no
@@ -420,7 +458,7 @@ export function ReservationDetailPanel({
           <p className="text-sm font-medium text-foreground">
             Tu huésped llega pronto
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-xs text-foreground/65">
             El check-in es en los próximos 2 días y aún falta el registro en{" "}
             {propertyLabel}. Comparte el enlace con calidez — un mensaje claro
             reduce fricción en la llegada.
@@ -500,53 +538,71 @@ export function ReservationDetailPanel({
       <div className="border-b border-border/60 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <ReservationStatusBadge
-              status={displayStatus}
-              label={displayStatusLabels[displayStatus]}
-            />
-            <h3 className="mt-2 text-base font-medium leading-tight text-foreground">
-              {reservation.guestName}
-            </h3>
-            <TitularContactSummary reservation={reservation} />
-            <ReservationEmailEnrichmentSection
-              reservationId={reservation.id}
-              platform={reservation.platform}
-            />
-            <div className="mt-2">
+            <div className="mb-0.5">
               <PropertyIdentity
                 name={reservation.property.name}
                 unitNumber={reservation.property.unitNumber}
-                size="sm"
+                showName={false}
+                size="lg"
+                unitClassName="text-2xl font-bold"
               />
             </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            <h3 className="mt-2 text-3xl font-semibold leading-snug tracking-tight text-foreground">
+              {reservation.guestName}
+            </h3>
+            <TitularContactSummary reservation={reservation} />
+            <p className="mt-2 flex items-center gap-1.5 text-lg font-semibold leading-relaxed text-foreground/85">
               {formatStayRange(reservation.checkIn, reservation.checkOut)}
               <span className="mx-1.5" aria-hidden>
                 ·
               </span>
-              {nights} {nights === 1 ? "noche" : "noches"}
+              <Moon className="h-4 w-4" aria-hidden />
+              <span>{nights}</span>
             </p>
-            {reservation.paymentStatus ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Pago:{" "}
-                <span className="font-medium text-foreground">
-                  {reservation.paymentStatus === "PAID"
-                    ? "Pagado"
-                    : reservation.paymentStatus === "PARTIAL"
-                      ? "Parcial"
-                      : "Pendiente"}
+            <p className="mt-1 text-base font-semibold text-foreground/85">
+              {reservation.platform === "AIRBNB" &&
+              emailEnrichment?.guestCountTotal != null ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <User className="h-4 w-4" aria-hidden />
+                  <span>
+                    {emailEnrichment.adultCount ?? 0} adultos
+                    {(emailEnrichment.childCount ?? 0) > 0
+                      ? `, ${emailEnrichment.childCount} niños`
+                      : ""}
+                    {(emailEnrichment.infantCount ?? 0) > 0
+                      ? `, ${emailEnrichment.infantCount} bebés`
+                      : ""}
+                    {(emailEnrichment.petCount ?? 0) > 0
+                      ? `, ${emailEnrichment.petCount} mascotas`
+                      : ""}
+                  </span>
                 </span>
-              </p>
-            ) : null}
-            {otaImported ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Reserva sincronizada desde OTA — no se puede eliminar manualmente.
-              </p>
-            ) : null}
+              ) : (
+                <span className="inline-flex items-center gap-1.5">
+                  <User className="h-4 w-4" aria-hidden />
+                  <span>
+                    {reservation.adults} adultos
+                    {reservation.children > 0 ? `, ${reservation.children} niños` : ""}
+                    {reservation.infants > 0 ? `, ${reservation.infants} bebés` : ""}
+                  </span>
+                </span>
+              )}
+            </p>
+            <div className="mt-1">
+              <ReservationSourceBadge
+                platform={reservation.platform}
+                size="sm"
+                showLabel={false}
+              />
+            </div>
           </div>
-          {(canWrite && properties.length > 0) || (allowDelete && !editing) ? (
-            <div className="flex shrink-0 items-center gap-1.5">
-              {canWrite && properties.length > 0 ? (
+          <div className="mr-10 flex shrink-0 flex-col items-end gap-2">
+            <p className="text-xs text-foreground/65">
+              ID: <span className="font-medium text-foreground/80">{displayReservationId}</span>
+            </p>
+            {allowManualEdit || (allowDelete && !editing) ? (
+              <div className="flex items-center gap-1.5">
+              {allowManualEdit ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -572,8 +628,9 @@ export function ReservationDetailPanel({
                   Eliminar
                 </Button>
               ) : null}
-            </div>
-          ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -611,6 +668,45 @@ export function ReservationDetailPanel({
               </ReservationDetailSection>
             ) : null}
 
+            <ReservationDetailSection title="Reserva">
+              <div className="rounded-xl border border-border/80 bg-card px-3 py-1 shadow-pragma-soft">
+                {reservation.createdAt ? (
+                  <p className="py-1.5 text-xs text-foreground/65">
+                    Creada:{" "}
+                    <span className="font-medium text-foreground/80">
+                      {formatCreatedAt(reservation.createdAt)}
+                    </span>
+                  </p>
+                ) : null}
+                <p className="py-1.5 text-sm text-foreground/80">
+                  <span className="text-foreground/80">Cuánto pagó:</span>{" "}
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(
+                      reservation.platform === "AIRBNB" &&
+                        emailEnrichment?.guestTotalPaid != null
+                        ? emailEnrichment.guestTotalPaid
+                        : Number(reservation.totalAmount),
+                      (reservation.platform === "AIRBNB"
+                        ? emailEnrichment?.metadataCurrency
+                        : null) ?? reservation.currency,
+                    )}
+                  </span>
+                </p>
+                {reservation.platform === "AIRBNB" &&
+                emailEnrichment?.hostPayoutAmount != null ? (
+                  <p className="py-1.5 text-sm text-foreground/80">
+                    <span className="text-foreground/80">Gana anfitrión:</span>{" "}
+                    <span className="font-medium text-foreground">
+                      {formatCurrency(
+                        emailEnrichment.hostPayoutAmount,
+                        emailEnrichment.metadataCurrency ?? reservation.currency,
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            </ReservationDetailSection>
+
             <ReservationDetailSection title="Huéspedes registrados">
               {registeredGuests.length > 0 ? (
                 <RegisteredGuestsCompactList guests={registeredGuests} />
@@ -620,52 +716,6 @@ export function ReservationDetailPanel({
                   cuando completen el formulario del link de registro.
                 </DetailEmptyState>
               )}
-            </ReservationDetailSection>
-
-            <ReservationDetailSection title="Reserva">
-              <div className="rounded-xl border border-border/80 bg-card px-3 py-1 shadow-pragma-soft">
-                <ReservationMetaRow label="Check-in" value={reservation.checkIn} />
-                <ReservationMetaRow label="Check-out" value={reservation.checkOut} />
-                <ReservationMetaRow
-                  label="Estancia"
-                  value={`${formatStayRange(reservation.checkIn, reservation.checkOut)} · ${nights} ${nights === 1 ? "noche" : "noches"}`}
-                />
-                <ReservationMetaRow
-                  label="Estado"
-                  value={displayStatusLabels[displayStatus]}
-                />
-                <ReservationMetaRow label="Origen">
-                  <ReservationSourceBadge platform={reservation.platform} size="sm" />
-                </ReservationMetaRow>
-                <ReservationMetaRow
-                  label="Total"
-                  value={formatCurrency(
-                    Number(reservation.totalAmount),
-                    reservation.currency,
-                  )}
-                  emphasize
-                />
-                <ReservationMetaRow
-                  label="Huéspedes"
-                  value={`${guests} total (${reservation.adults} adultos${
-                    reservation.children > 0 ? `, ${reservation.children} niños` : ""
-                  }${reservation.infants > 0 ? `, ${reservation.infants} bebés` : ""})`}
-                />
-                <ReservationMetaRow
-                  label={reservation.icalUid ? "Código iCal" : "Código PRAGMA"}
-                  value={reservationCode}
-                />
-                <ReservationMetaRow
-                  label="Notas"
-                  value={reservation.internalNotes}
-                />
-                {reservation.createdAt ? (
-                  <ReservationMetaRow
-                    label="Creada"
-                    value={formatCreatedAt(reservation.createdAt)}
-                  />
-                ) : null}
-              </div>
             </ReservationDetailSection>
 
             {canManagePayments ? (
@@ -686,7 +736,7 @@ export function ReservationDetailPanel({
                     </span>{" "}
                     huéspedes registrados
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-xs text-foreground/65">
                     Capacidad: {registrationProgress.capacity}{" "}
                     huésped{registrationProgress.capacity === 1 ? "" : "es"}
                     {!reservation.guestRegistrationCompletedAt &&
@@ -703,14 +753,14 @@ export function ReservationDetailPanel({
                       <p className="text-sm font-medium text-foreground">
                         {registrationStatusLabels[registration.status]}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-foreground/65">
                         Creado: {formatDateTime(registration.createdAt)}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-foreground/65">
                         Expira: {formatDateTime(registration.expiresAt)}
                       </p>
                     </div>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/65">
                       {registration.status}
                     </span>
                   </div>
@@ -793,7 +843,7 @@ export function ReservationDetailPanel({
                       className="rounded-xl border border-border/80 bg-card px-3 py-2 text-sm shadow-pragma-soft"
                     >
                       <p className="font-medium text-foreground">{block.guestName}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-foreground/65">
                         {formatStayRange(block.checkIn, block.checkOut)}
                       </p>
                     </li>

@@ -93,6 +93,38 @@ describe("extractReservationSignals", () => {
     assert.equal(signals.checkIn, "2026-06-11");
     assert.equal(signals.checkOut, "2026-06-14");
   });
+
+  it("extrae metadatos estructurados de huéspedes y finanzas por labels", () => {
+    const signals = extractReservationSignals({
+      subject: "Reserva confirmada",
+      body: `
+        Viajeros
+        3 adultos, 1 niño
+
+        Total (COP)
+        $449.400,00
+
+        Ganas
+        $366.508,17
+
+        Cobro del anfitrión
+        Precio total de la estancia
+        $449.400,00
+
+        3 noches
+      `,
+      html: null,
+    });
+    assert.equal(signals.adultCount, 3);
+    assert.equal(signals.childCount, 1);
+    assert.equal(signals.infantCount, null);
+    assert.equal(signals.petCount, null);
+    assert.equal(signals.guestCountTotal, 4);
+    assert.equal(signals.guestTotalPaid, 449400);
+    assert.equal(signals.hostPayoutAmount, 366508.17);
+    assert.equal(signals.currency, "COP");
+    assert.equal(signals.nightCount, 3);
+  });
 });
 
 describe("hashEmailContent", () => {
