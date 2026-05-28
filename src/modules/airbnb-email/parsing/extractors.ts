@@ -22,6 +22,10 @@ import {
   htmlPayloadRichness,
   isDegradedForwardPlainText,
 } from "@/modules/airbnb-email/parsing/structured-html-extract";
+import {
+  extractVisibleStayDates,
+  normalizeVisibleStayDate,
+} from "@/modules/airbnb-email/parsing/visible-stay-date-extract";
 
 const CONFIRMATION_CODE_RE = /\b(HM[A-Z0-9]{6,12})\b/i;
 const EMAIL_RE = /\b([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})\b/gi;
@@ -39,56 +43,12 @@ const UNIT_NUMBER_RE =
   /(?:unidad|unit|apto|apt|apartamento)\s*(?:#|n[°º.]?|no\.?)?\s*([a-z0-9-]{1,12})/i;
 const DATE_TOKEN_RE =
   /\b(\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-záéíóúñ.]+\s+de\s+\d{4}|\d{1,2}\s+[a-záéíóúñ.]+\s+\d{4})\b/i;
-const YEARLESS_DAY_MONTH_RE = /^(\d{1,2})\s+([a-záéíóúñ.]+)$/i;
 const SUBJECT_ARRIVAL_RE =
-  /(?:llega|arrives|arrival)\s+(?:el|on)\s+(\d{1,2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?)/i;
+  /(?:llega|arrives|arrival)\s+(?:el|on)\s+(.+)$/i;
 const LISTING_LABEL_RE =
   /(?:alojamiento|listing(?:\s+name)?|lugar|where you(?:'|&#39;)?ll stay)\s*:?\s*([^\n]{8,220})/i;
 const CHECKIN_RE = /(?:check-?in|llegada|arrival)\s*:?\s*([^\n]{3,80})/i;
 const CHECKOUT_RE = /(?:check-?out|salida|departure)\s*:?\s*([^\n]{3,80})/i;
-const MONTHS: Record<string, number> = {
-  ene: 1,
-  enero: 1,
-  jan: 1,
-  january: 1,
-  feb: 2,
-  febrero: 2,
-  february: 2,
-  mar: 3,
-  marzo: 3,
-  march: 3,
-  abr: 4,
-  abril: 4,
-  apr: 4,
-  april: 4,
-  may: 5,
-  mayo: 5,
-  jun: 6,
-  junio: 6,
-  june: 6,
-  jul: 7,
-  julio: 7,
-  july: 7,
-  ago: 8,
-  agosto: 8,
-  aug: 8,
-  august: 8,
-  sep: 9,
-  sept: 9,
-  septiembre: 9,
-  september: 9,
-  oct: 10,
-  octubre: 10,
-  october: 10,
-  nov: 11,
-  noviembre: 11,
-  november: 11,
-  dic: 12,
-  diciembre: 12,
-  dec: 12,
-  december: 12,
-};
-
 function parseMoneyToken(raw: string | undefined): number | null {
   if (!raw?.trim()) return null;
   const normalized = raw.replace(/[^\d.,-]/g, "");
@@ -171,51 +131,8 @@ function parseMoneyValues(text: string): number[] {
   return values;
 }
 
-function inferBookingYear(day: number, month: number): number {
-  const now = new Date();
-  const utcYear = now.getUTCFullYear();
-  const utcMonth = now.getUTCMonth() + 1;
-  const utcDay = now.getUTCDate();
-  if (month > utcMonth || (month === utcMonth && day >= utcDay)) {
-    return utcYear;
-  }
-  if (month < utcMonth - 1) {
-    return utcYear + 1;
-  }
-  return utcYear + 1;
-}
-
 function normalizeDateToken(value: string | null | undefined): string | null {
-  if (!value?.trim()) return null;
-  const raw = value.trim().toLowerCase().replace(/\.$/, "");
-  const iso = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
-  if (iso) return iso;
-
-  const deMatch = raw.match(/^(\d{1,2})\s+de\s+([a-záéíóúñ.]+)\s+de\s+(\d{4})$/i);
-  const plainMatch = raw.match(/^(\d{1,2})\s+([a-záéíóúñ.]+)\s+(\d{4})$/i);
-  const match = deMatch ?? plainMatch;
-  if (match) {
-    const day = Number(match[1]);
-    const monthKey = match[2].replace(/\./g, "");
-    const year = Number(match[3]);
-    const month = MONTHS[monthKey];
-    if (!month || !Number.isFinite(day) || !Number.isFinite(year)) return null;
-
-    const dd = String(day).padStart(2, "0");
-    const mm = String(month).padStart(2, "0");
-    return `${year}-${mm}-${dd}`;
-  }
-
-  const yearless = raw.match(YEARLESS_DAY_MONTH_RE);
-  if (!yearless?.[1] || !yearless[2]) return null;
-  const day = Number(yearless[1]);
-  const monthKey = yearless[2].replace(/\./g, "");
-  const month = MONTHS[monthKey];
-  if (!month || !Number.isFinite(day)) return null;
-  const year = inferBookingYear(day, month);
-  const dd = String(day).padStart(2, "0");
-  const mm = String(month).padStart(2, "0");
-  return `${year}-${mm}-${dd}`;
+  return normalizeVisibleStayDate(value);
 }
 
 function extractSubjectArrivalDate(subject: string): string | null {
@@ -301,6 +218,11 @@ export function extractReservationSignals(input: {
   if (structured.listingName) merged.listingName = structured.listingName;
   if (structured.checkIn) merged.checkIn = structured.checkIn;
   if (structured.checkOut) merged.checkOut = structured.checkOut;
+  if (input.html?.trim() && (!merged.checkIn || !merged.checkOut)) {
+    const visibleStay = extractVisibleStayDates(input.html);
+    if (!merged.checkIn && visibleStay.checkIn) merged.checkIn = visibleStay.checkIn;
+    if (!merged.checkOut && visibleStay.checkOut) merged.checkOut = visibleStay.checkOut;
+  }
   if (structured.guestName) merged.guestName = structured.guestName;
   if (structured.confirmationCode) {
     merged.confirmationCode = structured.confirmationCode;

@@ -10,6 +10,10 @@ import {
   normalizeVisibleListingName,
   scoreVisibleListingCandidate,
 } from "@/modules/airbnb-email/parsing/listing-name-extract";
+import {
+  extractVisibleStayDates,
+  looksLikeVisibleStayDateLine,
+} from "@/modules/airbnb-email/parsing/visible-stay-date-extract";
 
 export type StructuredAirbnbExtract = {
   listingName: string | null;
@@ -433,6 +437,7 @@ function extractVisibleLineCandidates(html: string): ListingCandidate[] {
   const candidates: ListingCandidate[] = [];
   const plain = stripHtmlToText(html);
   for (const line of plain.split("\n")) {
+    if (looksLikeVisibleStayDateLine(line)) continue;
     pushListingCandidate(candidates, line, "visible_line");
   }
   return candidates;
@@ -569,6 +574,26 @@ export function extractStructuredAirbnbFields(
       result.checkOut = isoFallback.checkOut;
       result.sources.push("html_iso:checkOut");
     }
+  }
+
+  if (!result.checkIn || !result.checkOut) {
+    const visibleStay = extractVisibleStayDates(html);
+    if (!result.checkIn && visibleStay.checkIn) {
+      result.checkIn = visibleStay.checkIn;
+      result.sources.push(...visibleStay.sources.map((s) => `${s}:checkIn`));
+    }
+    if (!result.checkOut && visibleStay.checkOut) {
+      result.checkOut = visibleStay.checkOut;
+      result.sources.push(...visibleStay.sources.map((s) => `${s}:checkOut`));
+    }
+  }
+
+  if (result.checkIn || result.checkOut) {
+    airbnbEmailLog.info("structured_dates_extracted", {
+      checkIn: result.checkIn ?? undefined,
+      checkOut: result.checkOut ?? undefined,
+      sources: result.sources.filter((s) => s.includes("date") || s.includes("check")).join(","),
+    });
   }
 
   return result;
