@@ -20,6 +20,7 @@ export type ReservationEmailEnrichmentDetail = {
   emailEventCount: number;
   linkedAuditCount: number;
   propertyAuditCount: number;
+  airbnbGuestName: string | null;
   reservationCodeFromEmail: string | null;
   lastEventKind: string | null;
   lastMatchConfidence: number | null;
@@ -62,6 +63,31 @@ type PendingAuditCandidate = {
   parsedPayload: Prisma.JsonValue | null;
   matchConfidence: Prisma.Decimal | null;
 };
+
+function readStringField(record: Prisma.JsonValue | null, field: string): string | null {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  const obj = record as Record<string, unknown>;
+  const raw = obj[field];
+  return typeof raw === "string" ? raw : null;
+}
+
+function extractGuestNameFromEvent(event: {
+  enrichedFields: Prisma.JsonValue | null;
+  payload: Prisma.JsonValue;
+}): string | null {
+  const fromEnriched = readStringField(event.enrichedFields, "guestName");
+  if (fromEnriched?.trim()) return fromEnriched.trim();
+  if (!event.payload || typeof event.payload !== "object" || Array.isArray(event.payload)) {
+    return null;
+  }
+  const payload = event.payload as Record<string, unknown>;
+  const signals =
+    payload.signals && typeof payload.signals === "object" && !Array.isArray(payload.signals)
+      ? (payload.signals as Record<string, unknown>)
+      : {};
+  const fromSignals = signals.guestName;
+  return typeof fromSignals === "string" && fromSignals.trim() ? fromSignals.trim() : null;
+}
 
 function extractSignalsFromParsedPayload(
   parsedPayload: Prisma.JsonValue | null,
@@ -333,6 +359,7 @@ export async function getReservationEmailEnrichmentSummary(
       where: { reservationId },
       select: {
         enrichedFields: true,
+        payload: true,
         eventKind: true,
         matchConfidence: true,
         matchMethod: true,
@@ -377,7 +404,7 @@ export async function getReservationEmailEnrichmentSummary(
     }),
     db.emailIngestionAudit.findMany({
       where: { reservationId },
-      select: { processedAt: true },
+      select: { id: true, processedAt: true },
       orderBy: { processedAt: "desc" },
       take: 1,
     }),
@@ -392,7 +419,7 @@ export async function getReservationEmailEnrichmentSummary(
     }),
     db.reservation.findUnique({
       where: { id: reservationId },
-      select: { reservationCode: true, propertyId: true },
+      select: { reservationCode: true, propertyId: true, guestName: true },
     }),
   ]);
 
@@ -421,6 +448,19 @@ export async function getReservationEmailEnrichmentSummary(
 
   const latestPayout = payouts[0];
   const latestComm = communications[0];
+  const latestEventWithGuest = events.find((event) => extractGuestNameFromEvent(event));
+  const eventGuestName = latestEventWithGuest
+    ? extractGuestNameFromEvent(latestEventWithGuest)
+    : null;
+  const fallbackGuestName = reservation?.guestName?.trim() || null;
+  const airbnbGuestName = eventGuestName ?? fallbackGuestName ?? null;
+  const latestAuditId = audits[0]?.id ?? null;
+  airbnbEmailLog.info("enrichment_guest_name_persist_check", {
+    reservationId,
+    auditId: latestAuditId ?? undefined,
+    guestName: airbnbGuestName ?? undefined,
+    persisted: Boolean(airbnbGuestName),
+  });
 
   return {
     emailEnriched:
@@ -430,6 +470,7 @@ export async function getReservationEmailEnrichmentSummary(
     emailEventCount: events.length,
     linkedAuditCount,
     propertyAuditCount,
+    airbnbGuestName,
     reservationCodeFromEmail:
       reservation?.reservationCode ??
       latestEvent?.confirmationCode ??

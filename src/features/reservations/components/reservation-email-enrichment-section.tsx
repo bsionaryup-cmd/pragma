@@ -134,6 +134,10 @@ export function ReservationEmailEnrichmentSection({
       </h4>
       <div className="space-y-1">
         <Row
+          label="Huésped Airbnb"
+          value={detail.airbnbGuestName ?? "No disponible"}
+        />
+        <Row
           label="Código reserva"
           value={detail.reservationCodeFromEmail}
         />

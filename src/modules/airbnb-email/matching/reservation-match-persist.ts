@@ -83,6 +83,19 @@ export async function persistReservationMatchLinkage(
           reservationId: input.match.reservationId,
           enrichedFieldCount: enrichedFieldKeys.length,
         });
+
+        const persistedGuestName =
+          (typeof enrichedFields.guestName === "string"
+            ? enrichedFields.guestName
+            : null) ??
+          input.signals.guestName ??
+          null;
+        airbnbEmailLog.info("enrichment_guest_name_persist_check", {
+          reservationId: input.match.reservationId,
+          auditId: input.auditId,
+          guestName: persistedGuestName ?? undefined,
+          persisted: Boolean(persistedGuestName?.trim()),
+        });
       }
 
       const linkedAudits = await tx.emailIngestionAudit.count({
