@@ -287,12 +287,24 @@ export async function matchReservationFromEmailSignals(
       parsedCheckOut: checkOut,
     });
     if (propertyScoped) {
+      const methodLabel =
+        propertyScoped.method === AirbnbEmailMatchMethod.LISTING_DATES
+          ? "PROPERTY_DATE_EXACT_MATCH"
+          : propertyScoped.method;
       airbnbEmailLog.info("match_branch_selected", {
         branch: "PROPERTY_RESERVATION_MATCH",
         reservationId: propertyScoped.reservationId,
         propertyId,
         decisiveSignal: "property_scoped_reservation",
+        method: methodLabel,
       });
+      if (methodLabel === "PROPERTY_DATE_EXACT_MATCH") {
+        airbnbEmailLog.info("guest_score_ignored_due_to_exact_date_overlap", {
+          propertyId,
+          reservationId: propertyScoped.reservationId,
+          guestNameFromEmail: signals.guestName ?? undefined,
+        });
+      }
       return applyMatchPolicy(propertyScoped, {
         hasConfirmationCodeInEmail: hasConfirmationCode,
       });

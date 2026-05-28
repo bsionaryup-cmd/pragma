@@ -36,6 +36,34 @@ export function stayDatesOverlapByCalendarDay(
   return cIn <= eOut && cOut >= eIn;
 }
 
+function startOfUtcDay(value: Date): number {
+  return Date.UTC(
+    value.getUTCFullYear(),
+    value.getUTCMonth(),
+    value.getUTCDate(),
+  );
+}
+
+/** Inclusive overlap days by calendar date (0 when no overlap). */
+export function overlapDaysByCalendarDay(
+  candidate: StayDateCandidate,
+  emailCheckIn: Date | null,
+  emailCheckOut: Date | null,
+): number {
+  if (!emailCheckIn) return 0;
+  const emailOut = emailCheckOut ?? emailCheckIn;
+  const start = Math.max(
+    startOfUtcDay(candidate.checkIn),
+    startOfUtcDay(emailCheckIn),
+  );
+  const end = Math.min(
+    startOfUtcDay(candidate.checkOut),
+    startOfUtcDay(emailOut),
+  );
+  if (end < start) return 0;
+  return Math.floor((end - start) / DAY_MS) + 1;
+}
+
 export function stayDatesOverlap(
   candidate: StayDateCandidate,
   emailCheckIn: Date | null,
