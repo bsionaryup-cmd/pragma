@@ -7,6 +7,7 @@ import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { guestNamesEquivalent } from "@/modules/airbnb-email/matching/guest-name-normalize";
 import { checkInWithinSlack } from "@/modules/airbnb-email/matching/stay-date-resolve";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
@@ -32,23 +33,7 @@ export function guestNameMatches(
   emailGuest: string | null | undefined,
   reservationGuest: string,
 ): boolean {
-  if (!emailGuest?.trim()) return false;
-  const tokens = emailGuest
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((token) => token.length >= 2);
-  if (tokens.length === 0) return false;
-  const reservationLower = reservationGuest.toLowerCase();
-  const reservationTokens = reservationGuest
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((token) => token.length >= 2);
-  if (!reservationLower.includes(tokens[0]!)) return false;
-  if (tokens.length === 1) return true;
-  if (reservationTokens.length === 1) return true;
-  return tokens.every((token) => reservationLower.includes(token));
+  return guestNamesEquivalent(emailGuest, reservationGuest);
 }
 
 function datesOverlap(

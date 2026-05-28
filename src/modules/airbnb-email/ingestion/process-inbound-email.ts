@@ -25,6 +25,7 @@ import {
   createEmailDerivedTask,
   createTasksForEmailEvent,
 } from "@/modules/airbnb-email/domains/task.domain";
+import { scheduleDelayedEnrichmentRetry } from "@/modules/airbnb-email/matching/delayed-enrichment-retry";
 import { matchReservationFromEmailSignals } from "@/modules/airbnb-email/matching/reservation-matcher";
 import {
   allowTrustedForwardedAirbnbEmail,
@@ -332,16 +333,41 @@ export async function processInboundAirbnbEmail(
         throw persistError;
       }
     } else {
+      const unresolvedPropertyId =
+        match.propertyId ?? options?.propertyId ?? null;
       await db.emailIngestionAudit.update({
         where: { id: audit.id },
         data: {
           reservationId: null,
-          propertyId: match.propertyId ?? options?.propertyId ?? null,
+          propertyId: unresolvedPropertyId,
           organizationId: match.organizationId ?? organizationId,
           matchMethod: match.method,
           matchConfidence: match.confidence,
         },
       });
+
+      if (
+        isReservationEventKind(classified.eventKind) &&
+        organizationId &&
+        unresolvedPropertyId
+      ) {
+        airbnbEmailLog.info("no_safe_candidate_found", {
+          auditId: audit.id,
+          propertyId: unresolvedPropertyId,
+          organizationId,
+        });
+        airbnbEmailLog.info("automatic_reconciliation_retry", {
+          auditId: audit.id,
+          organizationId,
+          propertyId: unresolvedPropertyId,
+          retryDelaysSeconds: "30,60,120",
+        });
+        scheduleDelayedEnrichmentRetry({
+          auditId: audit.id,
+          organizationId,
+          propertyId: unresolvedPropertyId,
+        });
+      }
     }
 
     if (isFinancialEventKind(classified.eventKind)) {

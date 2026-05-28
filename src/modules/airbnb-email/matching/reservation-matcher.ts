@@ -248,6 +248,20 @@ export async function matchReservationFromEmailSignals(
 
   let propertyId = options?.propertyId ?? null;
   let propertyResolutionAmbiguous = false;
+  if (propertyId) {
+    const explicitProperty = await db.property.findUnique({
+      where: { id: propertyId },
+      select: { name: true },
+    });
+    airbnbEmailLog.info("resolved_property_context", {
+      listingName: signals.listingName ?? undefined,
+      resolvedPropertyId: propertyId,
+      resolvedPropertyName: explicitProperty?.name ?? undefined,
+      propertyMatchMethod: "explicit_property_context",
+      propertyMatchConfidence: 1,
+      propertyFound: true,
+    });
+  }
   if (!propertyId && organizationId) {
     const resolved = await resolvePropertyIdFromEmailSignals(
       organizationId,
@@ -256,6 +270,27 @@ export async function matchReservationFromEmailSignals(
     );
     propertyResolutionAmbiguous = resolved.ambiguous;
     propertyId = resolved.propertyId;
+    if (resolved.propertyId) {
+      airbnbEmailLog.info("resolved_property_context", {
+        listingName: signals.listingName ?? undefined,
+        normalizedListing: resolved.normalizedListing ?? undefined,
+        resolvedPropertyId: resolved.propertyId,
+        resolvedPropertyName: resolved.resolvedPropertyName ?? undefined,
+        propertyMatchMethod: resolved.resolutionMethod ?? undefined,
+        propertyMatchConfidence: resolved.propertyMatchConfidence ?? undefined,
+        propertyFound: true,
+      });
+    } else {
+      airbnbEmailLog.warn("property_resolution_failed", {
+        listingName: signals.listingName ?? undefined,
+        normalizedListing: resolved.normalizedListing ?? undefined,
+        candidateProperties:
+          resolved.candidateProperties && resolved.candidateProperties.length > 0
+            ? JSON.stringify(resolved.candidateProperties)
+            : undefined,
+        propertyFound: false,
+      });
+    }
     if (resolved.ambiguous) {
       airbnbEmailLog.warn("property_mapping_failed", {
         organizationId,

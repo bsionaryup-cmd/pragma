@@ -265,12 +265,31 @@ export async function manualReservationEnrichmentResolver(
       ...scoredCandidate,
     };
   });
+  const candidateEvaluations = scored.map((row) => ({
+    auditId: row.audit.id,
+    score: row.score,
+    overlapDays: row.overlapDays,
+    reason: row.reason,
+    guestName: row.signals.guestName ?? null,
+    checkIn: row.signals.checkIn ?? null,
+    checkOut: row.signals.checkOut ?? null,
+    confirmationCode: row.signals.confirmationCode ?? null,
+  }));
 
   const best = scored
     .filter((row) => row.overlapDays >= 1 || row.score >= 80)
     .sort((a, b) => b.score - a.score)[0];
 
   if (!best) {
+    airbnbEmailLog.info("manual_enrichment_debug", {
+      reservationId,
+      propertyId: reservation.propertyId,
+      pendingAuditCount: pendingAudits.length,
+      candidateEvaluations:
+        candidateEvaluations.length > 0
+          ? JSON.stringify(candidateEvaluations)
+          : "[]",
+    });
     airbnbEmailLog.warn("manual_reservation_match_skipped", {
       reservationId,
       propertyId: reservation.propertyId,
@@ -301,6 +320,18 @@ export async function manualReservationEnrichmentResolver(
     best.audit.classification && best.audit.classification !== AirbnbEmailEventKind.UNKNOWN
       ? (best.audit.classification as AirbnbEmailEventKind)
       : AirbnbEmailEventKind.CONFIRMED;
+
+  airbnbEmailLog.info("manual_enrichment_debug", {
+    reservationId,
+    propertyId: reservation.propertyId,
+    pendingAuditCount: pendingAudits.length,
+    selectedAuditId: best.audit.id,
+    selectedReason: best.reason,
+    candidateEvaluations:
+      candidateEvaluations.length > 0
+        ? JSON.stringify(candidateEvaluations)
+        : "[]",
+  });
 
   await persistReservationMatchLinkage({
     auditId: best.audit.id,

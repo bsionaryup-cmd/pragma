@@ -216,17 +216,20 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
       ? []
       : await db.reservationGuest.findMany({
           where: {
-            isPrimary: true,
+            OR: [{ isReservationOwner: true }, { isPrimary: true }],
             reservationId: { in: reservations.map((r) => r.id) },
           },
+          orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
           select: {
             reservationId: true,
             fullName: true,
           },
         });
-  const primaryGuestByReservation = new Map(
-    primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
-  );
+  const primaryGuestByReservation = new Map<string, string>();
+  for (const guest of primaryGuests) {
+    if (primaryGuestByReservation.has(guest.reservationId)) continue;
+    primaryGuestByReservation.set(guest.reservationId, guest.fullName);
+  }
 
   const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
     reservations.map((r) => r.id),

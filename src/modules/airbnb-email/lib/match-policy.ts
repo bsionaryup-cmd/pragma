@@ -41,14 +41,9 @@ export function applyMatchPolicy(
     tier === "high" &&
     base.confidence >= 0.9;
 
-  const icalContextualPropertyAuto =
-    base.method === AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH &&
-    base.confidence >= 0.88;
+  const icalContextualPropertyAuto = false;
 
-  const propertyScopedAutoLink =
-    icalContextualPropertyAuto &&
-    Boolean(base.reservationId) &&
-    base.confidence >= 0.85;
+  const propertyScopedAutoLink = false;
 
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&

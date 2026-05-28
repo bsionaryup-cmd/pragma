@@ -7,6 +7,10 @@ import {
   narrowContextualCandidates,
 } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
 import {
+  guestNameMatchStrength,
+  normalizeGuestName,
+} from "@/modules/airbnb-email/matching/guest-name-normalize";
+import {
   checkInWithinSlack,
   inferStayDatesFromPropertyCandidates,
   overlapDaysByCalendarDay,
@@ -24,8 +28,12 @@ type PropertyReservationCandidate = {
   guestName: string;
   checkIn: Date;
   checkOut: Date;
+  status: ReservationStatus;
+  source: string;
+  createdAt: Date;
   icalUid: string | null;
   organizationId: string | null;
+  reservationCode: string | null;
 };
 
 type ScoredPropertyCandidate = {
@@ -34,11 +42,13 @@ type ScoredPropertyCandidate = {
   overlapDays: number;
   guestScore: number;
   confidence: number;
+  hmMatch: boolean;
   selectedReason?: string;
 };
 
-const CLEAR_WIN_MARGIN = 0.1;
-const MIN_AUTO_LINK_CONFIDENCE = 0.78;
+const MIN_AUTO_LINK_CONFIDENCE = 0.88;
+const MIN_DATE_OVERLAP_FOR_SAFE = 0.95;
+const MIN_NORMALIZED_GUEST_SCORE = 0.85;
 
 async function loadPropertyReservationCandidates(input: {
   propertyId: string;
@@ -65,7 +75,11 @@ async function loadPropertyReservationCandidates(input: {
       guestName: true,
       checkIn: true,
       checkOut: true,
+      status: true,
+      source: true,
+      createdAt: true,
       icalUid: true,
+      reservationCode: true,
       property: { select: { organizationId: true } },
     },
     orderBy: { checkIn: "asc" },
@@ -77,20 +91,64 @@ async function loadPropertyReservationCandidates(input: {
     guestName: row.guestName,
     checkIn: row.checkIn,
     checkOut: row.checkOut,
+    status: row.status,
+    source: row.source,
+    createdAt: row.createdAt,
     icalUid: row.icalUid,
     organizationId: row.property.organizationId,
+    reservationCode: row.reservationCode,
   }));
 }
 
-function guestSignalMatches(
-  emailGuest: string | null | undefined,
-  reservationGuest: string,
+async function scanPropertyReservationsForDebug(input: {
+  propertyId: string;
+  organizationId: string;
+}): Promise<
+  Array<{
+    id: string;
+    status: ReservationStatus;
+    source: string;
+    guestName: string;
+    checkIn: Date;
+    checkOut: Date;
+    createdAt: Date;
+  }>
+> {
+  const now = new Date();
+  const windowStart = new Date(now);
+  windowStart.setUTCDate(windowStart.getUTCDate() - 7);
+  const windowEnd = new Date(now);
+  windowEnd.setUTCDate(windowEnd.getUTCDate() + 180);
+
+  return db.reservation.findMany({
+    where: withVisibleReservationsFilter({
+      propertyId: input.propertyId,
+      platform: BookingPlatform.AIRBNB,
+      checkOut: { gte: windowStart },
+      checkIn: { lte: windowEnd },
+      property: { organizationId: input.organizationId },
+    }),
+    select: {
+      id: true,
+      status: true,
+      source: true,
+      guestName: true,
+      checkIn: true,
+      checkOut: true,
+      createdAt: true,
+    },
+    orderBy: { checkIn: "asc" },
+  });
+}
+
+function resolveHmMatch(
+  emailConfirmationCode: string | null | undefined,
+  reservationCode: string | null,
 ): boolean {
-  if (guestNameMatches(emailGuest, reservationGuest)) return true;
-  if (emailGuest?.trim() && isPlaceholderGuestName(reservationGuest)) {
-    return true;
-  }
-  return false;
+  const emailCode = emailConfirmationCode?.trim();
+  const reservationHm = reservationCode?.trim();
+  if (!emailCode || !reservationHm) return false;
+  return emailCode.toLowerCase() === reservationHm.toLowerCase();
 }
 
 function scorePropertyReservationCandidate(input: {
@@ -99,9 +157,16 @@ function scorePropertyReservationCandidate(input: {
   resolvedCheckOut: Date | null;
   emailGuest: string | null | undefined;
   hasConfirmationCode: boolean;
+  emailConfirmationCode: string | null | undefined;
 }): ScoredPropertyCandidate {
-  const { candidate, resolvedCheckIn, resolvedCheckOut, emailGuest, hasConfirmationCode } =
-    input;
+  const {
+    candidate,
+    resolvedCheckIn,
+    resolvedCheckOut,
+    emailGuest,
+    hasConfirmationCode,
+    emailConfirmationCode,
+  } = input;
 
   let dateOverlap = 0;
   let overlapDays = 0;
@@ -127,15 +192,19 @@ function scorePropertyReservationCandidate(input: {
     }
   }
 
+  const normalizedStrength = guestNameMatchStrength(emailGuest, candidate.guestName);
   let guestScore = 0;
-  if (guestSignalMatches(emailGuest, candidate.guestName)) {
-    guestScore = 1;
+  if (normalizedStrength >= MIN_NORMALIZED_GUEST_SCORE) {
+    guestScore = normalizedStrength;
   } else if (emailGuest?.trim() && isPlaceholderGuestName(candidate.guestName)) {
     guestScore = 0.55;
   }
 
+  const hmMatch = resolveHmMatch(emailConfirmationCode, candidate.reservationCode);
+
   let confidence = 0.52 + dateOverlap * 0.28 + guestScore * 0.18;
   if (hasConfirmationCode) confidence += 0.04;
+  if (hmMatch) confidence += 0.06;
   if (candidate.icalUid) confidence += 0.03;
   confidence = Math.min(confidence, 0.97);
 
@@ -145,126 +214,184 @@ function scorePropertyReservationCandidate(input: {
     overlapDays,
     guestScore,
     confidence,
+    hmMatch,
   };
 }
 
-function logScoredCandidates(
+function collectRejectedBecause(input: {
+  row: ScoredPropertyCandidate;
+  hasGuestSignal: boolean;
+}): string[] {
+  const reasons: string[] = [];
+  const { row, hasGuestSignal } = input;
+
+  if (row.confidence < MIN_AUTO_LINK_CONFIDENCE) {
+    reasons.push("confidence_below_threshold");
+  }
+  if (row.dateOverlap < MIN_DATE_OVERLAP_FOR_SAFE) {
+    reasons.push("dateOverlap_below_threshold");
+  }
+  if (hasGuestSignal && row.guestScore < MIN_NORMALIZED_GUEST_SCORE) {
+    reasons.push("guestScore_below_threshold");
+  }
+  if (!hasGuestSignal && row.guestScore > 0 && row.guestScore < MIN_NORMALIZED_GUEST_SCORE) {
+    reasons.push("guestScore_insufficient_without_strong_dates");
+  }
+
+  return reasons;
+}
+
+function isSafeAutoLinkCandidate(
+  row: ScoredPropertyCandidate,
+  hasGuestSignal: boolean,
+): boolean {
+  return collectRejectedBecause({ row, hasGuestSignal }).length === 0;
+}
+
+function filterSafeAutoLinkCandidates(input: {
+  scored: ScoredPropertyCandidate[];
+  hasGuestSignal: boolean;
+}): ScoredPropertyCandidate[] {
+  return input.scored.filter((row) =>
+    isSafeAutoLinkCandidate(row, input.hasGuestSignal),
+  );
+}
+
+function logCandidateEvaluationFailed(
   propertyId: string,
-  scored: ScoredPropertyCandidate[],
+  row: ScoredPropertyCandidate,
   emailGuestName: string | null | undefined,
+  rejectedBecause: string[],
+  extraReason?: string,
 ): void {
-  for (const row of scored) {
-    airbnbEmailLog.info("reservation_candidate_score", {
+  const reasons = [...rejectedBecause];
+  if (extraReason) reasons.push(extraReason);
+
+  airbnbEmailLog.info("candidate_evaluation_failed", {
+    propertyId,
+    reservationId: row.candidate.id,
+    guestNameFromReservation: row.candidate.guestName,
+    guestNameFromEmail: emailGuestName ?? undefined,
+    guestNameFromEmailNormalized: normalizeGuestName(emailGuestName) || undefined,
+    guestNameFromReservationNormalized:
+      normalizeGuestName(row.candidate.guestName) || undefined,
+    guestScore: Number(row.guestScore.toFixed(3)),
+    dateOverlap: Number(row.dateOverlap.toFixed(3)),
+    overlapDays: row.overlapDays,
+    hmMatch: row.hmMatch,
+    confidence: Number(row.confidence.toFixed(3)),
+    rejectedBecause: reasons.join(","),
+  });
+  airbnbEmailLog.info("reservation_candidate_filtered", {
+    propertyId,
+    reservationId: row.candidate.id,
+    filteredBecause: reasons.join(","),
+  });
+
+  if (rejectedBecause.includes("guestScore_below_threshold")) {
+    airbnbEmailLog.info("candidate_rejected_guest", {
       propertyId,
       reservationId: row.candidate.id,
-      guestNameFromReservation: row.candidate.guestName,
-      guestNameFromEmail: emailGuestName ?? undefined,
-      checkIn: row.candidate.checkIn.toISOString(),
-      checkOut: row.candidate.checkOut.toISOString(),
+      guestScore: row.guestScore,
+    });
+  }
+  if (rejectedBecause.includes("dateOverlap_below_threshold")) {
+    airbnbEmailLog.info("candidate_rejected_overlap", {
+      propertyId,
+      reservationId: row.candidate.id,
       dateOverlap: row.dateOverlap,
       overlapDays: row.overlapDays,
-      guestScore: row.guestScore,
-      confidence: Number(row.confidence.toFixed(3)),
-      selectedReason: row.selectedReason ?? undefined,
     });
   }
 }
 
-function logRejectedCandidates(
+function logAllFailedCandidates(
   propertyId: string,
   scored: ScoredPropertyCandidate[],
+  hasGuestSignal: boolean,
   selectedId: string | null,
-  rejectionReason: string,
+  extraReasonById?: Map<string, string>,
+  emailGuestName?: string | null,
 ): void {
   for (const row of scored) {
     if (row.candidate.id === selectedId) continue;
-    airbnbEmailLog.info("reservation_candidate_rejected", {
+    const rejectedBecause = collectRejectedBecause({ row, hasGuestSignal });
+    logCandidateEvaluationFailed(
       propertyId,
-      reservationId: row.candidate.id,
-      guestNameFromReservation: row.candidate.guestName,
-      checkIn: row.candidate.checkIn.toISOString(),
-      checkOut: row.candidate.checkOut.toISOString(),
-      dateOverlap: row.dateOverlap,
-      overlapDays: row.overlapDays,
-      guestScore: row.guestScore,
-      confidence: Number(row.confidence.toFixed(3)),
-      rejectionReason,
-    });
+      row,
+      emailGuestName,
+      rejectedBecause,
+      extraReasonById?.get(row.candidate.id),
+    );
   }
 }
 
-function pickScoredWinner(input: {
+function detectMultiplePlaceholderCandidates(
+  propertyId: string,
+  scored: ScoredPropertyCandidate[],
+  emailGuestName: string | null | undefined,
+): boolean {
+  const overlappingPlaceholders = scored.filter(
+    (row) =>
+      isPlaceholderGuestName(row.candidate.guestName) &&
+      row.dateOverlap >= MIN_DATE_OVERLAP_FOR_SAFE,
+  );
+
+  if (overlappingPlaceholders.length < 2) return false;
+
+  airbnbEmailLog.warn("multiple_placeholder_candidates_detected", {
+    propertyId,
+    candidateCount: overlappingPlaceholders.length,
+    reservationIds: overlappingPlaceholders.map((r) => r.candidate.id).join(","),
+    overlapsJson: JSON.stringify(
+      overlappingPlaceholders.map((r) => ({
+        reservationId: r.candidate.id,
+        dateOverlap: r.dateOverlap,
+        overlapDays: r.overlapDays,
+        guestScore: r.guestScore,
+        checkIn: r.candidate.checkIn.toISOString(),
+        checkOut: r.candidate.checkOut.toISOString(),
+      })),
+    ),
+    guestNameFromEmail: emailGuestName ?? undefined,
+  });
+
+  return true;
+}
+
+function logSuccessfulVsFailedMatchComparison(input: {
   propertyId: string;
   scored: ScoredPropertyCandidate[];
-  requireGuestSignal: boolean;
-}): ScoredPropertyCandidate | null {
-  const viable = input.scored.filter((row) => {
-    if (row.confidence < MIN_AUTO_LINK_CONFIDENCE) return false;
-    if (row.dateOverlap >= 0.65) return true;
-    if (row.guestScore >= 1 && row.dateOverlap >= 0.5) return true;
-    if (!input.requireGuestSignal && row.dateOverlap >= 0.92) return true;
-    return false;
-  });
+  safeCandidates: ScoredPropertyCandidate[];
+  narrowedCount: number;
+  hasGuestName: boolean;
+  emailGuestName: string | null | undefined;
+}): void {
+  const best = [...input.scored].sort((a, b) => b.confidence - a.confidence)[0];
+  const bestSafe = input.safeCandidates[0];
 
-  if (viable.length === 0) return null;
-
-  const ranked = [...viable].sort((a, b) => b.confidence - a.confidence);
-  const top = ranked[0]!;
-  const second = ranked[1] ?? null;
-
-  if (!second) {
-    top.selectedReason = "single_viable_candidate";
-    return top;
-  }
-
-  const margin = top.confidence - second.confidence;
-  if (margin >= CLEAR_WIN_MARGIN) {
-    top.selectedReason = "clear_confidence_winner";
-    return top;
-  }
-
-  if (
-    top.dateOverlap >= 1 &&
-    top.guestScore >= 0.5 &&
-    (second.dateOverlap < 0.65 || second.guestScore < 0.5)
-  ) {
-    top.selectedReason = "exact_overlap_beats_weak_second";
-    return top;
-  }
-
-  if (top.dateOverlap >= 1 && top.guestScore >= 1) {
-    top.selectedReason = "exact_overlap_and_guest";
-    return top;
-  }
-
-  if (top.dateOverlap >= 1 && second.dateOverlap < 1) {
-    top.selectedReason = "exact_overlap_unique";
-    airbnbEmailLog.info("guest_score_ignored_due_to_exact_date_overlap", {
-      propertyId: input.propertyId,
-      reservationId: top.candidate.id,
-      guestScoreTop: top.guestScore,
-      guestScoreSecond: second.guestScore,
-      topDateOverlap: top.dateOverlap,
-      secondDateOverlap: second.dateOverlap,
-    });
-    return top;
-  }
-
-  logRejectedCandidates(
-    input.propertyId,
-    input.scored,
-    null,
-    "confidence_too_close",
-  );
-  airbnbEmailLog.warn("reservation_candidate_rejected", {
+  airbnbEmailLog.info("successful_vs_failed_match_comparison", {
     propertyId: input.propertyId,
-    reason: "confidence_too_close",
-    topReservationId: top.candidate.id,
-    secondReservationId: second.candidate.id,
-    topConfidence: top.confidence,
-    secondConfidence: second.confidence,
+    outcome: input.safeCandidates.length === 1 ? "would_auto_link" : "no_safe_auto_link",
+    narrowedCount: input.narrowedCount,
+    hasGuestName: input.hasGuestName,
+    safeCandidateCount: input.safeCandidates.length,
+    bestReservationId: best?.candidate.id,
+    bestConfidence: best ? Number(best.confidence.toFixed(3)) : undefined,
+    bestDateOverlap: best?.dateOverlap,
+    bestGuestScore: best?.guestScore,
+    bestHmMatch: best?.hmMatch,
+    bestGuestNormalizedMatch: best
+      ? guestNameMatches(input.emailGuestName, best.candidate.guestName)
+      : undefined,
+    bestSafeReservationId: bestSafe?.candidate.id,
+    bestSafeConfidence: bestSafe ? Number(bestSafe.confidence.toFixed(3)) : undefined,
+    placeholderOverlapCount: input.scored.filter(
+      (r) =>
+        isPlaceholderGuestName(r.candidate.guestName) &&
+        r.dateOverlap >= MIN_DATE_OVERLAP_FOR_SAFE,
+    ).length,
   });
-  return null;
 }
 
 function buildPropertyScopedMatch(
@@ -277,20 +404,16 @@ function buildPropertyScopedMatch(
     emailGuestName: string | null | undefined;
   },
 ): ContextualMatchBase {
-  const guestNameMatch = scored.guestScore >= 1;
-  const dateOverlap = scored.dateOverlap >= 0.65;
-
-  airbnbEmailLog.info("reservation_candidate_selected", {
+  airbnbEmailLog.info("candidate_safe_match_found", {
     propertyId: input.propertyId,
     reservationId: selected.id,
     confidence: scored.confidence,
     decisiveSignal: input.decisiveSignal,
     selectedReason: scored.selectedReason ?? input.decisiveSignal,
-    guestNameMatch,
-    dateOverlap,
-    dateOverlapScore: scored.dateOverlap,
-    overlapDays: scored.overlapDays,
     guestScore: scored.guestScore,
+    dateOverlap: scored.dateOverlap,
+    overlapDays: scored.overlapDays,
+    hmMatch: scored.hmMatch,
     guestNameFromReservation: selected.guestName,
     guestNameFromEmail: input.emailGuestName ?? undefined,
     hasConfirmationCode: input.hasConfirmationCode,
@@ -304,7 +427,7 @@ function buildPropertyScopedMatch(
     propertyId: selected.propertyId,
     organizationId: selected.organizationId,
     method:
-      scored.dateOverlap >= 0.95
+      scored.dateOverlap >= MIN_DATE_OVERLAP_FOR_SAFE
         ? AirbnbEmailMatchMethod.LISTING_DATES
         : AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
     confidence: scored.confidence,
@@ -339,6 +462,32 @@ export async function matchReservationByPropertyContext(input: {
     propertyId: input.propertyId,
     organizationId: input.organizationId,
   });
+  airbnbEmailLog.info("reservation_placeholder_scan_started", {
+    propertyId: input.propertyId,
+    organizationId: input.organizationId,
+  });
+  const debugReservations = await scanPropertyReservationsForDebug({
+    propertyId: input.propertyId,
+    organizationId: input.organizationId,
+  });
+  airbnbEmailLog.info("reservation_placeholder_scan_result", {
+    propertyId: input.propertyId,
+    reservationCount: debugReservations.length,
+    reservations:
+      debugReservations.length > 0
+        ? JSON.stringify(
+            debugReservations.map((r) => ({
+              reservationId: r.id,
+              status: r.status,
+              source: r.source,
+              guestName: r.guestName,
+              checkIn: r.checkIn.toISOString(),
+              checkOut: r.checkOut.toISOString(),
+              createdAt: r.createdAt.toISOString(),
+            })),
+          )
+        : "[]",
+  });
 
   airbnbEmailLog.info("reservation_candidate_pool", {
     propertyId: input.propertyId,
@@ -350,8 +499,31 @@ export async function matchReservationByPropertyContext(input: {
       )
       .join("|"),
   });
+  const candidateIds = new Set(candidates.map((c) => c.id));
+  for (const reservation of debugReservations) {
+    if (candidateIds.has(reservation.id)) continue;
+    const filteredBecause: string[] = [];
+    if (reservation.status === ReservationStatus.CANCELLED) {
+      filteredBecause.push("status_not_allowed");
+    }
+    if (filteredBecause.length === 0) {
+      filteredBecause.push("filtered_by_visibility_or_window");
+    }
+    airbnbEmailLog.info("reservation_candidate_filtered", {
+      propertyId: input.propertyId,
+      reservationId: reservation.id,
+      filteredBecause: filteredBecause.join(","),
+    });
+  }
 
   if (candidates.length === 0) {
+    if (debugReservations.length === 0) {
+      airbnbEmailLog.warn("email_arrived_before_placeholder_exists", {
+        propertyId: input.propertyId,
+        organizationId: input.organizationId,
+        reason: "no_reservations_on_property_at_match_time",
+      });
+    }
     airbnbEmailLog.warn("property_reservation_match_rejected", {
       propertyId: input.propertyId,
       reason: "no_active_reservations_on_property",
@@ -380,9 +552,31 @@ export async function matchReservationByPropertyContext(input: {
       resolvedCheckOut: resolvedDates.checkOut,
       emailGuest: input.signals.guestName,
       hasConfirmationCode,
+      emailConfirmationCode: input.signals.confirmationCode,
     }),
   );
-  logScoredCandidates(input.propertyId, scored, input.signals.guestName);
+
+  for (const row of scored) {
+    airbnbEmailLog.info("reservation_candidate_score", {
+      propertyId: input.propertyId,
+      reservationId: row.candidate.id,
+      guestNameFromReservation: row.candidate.guestName,
+      guestNameFromEmail: input.signals.guestName ?? undefined,
+      checkIn: row.candidate.checkIn.toISOString(),
+      checkOut: row.candidate.checkOut.toISOString(),
+      dateOverlap: row.dateOverlap,
+      overlapDays: row.overlapDays,
+      guestScore: row.guestScore,
+      hmMatch: row.hmMatch,
+      confidence: Number(row.confidence.toFixed(3)),
+    });
+  }
+
+  const hasMultiplePlaceholders = detectMultiplePlaceholderCandidates(
+    input.propertyId,
+    scored,
+    input.signals.guestName,
+  );
 
   const narrowed = narrowContextualCandidates(
     candidates,
@@ -391,61 +585,155 @@ export async function matchReservationByPropertyContext(input: {
     resolvedDates.checkOut,
   );
 
+  const safeCandidates = filterSafeAutoLinkCandidates({
+    scored,
+    hasGuestSignal: hasGuestName,
+  });
+
+  if (hasMultiplePlaceholders) {
+    airbnbEmailLog.info("candidate_rejected_multiple", {
+      propertyId: input.propertyId,
+      reason: "multiple_placeholder_candidates_detected",
+      safeCandidateCount: safeCandidates.length,
+    });
+    logAllFailedCandidates(
+      input.propertyId,
+      scored,
+      hasGuestName,
+      null,
+      undefined,
+      input.signals.guestName,
+    );
+    logSuccessfulVsFailedMatchComparison({
+      propertyId: input.propertyId,
+      scored,
+      safeCandidates: [],
+      narrowedCount: narrowed.length,
+      hasGuestName,
+      emailGuestName: input.signals.guestName,
+    });
+    airbnbEmailLog.warn("property_reservation_match_rejected", {
+      propertyId: input.propertyId,
+      reason: "no_unique_safe_candidate",
+      subReason: "multiple_placeholder_candidates_detected",
+    });
+    return null;
+  }
+
+  const tryAutoLink = (winner: ScoredPropertyCandidate, decisiveSignal: string) => {
+    winner.selectedReason = decisiveSignal;
+    logAllFailedCandidates(
+      input.propertyId,
+      scored,
+      hasGuestName,
+      winner.candidate.id,
+      undefined,
+      input.signals.guestName,
+    );
+    return buildPropertyScopedMatch(winner.candidate, winner, {
+      propertyId: input.propertyId,
+      decisiveSignal,
+      hasConfirmationCode,
+      emailGuestName: input.signals.guestName,
+    });
+  };
+
   if (narrowed.length === 1) {
     const selected = narrowed[0]!;
     const row =
       scored.find((s) => s.candidate.id === selected.id) ??
       scorePropertyReservationCandidate({
-        candidate: selected,
+        candidate: { ...selected, reservationCode: null },
         resolvedCheckIn: resolvedDates.checkIn,
         resolvedCheckOut: resolvedDates.checkOut,
         emailGuest: input.signals.guestName,
         hasConfirmationCode,
+        emailConfirmationCode: input.signals.confirmationCode,
       });
-    row.selectedReason = "narrow_single_winner";
-    logRejectedCandidates(
+
+    if (isSafeAutoLinkCandidate(row, hasGuestName)) {
+      return tryAutoLink(row, "property_narrow:unique_safe_candidate");
+    }
+
+    const rejectedBecause = collectRejectedBecause({ row, hasGuestSignal: hasGuestName });
+    logCandidateEvaluationFailed(
       input.propertyId,
-      scored,
-      selected.id,
-      "narrow_single_winner",
+      row,
+      input.signals.guestName,
+      rejectedBecause,
+      "narrow_single_winner_not_safe",
     );
-    return buildPropertyScopedMatch(selected, row, {
-      propertyId: input.propertyId,
-      decisiveSignal: "property_narrow:single",
-      hasConfirmationCode,
-      emailGuestName: input.signals.guestName,
-    });
   }
 
-  const winner = pickScoredWinner({
+  if (safeCandidates.length > 1) {
+    airbnbEmailLog.warn("auto_link_rejected_multiple_candidates", {
+      propertyId: input.propertyId,
+      candidateCount: safeCandidates.length,
+      reason: "multiple_similar_candidates",
+    });
+    airbnbEmailLog.info("candidate_rejected_multiple", {
+      propertyId: input.propertyId,
+      reservationIds: safeCandidates.map((c) => c.candidate.id).join(","),
+      reason: "multiple_safe_candidates",
+    });
+    for (const row of safeCandidates) {
+      logCandidateEvaluationFailed(
+        input.propertyId,
+        row,
+        input.signals.guestName,
+        ["multiple_safe_candidates"],
+        undefined,
+      );
+    }
+    logSuccessfulVsFailedMatchComparison({
+      propertyId: input.propertyId,
+      scored,
+      safeCandidates,
+      narrowedCount: narrowed.length,
+      hasGuestName,
+      emailGuestName: input.signals.guestName,
+    });
+    return null;
+  }
+
+  if (safeCandidates.length === 1) {
+    airbnbEmailLog.info("auto_link_allowed_unique_candidate", {
+      propertyId: input.propertyId,
+      reservationId: safeCandidates[0]!.candidate.id,
+      candidateCount: 1,
+      reason: "unique_safe_candidate",
+    });
+    return tryAutoLink(safeCandidates[0]!, "property_scored:unique_safe_candidate");
+  }
+
+  logAllFailedCandidates(
+    input.propertyId,
+    scored,
+    hasGuestName,
+    null,
+    undefined,
+    input.signals.guestName,
+  );
+  for (const row of scored) {
+    const filteredBecause = collectRejectedBecause({
+      row,
+      hasGuestSignal: hasGuestName,
+    });
+    if (filteredBecause.length === 0) continue;
+    airbnbEmailLog.info("reservation_candidate_filtered", {
+      propertyId: input.propertyId,
+      reservationId: row.candidate.id,
+      filteredBecause: filteredBecause.join(","),
+    });
+  }
+  logSuccessfulVsFailedMatchComparison({
     propertyId: input.propertyId,
     scored,
-    requireGuestSignal: hasGuestName,
+    safeCandidates,
+    narrowedCount: narrowed.length,
+    hasGuestName,
+    emailGuestName: input.signals.guestName,
   });
-
-  if (winner) {
-    if (winner.dateOverlap >= 0.95) {
-      winner.selectedReason = "PROPERTY_DATE_EXACT_MATCH";
-      airbnbEmailLog.info("guest_score_ignored_due_to_exact_date_overlap", {
-        propertyId: input.propertyId,
-        reservationId: winner.candidate.id,
-        guestScore: winner.guestScore,
-        dateOverlap: winner.dateOverlap,
-      });
-    }
-    logRejectedCandidates(
-      input.propertyId,
-      scored,
-      winner.candidate.id,
-      "outscored",
-    );
-    return buildPropertyScopedMatch(winner.candidate, winner, {
-      propertyId: input.propertyId,
-      decisiveSignal: "property_scored:winner",
-      hasConfirmationCode,
-      emailGuestName: input.signals.guestName,
-    });
-  }
 
   airbnbEmailLog.warn("property_reservation_match_rejected", {
     propertyId: input.propertyId,

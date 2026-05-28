@@ -155,7 +155,7 @@ describe("contextual match policy", () => {
     assert.equal(match.allowReservationEnrichment, false);
   });
 
-  it("permite enrich en ICAL_CONTEXTUAL property auto 0.88+ sin HM", () => {
+  it("no auto-enrich en ICAL_CONTEXTUAL 0.88+ sin HM", () => {
     const match = applyMatchPolicy(
       {
         reservationId: "res_1",
@@ -166,8 +166,8 @@ describe("contextual match policy", () => {
       },
       { hasConfirmationCodeInEmail: false },
     );
-    assert.equal(match.allowReservationEnrichment, true);
-    assert.equal(match.requiresManualReview, false);
+    assert.equal(match.allowReservationEnrichment, false);
+    assert.equal(match.requiresManualReview, true);
   });
 
   it("permite enrich en ICAL_CONTEXTUAL_MATCH medium 0.84+ con HM", () => {
