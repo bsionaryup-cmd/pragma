@@ -212,6 +212,83 @@ export async function matchByListingContextual(input: {
     confirmationCode: input.signals.confirmationCode ?? undefined,
   });
 
+  const narrowed = narrowContextualCandidates(
+    candidates,
+    input.signals,
+    input.parsedCheckIn,
+    input.parsedCheckOut,
+  );
+  if (narrowed.length === 1) {
+    const selected = narrowed[0]!;
+    const guestNameMatch = guestNameMatches(
+      input.signals.guestName,
+      selected.guestName,
+    );
+    const dateOverlapSelected = Boolean(
+      input.parsedCheckIn &&
+        input.parsedCheckOut &&
+        datesOverlap(
+          selected.checkIn,
+          selected.checkOut,
+          input.parsedCheckIn,
+          input.parsedCheckOut,
+        ),
+    );
+    let confidence = 0.85;
+    if (guestNameMatch) confidence += 0.08;
+    else if (
+      input.signals.guestName?.trim() &&
+      isPlaceholderGuestName(selected.guestName)
+    ) {
+      confidence += 0.05;
+    }
+    if (dateOverlapSelected) confidence += 0.06;
+    if (hasConfirmationCode) confidence += 0.04;
+    if (input.propertyId && selected.propertyId === input.propertyId) {
+      confidence += 0.04;
+    }
+    confidence = Math.min(confidence, 0.96);
+
+    const decisiveSignal = guestNameMatch
+      ? dateOverlapSelected
+        ? "narrow:guestName+dates"
+        : "narrow:guestName"
+      : dateOverlapSelected
+        ? "narrow:dates"
+        : input.propertyId
+          ? "narrow:property_single"
+          : "narrow:single_candidate";
+
+    airbnbEmailLog.info("ical_context_selected", {
+      propertyId: input.propertyId ?? undefined,
+      reservationId: selected.id,
+      confidence,
+      guestNameMatch,
+      dateOverlap: dateOverlapSelected,
+      hasConfirmationCode,
+      decisiveSignal,
+      reason: decisiveSignal,
+    });
+
+    airbnbEmailLog.info("contextual_match_selected", {
+      propertyId: input.propertyId ?? undefined,
+      reservationId: selected.id,
+      confidence,
+      hasIcalUid: Boolean(selected.icalUid),
+      usedParsedDates: dateOverlapSelected,
+      guestNameSignal: guestNameMatch,
+      branch: "narrow_contextual",
+    });
+
+    return {
+      reservationId: selected.id,
+      propertyId: selected.propertyId,
+      organizationId: selected.organizationId,
+      method: AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
+      confidence,
+    };
+  }
+
   if (candidates.length === 0) {
     airbnbEmailLog.info("ical_context_candidates", {
       propertyId: input.propertyId ?? undefined,

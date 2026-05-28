@@ -51,6 +51,7 @@ describe("extractReservationSignals metadata", () => {
     });
     assert.equal(signals.confirmationCode, "HM4SPXSTS2");
     assert.equal(signals.guestName, "Karla Durán");
+    assert.match(signals.checkIn ?? "", /^2026-06-19$/);
     assert.equal(signals.airbnbRoomId, "urbanova803");
     assert.equal(signals.airbnbRoomIdNumeric, "1659842170040094387");
     assert.ok(signals.emailMatchBlob?.includes("urbanova803"));

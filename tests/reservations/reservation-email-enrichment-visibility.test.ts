@@ -10,6 +10,7 @@ function emptyDetail(): ReservationEmailEnrichmentVisibilityInput {
     emailEnriched: false,
     emailEventCount: 0,
     linkedAuditCount: 0,
+    propertyAuditCount: 0,
     lastEventKind: null,
     lastMatchConfidence: null,
     payoutCount: 0,
@@ -32,6 +33,14 @@ describe("reservationHasVisibleEmailEnrichment", () => {
       emailEventCount: 1,
       lastEventKind: "CONFIRMED",
       lastMatchConfidence: 0.98,
+    };
+    assert.equal(reservationHasVisibleEmailEnrichment(detail), true);
+  });
+
+  it("muestra con correos procesados en la propiedad sin vincular", () => {
+    const detail = {
+      ...emptyDetail(),
+      propertyAuditCount: 1,
     };
     assert.equal(reservationHasVisibleEmailEnrichment(detail), true);
   });

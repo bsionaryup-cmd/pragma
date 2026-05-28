@@ -9,6 +9,7 @@ export type ReservationEmailEnrichmentDetail = {
   emailEnriched: boolean;
   emailEventCount: number;
   linkedAuditCount: number;
+  propertyAuditCount: number;
   reservationCodeFromEmail: string | null;
   lastEventKind: string | null;
   lastMatchConfidence: number | null;
@@ -116,9 +117,21 @@ export async function getReservationEmailEnrichmentSummary(
     }),
     db.reservation.findUnique({
       where: { id: reservationId },
-      select: { reservationCode: true },
+      select: { reservationCode: true, propertyId: true },
     }),
   ]);
+
+  const propertyAuditCount = reservation?.propertyId
+    ? await db.emailIngestionAudit.count({
+        where: {
+          propertyId: reservation.propertyId,
+          ...(scope.organizationId
+            ? { organizationId: scope.organizationId }
+            : {}),
+          OR: [{ reservationId: null }, { reservationId: { not: reservationId } }],
+        },
+      })
+    : 0;
 
   const latestEvent = events[0];
   const enrichedEvent = events.find((event) => {
@@ -141,6 +154,7 @@ export async function getReservationEmailEnrichmentSummary(
       Boolean(latestEvent?.confirmationCode),
     emailEventCount: events.length,
     linkedAuditCount,
+    propertyAuditCount,
     reservationCodeFromEmail:
       reservation?.reservationCode ??
       latestEvent?.confirmationCode ??

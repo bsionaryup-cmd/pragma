@@ -3,6 +3,7 @@ export type ReservationEmailEnrichmentVisibilityInput = {
   emailEnriched: boolean;
   emailEventCount: number;
   linkedAuditCount: number;
+  propertyAuditCount: number;
   payoutCount: number;
   communicationCount: number;
   reviewCount: number;
@@ -20,6 +21,7 @@ export function reservationHasVisibleEmailEnrichment(
     detail.emailEnriched ||
     detail.emailEventCount > 0 ||
     detail.linkedAuditCount > 0 ||
+    detail.propertyAuditCount > 0 ||
     detail.payoutCount > 0 ||
     detail.communicationCount > 0 ||
     detail.reviewCount > 0 ||

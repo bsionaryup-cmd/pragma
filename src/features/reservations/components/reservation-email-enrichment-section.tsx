@@ -64,6 +64,25 @@ export function ReservationEmailEnrichmentSection({
     );
   }
 
+  const linkedToReservation = detail.linkedAuditCount > 0 || detail.emailEventCount > 0;
+  if (!linkedToReservation && detail.propertyAuditCount > 0) {
+    return (
+      <section className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-3">
+        <h4 className="text-xs font-medium text-muted-foreground">
+          Airbnb Email Enrichment
+        </h4>
+        <p className="text-xs text-muted-foreground">
+          {detail.propertyAuditCount === 1
+            ? "Hay 1 correo Airbnb procesado para esta propiedad que aún no se vinculó a esta reserva."
+            : `Hay ${detail.propertyAuditCount} correos Airbnb procesados para esta propiedad que aún no se vincularon a esta reserva.`}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Reenvía el correo de confirmación o revisa que el huésped y las fechas coincidan con el iCal.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-3">
       <h4 className="text-xs font-medium text-muted-foreground">
