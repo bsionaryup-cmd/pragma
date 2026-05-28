@@ -40,10 +40,13 @@ import {
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import {
   isOtaImportedReservation,
   OTA_RESERVATION_DELETE_MESSAGE,
 } from "@/lib/reservations/reservation-ota";
+import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -90,14 +93,33 @@ type ReservationRow = {
   guestRegistration?: ReservationInboxItem["guestRegistration"];
   guestRegistrationProgress?: ReservationInboxItem["guestRegistrationProgress"];
   accessCode?: ReservationDetailItem["accessCode"];
+  airbnbEnrichmentGuestName?: string | null;
 };
 
 function toInboxItem(r: ReservationRow): ReservationInboxItem {
   const ownerGuest =
     r.guests?.find((guest) => guest.isReservationOwner) ??
     r.guests?.find((guest) => guest.isPrimary);
-  const visibleGuestName =
-    ownerGuest?.fullName.trim() || r.guestName.trim() || "Registro pendiente";
+  const visibleGuestName = resolveReservationDisplayGuestName({
+    platform: r.platform,
+    airbnbEnrichmentGuestName: r.airbnbEnrichmentGuestName,
+    guestName: r.guestName,
+    primaryGuestName: ownerGuest?.fullName,
+  });
+  if (process.env.NODE_ENV !== "production" && r.platform === BookingPlatform.AIRBNB) {
+    airbnbEmailLog.info("reservation_display_guest_name_resolved", {
+      reservationId: r.id,
+      platform: r.platform,
+      resolvedGuestName: visibleGuestName,
+      source: r.airbnbEnrichmentGuestName?.trim()
+        ? "airbnb_enrichment"
+        : r.guestName?.trim()
+          ? "reservation_guest"
+          : ownerGuest?.fullName?.trim()
+            ? "primary_guest"
+            : "fallback",
+    });
+  }
   const progress = computeGuestRegistrationProgress({
     guests: r.guests,
     propertyMaxGuests: r.property.maxGuests,
@@ -254,9 +276,10 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
   });
 
   const ids = rows.map((row) => row.id);
-  const [guestsByReservation, registrationsByReservation] = await Promise.all([
+  const [guestsByReservation, registrationsByReservation, airbnbGuestByReservation] = await Promise.all([
     getGuestsByReservationIds(ids),
     getRegistrationsByReservationIds(ids),
+    getAirbnbEnrichedGuestNameByReservationIds(ids),
   ]);
 
   return rows.map((row) =>
@@ -264,6 +287,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       ...row,
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registrationsByReservation.get(row.id) ?? null,
+      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
     }),
   );
 }
@@ -355,7 +379,7 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  const [guestsByReservation, registration, accessCredential] = await Promise.all([
+  const [guestsByReservation, registration, accessCredential, airbnbGuestByReservation] = await Promise.all([
     getGuestsByReservationIds([row.id]),
     getActiveGuestRegistrationForReservation(row.id),
     db.accessCredential.findFirst({
@@ -363,6 +387,7 @@ export async function getReservationForInbox(
       orderBy: { createdAt: "desc" },
       select: { status: true, codeEncrypted: true },
     }),
+    getAirbnbEnrichedGuestNameByReservationIds([row.id]),
   ]);
 
   const accessCode = accessCredential
@@ -381,6 +406,7 @@ export async function getReservationForInbox(
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registration,
       accessCode,
+      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
     },
     relatedBlocks,
   );

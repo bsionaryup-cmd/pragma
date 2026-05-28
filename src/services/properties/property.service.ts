@@ -32,6 +32,8 @@ import {
 import { db } from "@/lib/db";
 import { assertCanAddPropertyForUser } from "@/lib/billing/plan-limits";
 import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
 async function resolvePropertyScope(userId: string, propertyId?: string) {
   const organizationId = await getEffectiveOrganizationIdForUser(userId);
@@ -56,13 +58,19 @@ function getMonthBounds(reference = new Date()) {
 function toUpcomingReservation(r: {
   id: string;
   guestName: string;
+  platform: BookingPlatform;
+  airbnbEnrichmentGuestName?: string | null;
   checkIn: Date;
   checkOut: Date;
   status: PropertyUpcomingReservation["status"];
 }): PropertyUpcomingReservation {
   return {
     id: r.id,
-    guestName: r.guestName,
+    guestName: resolveReservationDisplayGuestName({
+      platform: r.platform,
+      airbnbEnrichmentGuestName: r.airbnbEnrichmentGuestName ?? null,
+      guestName: r.guestName,
+    }),
     checkIn: r.checkIn.toISOString().slice(0, 10),
     checkOut: r.checkOut.toISOString().slice(0, 10),
     status: r.status,
@@ -98,6 +106,7 @@ function mapPropertyRow(
     reservations: Array<{
       id: string;
       guestName: string;
+      airbnbEnrichmentGuestName?: string | null;
       checkIn: Date;
       checkOut: Date;
       status: PropertyUpcomingReservation["status"];
@@ -207,14 +216,20 @@ export async function listPropertiesForGrid(
     },
     orderBy: { checkIn: "asc" },
   });
+  const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    reservations.map((reservation) => reservation.id),
+  );
 
   const reservationsByProperty = new Map<
     string,
-    Array<(typeof reservations)[number]>
+    Array<(typeof reservations)[number] & { airbnbEnrichmentGuestName: string | null }>
   >();
   for (const reservation of reservations) {
     const list = reservationsByProperty.get(reservation.propertyId) ?? [];
-    list.push(reservation);
+    list.push({
+      ...reservation,
+      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
+    });
     reservationsByProperty.set(reservation.propertyId, list);
   }
 
@@ -301,13 +316,33 @@ export async function getPropertyDetail(
       platform: true,
     },
   });
+  const allRelevantReservations = [
+    ...property.reservations,
+    ...allMonthReservations.filter(
+      (monthReservation) =>
+        !property.reservations.some(
+          (existingReservation) => existingReservation.id === monthReservation.id,
+        ),
+    ),
+  ];
+  const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    allRelevantReservations.map((reservation) => reservation.id),
+  );
+  const enrichedPropertyReservations = property.reservations.map((reservation) => ({
+    ...reservation,
+    airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
+  }));
+  const enrichedAllMonthReservations = allMonthReservations.map((reservation) => ({
+    ...reservation,
+    airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
+  }));
 
   const grid = mapPropertyRow(
     {
       ...property,
-      reservations: allMonthReservations.length
-        ? allMonthReservations
-        : property.reservations,
+      reservations: enrichedAllMonthReservations.length
+        ? enrichedAllMonthReservations
+        : enrichedPropertyReservations,
     },
     today,
     monthStart,
@@ -346,10 +381,12 @@ export async function getPropertyDetail(
     lastIcalSyncedAt: property.lastIcalSyncedAt?.toISOString() ?? null,
     upcomingReservations: filterVisibleReservations(
       property.icalUrl,
-      property.reservations,
+      enrichedPropertyReservations,
     ).map(toUpcomingReservation),
     pendingTasks,
-    monthRevenue: String(sumMonthRevenue(allMonthReservations, monthStart, monthEnd)),
+    monthRevenue: String(
+      sumMonthRevenue(enrichedAllMonthReservations, monthStart, monthEnd),
+    ),
     createdAt: property.createdAt.toISOString(),
     smartAccess: {
       lock: property.propertyLock

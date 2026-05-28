@@ -1,16 +1,35 @@
 const isDev = process.env.NODE_ENV === "development";
 
+function readMsEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
 /** Auto-sync Airbnb → PRAGMA: diferido para no competir con la carga inicial del dashboard. */
-export const AIRBNB_AUTO_SYNC_INITIAL_MS = isDev ? 60_000 : 25_000;
+export const AIRBNB_AUTO_SYNC_INITIAL_MS = readMsEnv(
+  "NEXT_PUBLIC_AIRBNB_AUTO_SYNC_INITIAL_MS",
+  isDev ? 30_000 : 25_000,
+);
 
 /** Sondeo periódico en dashboard abierto. Más espaciado en dev para aliviar localhost. */
-export const AIRBNB_AUTO_SYNC_MS = isDev ? 180_000 : 90_000;
+export const AIRBNB_AUTO_SYNC_MS = readMsEnv(
+  "NEXT_PUBLIC_AIRBNB_AUTO_SYNC_MS",
+  isDev ? 60_000 : 90_000,
+);
 
 /** Mínimo entre auto-syncs disparados por visible/interval (evita tormentas). */
-export const AIRBNB_AUTO_SYNC_COOLDOWN_MS = 60_000;
+export const AIRBNB_AUTO_SYNC_COOLDOWN_MS = readMsEnv(
+  "NEXT_PUBLIC_AIRBNB_AUTO_SYNC_COOLDOWN_MS",
+  30_000,
+);
 
 /** Omite sync completo si la última sync fue reciente (salvo sync manual). */
-export const AIRBNB_AUTO_SYNC_RECENT_MS = 5 * 60_000;
+export const AIRBNB_AUTO_SYNC_RECENT_MS = readMsEnv(
+  "NEXT_PUBLIC_AIRBNB_AUTO_SYNC_RECENT_MS",
+  5 * 60_000,
+);
 
 export const AIRBNB_SYNC_COMPLETE_EVENT = "pragma-airbnb-sync-complete";
 export const AIRBNB_SYNC_FAILED_EVENT = "pragma-airbnb-sync-failed";

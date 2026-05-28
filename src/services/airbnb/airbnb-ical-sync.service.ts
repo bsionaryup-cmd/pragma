@@ -424,6 +424,14 @@ export async function syncPropertyIcalCalendarInner(
             : "Sincronizado desde iCal Airbnb",
         },
       });
+      icalSyncLog.info("placeholder_reservation_created", {
+        propertyId: property.id,
+        propertyName: property.name,
+        reservationId: createdReservation.id,
+        icalUid: event.uid,
+        status,
+        blocked,
+      });
       if (!blocked && isGuestRegistrationEligibleStatus(status)) {
         await ensureGuestRegistrationForReservation(createdReservation.id);
       }

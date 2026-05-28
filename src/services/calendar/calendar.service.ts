@@ -31,6 +31,9 @@ import {
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
 import { purgeGhostReservationsThrottled } from "@/services/reservations/ghost-reservation.service";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
+import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
 async function loadCalendarProperties(scope: TenantDataScope) {
   const base = {
@@ -225,20 +228,43 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
     primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
   );
 
-  const reservationDtos: CalendarReservationDto[] = reservations.map((r) => ({
-    id: r.id,
-    propertyId: r.propertyId,
-    guestName:
-      primaryGuestByReservation.get(r.id)?.trim() ||
-      r.guestName.trim() ||
-      "Registro pendiente",
-    checkIn: prismaDateToKey(r.checkIn),
-    checkOut: prismaDateToKey(r.checkOut),
-    status: r.status,
-    totalAmount: r.totalAmount.toString(),
-    currency: r.currency,
-    platform: r.platform,
-  }));
+  const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    reservations.map((r) => r.id),
+  );
+
+  const reservationDtos: CalendarReservationDto[] = reservations.map((r) => {
+    const resolvedGuestName = resolveReservationDisplayGuestName({
+      platform: r.platform,
+      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(r.id) ?? null,
+      guestName: r.guestName,
+      primaryGuestName: primaryGuestByReservation.get(r.id) ?? null,
+    });
+    if (process.env.NODE_ENV !== "production" && r.platform === "AIRBNB") {
+      airbnbEmailLog.info("reservation_display_guest_name_resolved", {
+        reservationId: r.id,
+        platform: r.platform,
+        resolvedGuestName,
+        source: airbnbGuestByReservation.get(r.id)
+          ? "airbnb_enrichment"
+          : r.guestName?.trim()
+            ? "reservation_guest"
+            : primaryGuestByReservation.get(r.id)
+              ? "primary_guest"
+              : "fallback",
+      });
+    }
+    return {
+      id: r.id,
+      propertyId: r.propertyId,
+      guestName: resolvedGuestName,
+      checkIn: prismaDateToKey(r.checkIn),
+      checkOut: prismaDateToKey(r.checkOut),
+      status: r.status,
+      totalAmount: r.totalAmount.toString(),
+      currency: r.currency,
+      platform: r.platform,
+    };
+  });
 
   return {
     properties: sortPropertiesByUnitNumber(

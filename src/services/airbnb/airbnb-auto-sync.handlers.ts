@@ -12,15 +12,15 @@ import { db } from "@/lib/db";
 import { resolveTenantDataScopeForUserId } from "@/lib/platform/require-tenant-data-scope";
 import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
 import { TenantAccessError } from "@/lib/platform/tenant-access";
+import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
+import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 
 const AIRBNB_SYNC_TIMEOUT_MS = 90_000;
 
 function revalidateSyncedPaths() {
   revalidatePath("/properties");
   revalidatePath("/integrations/airbnb");
-  revalidatePath("/reservations");
-  revalidatePath("/calendar");
-  revalidatePath("/");
+  invalidateLivePmsCaches("ical_sync");
 }
 
 export async function handleAirbnbSyncStatus(ownerId: string) {
@@ -35,6 +35,10 @@ export async function handleAirbnbSyncCleanup(ownerId: string) {
 }
 
 export async function handleAirbnbSyncAll(ownerId: string) {
+  icalSyncLog.info("ical_silent_sync_started", {
+    scope: "owner",
+    ownerId,
+  });
   await assertBillingUnlocked();
   await enforceOwnerDisconnectedAirbnbImports(ownerId);
 
@@ -68,6 +72,16 @@ export async function handleAirbnbSyncAll(ownerId: string) {
     "La sincronización con Airbnb tardó demasiado. Reintenta en unos segundos.",
   );
 
+  icalSyncLog.info("ical_silent_sync_completed", {
+    scope: "owner",
+    ownerId,
+    propertiesSynced: summary.propertiesSynced,
+    created: summary.created,
+    updated: summary.updated,
+    cancelled: summary.cancelled,
+    durationMs: summary.durationMs,
+  });
+
   return { success: true as const, summary };
 }
 
@@ -75,6 +89,11 @@ export async function handleAirbnbSyncProperty(
   ownerId: string,
   propertyId: string,
 ) {
+  icalSyncLog.info("ical_silent_sync_started", {
+    scope: "property",
+    ownerId,
+    propertyId,
+  });
   await assertBillingUnlocked();
 
   const scope = await resolveTenantDataScopeForUserId(ownerId);
@@ -90,6 +109,15 @@ export async function handleAirbnbSyncProperty(
   }
 
   const result = await syncPropertyIcalCalendar(propertyId, ownerId);
+  icalSyncLog.info("ical_silent_sync_completed", {
+    scope: "property",
+    ownerId,
+    propertyId,
+    created: result.created,
+    updated: result.updated,
+    cancelled: result.cancelled,
+    durationMs: result.fetchMs,
+  });
   return { success: true as const, result };
 }
 

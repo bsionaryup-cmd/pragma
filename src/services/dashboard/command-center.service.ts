@@ -30,6 +30,8 @@ import {
   type PanelReservationRow,
 } from "@/services/dashboard/dashboard.service";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
 export type CommandCenterKpis = {
   occupancyCurrent: number;
@@ -265,6 +267,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       select: {
         id: true,
         guestName: true,
+        platform: true,
         createdAt: true,
         property: { select: { name: true, unitNumber: true } },
       },
@@ -395,11 +398,18 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     });
   }
 
+  const activityGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    recentReservations.map((reservation) => reservation.id),
+  );
   const activity: ActivityItem[] = [
     ...recentReservations.map((r) => ({
       id: `res-${r.id}`,
       type: "reservation" as const,
-      title: r.guestName,
+      title: resolveReservationDisplayGuestName({
+        platform: r.platform,
+        airbnbEnrichmentGuestName: activityGuestByReservation.get(r.id) ?? null,
+        guestName: r.guestName,
+      }),
       subtitle: formatPropertyLabel(r.property),
       at: r.createdAt.toISOString(),
     })),

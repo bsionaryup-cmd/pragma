@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
+import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
 import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import {
   isReservationEventKind,
@@ -55,6 +56,11 @@ export async function persistReservationMatchLinkage(
 
       let enrichedFieldKeys: string[] = [];
       if (isReservationEventKind(input.eventKind)) {
+        airbnbEmailLog.info("reservation_enrichment_started", {
+          auditId: input.auditId,
+          reservationId: input.match.reservationId,
+          eventKind: input.eventKind,
+        });
         const enrichedFields = await applySafeReservationEnrichment({
           match: input.match,
           signals: input.signals,
@@ -95,6 +101,12 @@ export async function persistReservationMatchLinkage(
           auditId: input.auditId,
           guestName: persistedGuestName ?? undefined,
           persisted: Boolean(persistedGuestName?.trim()),
+        });
+        airbnbEmailLog.info("reservation_enrichment_completed", {
+          auditId: input.auditId,
+          reservationId: input.match.reservationId,
+          eventKind: input.eventKind,
+          enrichedFieldCount: enrichedFieldKeys.length,
         });
       }
 
@@ -144,6 +156,8 @@ export async function persistReservationMatchLinkage(
         fields: result.enrichedFieldKeys.join(","),
       });
     }
+
+    invalidateLivePmsCaches("reservation_linkage");
 
     return {
       linkedAuditCount: result.linkedAudits,

@@ -12,6 +12,8 @@ import {
   mergeReservationScope,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
 export type DashboardStats = {
   activeReservations: number;
@@ -113,6 +115,7 @@ export type PanelReservationRow = {
 
 type PanelReservationWithPrimaryGuest = PanelReservation & {
   primaryGuestName: string | null;
+  airbnbEnrichmentGuestName: string | null;
 };
 
 async function attachPrimaryGuestNames<T extends { id: string }>(
@@ -122,21 +125,37 @@ async function attachPrimaryGuestNames<T extends { id: string }>(
 
   const primaryGuests = await db.reservationGuest.findMany({
     where: {
-      isPrimary: true,
+      OR: [{ isReservationOwner: true }, { isPrimary: true }],
       reservationId: { in: reservations.map((reservation) => reservation.id) },
     },
+    orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
     select: {
       reservationId: true,
       fullName: true,
     },
   });
-  const nameByReservation = new Map(
-    primaryGuests.map((guest) => [guest.reservationId, guest.fullName]),
-  );
+  const nameByReservation = new Map<string, string>();
+  for (const guest of primaryGuests) {
+    if (nameByReservation.has(guest.reservationId)) continue;
+    nameByReservation.set(guest.reservationId, guest.fullName);
+  }
 
   return reservations.map((reservation) => ({
     ...reservation,
     primaryGuestName: nameByReservation.get(reservation.id) ?? null,
+  }));
+}
+
+async function attachAirbnbEnrichmentGuestNames<T extends { id: string }>(
+  reservations: T[],
+): Promise<Array<T & { airbnbEnrichmentGuestName: string | null }>> {
+  if (reservations.length === 0) return [];
+  const guestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    reservations.map((reservation) => reservation.id),
+  );
+  return reservations.map((reservation) => ({
+    ...reservation,
+    airbnbEnrichmentGuestName: guestByReservation.get(reservation.id) ?? null,
   }));
 }
 
@@ -167,10 +186,12 @@ export function toPanelReservationRow(
 ): PanelReservationRow {
   return {
     id: reservation.id,
-    guestName:
-      reservation.primaryGuestName?.trim() ||
-      reservation.guestName.trim() ||
-      "Registro pendiente",
+    guestName: resolveReservationDisplayGuestName({
+      platform: reservation.platform,
+      airbnbEnrichmentGuestName: reservation.airbnbEnrichmentGuestName,
+      guestName: reservation.guestName,
+      primaryGuestName: reservation.primaryGuestName,
+    }),
     adults: reservation.adults,
     children: reservation.children,
     infants: reservation.infants,
@@ -257,7 +278,8 @@ export async function getUpcomingArrivals(scope: TenantDataScope, limit = 20) {
     orderBy: { checkIn: "asc" },
     take: limit,
   });
-  return attachPrimaryGuestNames(reservations);
+  const withPrimary = await attachPrimaryGuestNames(reservations);
+  return attachAirbnbEnrichmentGuestNames(withPrimary);
 }
 
 export async function getUpcomingDepartures(scope: TenantDataScope, limit = 20) {
@@ -278,7 +300,8 @@ export async function getUpcomingDepartures(scope: TenantDataScope, limit = 20) 
     orderBy: { checkOut: "asc" },
     take: limit,
   });
-  return attachPrimaryGuestNames(reservations);
+  const withPrimary = await attachPrimaryGuestNames(reservations);
+  return attachAirbnbEnrichmentGuestNames(withPrimary);
 }
 
 export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
@@ -292,5 +315,6 @@ export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
     orderBy: { checkOut: "asc" },
     take: limit,
   });
-  return attachPrimaryGuestNames(reservations);
+  const withPrimary = await attachPrimaryGuestNames(reservations);
+  return attachAirbnbEnrichmentGuestNames(withPrimary);
 }
