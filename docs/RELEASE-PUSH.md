@@ -34,6 +34,7 @@ Las migraciones del RC incluyen, entre otras:
 | `GET /api/cron/guest-payment-reconcile` | Cada 10–15 min |
 | `GET /api/cron/billing-renewal` | Diario |
 | `GET /api/cron/airbnb-ical-sync` | Según volumen iCal |
+| `GET /api/cron/airbnb-email-enrichment-retry` | Cada 5 min |
 | `GET /api/cron/pricelabs-sync` | Según plan |
 | `GET /api/cron/ttlock-sync` | Según plan |
 

@@ -45,6 +45,91 @@ function buildStructuredMetadataFields(
   return metadata;
 }
 
+export async function reapplyReservationEnrichmentFromAudit(
+  input: PersistReservationMatchInput,
+): Promise<PersistReservationMatchResult | null> {
+  if (!input.match.reservationId || !input.match.allowReservationEnrichment) return null;
+  const persistedMatchMethod = toPersistedMatchMethod(input.match.method);
+
+  const reservationEnrichedFields = await applySafeReservationEnrichment({
+    match: input.match,
+    signals: input.signals,
+    eventKind: input.eventKind,
+    mode: "reservation",
+  });
+  const metadataFields = buildStructuredMetadataFields(input.signals);
+  const enrichedFields = {
+    ...reservationEnrichedFields,
+    ...metadataFields,
+  };
+  const enrichedFieldKeys = Object.keys(enrichedFields);
+  if (enrichedFieldKeys.length === 0) {
+    return {
+      linkedAuditCount: 1,
+      reservationEmailEventCount: 1,
+      enrichedFieldKeys: [],
+    };
+  }
+
+  const result = await db.$transaction(async (tx) => {
+    await tx.emailIngestionAudit.update({
+      where: { id: input.auditId },
+      data: {
+        reservationId: input.match.reservationId,
+        propertyId: input.match.propertyId ?? input.propertyId,
+        organizationId: input.match.organizationId ?? input.organizationId,
+        matchMethod: persistedMatchMethod,
+        matchConfidence: input.match.confidence,
+      },
+    });
+
+    await tx.reservationEmailEvent.upsert({
+      where: { auditId: input.auditId },
+      update: {
+        reservationId: input.match.reservationId,
+        eventKind: input.eventKind,
+        confirmationCode: input.signals.confirmationCode,
+        matchMethod: persistedMatchMethod,
+        matchConfidence: input.match.confidence,
+        enrichedFields,
+      },
+      create: {
+        auditId: input.auditId,
+        reservationId: input.match.reservationId,
+        eventKind: input.eventKind,
+        confirmationCode: input.signals.confirmationCode,
+        matchMethod: persistedMatchMethod,
+        matchConfidence: input.match.confidence,
+        payload: input.payload,
+        enrichedFields,
+      },
+    });
+
+    const linkedAudits = await tx.emailIngestionAudit.count({
+      where: { reservationId: input.match.reservationId! },
+    });
+    const linkedEvents = await tx.reservationEmailEvent.count({
+      where: { reservationId: input.match.reservationId! },
+    });
+
+    return { linkedAudits, linkedEvents };
+  });
+
+  invalidateLivePmsCaches("reservation_linkage");
+
+  airbnbEmailLog.info("reservation_enrichment_reapplied", {
+    auditId: input.auditId,
+    reservationId: input.match.reservationId,
+    enrichedFieldCount: enrichedFieldKeys.length,
+  });
+
+  return {
+    linkedAuditCount: result.linkedAudits,
+    reservationEmailEventCount: result.linkedEvents,
+    enrichedFieldKeys,
+  };
+}
+
 export async function persistReservationMatchLinkage(
   input: PersistReservationMatchInput,
 ): Promise<PersistReservationMatchResult | null> {

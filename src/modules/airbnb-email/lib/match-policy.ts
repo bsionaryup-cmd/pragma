@@ -45,10 +45,16 @@ export function applyMatchPolicy(
 
   const propertyScopedAutoLink = false;
 
+  const listingDatesHighConfidence =
+    base.method === AirbnbEmailMatchMethod.LISTING_DATES &&
+    tier === "high" &&
+    base.confidence >= 0.9;
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
       listingDatesWithCode ||
+      listingDatesHighConfidence ||
       listingContextualWithCode ||
       icalContextualWithCode ||
       icalContextualConservative ||

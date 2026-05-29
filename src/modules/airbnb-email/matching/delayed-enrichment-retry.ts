@@ -1,7 +1,12 @@
+import { AirbnbEmailMatchMethod } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { isReservationEventKind } from "@/modules/airbnb-email/domains/reservation-event.domain";
-import { persistReservationMatchLinkage } from "@/modules/airbnb-email/matching/reservation-match-persist";
+import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
+import {
+  persistReservationMatchLinkage,
+  reapplyReservationEnrichmentFromAudit,
+} from "@/modules/airbnb-email/matching/reservation-match-persist";
 import { matchReservationFromEmailSignals } from "@/modules/airbnb-email/matching/reservation-matcher";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
@@ -9,6 +14,67 @@ const RETRY_DELAYS_MS = [30_000, 120_000, 300_000] as const;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function hasMeaningfulEnrichedFields(enrichedFields: unknown): boolean {
+  if (!enrichedFields || typeof enrichedFields !== "object" || Array.isArray(enrichedFields)) {
+    return false;
+  }
+  const fields = enrichedFields as Record<string, unknown>;
+  return Boolean(
+    (typeof fields.guestName === "string" && fields.guestName.trim()) ||
+      fields.guestCountTotal != null ||
+      fields.guestTotalPaid != null ||
+      fields.hostPayoutAmount != null ||
+      (typeof fields.reservationCode === "string" && fields.reservationCode.trim()),
+  );
+}
+
+async function boostMatchForLinkedAudit(input: {
+  auditReservationId: string;
+  propertyId: string | null;
+  organizationId: string;
+  signals: ExtractedReservationSignals;
+  match: Awaited<ReturnType<typeof matchReservationFromEmailSignals>>;
+}): Promise<Awaited<ReturnType<typeof matchReservationFromEmailSignals>>> {
+  if (
+    input.match.reservationId === input.auditReservationId &&
+    input.match.allowReservationEnrichment
+  ) {
+    return input.match;
+  }
+
+  const reservation = await db.reservation.findFirst({
+    where: {
+      id: input.auditReservationId,
+      property: { organizationId: input.organizationId },
+    },
+    select: {
+      id: true,
+      propertyId: true,
+      reservationCode: true,
+      guestName: true,
+    },
+  });
+
+  if (!reservation) return input.match;
+
+  const emailCode = input.signals.confirmationCode?.trim();
+  const dbCode = reservation.reservationCode?.trim();
+  if (emailCode && dbCode && emailCode === dbCode) {
+    return applyMatchPolicy(
+      {
+        reservationId: reservation.id,
+        propertyId: reservation.propertyId ?? input.propertyId,
+        organizationId: input.organizationId,
+        method: AirbnbEmailMatchMethod.CONFIRMATION_CODE,
+        confidence: 0.95,
+      },
+      { hasConfirmationCodeInEmail: Boolean(emailCode) },
+    );
+  }
+
+  return input.match;
 }
 
 function readSignalsFromAuditPayload(payload: unknown): ExtractedReservationSignals | null {
@@ -43,19 +109,13 @@ export async function attemptDelayedEnrichmentRetry(
       organizationId: true,
       classification: true,
       parsedPayload: true,
+      reservationEvent: {
+        select: { enrichedFields: true },
+      },
     },
   });
 
   if (!audit) {
-    return { status: "skipped" };
-  }
-
-  if (audit.reservationId) {
-    airbnbEmailLog.info("retry_enrichment_skipped", {
-      auditId: audit.id,
-      reason: "already_linked",
-      reservationId: audit.reservationId,
-    });
     return { status: "skipped" };
   }
 
@@ -70,10 +130,32 @@ export async function attemptDelayedEnrichmentRetry(
     return { status: "skipped" };
   }
 
-  const match = await matchReservationFromEmailSignals(signals, {
+  if (
+    audit.reservationId &&
+    hasMeaningfulEnrichedFields(audit.reservationEvent?.enrichedFields)
+  ) {
+    airbnbEmailLog.info("retry_enrichment_skipped", {
+      auditId: audit.id,
+      reason: "already_enriched",
+      reservationId: audit.reservationId,
+    });
+    return { status: "skipped" };
+  }
+
+  let match = await matchReservationFromEmailSignals(signals, {
     propertyId,
     organizationId,
   });
+
+  if (audit.reservationId) {
+    match = await boostMatchForLinkedAudit({
+      auditReservationId: audit.reservationId,
+      propertyId,
+      organizationId,
+      signals,
+      match,
+    });
+  }
 
   if (!match.reservationId || !match.allowReservationEnrichment) {
     return { status: "no_match" };
@@ -84,7 +166,7 @@ export async function attemptDelayedEnrichmentRetry(
     return { status: "no_match" };
   }
 
-  await persistReservationMatchLinkage({
+  const persistInput = {
     auditId: audit.id,
     match,
     eventKind,
@@ -92,7 +174,15 @@ export async function attemptDelayedEnrichmentRetry(
     payload: audit.parsedPayload as object,
     organizationId,
     propertyId: match.propertyId ?? propertyId,
-  });
+  };
+
+  const persistResult = audit.reservationId
+    ? await reapplyReservationEnrichmentFromAudit(persistInput)
+    : await persistReservationMatchLinkage(persistInput);
+
+  if (!persistResult || persistResult.enrichedFieldKeys.length === 0) {
+    return { status: "no_match" };
+  }
 
   airbnbEmailLog.info("retry_enrichment_success", {
     auditId: audit.id,

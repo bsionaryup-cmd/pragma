@@ -21,6 +21,7 @@ import {
   enforcePropertyAirbnbIcalIsolation,
 } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
+import { retryUnlinkedAuditsForProperty } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import {
@@ -489,6 +490,29 @@ export async function syncPropertyIcalCalendarInner(
       eventsParsed,
       fetchMs,
     });
+
+    if (property.organizationId) {
+      try {
+        const emailRetry = await retryUnlinkedAuditsForProperty({
+          propertyId: property.id,
+          organizationId: property.organizationId,
+          limit: 12,
+          lookbackHours: 72,
+        });
+        if (emailRetry.scanned > 0) {
+          icalSyncLog.info("property_sync_email_retry_done", {
+            propertyId: property.id,
+            ...emailRetry,
+          });
+        }
+      } catch (retryError) {
+        icalSyncLog.warn("property_sync_email_retry_failed", {
+          propertyId: property.id,
+          message:
+            retryError instanceof Error ? retryError.message : "email_retry_failed",
+        });
+      }
+    }
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Error de sincronización";
