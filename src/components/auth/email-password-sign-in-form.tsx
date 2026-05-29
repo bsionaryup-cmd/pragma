@@ -202,6 +202,7 @@ export function EmailPasswordSignInForm({
 
   useEffect(() => {
     if (!signIn || !ready || restoredVerificationRef.current) return;
+    if (clearStaleSession) return;
     if (!requiresSecondFactor(signIn.status)) return;
 
     const strategy = resolveSecondFactorStrategy(signIn);
@@ -212,22 +213,32 @@ export function EmailPasswordSignInForm({
       setStep("verification");
       setVerificationStrategy(strategy);
       setVerificationReasonState(verificationReason(signIn.status));
-    });
-
-    void ensureVerificationCodeSent(strategy).then((sent) => {
       setInfo(
-        sent
-          ? verificationHint(strategy, normalizedEmail, verificationReason(signIn.status))
-          : `Ingresa el código enviado a ${normalizedEmail || "tu correo"}.`,
-      );
-    }).catch((err) => {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo enviar el código de verificación.",
+        strategy === "email_code"
+          ? `Si ya recibiste un código en ${normalizedEmail || "tu correo"}, ingrésalo abajo. Si no, usa «Reenviar código».`
+          : verificationHint(strategy, normalizedEmail, verificationReason(signIn.status)),
       );
     });
   }, [ready, signIn, signIn?.status, normalizedEmail]);
+
+  useEffect(() => {
+    if (!signIn || !ready || !clearStaleSession) return;
+
+    let cancelled = false;
+
+    void signIn.reset().then(() => {
+      if (cancelled) return;
+      restoredVerificationRef.current = false;
+      verificationSendStartedRef.current = false;
+      setStep("credentials");
+      setVerificationStrategy(null);
+      setVerificationReasonState(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clearStaleSession, ready, signIn]);
 
   function startResendCooldown() {
     setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
