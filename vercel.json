@@ -1,28 +1,28 @@
 {
   "crons": [
     {
-      "path": "/api/cron/guest-payment-reconcile",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/billing-renewal",
       "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/airbnb-ical-sync",
-      "schedule": "*/30 * * * *"
+      "schedule": "15 6 * * *"
     },
     {
       "path": "/api/cron/airbnb-email-enrichment-retry",
-      "schedule": "*/5 * * * *"
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/guest-payment-reconcile",
+      "schedule": "45 6 * * *"
     },
     {
       "path": "/api/cron/pricelabs-sync",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/ttlock-sync",
-      "schedule": "*/30 * * * *"
+      "schedule": "15 7 * * *"
     }
   ]
 }
