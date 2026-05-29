@@ -753,6 +753,8 @@ enum TaskType {
   CHECK_IN
   MAINTENANCE
   LAUNDRY
+  PURCHASE
+  INVENTORY
 }
 
 enum TaskStatus {

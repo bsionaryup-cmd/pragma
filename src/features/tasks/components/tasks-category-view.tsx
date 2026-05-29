@@ -47,23 +47,13 @@ export function TasksCategoryView({
           title={category.title}
           description={category.description}
           action={
-            canWrite && !category.comingSoon
+            canWrite
               ? { label: "Nueva tarea", href: newTaskHref }
               : undefined
           }
         />
 
-        {category.comingSoon ? (
-          <div className="rounded-xl border border-dashed border-border bg-muted/30 p-8 text-center">
-            <p className="text-sm font-medium text-foreground">
-              Próximamente
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Esta sección estará disponible pronto para centralizar{" "}
-              {category.title.toLowerCase()} de tus alojamientos.
-            </p>
-          </div>
-        ) : tasks.length === 0 ? (
+        {tasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Sin tareas.{" "}
             {canWrite ? (
@@ -98,6 +88,7 @@ export function TasksCategoryView({
                         <TaskStatusSelect
                           taskId={task.id}
                           current={task.status}
+                          categorySlug={category.slug}
                         />
                       ) : (
                         task.status

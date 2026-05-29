@@ -13,8 +13,7 @@ export type TaskCategoryConfig = {
   slug: TaskCategorySlug;
   title: string;
   description: string;
-  taskType: TaskType | null;
-  comingSoon?: boolean;
+  taskType: TaskType;
 };
 
 export const TASK_CATEGORIES: Record<TaskCategorySlug, TaskCategoryConfig> = {
@@ -22,8 +21,7 @@ export const TASK_CATEGORIES: Record<TaskCategorySlug, TaskCategoryConfig> = {
     slug: "compras",
     title: "Compras",
     description: "Control de compras para tus alojamientos",
-    taskType: null,
-    comingSoon: true,
+    taskType: "PURCHASE",
   },
   mantenimiento: {
     slug: "mantenimiento",
@@ -41,12 +39,20 @@ export const TASK_CATEGORIES: Record<TaskCategorySlug, TaskCategoryConfig> = {
     slug: "inventario",
     title: "Inventario",
     description: "Stock y suministros de tus alojamientos",
-    taskType: null,
-    comingSoon: true,
+    taskType: "INVENTORY",
   },
 };
 
 export const DEFAULT_TASK_CATEGORY: TaskCategorySlug = "compras";
+
+const TASK_TYPE_TO_CATEGORY: Partial<Record<TaskType, TaskCategorySlug>> = {
+  PURCHASE: "compras",
+  MAINTENANCE: "mantenimiento",
+  CLEANING: "limpieza",
+  INVENTORY: "inventario",
+  LAUNDRY: "limpieza",
+  CHECK_IN: "mantenimiento",
+};
 
 export function isTaskCategorySlug(value: string): value is TaskCategorySlug {
   return TASK_CATEGORY_SLUGS.includes(value as TaskCategorySlug);
@@ -57,4 +63,8 @@ export function getTaskCategoryConfig(
 ): TaskCategoryConfig | null {
   if (!isTaskCategorySlug(slug)) return null;
   return TASK_CATEGORIES[slug];
+}
+
+export function getCategorySlugForTaskType(type: TaskType): TaskCategorySlug {
+  return TASK_TYPE_TO_CATEGORY[type] ?? DEFAULT_TASK_CATEGORY;
 }

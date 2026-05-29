@@ -29,16 +29,28 @@ import {
 } from "@/features/tasks/schemas/task.schema";
 import { TaskStatus, TaskType } from "@prisma/client";
 import { taskTypeLabels } from "@/lib/labels";
+import {
+  getTaskCategoryConfig,
+  type TaskCategorySlug,
+} from "@/lib/tasks/task-categories";
 
 type PropertyOption = { id: string; name: string };
 
-export function TaskForm({ properties }: { properties: PropertyOption[] }) {
+type TaskFormProps = {
+  properties: PropertyOption[];
+  categorySlug?: TaskCategorySlug;
+};
+
+export function TaskForm({ properties, categorySlug }: TaskFormProps) {
+  const category = categorySlug ? getTaskCategoryConfig(categorySlug) : null;
+  const defaultType = category?.taskType ?? TaskType.CLEANING;
+
   const [pending, startTransition] = useTransition();
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: {
-      type: TaskType.CLEANING,
+      type: defaultType,
       title: "",
       description: "",
       propertyId: properties[0]?.id ?? "",

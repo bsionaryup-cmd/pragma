@@ -15,9 +15,11 @@ import { taskStatusLabels } from "@/lib/labels";
 export function TaskStatusSelect({
   taskId,
   current,
+  categorySlug,
 }: {
   taskId: string;
   current: TaskStatus;
+  categorySlug?: string;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -27,7 +29,7 @@ export function TaskStatusSelect({
       value={current}
       onValueChange={(v) =>
         startTransition(() =>
-          updateTaskStatusAction(taskId, v as TaskStatus),
+          updateTaskStatusAction(taskId, v as TaskStatus, categorySlug),
         )
       }
     >

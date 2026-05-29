@@ -42,6 +42,8 @@ export const taskTypeLabels: Record<TaskType, string> = {
   CHECK_IN: "Check-in",
   MAINTENANCE: "Mantenimiento",
   LAUNDRY: "Lavandería",
+  PURCHASE: "Compra",
+  INVENTORY: "Inventario",
 };
 
 export const taskStatusLabels: Record<TaskStatus, string> = {

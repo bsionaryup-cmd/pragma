@@ -23,10 +23,7 @@ export default async function TasksCategoryPage({
   await redirectIfMissingPlanFeature("tasks", `/tasks/${category.slug}`);
   const auth = await requirePermission("tasks:read");
 
-  const tasks =
-    category.taskType && !category.comingSoon
-      ? await listTasks({ type: category.taskType })
-      : [];
+  const tasks = await listTasks({ type: category.taskType });
 
   return (
     <TasksCategoryView
