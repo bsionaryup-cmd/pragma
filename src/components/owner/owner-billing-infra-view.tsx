@@ -14,17 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatOwnerCop } from "@/components/owner/owner-dashboard-utils";
+import { formatDateTime } from "@/lib/helpers/date";
 
 type OwnerBillingInfraViewProps = {
   snapshot: OwnerBillingInfraSnapshot;
 };
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("es-CO", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
-}
 
 export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) {
   const { wompi, webhookStats, failedPayments, recentWebhooks } = snapshot;
@@ -130,7 +124,10 @@ export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) 
                         {formatOwnerCop(row.amount)} {row.currency}
                       </TableCell>
                       <TableCell className="text-xs">
-                        {formatDateTime(row.dueAt)}
+                        {formatDateTime(row.dueAt, "—", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
                         {row.failureReason ?? "—"}
@@ -206,7 +203,10 @@ export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) 
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
-                        {formatDateTime(row.createdAt)}
+                        {formatDateTime(row.createdAt, "—", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -48,9 +48,10 @@ export default async function DashboardLayout({
     headerStore.get("next-url") ??
     "";
 
-  const [dictionary, tenantContext] = await Promise.all([
+  const [dictionary, tenantContext, planContext] = await Promise.all([
     getDictionary(locale),
     enforceTenantDashboardAccess(user, pathname),
+    getOrganizationPlanContextForUser(user.id),
   ]);
 
   if (!isSuperAdminOwner(user) && userNeedsOnboarding(user)) {
@@ -58,7 +59,6 @@ export default async function DashboardLayout({
   }
 
   const role = tenantContext.effectiveRole as AppUserRole;
-  const planContext = await getOrganizationPlanContextForUser(user.id);
   const navModules = getNavigationModulesForRole(role, planContext?.plan);
   const settingsItem = getSettingsNavItem(role);
   const canSyncAirbnb =

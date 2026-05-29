@@ -31,7 +31,7 @@ import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypt
 import { formatAccessCode } from "@/lib/access-code";
 import { assertNoReservationOverlap } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
-import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
+import { purgeGhostReservationsThrottled } from "@/services/reservations/ghost-reservation.service";
 import {
   assertReservationDateMutationAllowed,
   canUseHistoricalReservationOverride,
@@ -82,6 +82,9 @@ type ReservationRow = {
   platform: ReservationInboxItem["platform"];
   status: ReservationInboxItem["status"];
   paymentStatus?: ReservationInboxItem["paymentStatus"];
+  reservationCode?: string | null;
+  icalUid?: string | null;
+  updatedAt?: Date;
   holdExpiresAt?: Date | null;
   totalAmount: { toString(): string };
   currency: string;
@@ -143,6 +146,9 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     platform: r.platform,
     status: r.status,
     paymentStatus: r.paymentStatus,
+    reservationCode: r.reservationCode ?? null,
+    icalUid: r.icalUid ?? null,
+    updatedAt: r.updatedAt?.toISOString(),
     holdExpiresAt: r.holdExpiresAt?.toISOString() ?? null,
     totalAmount: r.totalAmount.toString(),
     currency: r.currency,
@@ -165,6 +171,8 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       address: r.property.address,
       city: r.property.city,
       maxGuests: r.property.maxGuests,
+      coverImageUrl:
+        "coverImageUrl" in r.property ? r.property.coverImageUrl ?? null : null,
       propertyType:
         "propertyType" in r.property ? r.property.propertyType : undefined,
       checkInTime:
@@ -240,7 +248,7 @@ const INBOX_RESERVATION_LIMIT = 1000;
 
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const scope = await requireTenantDataScope();
-  await purgeGhostReservations(scope);
+  await purgeGhostReservationsThrottled(scope);
   const rows = await db.reservation.findMany({
     where: withVisibleReservationsFilter(mergeReservationScope(scope, {})),
     take: INBOX_RESERVATION_LIMIT,
@@ -261,6 +269,9 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       createdAt: true,
       platform: true,
       status: true,
+      reservationCode: true,
+      icalUid: true,
+      updatedAt: true,
       paymentStatus: true,
       holdExpiresAt: true,
       totalAmount: true,
@@ -269,7 +280,15 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       guestRegistrationToken: true,
       guestRegistrationCompletedAt: true,
       property: {
-        select: { id: true, name: true, unitNumber: true, address: true, city: true, maxGuests: true },
+        select: {
+          id: true,
+          name: true,
+          unitNumber: true,
+          address: true,
+          city: true,
+          maxGuests: true,
+          coverImageUrl: true,
+        },
       },
     },
     orderBy: { createdAt: "desc" },

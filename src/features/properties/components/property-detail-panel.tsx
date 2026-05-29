@@ -35,6 +35,7 @@ import {
   taskTypeLabels,
 } from "@/lib/labels";
 import { formatCurrency } from "@/lib/helpers";
+import { formatDateTime } from "@/lib/helpers/date";
 import { hasActiveAirbnbIcalImport } from "@/lib/airbnb/ical-sync-utils";
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { cn } from "@/lib/utils";
@@ -240,9 +241,10 @@ export function PropertyDetailPanel({
             {property.lastIcalSyncedAt ? (
               <DetailRow
                 label="Última sync"
-                value={new Date(property.lastIcalSyncedAt).toLocaleString(
-                  "es-CO",
-                )}
+                value={formatDateTime(property.lastIcalSyncedAt, "—", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
               />
             ) : null}
             {hasIcalImport && canWrite ? (

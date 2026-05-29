@@ -7,6 +7,7 @@ import { syncPropertySmartLockAction } from "@/features/integrations/ttlock/acti
 import type { SmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.types";
 import { Button } from "@/components/ui/button";
 import { DetailRow, DetailSection } from "@/components/detail/detail-section";
+import { formatDateTime } from "@/lib/helpers/date";
 
 type PropertySmartAccessCardProps = {
   propertyId: string;
@@ -93,7 +94,10 @@ export function PropertySmartAccessCard({
             label="Última sync"
             value={
               lock.lastSyncAt
-                ? new Date(lock.lastSyncAt).toLocaleString("es-CO")
+                ? formatDateTime(lock.lastSyncAt, "—", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
                 : "Nunca"
             }
           />

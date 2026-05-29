@@ -1,3 +1,5 @@
+import { getZonedParts, PRAGMA_TIMEZONE } from "@/lib/timezone";
+
 /** Fecha calendario ↔ columna Prisma @db.Date (siempre día UTC). */
 export function prismaDateToKey(date: Date): string {
   const y = date.getUTCFullYear();
@@ -11,9 +13,34 @@ export function dateKeyToPrismaDate(key: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
+/** YYYY-MM-DD del día operativo en la zona indicada (por defecto Colombia). */
+export function todayDateKeyInTimezone(
+  reference = new Date(),
+  timeZone = PRAGMA_TIMEZONE,
+): string {
+  const { year, month, day } = getZonedParts(reference, timeZone);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Hoy operativo como Date @db.Date (medianoche UTC del día calendario en Colombia). */
+export function todayPrismaDate(reference = new Date()): Date {
+  return dateKeyToPrismaDate(todayDateKeyInTimezone(reference));
+}
+
+export function addCalendarDaysToKey(key: string, days: number): string {
+  const [y, m, d] = key.split("-").map(Number);
+  return prismaDateToKey(new Date(Date.UTC(y, m - 1, d + days)));
+}
+
+export function addCalendarDays(date: Date | string, days: number): Date {
+  return dateKeyToPrismaDate(
+    addCalendarDaysToKey(toReservationDateKey(date), days),
+  );
+}
+
+/** @deprecated Usar todayPrismaDate — conservado por compatibilidad interna. */
 export function startOfTodayUtc(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  return todayPrismaDate();
 }
 
 /** Normaliza Date Prisma @db.Date o string ISO/key a YYYY-MM-DD (fuente única). */

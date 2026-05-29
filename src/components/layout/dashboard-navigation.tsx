@@ -1,10 +1,16 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { ContextualSubSidebar } from "@/components/layout/contextual-sub-sidebar";
 import { Sidebar } from "@/components/layout/sidebar";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
+import {
+  readPinnedNavGroupId,
+  readSuppressedNavGroupId,
+  writePinnedNavGroupId,
+  writeSuppressedNavGroupId,
+} from "@/components/layout/use-nav-persistence";
 import {
   getActiveNavGroupId,
   isNavGroupModule,
@@ -31,19 +37,26 @@ export function DashboardNavigation({
   onNavigate,
 }: DashboardNavigationProps) {
   const pathname = usePathname();
-  const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(null);
-  const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
+  const router = useRouter();
+  const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(() =>
+    readPinnedNavGroupId(),
+  );
+  const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(() =>
+    readSuppressedNavGroupId(),
+  );
 
   const activeGroupId = useMemo(
     () => getActiveNavGroupId(pathname, modules),
     [modules, pathname],
   );
 
-  const [prevActiveGroupId, setPrevActiveGroupId] = useState(activeGroupId);
-  if (activeGroupId !== prevActiveGroupId) {
-    setPrevActiveGroupId(activeGroupId);
-    setSuppressedGroupId(null);
-  }
+  useEffect(() => {
+    setSuppressedGroupId((current) => {
+      if (!current || current === activeGroupId) return current;
+      writeSuppressedNavGroupId(null);
+      return null;
+    });
+  }, [activeGroupId]);
 
   const openModuleId =
     activeGroupId && activeGroupId !== suppressedGroupId
@@ -72,25 +85,39 @@ export function DashboardNavigation({
     if (activeGroupId === module.id && openModuleId === module.id) {
       setSuppressedGroupId(module.id);
       setPinnedModuleId(null);
+      writeSuppressedNavGroupId(module.id);
+      writePinnedNavGroupId(null);
       return;
     }
 
+    const isOpening = openModuleId !== module.id;
     setSuppressedGroupId(null);
-    setPinnedModuleId((current) => (current === module.id ? null : module.id));
+    setPinnedModuleId(module.id);
+    writeSuppressedNavGroupId(null);
+    writePinnedNavGroupId(module.id);
+
+    if (isOpening && activeGroupId !== module.id && module.href !== pathname) {
+      router.push(module.href);
+      onNavigate?.();
+    }
   }
 
   function handleMainLinkNavigate() {
     setPinnedModuleId(null);
     setSuppressedGroupId(null);
+    writePinnedNavGroupId(null);
+    writeSuppressedNavGroupId(null);
     onNavigate?.();
   }
 
   function handleCloseSubSidebar() {
     if (activeGroupId) {
       setSuppressedGroupId(activeGroupId);
+      writeSuppressedNavGroupId(activeGroupId);
       return;
     }
     setPinnedModuleId(null);
+    writePinnedNavGroupId(null);
   }
 
   return (

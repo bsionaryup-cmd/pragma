@@ -9,6 +9,7 @@ import {
   dispatchDashboardDataRefresh,
   isLiveDashboardPath,
   markDashboardRefresh,
+  needsDashboardFullRefresh,
 } from "@/lib/dashboard-refresh";
 
 type DashboardDataRefreshProps = {
@@ -55,7 +56,9 @@ export function DashboardDataRefresh({ enabled = true }: DashboardDataRefreshPro
         if (!canRunDashboardRefresh()) return;
 
         markDashboardRefresh();
-        routerRef.current.refresh();
+        if (needsDashboardFullRefresh(currentPath)) {
+          routerRef.current.refresh();
+        }
         dispatchDashboardDataRefresh();
 
         if (process.env.NODE_ENV === "development") {

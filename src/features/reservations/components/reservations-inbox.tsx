@@ -37,7 +37,7 @@ const ReservationSidePanel = dynamic(
     import("@/features/reservations/components/reservation-side-panel").then(
       (m) => ({ default: m.ReservationSidePanel }),
     ),
-  { loading: () => null },
+  { loading: () => <div className="h-full min-h-0 w-full bg-background" /> },
 );
 
 const ReservationDrawer = dynamic(
@@ -141,7 +141,6 @@ export function ReservationsInbox({
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
-    setSelectedDetail(null);
     try {
       const result = await getReservationInboxItemAction(id);
       if (!result.success) {
@@ -346,7 +345,7 @@ export function ReservationsInbox({
           ) : null}
         </aside>
 
-        <div className="hidden min-w-0 flex-1 flex-col bg-background md:flex">
+        <div className="hidden min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-background md:flex">
           {drawerMode ? (
             <ReservationSidePanel
               mode={drawerMode}

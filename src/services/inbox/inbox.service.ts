@@ -15,41 +15,6 @@ import {
 import { isInboxConversationUnread } from "@/features/inbox/lib/inbox-unread";
 import type { InboxConversation } from "@/types/inbox";
 
-async function loadPropertyCoverImages(
-  propertyIds: string[],
-): Promise<Map<string, string | null>> {
-  if (propertyIds.length === 0) return new Map();
-
-  const scope = await requireTenantDataScope();
-  const rows = await db.property.findMany({
-    where: {
-      ...propertyWhere(scope),
-      id: { in: propertyIds },
-    },
-    select: { id: true, coverImageUrl: true },
-  });
-
-  return new Map(rows.map((row) => [row.id, row.coverImageUrl]));
-}
-
-async function loadReservationExtras(reservationIds: string[]) {
-  if (reservationIds.length === 0) return new Map();
-
-  const scope = await requireTenantDataScope();
-  const rows = await db.reservation.findMany({
-    where: mergeReservationScope(scope, { id: { in: reservationIds } }),
-    select: {
-      id: true,
-      paymentStatus: true,
-      reservationCode: true,
-      icalUid: true,
-      updatedAt: true,
-    },
-  });
-
-  return new Map(rows.map((row) => [row.id, row]));
-}
-
 export type InboxConversationsResult = {
   conversations: InboxConversation[];
   unreadCount: number;
@@ -57,20 +22,9 @@ export type InboxConversationsResult = {
 
 export async function listInboxConversations(): Promise<InboxConversationsResult> {
   const reservations = await listReservationsForInbox();
-  const propertyIds = [...new Set(reservations.map((r) => r.property.id))];
-  const reservationIds = reservations.map((r) => r.id);
-
-  const [coverByProperty, extrasByReservation] = await Promise.all([
-    loadPropertyCoverImages(propertyIds),
-    loadReservationExtras(reservationIds),
-  ]);
 
   const conversations = reservations.map((reservation) =>
-    mapReservationToConversationSummary(
-      reservation,
-      coverByProperty.get(reservation.property.id) ?? null,
-      extrasByReservation.get(reservation.id),
-    ),
+    mapReservationToConversationSummary(reservation, null),
   );
 
   const unreadCount = reservations.filter(isInboxConversationUnread).length;
@@ -108,7 +62,7 @@ export async function getInboxConversationById(
 
   return mapReservationToConversation(
     reservation,
-    property?.coverImageUrl ?? null,
+    property?.coverImageUrl ?? reservation.property.coverImageUrl ?? null,
     extras,
   );
 }

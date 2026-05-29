@@ -1,7 +1,7 @@
 import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
-import { prismaDateToKey } from "@/lib/dates";
+import { addCalendarDays, prismaDateToKey } from "@/lib/dates";
 import { startOfDay } from "@/lib/helpers/date";
 import {
   formatCalendarUnitDisplay,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/platform/tenant-data-scope";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import { getAirbnbEnrichedGuestCountByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
 
 export type DashboardStats = {
   activeReservations: number;
@@ -96,6 +97,7 @@ export type PanelReservation = Awaited<
 export type PanelReservationRow = {
   id: string;
   guestName: string;
+  guestTotal: number;
   adults: number;
   children: number;
   infants: number;
@@ -116,24 +118,40 @@ export type PanelReservationRow = {
 type PanelReservationWithPrimaryGuest = PanelReservation & {
   primaryGuestName: string | null;
   airbnbEnrichmentGuestName: string | null;
+  airbnbEnrichmentGuestCount: number | null;
 };
 
-async function attachPrimaryGuestNames<T extends { id: string }>(
+async function attachPanelReservationEnrichment<T extends { id: string }>(
   reservations: T[],
-): Promise<Array<T & { primaryGuestName: string | null }>> {
+): Promise<
+  Array<
+    T & {
+      primaryGuestName: string | null;
+      airbnbEnrichmentGuestName: string | null;
+      airbnbEnrichmentGuestCount: number | null;
+    }
+  >
+> {
   if (reservations.length === 0) return [];
 
-  const primaryGuests = await db.reservationGuest.findMany({
-    where: {
-      OR: [{ isReservationOwner: true }, { isPrimary: true }],
-      reservationId: { in: reservations.map((reservation) => reservation.id) },
-    },
-    orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
-    select: {
-      reservationId: true,
-      fullName: true,
-    },
-  });
+  const reservationIds = reservations.map((reservation) => reservation.id);
+  const [primaryGuests, guestByReservation, countByReservation] =
+    await Promise.all([
+      db.reservationGuest.findMany({
+        where: {
+          OR: [{ isReservationOwner: true }, { isPrimary: true }],
+          reservationId: { in: reservationIds },
+        },
+        orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
+        select: {
+          reservationId: true,
+          fullName: true,
+        },
+      }),
+      getAirbnbEnrichedGuestNameByReservationIds(reservationIds),
+      getAirbnbEnrichedGuestCountByReservationIds(reservationIds),
+    ]);
+
   const nameByReservation = new Map<string, string>();
   for (const guest of primaryGuests) {
     if (nameByReservation.has(guest.reservationId)) continue;
@@ -143,19 +161,8 @@ async function attachPrimaryGuestNames<T extends { id: string }>(
   return reservations.map((reservation) => ({
     ...reservation,
     primaryGuestName: nameByReservation.get(reservation.id) ?? null,
-  }));
-}
-
-async function attachAirbnbEnrichmentGuestNames<T extends { id: string }>(
-  reservations: T[],
-): Promise<Array<T & { airbnbEnrichmentGuestName: string | null }>> {
-  if (reservations.length === 0) return [];
-  const guestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
-    reservations.map((reservation) => reservation.id),
-  );
-  return reservations.map((reservation) => ({
-    ...reservation,
     airbnbEnrichmentGuestName: guestByReservation.get(reservation.id) ?? null,
+    airbnbEnrichmentGuestCount: countByReservation.get(reservation.id) ?? null,
   }));
 }
 
@@ -184,6 +191,8 @@ function resolvePanelPropertyUnit(property: {
 export function toPanelReservationRow(
   reservation: PanelReservationWithPrimaryGuest,
 ): PanelReservationRow {
+  const fallbackGuestTotal =
+    reservation.adults + reservation.children + reservation.infants;
   return {
     id: reservation.id,
     guestName: resolveReservationDisplayGuestName({
@@ -192,6 +201,7 @@ export function toPanelReservationRow(
       guestName: reservation.guestName,
       primaryGuestName: reservation.primaryGuestName,
     }),
+    guestTotal: reservation.airbnbEnrichmentGuestCount ?? fallbackGuestTotal,
     adults: reservation.adults,
     children: reservation.children,
     infants: reservation.infants,
@@ -228,8 +238,7 @@ export type PanelCounts = {
 
 export async function getPanelCounts(scope: TenantDataScope): Promise<PanelCounts> {
   const today = startOfDay();
-  const weekAhead = new Date(today);
-  weekAhead.setDate(weekAhead.getDate() + 7);
+  const weekAhead = addCalendarDays(today, 7);
 
   const [arrivals, departures, current] = await Promise.all([
     db.reservation.count({
@@ -264,8 +273,7 @@ export async function getPanelCounts(scope: TenantDataScope): Promise<PanelCount
 
 export async function getUpcomingArrivals(scope: TenantDataScope, limit = 20) {
   const today = startOfDay();
-  const weekAhead = new Date(today);
-  weekAhead.setDate(weekAhead.getDate() + 7);
+  const weekAhead = addCalendarDays(today, 7);
 
   const reservations = await db.reservation.findMany({
     where: withVisibleReservationsFilter(
@@ -278,14 +286,13 @@ export async function getUpcomingArrivals(scope: TenantDataScope, limit = 20) {
     orderBy: { checkIn: "asc" },
     take: limit,
   });
-  const withPrimary = await attachPrimaryGuestNames(reservations);
-  return attachAirbnbEnrichmentGuestNames(withPrimary);
+  const withPrimary = await attachPanelReservationEnrichment(reservations);
+  return withPrimary;
 }
 
 export async function getUpcomingDepartures(scope: TenantDataScope, limit = 20) {
   const today = startOfDay();
-  const weekAhead = new Date(today);
-  weekAhead.setDate(weekAhead.getDate() + 7);
+  const weekAhead = addCalendarDays(today, 7);
 
   const reservations = await db.reservation.findMany({
     where: withVisibleReservationsFilter(
@@ -300,8 +307,7 @@ export async function getUpcomingDepartures(scope: TenantDataScope, limit = 20) 
     orderBy: { checkOut: "asc" },
     take: limit,
   });
-  const withPrimary = await attachPrimaryGuestNames(reservations);
-  return attachAirbnbEnrichmentGuestNames(withPrimary);
+  return attachPanelReservationEnrichment(reservations);
 }
 
 export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
@@ -315,6 +321,5 @@ export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
     orderBy: { checkOut: "asc" },
     take: limit,
   });
-  const withPrimary = await attachPrimaryGuestNames(reservations);
-  return attachAirbnbEnrichmentGuestNames(withPrimary);
+  return attachPanelReservationEnrichment(reservations);
 }

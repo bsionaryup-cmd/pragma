@@ -13,6 +13,7 @@ export type ReservationPropertyDto = {
   unitNumber?: string | null;
   address: string;
   city: string;
+  coverImageUrl?: string | null;
   propertyType?: PropertyType;
   checkInTime?: string | null;
   checkOutTime?: string | null;
@@ -74,6 +75,9 @@ export type ReservationInboxItem = {
   platform: BookingPlatform;
   status: ReservationStatus;
   paymentStatus?: PaymentStatus;
+  reservationCode?: string | null;
+  icalUid?: string | null;
+  updatedAt?: string;
   holdExpiresAt?: string | null;
   totalAmount: string;
   currency: string;

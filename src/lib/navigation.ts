@@ -73,52 +73,71 @@ const panelNavItem: NavItem = {
   permission: "dashboard:read",
 };
 
-const messagesNavItem: NavItem = {
-  labelKey: "nav.messages",
-  href: "/inbox",
-  icon: "message-circle",
-  permission: "reservations:read",
-  hiddenForRoles: ["RECEPTIONIST"],
-};
-
-const operationsNavGroup: Omit<NavGroupModule, "children"> = {
-  type: "group",
-  id: "operations",
-  labelKey: "nav.operations",
+const reservationsNavItem: NavItem = {
+  labelKey: "nav.reservations",
   href: "/reservations",
   icon: "clipboard-list",
   permission: "reservations:read",
 };
 
-const operationsNavChildren: NavChildLink[] = [
+const calendarNavItem: NavItem = {
+  labelKey: "nav.calendar",
+  href: "/calendar",
+  icon: "calendar-days",
+  permission: "calendar:read",
+};
+
+const tasksNavGroup: Omit<NavGroupModule, "children"> = {
+  type: "group",
+  id: "tasks",
+  labelKey: "nav.tasks",
+  href: "/tasks/compras",
+  icon: "list-checks",
+  permission: "tasks:read",
+  planFeature: "tasks",
+};
+
+const tasksNavChildren: NavChildLink[] = [
   {
-    labelKey: "nav.reservations",
-    href: "/reservations",
-    permission: "reservations:read",
-  },
-  {
-    labelKey: "nav.calendar",
-    href: "/calendar",
-    permission: "calendar:read",
-  },
-  {
-    labelKey: "nav.tasks",
-    href: "/tasks",
+    labelKey: "nav.purchases",
+    href: "/tasks/compras",
     permission: "tasks:read",
     planFeature: "tasks",
   },
   {
-    labelKey: "nav.properties",
-    href: "/properties",
-    permission: "properties:read",
+    labelKey: "nav.maintenance",
+    href: "/tasks/mantenimiento",
+    permission: "tasks:read",
+    planFeature: "tasks",
   },
   {
-    labelKey: "nav.revenue",
-    href: "/revenue",
-    permission: "finance:revenue:read",
-    planFeature: "revenue",
+    labelKey: "nav.cleaning",
+    href: "/tasks/limpieza",
+    permission: "tasks:read",
+    planFeature: "tasks",
+  },
+  {
+    labelKey: "nav.inventory",
+    href: "/tasks/inventario",
+    permission: "tasks:read",
+    planFeature: "tasks",
   },
 ];
+
+const propertiesNavItem: NavItem = {
+  labelKey: "nav.properties",
+  href: "/properties",
+  icon: "building-2",
+  permission: "properties:read",
+};
+
+const revenueNavItem: NavItem = {
+  labelKey: "nav.revenue",
+  href: "/revenue",
+  icon: "line-chart",
+  permission: "finance:revenue:read",
+  planFeature: "revenue",
+};
 
 const financeNavGroup: Omit<NavGroupModule, "children"> = {
   type: "group",
@@ -339,13 +358,25 @@ export function getNavigationModulesForRole(
     modules.push(navLinkModule(panelNavItem));
   }
 
-  const operationsChildren = filterNavChildren(operationsNavChildren, role, plan);
-  if (operationsChildren.length > 0) {
-    modules.push({ ...operationsNavGroup, children: operationsChildren });
+  if (navLinkAllowed(reservationsNavItem, role, plan)) {
+    modules.push(navLinkModule(reservationsNavItem));
   }
 
-  if (navLinkAllowed(messagesNavItem, role, plan)) {
-    modules.push(navLinkModule(messagesNavItem));
+  if (navLinkAllowed(calendarNavItem, role, plan)) {
+    modules.push(navLinkModule(calendarNavItem));
+  }
+
+  const tasksChildren = filterNavChildren(tasksNavChildren, role, plan);
+  if (tasksChildren.length > 0) {
+    modules.push({ ...tasksNavGroup, children: tasksChildren });
+  }
+
+  if (navLinkAllowed(propertiesNavItem, role, plan)) {
+    modules.push(navLinkModule(propertiesNavItem));
+  }
+
+  if (navLinkAllowed(revenueNavItem, role, plan)) {
+    modules.push(navLinkModule(revenueNavItem));
   }
 
   if (

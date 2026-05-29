@@ -51,7 +51,7 @@ function SidebarNavLink({
       title={collapsed ? title : undefined}
       onClick={() => onNavigate?.()}
       className={cn(
-        "group flex items-center rounded-xl text-[14px] font-medium transition-all duration-200",
+        "group flex items-center rounded-xl text-[14px] font-medium transition-colors duration-150",
         collapsed
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
@@ -103,7 +103,7 @@ function SidebarNavGroupButton({
       title={collapsed ? title : undefined}
       onClick={() => onGroupClick(module)}
       className={cn(
-        "group flex w-full items-center rounded-xl text-[14px] font-medium transition-all duration-200",
+        "group flex w-full items-center rounded-xl text-[14px] font-medium transition-colors duration-150",
         collapsed
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
@@ -166,17 +166,15 @@ export function Sidebar({
   onNavigate,
 }: SidebarProps) {
   const pathname = usePathname();
-  const { collapsed: storedCollapsed, toggle, ready } = useSidebarCollapsed();
+  const { collapsed: storedCollapsed, toggle } = useSidebarCollapsed();
   const collapsed = forceExpanded ? false : storedCollapsed;
   const { t } = useI18n();
-
-  const widthClass = collapsed ? "w-[72px]" : "w-[248px]";
 
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-pragma-soft transition-[width] duration-200 ease-in-out dark:shadow-none",
-        ready ? widthClass : "w-[248px]",
+        "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
+        collapsed ? "w-[72px]" : "w-[248px]",
         className,
       )}
     >

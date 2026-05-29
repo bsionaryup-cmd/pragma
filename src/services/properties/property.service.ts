@@ -8,9 +8,9 @@ import type { AirbnbListingPreview } from "@/services/airbnb/airbnb-import.servi
 import { ensurePropertyIcalExportToken } from "@/services/airbnb/ical-export.service";
 import {
   computeMonthOccupancyPercent,
-  startOfDay,
   sumMonthRevenue,
 } from "@/features/properties/lib/property-stats";
+import { startOfDay } from "@/lib/helpers/date";
 import type {
   PropertyDetailDto,
   PropertyGridItem,

@@ -25,6 +25,7 @@ import { deleteReservationAction } from "@/features/reservations/actions/reserva
 import { ReservationEditForm } from "@/features/reservations/components/reservation-edit-form";
 import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
+import { formatDateTime as formatDateTimeInBogota } from "@/lib/helpers/date";
 import {
   countNights,
   formatStayRange,
@@ -52,7 +53,7 @@ import {
   formatHoldExpiryLabel,
   holdDepositPercentLabel,
 } from "@/lib/reservations/reservation-hold-display";
-import { formatPropertyLabel } from "@/lib/property-display";
+import { formatPropertyLabel, formatPropertyUnit } from "@/lib/property-display";
 import { isOtaImportedReservation } from "@/lib/reservations/reservation-ota";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
@@ -152,10 +153,41 @@ function formatReservationCode(reservation: ReservationDetailItem): string {
 }
 
 function formatCreatedAt(iso: string): string {
-  return new Date(iso).toLocaleString("es-CO", {
+  return formatDateTimeInBogota(iso, "—", {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function buildReservationWithGuestsCopyText(input: {
+  reservation: ReservationDetailItem;
+  registeredGuests: ReservationGuestDto[];
+}): string {
+  const { reservation, registeredGuests } = input;
+  const apartment =
+    formatPropertyUnit(reservation.property.unitNumber) ?? reservation.property.name;
+  const lines: string[] = [
+    `Apartamento: ${apartment}`,
+    `Titular: ${reservation.guestName}`,
+    `Check-in: ${formatDateOnly(reservation.checkIn)}`,
+    `Check-out: ${formatDateOnly(reservation.checkOut)}`,
+    "",
+    "Huéspedes registrados:",
+  ];
+
+  registeredGuests.forEach((guest, index) => {
+    const firstName = guest.firstName.trim() || guest.fullName.trim().split(/\s+/)[0] || "—";
+    const lastName =
+      guest.lastName.trim() ||
+      guest.fullName.trim().split(/\s+/).slice(1).join(" ") ||
+      "—";
+    const documentLabel = getGuestDocumentTypeLabel(guest.documentType);
+    lines.push(`${index + 1}. Nombre: ${firstName}`);
+    lines.push(`   Apellidos: ${lastName}`);
+    lines.push(`   Documento: ${documentLabel} ${guest.documentNumber}`);
+  });
+
+  return lines.join("\n");
 }
 
 const registrationStatusLabels = {
@@ -174,8 +206,7 @@ const guestStatusLabels = {
 } as const;
 
 function formatDateTime(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("es-CO", {
+  return formatDateTimeInBogota(iso, "—", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -376,6 +407,20 @@ export function ReservationDetailPanel({
     }
   }
 
+  async function copyReservationAndGuestsDetails() {
+    if (registeredGuests.length === 0) return;
+    const text = buildReservationWithGuestsCopyText({
+      reservation,
+      registeredGuests,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Datos de reserva y huéspedes copiados");
+    } catch {
+      toast.error("No se pudieron copiar los datos");
+    }
+  }
+
   async function copyRegistrationUrl(url: string, successMessage: string) {
     try {
       await navigator.clipboard.writeText(url);
@@ -438,7 +483,7 @@ export function ReservationDetailPanel({
   }
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background">
       {holdActive ? (
         <div className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-3">
           <p className="text-sm font-medium text-foreground">
@@ -535,9 +580,9 @@ export function ReservationDetailPanel({
         </div>
       ) : null}
 
-      <div className="border-b border-border/60 px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+      <div className="shrink-0 w-full border-b border-border/60 px-5 py-4">
+        <div className="flex w-full items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="mb-0.5">
               <PropertyIdentity
                 name={reservation.property.name}
@@ -596,8 +641,8 @@ export function ReservationDetailPanel({
               />
             </div>
           </div>
-          <div className="mr-10 flex shrink-0 flex-col items-end gap-2">
-            <p className="text-xs text-foreground/65">
+          <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-2 max-md:mr-10">
+            <p className="max-w-full truncate text-xs text-foreground/65">
               ID: <span className="font-medium text-foreground/80">{displayReservationId}</span>
             </p>
             {allowManualEdit || (allowDelete && !editing) ? (
@@ -634,7 +679,7 @@ export function ReservationDetailPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
         {editing && canWrite && properties.length > 0 ? (
           <ReservationEditForm
             reservation={reservation}
@@ -649,65 +694,23 @@ export function ReservationDetailPanel({
 
         {!editing ? (
           <>
-            {accessCode ? (
-              <ReservationDetailSection title="Código de acceso">
-                <AccessCodeDisplay
-                  code={accessCode.code}
-                  status={accessCode.status}
-                  isActive={accessCode.isActive}
-                  copyContext={{
-                    propertyType: reservation.property.propertyType,
-                    propertyName: reservation.property.name,
-                    unitNumber: reservation.property.unitNumber,
-                    checkIn: reservation.checkIn,
-                    checkOut: reservation.checkOut,
-                    checkInTime: reservation.property.checkInTime,
-                    checkOutTime: reservation.property.checkOutTime,
-                  }}
-                />
-              </ReservationDetailSection>
-            ) : null}
-
-            <ReservationDetailSection title="Reserva">
-              <div className="rounded-xl border border-border/80 bg-card px-3 py-1 shadow-pragma-soft">
-                {reservation.createdAt ? (
-                  <p className="py-1.5 text-xs text-foreground/65">
-                    Creada:{" "}
-                    <span className="font-medium text-foreground/80">
-                      {formatCreatedAt(reservation.createdAt)}
-                    </span>
-                  </p>
-                ) : null}
-                <p className="py-1.5 text-sm text-foreground/80">
-                  <span className="text-foreground/80">Cuánto pagó:</span>{" "}
-                  <span className="font-medium text-foreground">
-                    {formatCurrency(
-                      reservation.platform === "AIRBNB" &&
-                        emailEnrichment?.guestTotalPaid != null
-                        ? emailEnrichment.guestTotalPaid
-                        : Number(reservation.totalAmount),
-                      (reservation.platform === "AIRBNB"
-                        ? emailEnrichment?.metadataCurrency
-                        : null) ?? reservation.currency,
-                    )}
-                  </span>
-                </p>
-                {reservation.platform === "AIRBNB" &&
-                emailEnrichment?.hostPayoutAmount != null ? (
-                  <p className="py-1.5 text-sm text-foreground/80">
-                    <span className="text-foreground/80">Gana anfitrión:</span>{" "}
-                    <span className="font-medium text-foreground">
-                      {formatCurrency(
-                        emailEnrichment.hostPayoutAmount,
-                        emailEnrichment.metadataCurrency ?? reservation.currency,
-                      )}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-            </ReservationDetailSection>
-
-            <ReservationDetailSection title="Huéspedes registrados">
+            <ReservationDetailSection
+              title="Huéspedes registrados"
+              headerAside={
+                registeredGuests.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-full px-3 text-xs"
+                    onClick={copyReservationAndGuestsDetails}
+                  >
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />
+                    Copiar datos
+                  </Button>
+                ) : null
+              }
+            >
               {registeredGuests.length > 0 ? (
                 <RegisteredGuestsCompactList guests={registeredGuests} />
               ) : (
@@ -851,6 +854,64 @@ export function ReservationDetailPanel({
                 </ul>
               </ReservationDetailSection>
             ) : null}
+
+            {accessCode ? (
+              <ReservationDetailSection title="Código de acceso">
+                <AccessCodeDisplay
+                  code={accessCode.code}
+                  status={accessCode.status}
+                  isActive={accessCode.isActive}
+                  copyContext={{
+                    propertyType: reservation.property.propertyType,
+                    propertyName: reservation.property.name,
+                    unitNumber: reservation.property.unitNumber,
+                    checkIn: reservation.checkIn,
+                    checkOut: reservation.checkOut,
+                    checkInTime: reservation.property.checkInTime,
+                    checkOutTime: reservation.property.checkOutTime,
+                  }}
+                />
+              </ReservationDetailSection>
+            ) : null}
+
+            <ReservationDetailSection title="Reserva">
+              <div className="rounded-xl border border-border/80 bg-card px-3 py-1 shadow-pragma-soft">
+                {reservation.createdAt ? (
+                  <p className="py-1.5 text-xs text-foreground/65">
+                    Creada:{" "}
+                    <span className="font-medium text-foreground/80">
+                      {formatCreatedAt(reservation.createdAt)}
+                    </span>
+                  </p>
+                ) : null}
+                <p className="py-1.5 text-sm text-foreground/80">
+                  <span className="text-foreground/80">Cuánto pagó:</span>{" "}
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(
+                      reservation.platform === "AIRBNB" &&
+                        emailEnrichment?.guestTotalPaid != null
+                        ? emailEnrichment.guestTotalPaid
+                        : Number(reservation.totalAmount),
+                      (reservation.platform === "AIRBNB"
+                        ? emailEnrichment?.metadataCurrency
+                        : null) ?? reservation.currency,
+                    )}
+                  </span>
+                </p>
+                {reservation.platform === "AIRBNB" &&
+                emailEnrichment?.hostPayoutAmount != null ? (
+                  <p className="py-1.5 text-sm text-foreground/80">
+                    <span className="text-foreground/80">Gana anfitrión:</span>{" "}
+                    <span className="font-medium text-foreground">
+                      {formatCurrency(
+                        emailEnrichment.hostPayoutAmount,
+                        emailEnrichment.metadataCurrency ?? reservation.currency,
+                      )}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
+            </ReservationDetailSection>
           </>
         ) : null}
       </div>

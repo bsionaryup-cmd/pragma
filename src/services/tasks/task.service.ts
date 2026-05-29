@@ -1,3 +1,4 @@
+import type { TaskType } from "@prisma/client";
 import type { TaskFormValues } from "@/features/tasks/schemas/task.schema";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
@@ -7,10 +8,13 @@ import {
 } from "@/lib/platform/tenant-access";
 import { taskWhere } from "@/lib/platform/tenant-data-scope";
 
-export async function listTasks() {
+export async function listTasks(options?: { type?: TaskType }) {
   const scope = await requireTenantDataScope();
   return db.task.findMany({
-    where: taskWhere(scope),
+    where: {
+      ...taskWhere(scope),
+      ...(options?.type ? { type: options.type } : {}),
+    },
     include: {
       property: { select: { name: true } },
       assignee: { select: { firstName: true, lastName: true } },

@@ -1,6 +1,7 @@
+import { formatDateTime } from "@/lib/helpers/date";
+
 export function formatPriceLabsDate(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("es-CO", {
+  return formatDateTime(value, "—", {
     dateStyle: "medium",
     timeStyle: "short",
   });

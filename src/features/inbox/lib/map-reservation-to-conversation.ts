@@ -36,12 +36,9 @@ function nightsBetween(checkIn: string, checkOut: string): number {
   return Math.max(1, Math.round((end - start) / 86_400_000));
 }
 
-function resolveBookingCode(
-  reservation: ReservationInboxItem,
-  extras?: ReservationExtras,
-): string {
-  if (extras?.reservationCode?.trim()) return extras.reservationCode.trim();
-  if (extras?.icalUid?.trim()) return extras.icalUid.trim();
+function resolveBookingCode(reservation: ReservationInboxItem): string {
+  if (reservation.reservationCode?.trim()) return reservation.reservationCode.trim();
+  if (reservation.icalUid?.trim()) return reservation.icalUid.trim();
   return reservation.id.slice(-8).toUpperCase();
 }
 
@@ -80,14 +77,19 @@ function mapBaseFields(
 ): Omit<InboxConversation, "messages"> {
   const { status, label } = resolveInboxStatus(reservation);
   const total = Number(reservation.totalAmount) || 0;
-  const paymentStatus = extras?.paymentStatus ?? "PAID";
+  const paymentStatus =
+    extras?.paymentStatus ?? reservation.paymentStatus ?? "PENDING";
   const { paidAmount, dueAmount } = resolvePaymentAmounts(total, paymentStatus);
   const unitLabel = resolveCalendarUnitLabel({
     name: reservation.property.name,
     unitNumber: reservation.property.unitNumber,
   });
   const unit = unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
-  const activityAt = extras?.updatedAt.toISOString() ?? reservation.createdAt;
+  const activityAt =
+    extras?.updatedAt.toISOString() ??
+    reservation.updatedAt ??
+    reservation.createdAt;
+  const imageUrl = coverImageUrl ?? reservation.property.coverImageUrl ?? null;
 
   return {
     id: reservation.id,
@@ -101,8 +103,8 @@ function mapBaseFields(
     ),
     status,
     statusLabel: label,
-    propertyImageUrl: coverImageUrl,
-    bookingCode: resolveBookingCode(reservation, extras),
+    propertyImageUrl: imageUrl,
+    bookingCode: resolveBookingCode(reservation),
     platform: reservation.platform,
     propertyName: reservation.property.name,
     propertyUnit: unit ?? "",
@@ -138,7 +140,7 @@ export function mapReservationToConversationSummary(
   const messages = buildConversationMessages({
     ...reservation,
     createdAt: reservation.createdAt,
-    icalUid: extras?.icalUid ?? null,
+    icalUid: reservation.icalUid ?? extras?.icalUid ?? null,
     relatedBlocks: [],
     guests: [],
   });

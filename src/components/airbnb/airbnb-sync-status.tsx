@@ -7,6 +7,7 @@ import {
   AIRBNB_SYNC_COMPLETE_EVENT,
   type AirbnbSyncCompleteDetail,
 } from "@/lib/airbnb-sync";
+import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 type AirbnbSyncStatusProps = {
@@ -32,6 +33,7 @@ function formatAbsoluteTime(iso: string | null): string {
   return new Date(iso).toLocaleString("es-CO", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: PRAGMA_TIMEZONE,
   });
 }
 

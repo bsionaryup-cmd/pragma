@@ -18,6 +18,7 @@ import {
   testWompiConnectionAction,
 } from "@/features/billing/actions/wompi.actions";
 import type { WompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
+import { formatDateTime } from "@/lib/helpers/date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -218,7 +219,10 @@ export function WompiCredentialsCard({
         {wompi.lastHealthCheckAt ? (
           <p className="text-xs text-muted-foreground">
             Última prueba:{" "}
-            {new Date(wompi.lastHealthCheckAt).toLocaleString("es-CO")}
+            {formatDateTime(wompi.lastHealthCheckAt, "—", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            })}
             {wompi.lastError ? (
               <span className="ml-1 text-red-600">· {wompi.lastError}</span>
             ) : null}

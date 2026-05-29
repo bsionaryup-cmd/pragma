@@ -33,7 +33,7 @@ type PanelReservationsTableProps = {
 };
 
 function guestTotal(row: PanelReservationRow) {
-  return row.adults + row.children + row.infants;
+  return row.guestTotal;
 }
 
 function dateLabel(row: PanelReservationRow, tab: PanelTab) {

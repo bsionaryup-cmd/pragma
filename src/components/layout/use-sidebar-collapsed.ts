@@ -1,24 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "pragma-sidebar-collapsed";
 
-export function useSidebarCollapsed() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [ready, setReady] = useState(false);
+function readCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
 
-  useEffect(() => {
-    const id = window.setTimeout(() => {
-      try {
-        setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
-      } catch {
-        /* ignore */
-      }
-      setReady(true);
-    }, 0);
-    return () => window.clearTimeout(id);
-  }, []);
+export function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(readCollapsed);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {
@@ -32,5 +28,5 @@ export function useSidebarCollapsed() {
     });
   }, []);
 
-  return { collapsed, toggle, ready };
+  return { collapsed, toggle, ready: true };
 }

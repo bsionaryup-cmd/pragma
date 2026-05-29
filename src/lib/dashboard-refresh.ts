@@ -1,8 +1,20 @@
 export const DASHBOARD_DATA_REFRESH_EVENT = "pragma-dashboard-data-refresh";
 
-/** Menos agresivo en dev (localhost) para reducir router.refresh y consultas Prisma. */
+/** Intervalo de sync en vivo; menos agresivo en prod para reducir RSC refresh. */
 export const DASHBOARD_DATA_POLL_MS =
-  process.env.NODE_ENV === "development" ? 60_000 : 20_000;
+  process.env.NODE_ENV === "development" ? 60_000 : 45_000;
+
+/** Rutas que necesitan router.refresh() completo (datos server-only). */
+export const DASHBOARD_FULL_REFRESH_PREFIXES = [
+  "/panel",
+  "/finance",
+] as const;
+
+export function needsDashboardFullRefresh(pathname: string): boolean {
+  return DASHBOARD_FULL_REFRESH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 export const DASHBOARD_DATA_REFRESH_COOLDOWN_MS = 4_000;
 
 const LIVE_DASHBOARD_PREFIXES = [

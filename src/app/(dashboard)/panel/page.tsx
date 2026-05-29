@@ -6,14 +6,14 @@ import { getServerLocale } from "@/i18n/locale.server";
 import { dashboardMetadata } from "@/lib/seo";
 import { getCommandCenterData } from "@/services/dashboard/command-center.service";
 import { getActiveSystemAnnouncements } from "@/lib/system-announcements";
-import { getEffectiveOrganizationIdForUser } from "@/lib/platform/tenant-context";
-import { db } from "@/lib/db";
+import PanelLoading from "./loading";
 
 const CommandCenterView = dynamic(
   () =>
     import("@/components/dashboard/command-center-view").then((m) => ({
       default: m.CommandCenterView,
     })),
+  { loading: () => <PanelLoading /> },
 );
 
 export const metadata: Metadata = dashboardMetadata;
@@ -21,15 +21,7 @@ export const metadata: Metadata = dashboardMetadata;
 export default async function PanelControlPage() {
   const locale = await getServerLocale();
   const auth = await requirePermission("dashboard:read");
-  const organizationId = await getEffectiveOrganizationIdForUser(auth.dbUserId);
-  const propertyScope = organizationId
-    ? { organizationId }
-    : { ownerId: auth.dbUserId };
-
-  const [data, propertyCount] = await Promise.all([
-    getCommandCenterData(locale),
-    db.property.count({ where: propertyScope }),
-  ]);
+  const data = await getCommandCenterData(locale);
   const novedades = getActiveSystemAnnouncements(locale);
 
   const canCreateProperties = hasPermission(auth.role, "properties:write");
@@ -37,7 +29,7 @@ export default async function PanelControlPage() {
     <CommandCenterView
       firstName={auth.firstName}
       data={data}
-      showEmptyBanner={propertyCount === 0}
+      showEmptyBanner={data.totalPropertyCount === 0}
       canCreateProperties={canCreateProperties}
       novedades={novedades}
     />

@@ -4,6 +4,7 @@ import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { monthBoundsInTimezone } from "@/lib/timezone";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   mergePropertyScope,
@@ -105,15 +106,7 @@ export type FinanceOverview = {
 };
 
 function monthBounds(reference = new Date()) {
-  const start = new Date(reference.getFullYear(), reference.getMonth(), 1);
-  const end = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
-  const prevStart = new Date(reference.getFullYear(), reference.getMonth() - 1, 1);
-  const prevEnd = new Date(reference.getFullYear(), reference.getMonth(), 0);
-  prevStart.setHours(0, 0, 0, 0);
-  prevEnd.setHours(23, 59, 59, 999);
-  return { start, end, prevStart, prevEnd };
+  return monthBoundsInTimezone(reference);
 }
 
 function trendPct(current: number, previous: number): number {

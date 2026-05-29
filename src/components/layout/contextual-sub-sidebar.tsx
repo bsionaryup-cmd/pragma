@@ -29,8 +29,8 @@ export function ContextualSubSidebar({
     <aside
       aria-hidden={!open}
       className={cn(
-        "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width,opacity] duration-200 ease-in-out",
-        open ? "w-[212px] opacity-100" : "w-0 opacity-0",
+        "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
+        open ? "w-[212px]" : "w-0",
       )}
     >
       {module ? (

@@ -22,6 +22,7 @@ import { PriceLabsApiKeyCard } from "@/features/integrations/pricelabs/component
 import { PriceLabsInsightsSection } from "@/features/integrations/pricelabs/components/pricelabs-insights-section";
 import { PriceLabsOverridesPanel } from "@/features/integrations/pricelabs/components/pricelabs-overrides-panel";
 import { PriceLabsPropertyDetailCard } from "@/features/integrations/pricelabs/components/pricelabs-property-detail-card";
+import { formatPriceLabsDate as formatDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,14 +33,6 @@ import { cn } from "@/lib/utils";
 type PriceLabsPanelProps = {
   overview: PriceLabsOverviewDto;
 };
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("es-CO", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
 
 function formatMoney(value: string | null, currency = "COP") {
   if (!value) return "—";

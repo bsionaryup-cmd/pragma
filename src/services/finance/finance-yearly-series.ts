@@ -4,6 +4,7 @@ import {
   ReservationStatus,
 } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
+import { todayPrismaDate } from "@/lib/dates";
 import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
 import { mergePropertyScope, mergeReservationScope } from "@/lib/platform/tenant-data-scope";
@@ -86,8 +87,7 @@ export async function buildFinanceYearlySeries(
 ): Promise<FinanceYearMonthPoint[]> {
   const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
   const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayPrismaDate();
 
   const [reservations, cancelled, manualExpenses, manualIncomes, activeProperties] =
     await Promise.all([

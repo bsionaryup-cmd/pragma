@@ -9,7 +9,9 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { addCalendarDaysToKey, dateKeyToPrismaDate, todayDateKeyInTimezone } from "@/lib/dates";
 import { startOfDay } from "@/lib/helpers/date";
+import { monthBoundsInTimezone } from "@/lib/timezone";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   mergePropertyScope,
@@ -91,19 +93,11 @@ export type CommandCenterData = {
   departures: PanelReservationRow[];
   currentStays: PanelReservationRow[];
   counts: Awaited<ReturnType<typeof getPanelCounts>>;
+  totalPropertyCount: number;
 };
 
 function monthBounds(reference = new Date()) {
-  const start = new Date(reference.getFullYear(), reference.getMonth(), 1);
-  const end = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(23, 59, 59, 999);
-  const prevStart = new Date(reference.getFullYear(), reference.getMonth() - 1, 1);
-  const prevEnd = new Date(reference.getFullYear(), reference.getMonth(), 0);
-  prevStart.setHours(0, 0, 0, 0);
-  prevEnd.setHours(23, 59, 59, 999);
-  const daysInMonth = end.getDate();
-  return { start, end, prevStart, prevEnd, daysInMonth };
+  return monthBoundsInTimezone(reference);
 }
 
 function sumDecimal(rows: { totalAmount: { toString(): string } }[]): number {
@@ -137,13 +131,14 @@ function computeOccupancyFromReservations(
 export async function getCommandCenterData(locale: Locale = "es"): Promise<CommandCenterData> {
   const scope = await requireTenantDataScope();
   const today = startOfDay();
-  const registrationDueBy = new Date(today);
-  registrationDueBy.setDate(registrationDueBy.getDate() + 2);
-  registrationDueBy.setHours(23, 59, 59, 999);
-  const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds(today);
+  const registrationDueBy = dateKeyToPrismaDate(
+    addCalendarDaysToKey(todayDateKeyInTimezone(), 2),
+  );
+  const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds();
 
   const [
     activeProperties,
+    totalPropertyCount,
     checkedInReservations,
     counts,
     arrivalsRaw,
@@ -161,6 +156,9 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
   ] = await Promise.all([
     db.property.count({
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
+    }),
+    db.property.count({
+      where: mergePropertyScope(scope, {}),
     }),
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
@@ -458,5 +456,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     departures: sortPanelRowsByCheckOut(departuresRaw.map(toPanelReservationRow)),
     currentStays: sortPanelRowsByCheckIn(currentRaw.map(toPanelReservationRow)),
     counts,
+    totalPropertyCount,
   };
 }

@@ -1,4 +1,5 @@
 import type { ReservationStatus } from "@prisma/client";
+import { startOfDay } from "@/lib/helpers/date";
 
 type ReservationSlice = {
   checkIn: Date;
@@ -6,12 +7,6 @@ type ReservationSlice = {
   status: ReservationStatus;
   totalAmount?: { toString(): string };
 };
-
-export function startOfDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 export function computeMonthOccupancyPercent(
   reservations: ReservationSlice[],

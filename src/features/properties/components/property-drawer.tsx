@@ -1,8 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
-import { PropertyDetailPanel } from "@/features/properties/components/property-detail-panel";
-import { PropertyFormDrawer } from "@/features/properties/components/property-form-drawer";
 import type {
   PropertyDetailDto,
   PropertyGridItem,
@@ -14,6 +13,34 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+
+const PropertyDetailPanel = dynamic(
+  () =>
+    import("@/features/properties/components/property-detail-panel").then(
+      (m) => ({ default: m.PropertyDetailPanel }),
+    ),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+      </div>
+    ),
+  },
+);
+
+const PropertyFormDrawer = dynamic(
+  () =>
+    import("@/features/properties/components/property-form-drawer").then(
+      (m) => ({ default: m.PropertyFormDrawer }),
+    ),
+  {
+    loading: () => (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+      </div>
+    ),
+  },
+);
 
 export type PropertyDrawerMode = "create" | "edit" | "detail" | null;
 

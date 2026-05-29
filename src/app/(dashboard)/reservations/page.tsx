@@ -4,12 +4,14 @@ import { hasPermission, requirePermission } from "@/lib/auth";
 import { listPropertiesForInbox } from "@/services/properties/property.service";
 import { listReservationsForInbox } from "@/services/reservations/reservation.service";
 import type { AppUserRole } from "@/types/auth";
+import ReservationsLoading from "./loading";
 
 const ReservationsInbox = dynamic(
   () =>
     import("@/features/reservations/components/reservations-inbox").then(
       (m) => ({ default: m.ReservationsInbox }),
     ),
+  { loading: () => <ReservationsLoading /> },
 );
 
 type ReservationsPageProps = {
