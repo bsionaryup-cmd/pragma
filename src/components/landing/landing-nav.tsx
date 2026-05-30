@@ -31,7 +31,7 @@ export function LandingNav({ session: _session }: LandingNavProps) {
       className="sticky top-0 z-50 border-b border-pragma-border/80 bg-white/95 backdrop-blur-xl"
     >
       <nav
-        className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-4 px-6"
+        className="mx-auto flex h-[4.25rem] max-w-7xl items-center justify-between gap-3 px-4 sm:gap-4 sm:px-6"
         aria-label="Principal"
       >
         <Link href="/" className="flex min-w-0 items-center py-1" aria-label="PRAGMA — inicio">

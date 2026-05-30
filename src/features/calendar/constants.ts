@@ -10,6 +10,9 @@ export const CALENDAR_ROW_HEIGHT = 88;
 /** Sidebar izquierda de propiedades (px) */
 export const CALENDAR_SIDEBAR_WIDTH = 280;
 
+/** Sidebar compacta en móvil/tablet (px) — alineada con filas del grid */
+export const CALENDAR_SIDEBAR_WIDTH_COMPACT = 80;
+
 /** Header de días (px) */
 export const CALENDAR_DAY_HEADER_HEIGHT = 52;
 

@@ -20,21 +20,17 @@ export function ContextualSubSidebar({
 }: ContextualSubSidebarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
-  const open = module !== null;
-  const activeChild = module
-    ? getActiveNavChild(pathname, module.children)
-    : null;
+  if (!module) return null;
+
+  const activeChild = getActiveNavChild(pathname, module.children);
 
   return (
     <aside
-      aria-hidden={!open}
       className={cn(
-        "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
-        open ? "w-[212px]" : "w-0",
+        "flex h-full min-h-0 w-[212px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
       )}
     >
-      {module ? (
-        <div className="flex h-full w-[212px] flex-col">
+      <div className="flex h-full w-[212px] flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3 py-3">
             <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
               {t(module.labelKey)}
@@ -75,8 +71,7 @@ export function ContextualSubSidebar({
               );
             })}
           </nav>
-        </div>
-      ) : null}
+      </div>
     </aside>
   );
 }

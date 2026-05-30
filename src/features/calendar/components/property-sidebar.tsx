@@ -7,6 +7,7 @@ import {
   CALENDAR_DAY_HEADER_HEIGHT,
   CALENDAR_ROW_HEIGHT,
   CALENDAR_SIDEBAR_WIDTH,
+  CALENDAR_SIDEBAR_WIDTH_COMPACT,
 } from "@/features/calendar/constants";
 import {
   formatCalendarUnitDisplay,
@@ -28,6 +29,8 @@ function formatPropertyRef(id: string): string {
   return compact.slice(-6) || id.slice(0, 6);
 }
 
+type PropertySidebarVariant = "full" | "compact";
+
 type PropertySidebarProps = {
   properties: CalendarPropertyDto[];
   search: string;
@@ -35,18 +38,48 @@ type PropertySidebarProps = {
   scrollRef: React.RefObject<HTMLDivElement | null>;
   onScroll: () => void;
   viewSettings: CalendarViewSettings;
+  variant?: PropertySidebarVariant;
 };
 
 function PropertySidebarItem({
   property,
   viewSettings,
+  variant = "full",
 }: {
   property: CalendarPropertyDto;
   viewSettings: CalendarViewSettings;
+  variant?: PropertySidebarVariant;
 }) {
-  const unit = formatCalendarUnitDisplay(
-    resolveCalendarUnitLabel(property),
-  );
+  const unit = formatCalendarUnitDisplay(resolveCalendarUnitLabel(property));
+  const compact = variant === "compact";
+
+  if (compact) {
+    return (
+      <div
+        className="flex items-center justify-center border-b border-[var(--cal-row-divider)] px-1 transition-colors"
+        style={rowStyle}
+        title={property.name}
+      >
+        <div className="min-w-0 text-center leading-tight">
+          {unit !== "—" ? (
+            <p className="truncate text-[13px] font-bold tabular-nums tracking-tight text-[var(--cal-text-day)]">
+              {unit}
+            </p>
+          ) : (
+            <p className="line-clamp-2 text-[10px] font-semibold text-[var(--cal-text-day)]">
+              {property.name}
+            </p>
+          )}
+          {viewSettings.showInternalName && unit !== "—" ? (
+            <p className="mt-0.5 line-clamp-2 text-[9px] font-normal text-[var(--cal-text-muted)]">
+              {property.name}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   const hasTextContent =
     viewSettings.showInternalName ||
     viewSettings.showIdentificationNumber;
@@ -118,45 +151,73 @@ function PropertySidebarComponent({
   scrollRef,
   onScroll,
   viewSettings,
+  variant = "full",
 }: PropertySidebarProps) {
+  const compact = variant === "compact";
+  const sidebarWidth = compact
+    ? CALENDAR_SIDEBAR_WIDTH_COMPACT
+    : CALENDAR_SIDEBAR_WIDTH;
+
   return (
     <aside
-      className="flex shrink-0 flex-col border-r border-[var(--cal-border)] bg-white"
-      style={{ width: CALENDAR_SIDEBAR_WIDTH }}
+      className={cn(
+        "flex shrink-0 flex-col border-r border-[var(--cal-border)] bg-white",
+        compact && "z-10 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.08)]",
+      )}
+      style={{ width: sidebarWidth }}
     >
       <div
-        className="flex shrink-0 items-center gap-2 border-b border-[var(--cal-row-divider)] px-3"
+        className={cn(
+          "flex shrink-0 items-center border-b border-[var(--cal-row-divider)]",
+          compact ? "justify-center px-1" : "gap-2 px-3",
+        )}
         style={{
           height: CALENDAR_DAY_HEADER_HEIGHT,
           minHeight: CALENDAR_DAY_HEADER_HEIGHT,
           boxSizing: "border-box",
         }}
       >
-        <div className="flex shrink-0 items-center gap-1.5">
-          <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-[var(--cal-text-muted)]" aria-hidden />
-          <span className="hidden text-[12px] font-medium text-[var(--cal-text-secondary)] xl:inline">
-            Ordenar alojamientos
+        {compact ? (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cal-text-muted)]">
+            Aloj.
           </span>
-        </div>
-        <div className="relative min-w-0 flex-1">
-          <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cal-text-muted)]" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Buscar..."
-            className="h-7 w-full rounded-md border border-[var(--cal-border)] bg-white pl-7 pr-2 text-[12px] text-[var(--cal-text-day)] outline-none transition-colors placeholder:text-[var(--cal-text-muted)] focus:border-[var(--cal-border-strong)]"
-          />
-        </div>
+        ) : (
+          <>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <ArrowUpDown
+                className="h-3.5 w-3.5 shrink-0 text-[var(--cal-text-muted)]"
+                aria-hidden
+              />
+              <span className="hidden text-[12px] font-medium text-[var(--cal-text-secondary)] xl:inline">
+                Ordenar alojamientos
+              </span>
+            </div>
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cal-text-muted)]" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Buscar..."
+                className="h-7 w-full rounded-md border border-[var(--cal-border)] bg-white pl-7 pr-2 text-[12px] text-[var(--cal-text-day)] outline-none transition-colors placeholder:text-[var(--cal-text-muted)] focus:border-[var(--cal-border-strong)]"
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div
         ref={scrollRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain"
       >
         {properties.length === 0 ? (
-          <p className="p-6 text-center text-sm text-[var(--cal-text-secondary)]">
+          <p
+            className={cn(
+              "text-center text-[var(--cal-text-secondary)]",
+              compact ? "p-3 text-[10px]" : "p-6 text-sm",
+            )}
+          >
             Sin propiedades
           </p>
         ) : (
@@ -165,6 +226,7 @@ function PropertySidebarComponent({
               key={property.id}
               property={property}
               viewSettings={viewSettings}
+              variant={variant}
             />
           ))
         )}

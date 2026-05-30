@@ -66,7 +66,7 @@ type LandingPageProps = {
 
 export function LandingPage({ session = EMPTY_LANDING_SESSION }: LandingPageProps) {
   return (
-    <div className="relative min-h-screen bg-white text-pragma-black antialiased">
+    <div className="relative min-h-screen overflow-x-hidden bg-white text-pragma-black antialiased">
       <LandingBackground />
       <LandingNav session={session} />
       <main>

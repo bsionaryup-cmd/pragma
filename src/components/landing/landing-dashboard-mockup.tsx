@@ -50,9 +50,11 @@ export function LandingDashboardMockup() {
       </div>
 
       <div className="border-t border-pragma-border bg-pragma-soft-gray/60 px-4 py-3">
-        <div className="flex items-center justify-between text-xs text-pragma-mid-gray">
-          <span>Reservas activas · Calendario sync · Integraciones</span>
-          <span className="font-medium text-pragma-electric">Live</span>
+        <div className="flex items-center justify-between gap-2 text-xs text-pragma-mid-gray">
+          <span className="min-w-0 truncate">
+            Reservas activas · Calendario sync · Integraciones
+          </span>
+          <span className="shrink-0 font-medium text-pragma-electric">Live</span>
         </div>
       </div>
     </div>

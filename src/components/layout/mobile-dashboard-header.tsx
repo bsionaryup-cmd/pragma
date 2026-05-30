@@ -1,7 +1,8 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
@@ -23,11 +24,16 @@ export function MobileDashboardHeader({
   settingsItem,
   user,
 }: MobileDashboardHeaderProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-pragma-soft lg:hidden dark:shadow-none">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-pragma-soft xl:hidden dark:shadow-none">
         <button
           type="button"
           onClick={() => setOpen(true)}

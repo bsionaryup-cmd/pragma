@@ -107,6 +107,7 @@ export function MultiCalendar({
 
   const gridScrollRef = useRef<HTMLDivElement>(null);
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  const sheetSidebarScrollRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const syncingRef = useRef(false);
   const gridScrollRafRef = useRef<number | null>(null);
@@ -606,6 +607,16 @@ export function MultiCalendar({
     closeDrawer();
   }
 
+  function handleTogglePropertiesPanel() {
+    setPropertyPanelOpen(true);
+    requestAnimationFrame(() => {
+      const gridTop = gridScrollRef.current?.scrollTop ?? 0;
+      if (sheetSidebarScrollRef.current) {
+        sheetSidebarScrollRef.current.scrollTop = gridTop;
+      }
+    });
+  }
+
   return (
     <div className="cal-module flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <CalendarToolbar
@@ -613,7 +624,7 @@ export function MultiCalendar({
         displayYear={displayMonth.year}
         displayMonth={displayMonth.month}
         showPropertiesToggle
-        onToggleProperties={() => setPropertyPanelOpen(true)}
+        onToggleProperties={handleTogglePropertiesPanel}
         canCreate={canWrite}
         onCreateClick={handleToolbarCreateClick}
         onGoToToday={handleGoToToday}
@@ -621,8 +632,21 @@ export function MultiCalendar({
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="flex h-full shrink-0 lg:hidden">
+          <PropertySidebar
+            variant="compact"
+            properties={filteredProperties}
+            search={search}
+            onSearchChange={setSearch}
+            scrollRef={sidebarScrollRef}
+            onScroll={syncFromSidebar}
+            viewSettings={viewSettings}
+          />
+        </div>
+
         <div className="hidden h-full shrink-0 lg:flex">
           <PropertySidebar
+            variant="full"
             properties={filteredProperties}
             search={search}
             onSearchChange={setSearch}
@@ -711,13 +735,21 @@ export function MultiCalendar({
 
       <Sheet open={propertyPanelOpen} onOpenChange={setPropertyPanelOpen}>
         <SheetContent side="left" className="w-[min(100vw,300px)] gap-0 p-0 sm:max-w-[300px]">
-          <SheetTitle className="sr-only">Propiedades del calendario</SheetTitle>
+          <SheetTitle className="sr-only">Buscar propiedades del calendario</SheetTitle>
           <PropertySidebar
+            variant="full"
             properties={filteredProperties}
             search={search}
             onSearchChange={setSearch}
-            scrollRef={sidebarScrollRef}
-            onScroll={syncFromSidebar}
+            scrollRef={sheetSidebarScrollRef}
+            onScroll={() => {
+              const sheet = sheetSidebarScrollRef.current;
+              const grid = gridScrollRef.current;
+              if (!sheet || !grid || syncingRef.current) return;
+              syncingRef.current = true;
+              grid.scrollTop = sheet.scrollTop;
+              syncingRef.current = false;
+            }}
             viewSettings={viewSettings}
           />
         </SheetContent>

@@ -33,7 +33,7 @@ export function AppShell({
           modules={navModules}
           settingsItem={settingsItem}
           user={user}
-          className="hidden lg:flex"
+          className="hidden xl:flex"
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

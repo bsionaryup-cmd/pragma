@@ -40,7 +40,7 @@ function CalendarToolbarComponent({
   const nextAnchor = shiftAnchor(viewport.anchor, NAV_SHIFT_DAYS);
 
   return (
-    <div className="flex min-h-[var(--cal-toolbar-height,3rem)] shrink-0 items-center justify-between gap-3 border-b border-[var(--cal-border)] bg-white px-4 py-2 sm:px-5">
+    <div className="flex min-h-[var(--cal-toolbar-height,3rem)] shrink-0 items-center justify-between gap-2 border-b border-[var(--cal-border)] bg-white px-2 py-2 sm:gap-3 sm:px-4 md:px-5">
       <div className="flex min-w-0 items-center gap-2">
         {showPropertiesToggle ? (
           <Button
@@ -49,12 +49,12 @@ function CalendarToolbarComponent({
             size="icon"
             className="h-8 w-8 shrink-0 rounded-md text-[var(--cal-text-secondary)] hover:bg-[var(--cal-bg-hover)] lg:hidden"
             onClick={onToggleProperties}
-            aria-label="Ver propiedades"
+            aria-label="Buscar alojamientos"
           >
             <PanelLeft className="h-4 w-4" />
           </Button>
         ) : null}
-        <h2 className="truncate text-base font-bold tracking-tight text-[var(--cal-text-day)]">
+        <h2 className="truncate text-sm font-bold tracking-tight text-[var(--cal-text-day)] sm:text-base">
           {monthLabel}
         </h2>
       </div>

@@ -22,7 +22,7 @@ type LandingHeroProps = {
 
 export function LandingHero({ session: _session }: LandingHeroProps) {
   return (
-    <section className="relative mx-auto max-w-7xl px-6 pt-12 pb-16 md:pt-16 md:pb-24">
+    <section className="relative mx-auto max-w-7xl px-4 pt-10 pb-14 sm:px-6 md:pt-16 md:pb-24">
       <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
         <div className="max-w-xl lg:max-w-none">
           <motion.p
