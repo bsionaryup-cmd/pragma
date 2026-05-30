@@ -18,7 +18,6 @@ import {
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from "@/lib/auth/verification-flow";
 
-const SIGN_IN_REDIRECT = "/sign-in?signed_out=1";
 const DEFAULT_POST_AUTH_PATH = "/panel";
 
 type Step = "credentials" | "verification";
@@ -138,8 +137,8 @@ export function EmailPasswordSignInForm({
   const { signOut } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
 
-  const [ready, setReady] = useState(false);
   const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
+  const [signInFlowReady, setSignInFlowReady] = useState(!clearStaleSession);
   const [step, setStep] = useState<Step>("credentials");
   const [verificationStrategy, setVerificationStrategy] =
     useState<VerificationStrategy | null>(null);
@@ -155,6 +154,9 @@ export function EmailPasswordSignInForm({
   const loginSucceededRef = useRef(false);
   const verificationSendStartedRef = useRef(false);
   const restoredVerificationRef = useRef(false);
+  const staleSessionCleanupRef = useRef(false);
+
+  const authBootstrapComplete = authLoaded || authBootstrapTimedOut;
 
   const clerkReady = authLoaded && Boolean(signIn);
   const isFetching = fetchStatus === "fetching" || pending;
@@ -172,27 +174,49 @@ export function EmailPasswordSignInForm({
   }, [resendCooldown]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 4000);
+    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 2500);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!authLoaded) return;
+    if (!authLoaded || !clearStaleSession) return;
+    if (staleSessionCleanupRef.current) return;
+    staleSessionCleanupRef.current = true;
 
-    setReady(true);
-
-    if (loginSucceededRef.current || !clearStaleSession || !isSignedIn) {
-      return;
+    if (isSignedIn && !loginSucceededRef.current) {
+      // Ya estamos en /sign-in tras cerrar sesión: limpiar sesión sin redirigir de nuevo.
+      void signOut().catch(() => {
+        // El formulario debe seguir usable aunque falle el cierre residual.
+      });
     }
-
-    void signOut({ redirectUrl: SIGN_IN_REDIRECT }).catch(() => {
-      // No bloquear el formulario si el cierre de sesión falla o tarda.
-    });
   }, [authLoaded, clearStaleSession, isSignedIn, signOut]);
 
   useEffect(() => {
-    if (!signIn || !ready || restoredVerificationRef.current) return;
-    if (clearStaleSession) return;
+    if (!signIn || !authBootstrapComplete || !clearStaleSession) return;
+
+    let cancelled = false;
+    setStep("credentials");
+    setVerificationStrategy(null);
+    setVerificationReasonState(null);
+    setCode("");
+    setError(null);
+    setInfo(null);
+    verificationSendStartedRef.current = false;
+    restoredVerificationRef.current = false;
+    setSignInFlowReady(false);
+
+    void signIn.reset().finally(() => {
+      if (!cancelled) setSignInFlowReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authBootstrapComplete, clearStaleSession, signIn]);
+
+  useEffect(() => {
+    if (!signIn || !authBootstrapComplete || restoredVerificationRef.current) return;
+    if (clearStaleSession || !signInFlowReady) return;
     if (!requiresSecondFactor(signIn.status)) return;
 
     const strategy = resolveSecondFactorStrategy(signIn);
@@ -209,26 +233,13 @@ export function EmailPasswordSignInForm({
           : verificationHint(strategy, normalizedEmail, verificationReason(signIn.status)),
       );
     });
-  }, [ready, signIn, signIn?.status, normalizedEmail]);
+  }, [authBootstrapComplete, clearStaleSession, signIn, signIn?.status, signInFlowReady, normalizedEmail]);
 
   useEffect(() => {
-    if (!signIn || !ready || !clearStaleSession) return;
-
-    let cancelled = false;
-
-    void signIn.reset().then(() => {
-      if (cancelled) return;
-      restoredVerificationRef.current = false;
-      verificationSendStartedRef.current = false;
-      setStep("credentials");
-      setVerificationStrategy(null);
-      setVerificationReasonState(null);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clearStaleSession, ready, signIn]);
+    if (!clearStaleSession || signInFlowReady) return;
+    const timer = window.setTimeout(() => setSignInFlowReady(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [clearStaleSession, signInFlowReady]);
 
   function startResendCooldown() {
     setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
@@ -379,11 +390,7 @@ export function EmailPasswordSignInForm({
 
   function handleCredentialsSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!clerkReady || !ready || !signIn) return;
-
-    if (isSignedIn && clearStaleSession) {
-      void signOut({ redirectUrl: SIGN_IN_REDIRECT });
-    }
+    if (!authBootstrapComplete || !signIn || !signInFlowReady) return;
 
     if (!normalizedEmail || !password) {
       setError("Ingresa tu correo y contraseña.");
@@ -540,10 +547,18 @@ export function EmailPasswordSignInForm({
     setVerificationReasonState(null);
     verificationSendStartedRef.current = false;
     restoredVerificationRef.current = false;
+    setSignInFlowReady(false);
     await signIn.reset();
+    setSignInFlowReady(true);
   }
 
-  if ((!authLoaded && !authBootstrapTimedOut) || !ready) {
+  const showVerificationStep =
+    signInFlowReady &&
+    !clearStaleSession &&
+    (step === "verification" ||
+      (signIn != null && requiresSecondFactor(signIn.status)));
+
+  if (!authBootstrapComplete || (clearStaleSession && !signInFlowReady)) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
         Preparando acceso…
@@ -564,10 +579,7 @@ export function EmailPasswordSignInForm({
     );
   }
 
-  if (
-    step === "verification" ||
-    (signIn && requiresSecondFactor(signIn.status))
-  ) {
+  if (showVerificationStep) {
     const strategy =
       verificationStrategy ??
       (signIn ? resolveSecondFactorStrategy(signIn) : null);
@@ -723,7 +735,12 @@ export function EmailPasswordSignInForm({
         </p>
       </div>
 
-      <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+      <Button
+        type="submit"
+        variant="brand"
+        className="h-11 w-full"
+        disabled={isFetching || !signInFlowReady}
+      >
         {isFetching ? "Ingresando…" : "Iniciar sesión"}
       </Button>
 
