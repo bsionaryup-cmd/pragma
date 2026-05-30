@@ -139,6 +139,7 @@ export function EmailPasswordSignInForm({
   const { signIn, errors, fetchStatus } = useSignIn();
 
   const [ready, setReady] = useState(false);
+  const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
   const [step, setStep] = useState<Step>("credentials");
   const [verificationStrategy, setVerificationStrategy] =
     useState<VerificationStrategy | null>(null);
@@ -171,33 +172,22 @@ export function EmailPasswordSignInForm({
   }, [resendCooldown]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     if (!authLoaded) return;
 
-    if (loginSucceededRef.current) {
-      queueMicrotask(() => setReady(true));
+    setReady(true);
+
+    if (loginSucceededRef.current || !clearStaleSession || !isSignedIn) {
       return;
     }
 
-    if (!isSignedIn) {
-      queueMicrotask(() => setReady(true));
-      return;
-    }
-
-    if (!clearStaleSession) {
-      queueMicrotask(() => setReady(true));
-      return;
-    }
-
-    queueMicrotask(() => setReady(false));
-    let cancelled = false;
-
-    void signOut({ redirectUrl: SIGN_IN_REDIRECT }).finally(() => {
-      if (!cancelled) setReady(true);
+    void signOut({ redirectUrl: SIGN_IN_REDIRECT }).catch(() => {
+      // No bloquear el formulario si el cierre de sesión falla o tarda.
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, [authLoaded, clearStaleSession, isSignedIn, signOut]);
 
   useEffect(() => {
@@ -392,8 +382,7 @@ export function EmailPasswordSignInForm({
     if (!clerkReady || !ready || !signIn) return;
 
     if (isSignedIn && clearStaleSession) {
-      setError("Cierra la sesión anterior antes de iniciar sesión de nuevo.");
-      return;
+      void signOut({ redirectUrl: SIGN_IN_REDIRECT });
     }
 
     if (!normalizedEmail || !password) {
@@ -554,10 +543,23 @@ export function EmailPasswordSignInForm({
     await signIn.reset();
   }
 
-  if (!clerkReady || !ready) {
+  if ((!authLoaded && !authBootstrapTimedOut) || !ready) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
         Preparando acceso…
+      </div>
+    );
+  }
+
+  if (!signIn) {
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-sm text-destructive">
+          No se pudo cargar el inicio de sesión. Verifica tu conexión e intenta de nuevo.
+        </p>
+        <Button type="button" variant="outline" className="w-full" onClick={() => window.location.reload()}>
+          Reintentar
+        </Button>
       </div>
     );
   }
