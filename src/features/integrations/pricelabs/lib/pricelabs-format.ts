@@ -51,3 +51,41 @@ export function matchReasonLabel(reason: string | null) {
       return reason ?? "—";
   }
 }
+
+export function formatPriceDelta(value: string | null | undefined) {
+  if (value == null || value === "") return "—";
+  const n = Number.parseFloat(value);
+  if (!Number.isFinite(n)) return "—";
+  const prefix = n > 0 ? "+" : "";
+  return `${prefix}${formatPriceLabsMoney(n)}`;
+}
+
+export function pricingHealthClass(
+  health: "healthy" | "attention" | "critical" | "unknown",
+) {
+  switch (health) {
+    case "healthy":
+      return "text-success";
+    case "attention":
+      return "text-warning";
+    case "critical":
+      return "text-destructive";
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+export function demandLevelClass(level: string | null | undefined) {
+  if (!level) return "bg-muted/40";
+  const normalized = level.toLowerCase();
+  if (normalized.includes("high") || normalized.includes("alto")) {
+    return "border-amber-500/30 bg-amber-500/10";
+  }
+  if (normalized.includes("low") || normalized.includes("bajo")) {
+    return "border-sky-500/30 bg-sky-500/10";
+  }
+  if (normalized.includes("medium") || normalized.includes("medio")) {
+    return "border-emerald-500/30 bg-emerald-500/10";
+  }
+  return "bg-muted/30";
+}

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import Link from "next/link";
+import { useState, useTransition, type ReactNode } from "react";
 import {
-  Activity,
+  ArrowRight,
   CheckCircle2,
+  ChevronDown,
   LineChart,
   Zap,
 } from "lucide-react";
@@ -19,31 +21,17 @@ import {
   testPriceLabsConnectionAction,
 } from "@/features/integrations/pricelabs/actions/pricelabs.actions";
 import { PriceLabsApiKeyCard } from "@/features/integrations/pricelabs/components/pricelabs-api-key-card";
-import { PriceLabsInsightsSection } from "@/features/integrations/pricelabs/components/pricelabs-insights-section";
-import { PriceLabsOverridesPanel } from "@/features/integrations/pricelabs/components/pricelabs-overrides-panel";
-import { PriceLabsPropertyDetailCard } from "@/features/integrations/pricelabs/components/pricelabs-property-detail-card";
-import { formatPriceLabsDate as formatDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
+import { PriceLabsMappingSummary } from "@/features/integrations/pricelabs/components/pricelabs-mapping-summary";
+import { formatPriceLabsDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSemanticBadgeClass } from "@/lib/ui/status-badge-styles";
 import { cn } from "@/lib/utils";
 
 type PriceLabsPanelProps = {
   overview: PriceLabsOverviewDto;
 };
-
-function formatMoney(value: string | null, currency = "COP") {
-  if (!value) return "—";
-  const n = Number.parseFloat(value);
-  if (!Number.isFinite(n)) return "—";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
-}
 
 function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
   if (overview.syncing) {
@@ -66,21 +54,19 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
   if (status === "INVALID_KEY") {
     return (
       <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
-        API key inválida
+        Key inválida
       </Badge>
     );
   }
   if (!overview.config.liveApiEnabled) {
     return (
       <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
-        Modo simulación
+        Simulación
       </Badge>
     );
   }
   if (status === "CONNECTED") {
-    return (
-      <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>
-    );
+    return <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>;
   }
   if (status === "SYNC_REQUIRED") {
     return (
@@ -99,19 +85,46 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
   return <Badge variant="outline">{overview.metrics.statusLabel}</Badge>;
 }
 
+function IntegrationSection({
+  title,
+  accent = "electric",
+  children,
+}: {
+  title: string;
+  accent?: "electric" | "cyan";
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-lg border border-border bg-card pl-3",
+        accent === "cyan"
+          ? "border-l-[3px] border-l-pragma-cyan"
+          : "border-l-[3px] border-l-pragma-electric",
+      )}
+    >
+      <div className="border-b border-border/60 px-3 py-2">
+        <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+      </div>
+      <div className="px-3 py-3">{children}</div>
+    </section>
+  );
+}
+
 export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
   const [pending, startTransition] = useTransition();
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [auditOpen, setAuditOpen] = useState(false);
   const {
     integration,
     database,
     config,
     properties,
-    metrics,
-    revenue,
     auditLog,
     canManage,
     syncing,
+    metrics,
+    insights,
   } = overview;
 
   const canSync =
@@ -133,234 +146,225 @@ export function PriceLabsPanel({ overview }: PriceLabsPanelProps) {
   };
 
   return (
-    <ModuleShellFlow className="bg-background px-4 py-6 pb-12 text-foreground sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <ModuleShellFlow className="bg-background px-3 py-4 pb-10 text-foreground sm:px-5">
+      <div className="mx-auto max-w-3xl space-y-4">
         <BackLink href="/integrations" label="Integraciones" />
-        <header className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-6 shadow-pragma-soft lg:flex-row lg:items-center lg:justify-between">
+
+        <header className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
-              Integraciones · PriceLabs
+            <p className="text-xs font-semibold uppercase tracking-wide text-pragma-electric">
+              Configuración · Integraciones
             </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
-              PriceLabs
-            </h1>
-            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-              Conecta tu cuenta PriceLabs para sincronizar listings y precios
-              dinámicos con tus propiedades en PRAGMA.
+            <h1 className="text-lg font-semibold tracking-tight">PriceLabs · Conexión</h1>
+            <p className="mt-1 text-sm text-foreground/75">
+              API key, validación y pipeline de sync. La gestión diaria de tarifas está en{" "}
+              <Link href="/revenue" className="font-medium text-pragma-electric hover:underline">
+                Tarifas
+              </Link>
+              .
             </p>
           </div>
           <HealthBadge overview={overview} />
         </header>
 
-        {database.setupRequired ? (
-          <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
-            <p className="font-medium">Migración pendiente</p>
-            <p className="mt-1">{database.hint}</p>
+        <Link
+          href="/revenue"
+          className="flex items-center justify-between gap-3 rounded-lg border border-pragma-cyan/40 bg-pragma-soft-cyan/25 px-3 py-2.5 transition-colors hover:bg-pragma-soft-cyan/40"
+        >
+          <div className="flex items-center gap-2">
+            <LineChart className="h-4 w-4 text-pragma-electric" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Módulo Tarifas</p>
+              <p className="text-xs text-foreground/70">
+                Límites, calendario 14d, overrides y alertas de revenue
+              </p>
+            </div>
           </div>
-        ) : null}
+          <ArrowRight className="h-4 w-4 shrink-0 text-pragma-electric" />
+        </Link>
 
-        {canManage && !config.configured ? (
-          <div className="rounded-xl border border-border bg-muted/30 px-4 py-4 text-sm">
-            <p className="font-medium text-foreground">Conectar PriceLabs</p>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-muted-foreground">
-              <li>
-                En PriceLabs: Account Settings → API Details → copia tu Customer
-                API key.
-              </li>
-              <li>Pégala abajo y pulsa «Guardar y conectar».</li>
-              <li>
-                PRAGMA validará la key contra{" "}
-                <code className="rounded bg-muted px-1 text-xs">GET /v1/listings</code>.
-              </li>
-              <li>
-                Luego usa «Pipeline completo» para vincular listings e importar
-                precios.
-              </li>
-            </ol>
+        {database.setupRequired ? (
+          <div className="rounded-lg border border-warning/40 bg-warning/15 px-3 py-2 text-sm text-warning">
+            <p className="font-medium">Migración pendiente</p>
+            <p className="mt-0.5">{database.hint}</p>
           </div>
         ) : null}
 
         {canManage && config.configured && !config.liveApiEnabled ? (
-          <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm text-warning">
-            <p className="font-medium">Modo simulación activo</p>
-            <p className="mt-1">
-              El servidor tiene{" "}
-              <code className="rounded bg-warning/20 px-1">PRICELABS_API_ENABLED=false</code>.
-              Quita esa variable (o cámbiala) en Vercel para usar la API real de
-              PriceLabs.
-            </p>
+          <div className="rounded-lg border border-warning/40 bg-warning/15 px-3 py-2 text-sm text-warning">
+            Modo simulación — activa{" "}
+            <code className="rounded bg-warning/20 px-1">PRICELABS_API_ENABLED</code> en
+            servidor.
           </div>
         ) : null}
 
-        <PriceLabsInsightsSection overview={overview} />
+        {integration.lastError ? (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {integration.lastError}
+          </p>
+        ) : null}
 
-        <div className="grid gap-4 lg:grid-cols-3">
-          <PriceLabsApiKeyCard overview={overview} canManage={canManage} />
-
-          <Card className="border-[#E5E7EB] bg-white shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Activity className="h-4 w-4" />
-                Salud
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <Row label="Estado" value={metrics.healthLabel} />
-              <Row
-                label="Modo"
-                value={config.liveApiEnabled ? "Live (API real)" : "Simulación"}
-              />
-              <Row label="Health check" value={formatDate(integration.lastHealthCheckAt)} />
-              <Row label="Listings sync" value={formatDate(integration.lastListingsSyncAt)} />
-              {integration.lastError ? (
-                <p className="text-xs text-red-600">{integration.lastError}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          <Card className="border-[#E5E7EB] bg-white shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <LineChart className="h-4 w-4" />
-                Resumen de tarifas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2 text-sm">
-              <Stat label="Sincronizadas" value={`${metrics.syncedCount}/${metrics.propertyCount}`} />
-              <Stat label="Última sync" value={formatDate(integration.lastPricesSyncAt)} />
-              <div className="col-span-2 border-t pt-2">
-                <p className="text-xs text-[#9CA3AF]">Delta promedio</p>
-                <p className="font-semibold">{formatMoney(revenue.avgDelta)}</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Sync" value={`${metrics.syncedCount}/${metrics.propertyCount}`} />
+          <Stat
+            label="Sin mapeo"
+            value={String(insights.unmappedListings)}
+            warn={insights.unmappedListings > 0}
+          />
+          <Stat
+            label="Issues"
+            value={String(insights.syncIssues)}
+            warn={insights.syncIssues > 0}
+          />
+          <Stat label="Salud" value={metrics.healthLabel} />
         </div>
 
+        <IntegrationSection title="Credenciales API">
+          <PriceLabsApiKeyCard overview={overview} canManage={canManage} embedded />
+        </IntegrationSection>
+
         {canManage ? (
-          <Card className="border-[#E5E7EB] bg-white shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">Sincronización</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
+          <IntegrationSection title="Pipeline de sincronización" accent="cyan">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-8 px-2.5 text-xs"
                 disabled={pending || !canSync}
                 onClick={() => run(testPriceLabsConnectionAction)}
               >
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Validar conexión
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                Validar
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-8 px-2.5 text-xs"
                 disabled={pending || !canSync}
                 onClick={() => run(syncPriceLabsListingsAction)}
               >
-                Sync listings
+                Listings
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-8 px-2.5 text-xs"
                 disabled={pending || !canSync}
                 onClick={() => run(fetchPriceLabsPricesAction)}
               >
-                Sync precios
+                Precios
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-8 px-2.5 text-xs"
                 disabled={pending || !canSync}
                 onClick={() => run(syncPriceLabsOverridesAction)}
               >
-                Pull overrides
+                Overrides
               </Button>
-              {canManage && config.configured ? (
+              <Button
+                type="button"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                disabled={pending || !canSync}
+                onClick={() => run(runPriceLabsFullSyncAction)}
+              >
+                <Zap className="mr-1 h-3.5 w-3.5" />
+                Pipeline completo
+              </Button>
+              {config.configured ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="ml-auto h-8 px-2 text-xs text-destructive hover:text-destructive"
                   disabled={pending}
-                  className="text-red-600 hover:text-red-700"
                   onClick={() => {
-                    if (!window.confirm("¿Desconectar PriceLabs de esta organización?")) return;
+                    if (!window.confirm("¿Desconectar PriceLabs?")) return;
                     run(disconnectPriceLabsAction);
                   }}
                 >
                   Desconectar
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                size="sm"
-                disabled={pending || !canSync}
-                onClick={() => run(runPriceLabsFullSyncAction)}
-              >
-                <Zap className="mr-2 h-4 w-4" />
-                Pipeline completo
-              </Button>
-              {statusMsg ? (
-                <p className="w-full text-sm text-[#6B7280]">{statusMsg}</p>
-              ) : null}
-            </CardContent>
-          </Card>
+            </div>
+            {statusMsg ? (
+              <p className="mt-2 text-xs text-foreground/70">{statusMsg}</p>
+            ) : null}
+            <p className="mt-2 text-xs text-foreground/65">
+              Health {formatPriceLabsDate(integration.lastHealthCheckAt)} · Listings{" "}
+              {formatPriceLabsDate(integration.lastListingsSyncAt)} · Precios{" "}
+              {formatPriceLabsDate(integration.lastPricesSyncAt)}
+            </p>
+          </IntegrationSection>
         ) : null}
 
-        <PriceLabsOverridesPanel overview={overview} canManage={canManage} />
+        <IntegrationSection title="Mapeo propiedades ↔ listings">
+          <PriceLabsMappingSummary properties={properties} />
+        </IntegrationSection>
 
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold">Propiedades vinculadas</h2>
-          {properties.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay propiedades activas.</p>
-          ) : (
-            properties.map((property) => (
-              <PriceLabsPropertyDetailCard key={property.id} property={property} />
-            ))
-          )}
-        </div>
-
-        <Card className="border-[#E5E7EB] bg-white shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Audit log</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {auditLog.length === 0 ? (
-              <p className="text-sm text-[#6B7280]">Sin eventos.</p>
-            ) : (
-              <ul className="divide-y divide-[#F3F4F6]">
-                {auditLog.map((e) => (
-                  <li key={e.id} className="flex justify-between gap-4 py-3 text-sm">
-                    <div>
-                      <p className="font-medium">{e.action}</p>
-                      <p className="text-xs text-[#9CA3AF]">
-                        {formatDate(e.createdAt)} · {e.source}
+        <div className="rounded-lg border border-border bg-card">
+          <button
+            type="button"
+            onClick={() => setAuditOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-3 py-2.5 text-left hover:bg-muted/20"
+          >
+            <span className="text-sm font-medium text-foreground">
+              Audit log · {auditLog.length}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-foreground/60 transition",
+                auditOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {auditOpen ? (
+            <ul className="divide-y divide-border/60 border-t border-border/60 text-xs">
+              {auditLog.length === 0 ? (
+                <li className="px-3 py-3 text-foreground/70">Sin eventos.</li>
+              ) : (
+                auditLog.map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-start justify-between gap-3 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground">{e.action}</p>
+                      <p className="text-foreground/70">
+                        {formatPriceLabsDate(e.createdAt)} · {e.source}
                       </p>
                       {e.message ? (
-                        <p className="text-xs text-[#6B7280]">{e.message}</p>
+                        <p className="truncate text-foreground/65">{e.message}</p>
                       ) : null}
                     </div>
-                    <Badge variant="outline">{e.result}</Badge>
+                    <Badge variant="outline" className="shrink-0 text-[11px]">
+                      {e.result}
+                    </Badge>
                   </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
+
+        {canManage && !config.configured ? (
+          <div className="rounded-lg border border-border bg-pragma-light-blue/30 px-3 py-2.5 text-sm text-foreground/75">
+            <p className="font-medium text-foreground">Primeros pasos</p>
+            <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+              <li>Pega tu Customer API key.</li>
+              <li>Ejecuta «Pipeline completo».</li>
+              <li>Abre Tarifas para revisar precios y overrides.</li>
+            </ol>
+          </div>
+        ) : null}
       </div>
     </ModuleShellFlow>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-[#6B7280]">{label}</span>
-      <span className="font-medium">{value}</span>
-    </div>
   );
 }
 
@@ -374,9 +378,16 @@ function Stat({
   warn?: boolean;
 }) {
   return (
-    <div>
-      <p className="text-xs text-[#9CA3AF]">{label}</p>
-      <p className={cn("font-semibold", warn && "text-warning")}>{value}</p>
+    <div className="rounded-md border border-border/70 bg-card px-2.5 py-2">
+      <p className="text-[11px] text-foreground/65">{label}</p>
+      <p
+        className={cn(
+          "mt-0.5 text-sm font-semibold tabular-nums text-foreground",
+          warn && "text-warning",
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }

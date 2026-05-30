@@ -77,10 +77,10 @@ export function LandingPage({ session = EMPTY_LANDING_SESSION }: LandingPageProp
         <LandingShowcase />
         <LandingAutomation />
         <LandingIntegrations />
-        <LandingPricing session={session} />
+        <LandingPricing />
         <LandingSocialProof />
-        <LandingLeadCapture session={session} />
-        <LandingCta session={session} />
+        <LandingLeadCapture />
+        <LandingCta />
       </main>
       <LandingFooter />
     </div>

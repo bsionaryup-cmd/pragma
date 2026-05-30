@@ -61,6 +61,8 @@ export type NavGroupModule = {
   permission: Permission;
   planFeature?: PlanFeature;
   hiddenForRoles?: AppUserRole[];
+  /** Si es false, abrir el grupo solo muestra el submenú sin navegar. */
+  navigateOnOpen?: boolean;
   children: NavChildLink[];
 };
 
@@ -176,6 +178,7 @@ const configurationNavGroup: Omit<NavGroupModule, "children"> = {
   href: "/settings",
   icon: "settings",
   permission: "settings:read",
+  navigateOnOpen: false,
 };
 
 const configurationNavChildren: NavChildLink[] = [
@@ -183,44 +186,6 @@ const configurationNavChildren: NavChildLink[] = [
     labelKey: "nav.integrations",
     href: "/integrations",
     permission: "integrations:read",
-  },
-  {
-    labelKey: "nav.integrationsAirbnb",
-    href: "/integrations/airbnb",
-    permission: "integrations:read",
-  },
-  {
-    labelKey: "nav.integrationsPriceLabs",
-    href: "/integrations/pricelabs",
-    permission: "integrations:read",
-    planFeature: "pricelabs",
-  },
-  {
-    labelKey: "nav.integrationsTtlock",
-    href: "/integrations/ttlock",
-    permission: "integrations:read",
-    planFeature: "ttlock",
-  },
-  {
-    labelKey: "nav.integrationsSire",
-    href: "/integrations/sire",
-    permission: "integrations:read",
-    planFeature: "sire",
-    requiresIntegrationsManage: true,
-  },
-  {
-    labelKey: "nav.integrationsWompi",
-    href: "/integrations/wompi",
-    permission: "integrations:read",
-    planFeature: "finance",
-    requiresIntegrationsManage: true,
-  },
-  {
-    labelKey: "nav.integrationsTraa",
-    href: "/integrations/traa",
-    permission: "integrations:read",
-    planFeature: "traa",
-    requiresIntegrationsManage: true,
   },
   {
     labelKey: "nav.smartAccess",
@@ -234,7 +199,7 @@ const configurationNavChildren: NavChildLink[] = [
     permission: "users:read",
   },
   {
-    labelKey: "nav.settings",
+    labelKey: "nav.configuration",
     href: "/settings",
     permission: "settings:read",
   },

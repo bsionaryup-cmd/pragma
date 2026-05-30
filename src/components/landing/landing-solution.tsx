@@ -3,11 +3,11 @@
 import {
   Bell,
   Building2,
+  CalendarDays,
   KeyRound,
   Link2,
-  Sparkles,
+  Receipt,
   TrendingUp,
-  Zap,
 } from "lucide-react";
 import { FadeIn, Stagger, StaggerItem } from "@/components/landing/motion";
 import { SectionHeading } from "@/components/landing/section-heading";
@@ -16,59 +16,54 @@ const blocks = [
   {
     icon: Building2,
     title: "Reservas centralizadas",
-    description: "Un solo flujo para confirmaciones, huéspedes y operación diaria.",
+    description: "Inbox operativo, huéspedes y estados en un solo flujo.",
+  },
+  {
+    icon: CalendarDays,
+    title: "Calendario multi-propiedad",
+    description: "Disponibilidad, bloqueos y reservas por unidad.",
   },
   {
     icon: KeyRound,
-    title: "Smart Access",
-    description: "TTLock y accesos remotos listos para automatizar check-in.",
+    title: "Smart Access (TTLock)",
+    description: "Códigos y accesos vinculados a cada reserva.",
   },
   {
     icon: TrendingUp,
-    title: "Pricing Automation",
-    description: "Sugerencias y reglas para optimizar ingresos sin hojas sueltas.",
+    title: "Tarifas (PriceLabs)",
+    description: "Sync de precios, overrides y vista operativa diaria.",
   },
   {
-    icon: Building2,
-    title: "Multi-property control",
-    description: "Portafolio completo con visibilidad por unidad y alertas.",
+    icon: Receipt,
+    title: "Finanzas operativas",
+    description: "Ingresos, egresos manuales, cobros y reportes del mes.",
   },
   {
     icon: Link2,
     title: "Integraciones",
-    description: "Airbnb, iCal, smart locks y herramientas de tu stack.",
+    description: "Airbnb iCal, TTLock, PriceLabs y Wompi por organización.",
   },
   {
     icon: Bell,
-    title: "Alertas",
-    description: "Prioridades claras: llegadas, sync, accesos y excepciones.",
-  },
-  {
-    icon: Sparkles,
-    title: "Recomendaciones IA",
-    description: "Copiloto que sugiere próximos pasos según tu operación.",
-  },
-  {
-    icon: Zap,
-    title: "Automatización",
-    description: "Workflows que reducen tareas repetitivas del anfitrión.",
+    title: "Tareas y alertas",
+    description: "Checklists operativos ligados a propiedades y reservas.",
   },
 ];
 
 export function LandingSolution() {
   return (
-    <section id="solution" className="border-t border-pragma-border bg-white py-20 md:py-28">
+    <section id="solution" className="border-t border-pragma-border bg-white py-16 md:py-24">
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <SectionHeading
             eyebrow="La solución"
-            title="Un copiloto inteligente para anfitriones modernos."
-            description="PRAGMA es Airbnb-first: diseñado para hosts que escalan, no para hospitality hotelero genérico."
+            title="Un panel para operar alojamientos con claridad."
+            description="PRAGMA concentra lo que ya existe en el producto: reservas, calendario, accesos, tarifas y finanzas."
             align="center"
           />
         </FadeIn>
 
-        <Stagger className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Stagger className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {blocks.map((block) => (
             <StaggerItem key={block.title}>
               <article className="group h-full rounded-2xl border border-pragma-border bg-white p-6 shadow-pragma-soft transition-all duration-300 hover:-translate-y-0.5 hover:border-pragma-cyan/40 hover:shadow-pragma-card">

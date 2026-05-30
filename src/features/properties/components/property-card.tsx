@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Bath, BedDouble, CalendarDays, MapPin, Users } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { PropertyCover } from "@/features/properties/components/property-cover";
 import { getPropertyStatusBadgeClass } from "@/features/properties/lib/property-style";
 import type { PropertyGridItem } from "@/features/properties/types/property.types";
@@ -24,21 +24,32 @@ function PropertyCardComponent({
     .filter(Boolean)
     .join(", ");
 
+  const capacity = [
+    `${property.maxGuests} huésp.`,
+    `${property.bedrooms} hab`,
+    `${property.bathrooms} baños`,
+  ].join(" · ");
+
+  const nextStay = property.nextReservation
+    ? `${property.nextReservation.guestName} · ${property.nextReservation.checkIn} → ${property.nextReservation.checkOut}`
+    : null;
+
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        "group flex w-full items-center gap-4 rounded-xl border border-[#E9ECEF] bg-white px-4 py-3.5 text-left shadow-pragma-soft transition-colors duration-150",
-        "hover:border-primary/20 hover:bg-muted/30",
-        isSelected && "ring-2 ring-primary/20",
+        "flex w-full items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-left transition-colors",
+        "hover:border-pragma-electric/30 hover:bg-muted/30",
+        isSelected &&
+          "border-pragma-electric bg-pragma-electric/5 ring-1 ring-pragma-electric/20",
       )}
     >
       <PropertyCover
         id={property.id}
         name={property.name}
         coverImageUrl={property.coverImageUrl}
-        className="h-[4.5rem] w-[5.5rem] shrink-0 rounded-lg"
+        className="h-14 w-[4.25rem] shrink-0 rounded-md"
       />
 
       <div className="min-w-0 flex-1">
@@ -47,13 +58,11 @@ function PropertyCardComponent({
             <PropertyIdentity
               name={property.name}
               unitNumber={property.unitNumber}
-              size="md"
+              size="sm"
             />
-            <p className="mt-1 flex items-center gap-1 text-xs text-[#6B7280]">
-              <MapPin className="h-3 w-3 shrink-0" />
-              <span className="truncate">
-                {location || property.city} · {propertyTypeLabels[property.propertyType]}
-              </span>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {location || property.city || "Sin ubicación"} ·{" "}
+              {propertyTypeLabels[property.propertyType]}
             </p>
           </div>
           <span
@@ -66,45 +75,28 @@ function PropertyCardComponent({
           </span>
         </div>
 
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
-            {property.maxGuests} huéspedes
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <BedDouble className="h-3.5 w-3.5" />
-            {property.bedrooms} hab · {property.beds} camas
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Bath className="h-3.5 w-3.5" />
-            {property.bathrooms} baños
-          </span>
-          <span className="inline-flex items-center gap-1">
-            Ocupación: {property.monthOccupancyPercent}%
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="truncate">{capacity}</span>
+          <span className="shrink-0 tabular-nums font-medium text-foreground">
+            {property.monthOccupancyPercent}% occ.
           </span>
         </div>
 
-        {property.nextReservation ? (
-          <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-muted-foreground">
-            <CalendarDays className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">
-              <span className="font-medium text-foreground">
-                {property.nextReservation.guestName}
+        {nextStay ? (
+          <p className="mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+            <CalendarDays className="h-3 w-3 shrink-0" />
+            <span className="truncate">{nextStay}</span>
+            {property.upcomingCount > 1 ? (
+              <span className="shrink-0 text-[10px]">
+                +{property.upcomingCount - 1}
               </span>
-              {" · "}
-              {property.nextReservation.checkIn} → {property.nextReservation.checkOut}
-            </span>
+            ) : null}
           </p>
         ) : (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">Sin reservas próximas</p>
-        )}
-
-        {property.upcomingCount > 1 ? (
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            +{property.upcomingCount - 1} reserva
-            {property.upcomingCount - 1 === 1 ? "" : "s"} más
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Sin reservas próximas
           </p>
-        ) : null}
+        )}
       </div>
     </button>
   );

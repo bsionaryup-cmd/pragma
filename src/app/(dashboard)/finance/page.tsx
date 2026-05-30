@@ -22,12 +22,17 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function FinancePage() {
+type FinancePageProps = {
+  searchParams: Promise<{ month?: string }>;
+};
+
+export default async function FinancePage({ searchParams }: FinancePageProps) {
   await redirectIfMissingPlanFeature("finance", "/finance");
   const locale = await getServerLocale();
+  const { month } = await searchParams;
   const [auth, data] = await Promise.all([
     requireAnyPermission("finance:read", "finance:operations:read"),
-    getFinanceOverview(locale),
+    getFinanceOverview(locale, { month }),
   ]);
   await redirectIfBillingLocked("/finance");
 

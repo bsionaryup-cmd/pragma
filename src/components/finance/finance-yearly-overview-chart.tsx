@@ -9,6 +9,7 @@ type FinanceYearlyOverviewChartProps = {
   months: FinanceYearMonthPoint[];
   year: number;
   locale?: "es" | "en";
+  selectedMonthIndex?: number;
 };
 
 type TooltipState = {
@@ -21,6 +22,7 @@ function FinanceYearlyOverviewChartInner({
   months,
   year,
   locale = "es",
+  selectedMonthIndex,
 }: FinanceYearlyOverviewChartProps) {
   const [tooltip, setTooltip] = useState<TooltipState>(null);
 
@@ -35,20 +37,15 @@ function FinanceYearlyOverviewChartInner({
 
   return (
     <div className="relative">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-pragma-electric" aria-hidden />
-            Ingresos confirmados
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm bg-slate-400/80" aria-hidden />
-            Egresos registrados
-          </span>
-        </div>
-        <p className="text-xs font-medium text-muted-foreground">
-          Financial Overview · {year}
-        </p>
+      <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm bg-pragma-electric" aria-hidden />
+          Ingresos confirmados
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm bg-slate-400/80" aria-hidden />
+          Egresos registrados
+        </span>
       </div>
 
       <div
@@ -63,10 +60,15 @@ function FinanceYearlyOverviewChartInner({
             ? 4
             : Math.max(6, (month.expenses / maxValue) * 100);
 
+          const isSelected = selectedMonthIndex === month.monthIndex;
+
           return (
             <div
               key={month.monthIndex}
-              className="group flex min-w-0 flex-col items-center gap-1.5"
+              className={cn(
+                "group flex min-w-0 flex-col items-center gap-1",
+                isSelected && "rounded-lg bg-pragma-electric/5 px-0.5",
+              )}
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 setTooltip({
@@ -76,7 +78,7 @@ function FinanceYearlyOverviewChartInner({
                 });
               }}
             >
-              <div className="flex h-40 w-full items-end justify-center gap-0.5 sm:gap-1">
+              <div className="flex h-28 w-full items-end justify-center gap-0.5 sm:h-32 sm:gap-1">
                 <div
                   className={cn(
                     "w-[42%] max-w-[14px] rounded-t-md transition-all duration-200 sm:max-w-[18px]",

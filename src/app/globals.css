@@ -16,7 +16,7 @@
   --pragma-soft-cyan: #d8fffa;
   --pragma-light-blue: #eaf4ff;
   --pragma-soft-gray: #f4f6f8;
-  --pragma-mid-gray: #6b7280;
+  --pragma-mid-gray: #52525b;
   --pragma-border: #d9dee5;
 
   --pragma-gradient: linear-gradient(
@@ -52,7 +52,7 @@
   --pragma-surface-alt: var(--pragma-soft-gray);
   --pragma-text: var(--pragma-black);
   --pragma-text-secondary: var(--pragma-mid-gray);
-  --pragma-text-subtle: #9ca3af;
+  --pragma-text-subtle: #6b7280;
   --pragma-success: #0d9488;
   --pragma-warning: #f59e0b;
   --pragma-danger: #dc2626;

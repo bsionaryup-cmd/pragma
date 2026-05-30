@@ -38,12 +38,13 @@ export function DashboardNavigation({
 }: DashboardNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(() =>
-    readPinnedNavGroupId(),
-  );
-  const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(() =>
-    readSuppressedNavGroupId(),
-  );
+  const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(null);
+  const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPinnedModuleId(readPinnedNavGroupId());
+    setSuppressedGroupId(readSuppressedNavGroupId());
+  }, []);
 
   const activeGroupId = useMemo(
     () => getActiveNavGroupId(pathname, modules),
@@ -96,7 +97,12 @@ export function DashboardNavigation({
     writeSuppressedNavGroupId(null);
     writePinnedNavGroupId(module.id);
 
-    if (isOpening && activeGroupId !== module.id && module.href !== pathname) {
+    if (
+      isOpening &&
+      activeGroupId !== module.id &&
+      module.navigateOnOpen !== false &&
+      module.href !== pathname
+    ) {
       router.push(module.href);
       onNavigate?.();
     }

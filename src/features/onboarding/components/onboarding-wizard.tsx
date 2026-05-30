@@ -6,8 +6,10 @@ import { useEffect, useState, useTransition } from "react";
 import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { completeOnboardingAction } from "@/features/onboarding/actions/onboarding.actions";
+import { recordSignupLegalAcceptanceAction } from "@/features/legal/actions/legal.actions";
 import { applySalesOfferForCurrentUserAction } from "@/features/sales/actions/sales.actions";
 import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
+import { consumeSignupLegalAcceptedPending } from "@/lib/legal/signup-acceptance";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,13 @@ export function OnboardingWizard({
   const [phone, setPhone] = useState("");
   const [propertyCount, setPropertyCount] = useState("1");
   const [offerApplied, setOfferApplied] = useState(false);
+
+  useEffect(() => {
+    if (!consumeSignupLegalAcceptedPending()) return;
+    void recordSignupLegalAcceptanceAction().catch(() => {
+      /* best-effort audit trail */
+    });
+  }, []);
 
   useEffect(() => {
     if (!offerToken || offerApplied) return;

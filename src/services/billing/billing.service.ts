@@ -28,6 +28,7 @@ import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-cre
 import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
+  ensureOpenSubscriptionInvoice,
 } from "@/modules/billing/services/billing-lifecycle.service";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
 import { requireDbUser } from "@/lib/auth";
@@ -200,6 +201,14 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
 
   account = await reconcileBillingLifecycle(account);
   await syncOpenInvoiceAmountForAccount(account.id);
+
+  if (account.status !== BillingSubscriptionStatus.ACTIVE) {
+    await ensureOpenSubscriptionInvoice(
+      account.id,
+      "Suscripción PRAGMA — activación",
+    );
+    await syncOpenInvoiceAmountForAccount(account.id);
+  }
 
   const subscriptionPricing = await resolveSubscriptionAmountForAccount({
     plan: account.plan,

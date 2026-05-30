@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { Copy, ExternalLink, Link2, Wallet, XCircle } from "lucide-react";
+import { Copy, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   cancelPaymentLinkAction,
@@ -14,22 +14,18 @@ import { PaymentChargeDialog } from "@/components/payments/payment-charge-dialog
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/format-currency";
 import type { SerializedGuestPaymentLink } from "@/lib/payments/guest-payment-link-serializer";
+import { cn } from "@/lib/utils";
 
 type ReservationPaymentLinksProps = {
   reservationId: string;
-  canManage: boolean;
 };
 
-export function ReservationPaymentLinks({
-  reservationId,
-  canManage,
-}: ReservationPaymentLinksProps) {
+export function ReservationPaymentLinks({ reservationId }: ReservationPaymentLinksProps) {
   const [pending, startTransition] = useTransition();
   const [chargeOpen, setChargeOpen] = useState(false);
   const [balance, setBalance] = useState<{
     totalAmount: number;
     paidAmount: number;
-    pendingAmount: number;
     remainingBalance: number;
     currency: string;
     guestName: string;
@@ -52,7 +48,7 @@ export function ReservationPaymentLinks({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reservationId]);
 
-  function issue(mode: "full" | "deposit_50" | "remaining") {
+  function issue(mode: "full" | "deposit_50") {
     startTransition(async () => {
       const result = await createReservationPaymentLinkAction({
         reservationId,
@@ -63,7 +59,7 @@ export function ReservationPaymentLinks({
         toast.error(result.error);
         return;
       }
-      toast.success("Payment Link generado");
+      toast.success("Enlace listo para compartir");
       refresh();
     });
   }
@@ -85,60 +81,46 @@ export function ReservationPaymentLinks({
     });
   }
 
-  if (!canManage) return null;
+  const hasBalance = Boolean(balance?.remainingBalance && balance.remainingBalance > 0);
 
   return (
     <>
-      <div className="rounded-xl border border-border/80 bg-card px-3 py-3 shadow-pragma-soft">
-        <div className="mb-3 flex items-center gap-2">
-          <Wallet className="h-4 w-4 text-pragma-electric" />
-          <h4 className="text-xs font-medium text-muted-foreground">Payment Links</h4>
-        </div>
-
+      <div className="space-y-3">
         {balance ? (
-          <dl className="mb-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-            <div>
-              <dt>Total</dt>
-              <dd className="font-medium text-foreground">
-                {formatMoney(balance.totalAmount, balance.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt>Pagado</dt>
-              <dd className="font-medium text-pragma-electric">
-                {formatMoney(balance.paidAmount, balance.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt>Pendiente (enlaces)</dt>
-              <dd>{formatMoney(balance.pendingAmount, balance.currency)}</dd>
-            </div>
-            <div>
-              <dt>Saldo</dt>
-              <dd className="font-semibold text-foreground">
-                {formatMoney(balance.remainingBalance, balance.currency)}
-              </dd>
-            </div>
-          </dl>
+          <p className="text-sm text-foreground">
+            <span className="font-semibold tabular-nums">
+              {formatMoney(balance.remainingBalance, balance.currency)}
+            </span>{" "}
+            <span className="text-muted-foreground">pendiente de</span>{" "}
+            <span className="font-medium tabular-nums">
+              {formatMoney(balance.totalAmount, balance.currency)}
+            </span>
+            {balance.paidAmount > 0 ? (
+              <span className="text-muted-foreground">
+                {" "}
+                · pagado {formatMoney(balance.paidAmount, balance.currency)}
+              </span>
+            ) : null}
+          </p>
         ) : null}
 
-        <div className="mb-3 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             size="sm"
-            variant="outline"
+            variant="brand"
             className="h-8 text-xs"
-            disabled={pending || !balance?.remainingBalance}
+            disabled={pending || !hasBalance}
             onClick={() => issue("full")}
           >
-            Pago total
+            Generar enlace
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            disabled={pending || !balance?.remainingBalance}
+            disabled={pending || !hasBalance}
             onClick={() => issue("deposit_50")}
           >
             Depósito 50%
@@ -148,83 +130,83 @@ export function ReservationPaymentLinks({
             size="sm"
             variant="outline"
             className="h-8 text-xs"
-            disabled={pending || !balance?.remainingBalance}
-            onClick={() => issue("remaining")}
-          >
-            Saldo pendiente
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            disabled={pending || !balance?.remainingBalance}
+            disabled={pending || !hasBalance}
             onClick={() => setChargeOpen(true)}
           >
-            Cargo + enlace
+            Otro monto
           </Button>
         </div>
 
         {links.length > 0 ? (
-          <ul className="space-y-2 border-t border-border/60 pt-2">
-            {links.map((link) => (
-              <li
-                key={link.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <span className="text-muted-foreground">
-                  {guestPaymentLinkStatusLabel(link.status)} ·{" "}
-                  {formatMoney(link.amount, link.currency)}
-                </span>
-                <span className="flex gap-1">
-                  {link.wompiCheckoutUrl ? (
-                    <>
+          <ul className="divide-y divide-border/60 rounded-lg border border-border/80">
+            {links.map((link) => {
+              const canCancel = link.status !== "PAID" && link.status !== "CANCELLED";
+
+              return (
+                <li
+                  key={link.id}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-foreground">
+                      {formatMoney(link.amount, link.currency)}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {guestPaymentLinkStatusLabel(link.status)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {link.wompiCheckoutUrl ? (
+                      <>
+                        <button
+                          type="button"
+                          className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[11px] font-medium hover:bg-muted/50"
+                          onClick={() => copyUrl(link.wompiCheckoutUrl!)}
+                        >
+                          <Copy className="mr-1 h-3 w-3" />
+                          Copiar
+                        </button>
+                        <a
+                          href={link.wompiCheckoutUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-7 items-center rounded-md border border-border px-2 text-[11px] font-medium hover:bg-muted/50"
+                        >
+                          <ExternalLink className="mr-1 h-3 w-3" />
+                          Abrir
+                        </a>
+                      </>
+                    ) : null}
+                    {canCancel ? (
                       <button
                         type="button"
-                        className="rounded p-1 hover:bg-muted"
-                        onClick={() => copyUrl(link.wompiCheckoutUrl!)}
-                        aria-label="Copiar enlace"
+                        className={cn(
+                          "inline-flex h-7 w-7 items-center justify-center rounded-md border border-border",
+                          "text-muted-foreground hover:bg-muted/50 hover:text-danger",
+                        )}
+                        onClick={() => cancelLink(link.id)}
+                        disabled={pending}
+                        aria-label="Cancelar enlace"
+                        title="Cancelar"
                       >
-                        <Copy className="h-3.5 w-3.5" />
+                        <XCircle className="h-3.5 w-3.5" />
                       </button>
-                      <a
-                        href={link.wompiCheckoutUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded p-1 hover:bg-muted"
-                        aria-label="Abrir enlace"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </>
-                  ) : (
-                    <Link2 className="h-3.5 w-3.5 text-muted-foreground/50" />
-                  )}
-                  {link.status !== "PAID" && link.status !== "CANCELLED" ? (
-                    <button
-                      type="button"
-                      className="rounded p-1 hover:bg-muted"
-                      onClick={() => cancelLink(link.id)}
-                      aria-label="Cancelar enlace"
-                      disabled={pending}
-                    >
-                      <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                    </button>
-                  ) : null}
-                </span>
-              </li>
-            ))}
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className="text-[11px] text-muted-foreground">Sin enlaces emitidos aún.</p>
+          <p className="text-xs text-muted-foreground">Sin enlaces emitidos.</p>
         )}
       </div>
 
       <PaymentChargeDialog
         open={chargeOpen}
         onOpenChange={setChargeOpen}
-        title="Cargo adicional + Payment Link"
-        description="El monto no puede superar el saldo pendiente de la reserva."
+        title="Cobro personalizado"
+        description="El monto no puede superar el saldo pendiente."
         currency={balance?.currency ?? "COP"}
         maxAmount={balance?.remainingBalance}
         pending={pending}
@@ -242,7 +224,7 @@ export function ReservationPaymentLinks({
               toast.error(result.error);
               return;
             }
-            toast.success("Cargo + Payment Link generado");
+            toast.success("Enlace generado");
             setChargeOpen(false);
             refresh();
           });

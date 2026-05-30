@@ -17,6 +17,7 @@ import {
   syncPriceLabsOverrides,
   deletePriceLabsOverridesFromPanel,
   savePriceLabsOverridesFromPanel,
+  savePropertyPriceBoundsFromPanel,
   syncSingleListing,
 } from "@/services/integrations/pricelabs.service";
 
@@ -180,6 +181,18 @@ export async function deletePriceLabsOverridesAction(input: {
 }) {
   await requireIntegrationsManageUnlocked();
   const result = await withPriceLabsOrg(() => deletePriceLabsOverridesFromPanel(input));
+  revalidatePriceLabs();
+  return result;
+}
+
+export async function savePropertyPriceBoundsAction(input: {
+  propertyId: string;
+  baseRate?: string;
+  minRate?: string;
+  maxRate?: string;
+}) {
+  await requireIntegrationsManageUnlocked();
+  const result = await withPriceLabsOrg(() => savePropertyPriceBoundsFromPanel(input));
   revalidatePriceLabs();
   return result;
 }

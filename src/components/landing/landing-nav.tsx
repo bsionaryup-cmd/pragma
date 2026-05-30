@@ -4,11 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
-import {
-  FreeTrialButton,
-  LogInButton,
-} from "@/components/brand/auth-cta-buttons";
-import { APP_DEMO_CTA } from "@/lib/constants";
+import { LogInButton } from "@/components/brand/auth-cta-buttons";
 import {
   isInPageAnchorHref,
   LANDING_NAV_ITEMS,
@@ -69,14 +65,8 @@ export function LandingNav({ session: _session }: LandingNavProps) {
           ))}
         </ul>
 
-        <div className="flex shrink-0 items-center gap-2 sm:gap-2.5">
-          <LogInButton size="sm" className="whitespace-nowrap" />
-          <FreeTrialButton
-            href="/sign-up"
-            label={APP_DEMO_CTA}
-            size="sm"
-            className="max-sm:[&_.trial-badge]:hidden"
-          />
+        <div className="flex shrink-0 items-center">
+          <LogInButton size="sm" className="whitespace-nowrap" label="Iniciar sesión" />
         </div>
       </nav>
     </motion.header>

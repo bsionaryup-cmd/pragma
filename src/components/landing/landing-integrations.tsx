@@ -1,31 +1,31 @@
 "use client";
 
-import { CalendarDays, KeyRound, Link2, RefreshCw, TrendingUp } from "lucide-react";
+import { CalendarDays, CreditCard, KeyRound, RefreshCw, TrendingUp } from "lucide-react";
 import { FadeIn, Stagger, StaggerItem } from "@/components/landing/motion";
 import { SectionHeading } from "@/components/landing/section-heading";
 
 const integrations = [
   { icon: RefreshCw, name: "Airbnb", detail: "Import · sync · iCal" },
-  { icon: KeyRound, name: "Smart locks", detail: "TTLock Smart Access" },
-  { icon: TrendingUp, name: "Pricing tools", detail: "Automation-ready" },
-  { icon: CalendarDays, name: "Calendario", detail: "Multi-property sync" },
-  { icon: Link2, name: "Automatizaciones", detail: "Workflows + webhooks" },
+  { icon: KeyRound, name: "TTLock", detail: "Smart Access por reserva" },
+  { icon: TrendingUp, name: "PriceLabs", detail: "API · tarifas · overrides" },
+  { icon: CalendarDays, name: "Calendario", detail: "Multi-propiedad" },
+  { icon: CreditCard, name: "Wompi", detail: "Pagos SaaS y huéspedes" },
 ];
 
 export function LandingIntegrations() {
   return (
-    <section id="integrations" className="border-t border-pragma-border bg-pragma-light-blue/50 py-20 md:py-28">
+    <section id="integrations" className="border-t border-pragma-border bg-pragma-light-blue/50 py-16 md:py-24">
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <SectionHeading
             eyebrow="Integraciones"
-            title="Tu stack Airbnb, conectado en un solo Command Center."
-            description="PRAGMA se integra con las herramientas que ya usas para operar renta corta sin fricción."
+            title="Conectado a tu stack operativo."
+            description="Integraciones disponibles en PRAGMA para operar renta corta sin duplicar herramientas."
             align="center"
           />
         </FadeIn>
 
-        <Stagger className="mt-12 flex flex-wrap justify-center gap-4">
+        <Stagger className="mt-10 flex flex-wrap justify-center gap-4">
           {integrations.map((item) => (
             <StaggerItem key={item.name}>
               <div className="flex min-w-[200px] flex-col items-center rounded-2xl border border-pragma-border bg-white px-6 py-5 text-center shadow-pragma-soft">

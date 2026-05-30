@@ -26,6 +26,8 @@ import {
   sanitizeAuthRedirectPath,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from "@/lib/auth/verification-flow";
+import { legalDocumentHref } from "@/lib/legal/documents";
+import { markSignupLegalAcceptedPending } from "@/lib/legal/signup-acceptance";
 
 type Step = "register" | "verify";
 
@@ -76,6 +78,7 @@ export function EmailPasswordSignUpForm() {
   const [info, setInfo] = useState<string | null>(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [captchaHintVisible, setCaptchaHintVisible] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [pending, startTransition] = useTransition();
   const verificationSendStartedRef = useRef(false);
   const restoredSignUpStepRef = useRef(false);
@@ -132,6 +135,7 @@ export function EmailPasswordSignUpForm() {
       }
     }
 
+    markSignupLegalAcceptedPending();
     router.push(postSignupPath);
     router.refresh();
   }
@@ -238,6 +242,11 @@ export function EmailPasswordSignUpForm() {
 
     if (password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    if (!legalAccepted) {
+      setError("Debes aceptar los Términos y Condiciones y la Política de Privacidad.");
       return;
     }
 
@@ -526,6 +535,35 @@ export function EmailPasswordSignUpForm() {
         />
       </div>
 
+      <label className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-3 text-sm leading-snug">
+        <input
+          type="checkbox"
+          checked={legalAccepted}
+          onChange={(event) => setLegalAccepted(event.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-pragma-electric"
+          required
+        />
+        <span className="text-muted-foreground">
+          He leído y acepto los{" "}
+          <Link
+            href={legalDocumentHref("terminos")}
+            target="_blank"
+            className="font-medium text-pragma-electric hover:underline"
+          >
+            Términos y Condiciones
+          </Link>{" "}
+          y la{" "}
+          <Link
+            href={legalDocumentHref("privacidad")}
+            target="_blank"
+            className="font-medium text-pragma-electric hover:underline"
+          >
+            Política de Privacidad
+          </Link>
+          .
+        </span>
+      </label>
+
       <div className="-mt-1 space-y-1.5">
         {/* Clerk Smart CAPTCHA — required before signUp.password() in custom flows */}
         <div
@@ -541,7 +579,12 @@ export function EmailPasswordSignUpForm() {
           </p>
         ) : null}
 
-        <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
+        <Button
+          type="submit"
+          variant="brand"
+          className="h-11 w-full"
+          disabled={isFetching || !legalAccepted}
+        >
           {isFetching ? "Creando cuenta…" : "Crear cuenta"}
         </Button>
       </div>

@@ -1,13 +1,18 @@
 import "server-only";
 
-import type {
-  GuestPaymentCategory,
-  GuestPaymentLinkStatus,
+import {
+  BookingPlatform,
+  type GuestPaymentCategory,
+  type GuestPaymentLinkStatus,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
+import {
+  isPaymentLinkEligibleReservation,
+  PAYMENT_LINK_INELIGIBLE_MESSAGE,
+} from "@/lib/reservations/reservation-payment-links";
 import { createGuestWompiCheckout } from "@/services/payments/guest-wompi-checkout.service";
 import {
   assertAmountWithinReservationBalance,
@@ -22,12 +27,29 @@ const ACTIVE_DUPLICATE_STATUSES: GuestPaymentLinkStatus[] = [
   "PROCESSING",
 ];
 
+async function assertPaymentLinkEligibleReservation(reservationId: string) {
+  const row = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: { platform: true },
+  });
+  if (!row) throw new Error("Reserva no encontrada");
+  if (!isPaymentLinkEligibleReservation(row.platform)) {
+    throw new Error(PAYMENT_LINK_INELIGIBLE_MESSAGE);
+  }
+}
+
 export async function listGuestPaymentLinksForOrg() {
   const scope = await requireTenantDataScope();
   if (!scope.organizationId) return [];
 
   return db.guestPaymentLink.findMany({
-    where: { organizationId: scope.organizationId },
+    where: {
+      organizationId: scope.organizationId,
+      OR: [
+        { reservationId: null },
+        { reservation: { platform: BookingPlatform.DIRECT } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
@@ -42,6 +64,7 @@ export async function listGuestPaymentLinksForOrg() {
 export async function listGuestPaymentLinksForReservation(reservationId: string) {
   const scope = await requireTenantDataScope();
   await assertReservationInScope(scope, reservationId);
+  await assertPaymentLinkEligibleReservation(reservationId);
 
   return db.guestPaymentLink.findMany({
     where: { reservationId },
@@ -98,6 +121,7 @@ export async function createGuestPaymentLinkDraft(input: {
 
   if (input.reservationId) {
     await assertReservationInScope(scope, input.reservationId);
+    await assertPaymentLinkEligibleReservation(input.reservationId);
     const balance = await getReservationPaymentBalance(input.reservationId);
     assertAmountWithinReservationBalance(balance, input.amount);
     await assertNoDuplicateActiveLink(input.reservationId, input.category);
@@ -242,6 +266,7 @@ export async function createReservationPaymentLink(input: {
   issue?: boolean;
   expiresAt?: Date;
 }) {
+  await assertPaymentLinkEligibleReservation(input.reservationId);
   const balance = await getReservationPaymentBalance(input.reservationId);
 
   let amount = balance.remainingBalance;

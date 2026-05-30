@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { syncPropertySmartLockAction } from "@/features/integrations/ttlock/actions/ttlock-sync.actions";
 import type { SmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.types";
 import { Button } from "@/components/ui/button";
-import { DetailRow, DetailSection } from "@/components/detail/detail-section";
 import { formatDateTime } from "@/lib/helpers/date";
 
 type PropertySmartAccessCardProps = {
@@ -25,6 +24,23 @@ function onlineLabel(state: SmartLockSnapshot["onlineState"]) {
     default:
       return "Desconocido";
   }
+}
+
+function SmartAccessRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
+      <span className="shrink-0 text-base text-foreground/85">{label}</span>
+      <span className="min-w-0 text-right text-sm text-foreground/90">
+        {value}
+      </span>
+    </div>
+  );
 }
 
 export function PropertySmartAccessCard({
@@ -48,49 +64,50 @@ export function PropertySmartAccessCard({
   }
 
   return (
-    <DetailSection
-      title="Acceso inteligente"
-      headerAside={
-        canManage ? (
+    <section className="space-y-2 border-b border-border/60 pb-4 last:border-0">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Acceso inteligente
+        </h4>
+        {canManage ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="h-7 px-2 text-xs"
             disabled={pending || !integrationConnected}
             onClick={onSync}
           >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Sincronizar
+            <RefreshCw className="mr-1 h-3 w-3" />
+            Sync
           </Button>
-        ) : null
-      }
-    >
+        ) : null}
+      </div>
+
       {!integrationConnected ? (
         <p className="text-sm text-muted-foreground">
-          Conecta TTLock en Integraciones para gestionar cerraduras de esta propiedad.
+          Conecta TTLock en Integraciones para gestionar cerraduras.
         </p>
       ) : !lock?.ttlockLockId ? (
         <p className="text-sm text-muted-foreground">
-          Vincula el Lock ID TTLock de esta propiedad en Integraciones → TTLock.
+          Vincula el Lock ID TTLock en Integraciones → TTLock.
         </p>
       ) : (
-        <div className="space-y-2">
-          <DetailRow label="Cerradura" value={lock.alias ?? lock.ttlockLockId} />
-          <DetailRow
-            label="Estado"
-            value={onlineLabel(lock.onlineState)}
+        <div>
+          <SmartAccessRow
+            label="Cerradura"
+            value={lock.alias ?? lock.ttlockLockId}
           />
-          <DetailRow
+          <SmartAccessRow label="Estado" value={onlineLabel(lock.onlineState)} />
+          <SmartAccessRow
             label="Batería"
-            value={
-              lock.batteryLevel != null ? `${lock.batteryLevel}%` : "—"
-            }
+            value={lock.batteryLevel != null ? `${lock.batteryLevel}%` : "—"}
           />
-          <DetailRow
+          <SmartAccessRow
             label="Gateway"
-            value={lock.gatewayId ?? integrationConnected ? "Configurado" : "—"}
+            value={lock.gatewayId ?? (integrationConnected ? "Configurado" : "—")}
           />
-          <DetailRow
+          <SmartAccessRow
             label="Última sync"
             value={
               lock.lastSyncAt
@@ -103,6 +120,6 @@ export function PropertySmartAccessCard({
           />
         </div>
       )}
-    </DetailSection>
+    </section>
   );
 }

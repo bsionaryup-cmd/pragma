@@ -7,6 +7,10 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { todayPrismaDate } from "@/lib/dates";
 import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
+import {
+  pickLatestEnrichmentByReservation,
+  resolveReservationRevenueAmount,
+} from "@/lib/finance/reservation-revenue-amount";
 import { mergePropertyScope, mergeReservationScope } from "@/lib/platform/tenant-data-scope";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
@@ -100,6 +104,7 @@ export async function buildFinanceYearlySeries(
           }),
         ),
         select: {
+          id: true,
           totalAmount: true,
           paymentStatus: true,
           checkIn: true,
@@ -124,6 +129,15 @@ export async function buildFinanceYearlySeries(
       }),
     ]);
 
+  const enrichmentByReservationId = await (async () => {
+    const events = await db.reservationEmailEvent.findMany({
+      where: { reservationId: { in: reservations.map((r) => r.id) } },
+      select: { reservationId: true, enrichedFields: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return pickLatestEnrichmentByReservation(events);
+  })();
+
   const buckets = Array.from({ length: 12 }, (_, monthIndex) => {
     const { start, end } = monthRange(year, monthIndex);
     const isFuture = start > today;
@@ -138,7 +152,10 @@ export async function buildFinanceYearlySeries(
         if (!overlapsMonth(r.checkIn, r.checkOut, start, end)) continue;
         if (PAID.includes(r.paymentStatus)) {
           if (r.checkIn >= start && r.checkIn <= end) {
-            revenue += Number(r.totalAmount);
+            revenue += resolveReservationRevenueAmount({
+              totalAmount: r.totalAmount,
+              enrichedFields: enrichmentByReservationId.get(r.id),
+            });
             paidReservations += 1;
           }
           bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);

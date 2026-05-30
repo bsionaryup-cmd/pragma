@@ -28,21 +28,29 @@ export function reservationPropertyWhere(
 export function manualExpenseWhere(
   scope: TenantDataScope,
 ): Prisma.ManualExpenseWhereInput {
-  if (scope.organizationId) {
-    return { createdBy: { organizationId: scope.organizationId } };
-  }
+  const tenant =
+    scope.organizationId != null
+      ? { createdBy: { organizationId: scope.organizationId } }
+      : { createdById: scope.userId };
 
-  return { createdById: scope.userId };
+  return {
+    ...tenant,
+    deletedAt: null,
+  };
 }
 
 export function otherIncomeWhere(
   scope: TenantDataScope,
 ): Prisma.OtherIncomeWhereInput {
-  if (scope.organizationId) {
-    return { createdBy: { organizationId: scope.organizationId } };
-  }
+  const tenant =
+    scope.organizationId != null
+      ? { createdBy: { organizationId: scope.organizationId } }
+      : { createdById: scope.userId };
 
-  return { createdById: scope.userId };
+  return {
+    ...tenant,
+    deletedAt: null,
+  };
 }
 
 export function taskWhere(scope: TenantDataScope): Prisma.TaskWhereInput {

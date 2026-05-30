@@ -2,6 +2,7 @@ import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import {
   activeIcalUrlOnPropertyFilter,
   hasActiveAirbnbIcalImport,
+  isHistoricalBackfillUid,
 } from "@/lib/airbnb/ical-sync-utils";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { db } from "@/lib/db";
@@ -15,6 +16,8 @@ function isGhostReservation(input: {
   status: ReservationStatus;
   propertyIcalUrl: string | null;
 }): boolean {
+  if (isHistoricalBackfillUid(input.icalUid)) return false;
+
   if (input.platform === BookingPlatform.BOOKING) return true;
 
   if (input.platform === BookingPlatform.AIRBNB) {

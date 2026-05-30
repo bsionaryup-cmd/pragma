@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
+import { LogInButton } from "@/components/brand/auth-cta-buttons";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { BRAND } from "@/lib/brand";
 import {
   isInPageAnchorHref,
   LANDING_FOOTER_ITEMS,
+  LANDING_LEGAL_FOOTER_ITEMS,
   landingHomeSectionHref,
 } from "@/lib/landing-public-nav";
 
@@ -22,7 +23,7 @@ export function LandingFooter() {
   return (
     <footer className="border-t border-pragma-border bg-white py-14">
       <div className="mx-auto max-w-7xl px-6">
-        <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-sm space-y-4">
             <PragmaLogo
               variant="full"
@@ -32,38 +33,57 @@ export function LandingFooter() {
             <p className="text-sm leading-relaxed text-pragma-mid-gray">
               {BRAND.positioning}
             </p>
-            <div className="flex flex-wrap gap-3 pt-1">
-              <FreeTrialButton size="sm" />
-              <LogInButton size="sm" />
-            </div>
             <p className="text-xs leading-relaxed text-pragma-mid-gray/90">
               © {year} {BRAND.productName}. Todos los derechos reservados.
             </p>
           </div>
 
-          <nav aria-label="Pie de página">
-            <ul className="flex flex-wrap gap-x-8 gap-y-3">
-              {footerLinks.map((link) => (
-                <li key={`${link.href}-${link.label}`}>
-                  {isInPageAnchorHref(link.href) ? (
-                    <a
-                      href={link.href}
-                      className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
-                    >
-                      {link.label}
-                    </a>
-                  ) : (
+          <div className="grid gap-8 sm:grid-cols-2">
+            <nav aria-label="Pie de página">
+              <p className="text-xs font-semibold uppercase tracking-wide text-pragma-black">
+                Producto
+              </p>
+              <ul className="mt-3 flex flex-col gap-2">
+                {footerLinks.map((link) => (
+                  <li key={`${link.href}-${link.label}`}>
+                    {isInPageAnchorHref(link.href) ? (
+                      <a
+                        href={link.href}
+                        className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+
+            <nav aria-label="Legal">
+              <p className="text-xs font-semibold uppercase tracking-wide text-pragma-black">
+                Legal
+              </p>
+              <ul className="mt-3 flex flex-col gap-2">
+                {LANDING_LEGAL_FOOTER_ITEMS.map((link) => (
+                  <li key={link.href}>
                     <Link
                       href={link.href}
                       className="text-sm text-pragma-mid-gray transition-colors hover:text-pragma-electric"
                     >
                       {link.label}
                     </Link>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </nav>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </div>
         </div>
       </div>
     </footer>

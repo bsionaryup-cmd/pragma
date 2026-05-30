@@ -95,6 +95,18 @@ export function isPragmaExportedUid(uid: string): boolean {
   );
 }
 
+/** Reservas cargadas por backfill CSV — no cancelar por ausencia en iCal vivo. */
+export function isHistoricalBackfillUid(uid: string | null | undefined): boolean {
+  if (!uid) return false;
+  return uid.trim().toLowerCase().startsWith("pragma-historical:");
+}
+
+export const HISTORICAL_BACKFILL_ICAL_PREFIX = "pragma-historical:";
+
+export function buildHistoricalBackfillIcalUid(confirmationCode: string): string {
+  return `${HISTORICAL_BACKFILL_ICAL_PREFIX}${confirmationCode.trim().toUpperCase()}`;
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

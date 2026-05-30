@@ -34,7 +34,7 @@ export default async function IntegrationsPage() {
           <h1 className="font-heading mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
             Conectores PRAGMA
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground/75">
             Canales de reserva, smart locks y reportes gubernamentales en un solo
             módulo.
           </p>
@@ -92,9 +92,10 @@ export default async function IntegrationsPage() {
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
                 <LineChart className="h-6 w-6" />
               </span>
-              <h2 className="mt-5 text-lg font-semibold">PriceLabs</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Listings, precios dinámicos e inteligencia de tarifas.
+              <h2 className="mt-5 text-lg font-semibold">PriceLabs · API</h2>
+              <p className="mt-2 text-sm text-foreground/75">
+                Customer API key, pipeline de sync y mapeo de listings. Tarifas
+                diarias en el módulo Tarifas.
               </p>
             </Link>
           ) : (

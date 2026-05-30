@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { AlertCircle, CheckCircle2, Eye, EyeOff, KeyRound } from "lucide-react";
+import { ChevronDown, Eye, EyeOff, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import {
   revokePriceLabsApiKeyAction,
@@ -9,14 +9,13 @@ import {
 } from "@/features/integrations/pricelabs/actions/pricelabs.actions";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 type PriceLabsApiKeyCardProps = {
   overview: PriceLabsOverviewDto;
   canManage: boolean;
+  embedded?: boolean;
 };
 
 const credentialStatusLabels: Record<
@@ -24,16 +23,18 @@ const credentialStatusLabels: Record<
   string
 > = {
   missing: "Sin API key",
-  stored: "Guardada en servidor",
-  environment: "Variable de entorno",
-  both: "BD + entorno (BD tiene prioridad)",
+  stored: "Guardada",
+  environment: "Entorno",
+  both: "BD + entorno",
 };
 
 export function PriceLabsApiKeyCard({
   overview,
   canManage,
+  embedded = false,
 }: PriceLabsApiKeyCardProps) {
   const { credentials, config } = overview;
+  const [expanded, setExpanded] = useState(!config.configured);
   const [showKey, setShowKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [editing, setEditing] = useState(
@@ -64,7 +65,7 @@ export function PriceLabsApiKeyCard({
   };
 
   const onRevoke = () => {
-    if (!window.confirm("¿Revocar la API key almacenada en el servidor?")) return;
+    if (!window.confirm("¿Revocar la API key almacenada?")) return;
     startTransition(async () => {
       try {
         const result = await revokePriceLabsApiKeyAction();
@@ -81,73 +82,66 @@ export function PriceLabsApiKeyCard({
   };
 
   return (
-    <Card className="border-[#E5E7EB] bg-white shadow-sm lg:col-span-2">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <KeyRound className="h-4 w-4" />
-          API key (Customer API)
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-[#6B7280]">Estado</span>
-          <span
-            className={cn(
-              "flex items-center gap-1.5 font-medium",
-              config.configured ? "text-success" : "text-warning",
-            )}
-          >
-            {config.configured ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
-            {credentialStatusLabels[credentials.status]}
-          </span>
+    <div
+      className={cn(
+        embedded ? "space-y-0" : "rounded-lg border border-border bg-card",
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-muted/20"
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <KeyRound className="h-4 w-4 shrink-0 text-pragma-electric" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Conexión API</p>
+            <p className="truncate text-xs text-foreground/70">
+              {credentialStatusLabels[credentials.status]}
+              {credentials.keyHint ? ` · ${credentials.keyHint}` : ""}
+              {config.liveApiEnabled ? " · Live" : " · Simulación"}
+            </p>
+          </div>
         </div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-foreground/70 transition",
+            expanded && "rotate-180",
+          )}
+        />
+      </button>
 
-        {credentials.decryptFailed ? (
-          <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
-            Hay una API key guardada, pero el servidor no puede descifrarla. Pega
-            la key de nuevo para restaurar la conexión.
+      {expanded ? (
+        <div className="space-y-3 border-t border-border/60 px-3 py-3 text-sm">
+          {credentials.decryptFailed ? (
+            <p className="rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-xs text-warning">
+              No se puede descifrar la key guardada. Pégala de nuevo.
+            </p>
+          ) : null}
+
+          <p className="text-xs text-foreground/70">
+            PriceLabs → Account Settings → API Details. Header{" "}
+            <code className="rounded bg-muted px-1">X-API-Key</code>.
           </p>
-        ) : null}
 
-        {credentials.keyHint ? (
-          <p className="text-xs text-[#6B7280]">
-            Clave activa: <span className="font-mono">{credentials.keyHint}</span>
-            {credentials.hasEnvKey ? (
-              <span className="ml-1 text-[#9CA3AF]">
-                · también hay PRICELABS_API_KEY en entorno
-              </span>
-            ) : null}
-          </p>
-        ) : null}
-
-        <p className="text-xs text-[#9CA3AF]">
-          Obtén la key en PriceLabs → Account Settings → API Details. Header:{" "}
-          <code className="rounded bg-[#F3F4F6] px-1">X-API-Key</code>. Se guarda
-          cifrada; nunca se envía al navegador después de guardar.
-        </p>
-
-        {canManage ? (
-          <div className="space-y-3 rounded-xl border border-[#E5E7EB] bg-[#FAFBFC] p-4">
-            {credentials.hasStoredKey && !editing ? (
+          {canManage ? (
+            credentials.hasStoredKey && !editing ? (
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="h-7 text-xs"
                   disabled={pending}
                   onClick={() => setEditing(true)}
                 >
-                  Cambiar API key
+                  Cambiar key
                 </Button>
                 <Button
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="text-red-600 hover:text-red-700"
+                  className="h-7 text-xs text-destructive hover:text-destructive"
                   disabled={pending}
                   onClick={onRevoke}
                 >
@@ -155,58 +149,45 @@ export function PriceLabsApiKeyCard({
                 </Button>
               </div>
             ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="pricelabs-api-key">API key PriceLabs</Label>
-                  <div className="relative">
-                    <Input
-                      id="pricelabs-api-key"
-                      name="pricelabsApiKey"
-                      type={showKey ? "text" : "password"}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={
-                        credentials.hasStoredKey
-                          ? "Pega la nueva API key"
-                          : "Pega tu API key de PriceLabs"
-                      }
-                      className="pr-10 font-mono text-sm"
-                      autoComplete="off"
-                      spellCheck={false}
-                      disabled={pending}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowKey((v) => !v)}
-                      className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-[#6B7280] hover:text-[#111827]"
-                      aria-label={showKey ? "Ocultar" : "Mostrar"}
-                    >
-                      {showKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs text-[#9CA3AF]">
-                    Puedes pegar desde el portapapeles. Se guarda cifrada en el
-                    servidor.
-                  </p>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    type={showKey ? "text" : "password"}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="Pega tu Customer API key"
+                    className="h-8 pr-9 font-mono text-xs"
+                    autoComplete="off"
+                    disabled={pending}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKey((v) => !v)}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 text-foreground/70"
+                  >
+                    {showKey ? (
+                      <EyeOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Eye className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2">
                   <Button
                     type="button"
                     size="sm"
+                    className="h-7 text-xs"
                     disabled={pending || apiKey.trim().length < 8}
                     onClick={onSave}
                   >
-                    {credentials.hasStoredKey ? "Guardar y reconectar" : "Guardar y conectar"}
+                    Guardar y conectar
                   </Button>
                   {credentials.hasStoredKey ? (
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
+                      className="h-7 text-xs"
                       disabled={pending}
                       onClick={() => {
                         setApiKey("");
@@ -217,15 +198,15 @@ export function PriceLabsApiKeyCard({
                     </Button>
                   ) : null}
                 </div>
-              </>
-            )}
-          </div>
-        ) : (
-          <p className="text-xs text-[#9CA3AF]">
-            Solo administradores pueden configurar la API key.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+              </div>
+            )
+          ) : (
+            <p className="text-xs text-foreground/70">
+              Solo admins pueden configurar la API key.
+            </p>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }

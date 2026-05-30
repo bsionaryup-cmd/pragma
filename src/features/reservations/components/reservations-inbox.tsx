@@ -1,12 +1,11 @@
 "use client";
 
-import { Filter, Search, X } from "lucide-react";
+import { Filter, Plus, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
-import { CreateReservationButton } from "@/features/reservations/components/create-reservation-button";
 import { ReservationCard } from "@/features/reservations/components/reservation-card";
 import type {
   ReservationCreateInitialValues,
@@ -16,9 +15,8 @@ import { sortByUpcomingArrivals } from "@/features/reservations/lib/reservation-
 import { formatPropertyLabel, propertyMatchesQuery } from "@/lib/property-display";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Input } from "@/components/ui/input";
-import {
-  subscribeDashboardDataRefresh,
-} from "@/lib/dashboard-refresh";
+import { Button } from "@/components/ui/button";
+import { subscribeDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import type {
   PropertyOption,
   ReservationDetailItem,
@@ -31,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const ReservationSidePanel = dynamic(
   () =>
@@ -99,8 +98,7 @@ export function ReservationsInbox({
     return sortByUpcomingArrivals([...pending, ...initialReservations]);
   }, [initialReservations, pendingReservations]);
 
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [query, setQuery] = useState("");
   const [propertyFilter, setPropertyFilter] = useState<string>("all");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
@@ -221,69 +219,88 @@ export function ReservationsInbox({
   return (
     <>
       <div className="flex h-full min-h-0 w-full overflow-hidden bg-muted/10">
-        <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-background md:max-w-[400px] lg:max-w-[420px]">
-          <header className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl font-semibold tracking-tight">
-                {t("reservations.moduleTitle")}
-              </h1>
-              <p className="text-lg text-foreground/80">
-                {t("reservations.total", { count: reservations.length })}
-                {" · "}
-                Próximas llegadas
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSearchOpen((v) => !v)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Buscar"
-              aria-pressed={searchOpen}
-            >
-              <Search className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((v) => !v)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Filtros"
-              aria-pressed={filtersOpen || hasActiveFilters}
-            >
-              <Filter className="h-4 w-4" />
-            </button>
-          </header>
-
-          {searchOpen ? (
-            <div className="shrink-0 border-b border-border px-4 py-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Titular, propiedad, apartamento, email..."
-                  className="h-9 pl-9 pr-9"
-                />
-                {query ? (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
+        <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-background md:max-w-[360px] lg:max-w-[380px]">
+          <header className="shrink-0 space-y-3 border-b border-border px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h1 className="text-base font-semibold tracking-tight">
+                  {t("reservations.moduleTitle")}
+                </h1>
+                <p className="text-xs text-muted-foreground">
+                  {filtered.length} de {reservations.length} · próximas llegadas
+                </p>
               </div>
+              {canCreate ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1 px-2.5 md:hidden"
+                  onClick={openCreate}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Nueva
+                </Button>
+              ) : null}
             </div>
-          ) : null}
 
-          {filtersOpen ? (
-            <div className="shrink-0 space-y-2 border-b border-border px-4 py-3">
-              <label className="text-xs font-medium text-muted-foreground">
-                Propiedad / apartamento
-              </label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar huésped o propiedad…"
+                className="h-8 pl-8 pr-8 text-sm"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "h-8 flex-1 justify-start gap-1.5 text-xs font-normal",
+                  hasActiveFilters && "border-pragma-electric/40 text-pragma-electric",
+                )}
+                onClick={() => setShowFilters((v) => !v)}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                {propertyFilter === "all"
+                  ? "Todas las propiedades"
+                  : formatPropertyLabel(
+                      properties.find((p) => p.id === propertyFilter) ?? {
+                        name: "Propiedad",
+                        unitNumber: null,
+                      },
+                    )}
+              </Button>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery("");
+                    setPropertyFilter("all");
+                  }}
+                  className="shrink-0 text-xs text-pragma-electric hover:underline"
+                >
+                  Limpiar
+                </button>
+              ) : null}
+            </div>
+
+            {showFilters ? (
               <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Todas las propiedades" />
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Propiedad" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las propiedades</SelectItem>
@@ -294,36 +311,23 @@ export function ReservationsInbox({
                   ))}
                 </SelectContent>
               </Select>
-              {hasActiveFilters ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuery("");
-                    setPropertyFilter("all");
-                  }}
-                  className="text-sm text-primary underline-offset-4 hover:underline"
-                >
-                  Limpiar filtros
-                </button>
-              ) : null}
-            </div>
-          ) : null}
+            ) : null}
+          </header>
 
-          <div
-            className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3"
-            style={canCreate ? { paddingBottom: 4 } : undefined}
-          >
+          <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
             {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-                <p className="text-base text-foreground">Sin reservas ni huéspedes</p>
-                <p className="max-w-xs text-base text-foreground/75">
+              <div className="flex flex-col items-center justify-center gap-1 px-3 py-12 text-center">
+                <p className="text-sm font-medium text-foreground">Sin reservas</p>
+                <p className="max-w-[220px] text-xs text-muted-foreground">
                   {hasActiveFilters
-                    ? "No hay resultados para tu búsqueda o filtros."
-                    : "Usa el botón inferior para crear la primera reserva."}
+                    ? "Prueba otra búsqueda o quita los filtros."
+                    : canCreate
+                      ? "Crea la primera reserva con el botón de abajo."
+                      : "No hay reservas en el listado."}
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 {filtered.map((reservation) => (
                   <ReservationCard
                     key={reservation.id}
@@ -339,8 +343,11 @@ export function ReservationsInbox({
           </div>
 
           {canCreate ? (
-            <footer className="shrink-0 border-t border-border/80 bg-background px-4 pb-4 pt-3">
-              <CreateReservationButton onClick={openCreate} />
+            <footer className="hidden shrink-0 border-t border-border bg-background p-3 md:block">
+              <Button type="button" className="h-10 w-full gap-2" onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Crear reserva
+              </Button>
             </footer>
           ) : null}
         </aside>
@@ -364,10 +371,10 @@ export function ReservationsInbox({
               showHeader={drawerMode === "create"}
             />
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8">
-              <p className="max-w-sm text-center text-sm text-muted-foreground">
-                Selecciona una reserva del listado o crea una nueva con el botón
-                inferior.
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+              <p className="text-sm font-medium text-foreground">Selecciona una reserva</p>
+              <p className="max-w-xs text-xs text-muted-foreground">
+                El detalle aparece aquí: fechas, registro de huéspedes, cobro y acceso.
               </p>
             </div>
           )}

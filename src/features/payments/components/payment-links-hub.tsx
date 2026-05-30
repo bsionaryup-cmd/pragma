@@ -3,21 +3,57 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { Copy, CopyPlus, CreditCard, ExternalLink, XCircle } from "lucide-react";
+import { Copy, CopyPlus, ExternalLink, MessageCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   cancelPaymentLinkAction,
   duplicatePaymentLinkAction,
   issuePaymentLinkAction,
 } from "@/features/payments/actions/guest-payment.actions";
-import { PaymentLinkCreateForm } from "@/features/payments/components/payment-link-create-form";
+import {
+  PaymentLinkCreateForm,
+  paymentLinkCategoryLabel,
+} from "@/features/payments/components/payment-link-create-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
 import { formatMoney } from "@/lib/format-currency";
-import { PropertyIdentity } from "@/components/properties/property-identity";
+import { formatPropertyLabel } from "@/lib/property-display";
 import type { SerializedGuestPaymentLinkForHub } from "@/lib/payments/guest-payment-link-serializer";
+import type { GuestPaymentLinkStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+function LinkStatusBadge({ status }: { status: GuestPaymentLinkStatus }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        status === "PAID" && "bg-success/15 text-success",
+        status === "DRAFT" && "bg-muted text-muted-foreground",
+        (status === "SENT" || status === "PENDING" || status === "PROCESSING") &&
+          "bg-pragma-electric/10 text-pragma-electric",
+        (status === "FAILED" || status === "EXPIRED") && "bg-amber-500/10 text-amber-700",
+        (status === "CANCELLED" || status === "REFUNDED") &&
+          "bg-muted text-muted-foreground line-through",
+      )}
+    >
+      {guestPaymentLinkStatusLabel(status)}
+    </span>
+  );
+}
+
+function LinkMeta({ link }: { link: SerializedGuestPaymentLinkForHub }) {
+  const parts = [
+    paymentLinkCategoryLabel(link.category),
+    link.reservation?.guestName,
+    link.property ? formatPropertyLabel(link.property) : null,
+  ].filter(Boolean);
+
+  return (
+    <p className="mt-0.5 truncate text-xs text-muted-foreground">{parts.join(" · ")}</p>
+  );
+}
 
 export function PaymentLinksHub({
   initialLinks,
@@ -79,12 +115,16 @@ export function PaymentLinksHub({
     return `https://wa.me/?text=${text}`;
   };
 
+  const activeCount = initialLinks.filter(
+    (link) => !["PAID", "CANCELLED", "EXPIRED", "REFUNDED"].includes(link.status),
+  ).length;
+
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
       <PageHeader
         eyebrow="Finanzas"
         title="Payment Links"
-        description="Enlaces de cobro por tenant (Wompi del anfitrión). Separado de la suscripción SaaS de PRAGMA."
+        description="Crea enlaces de cobro, compártelos con el huésped y consulta su estado."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -97,122 +137,127 @@ export function PaymentLinksHub({
               href="/integrations/wompi"
               className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted/50"
             >
-              Configurar Wompi
+              Wompi
             </Link>
           </div>
         }
       />
 
-      {canWrite ? <PaymentLinkCreateForm /> : null}
-
       <SectionCard
-        title="Enlaces"
-        description="Estados: borrador → enviado → pagado. Sin proyecciones ni cobros duplicados."
-        className="mt-6"
+        title="Enlaces de cobro"
+        description={
+          initialLinks.length > 0
+            ? `${initialLinks.length} en total · ${activeCount} activos`
+            : "Sin enlaces aún."
+        }
       >
+        {canWrite ? <PaymentLinkCreateForm /> : null}
+
         {initialLinks.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            Aún no hay Payment Links. Crea uno arriba o desde el detalle de una reserva.
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
+            Crea un enlace arriba o desde el detalle de una reserva.
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {initialLinks.map((link) => (
-              <li
-                key={link.id}
-                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-pragma-electric" />
+            {initialLinks.map((link) => {
+              const canCancel =
+                canWrite && link.status !== "PAID" && link.status !== "CANCELLED";
+              const canDuplicate = canWrite && link.status !== "PAID";
+              const showIssue = canWrite && link.status === "DRAFT";
+
+              return (
+                <li
+                  key={link.id}
+                  className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5"
+                >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {link.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {link.category} · {guestPaymentLinkStatusLabel(link.status)}
-                      {link.reservation
-                        ? ` · ${link.reservation.guestName}`
-                        : null}
-                    </p>
-                    {link.property ? (
-                      <div className="mt-1">
-                        <PropertyIdentity
-                          name={link.property.name}
-                          unitNumber={link.property.unitNumber}
-                          size="sm"
-                        />
-                      </div>
-                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {link.description}
+                      </p>
+                      <LinkStatusBadge status={link.status} />
+                    </div>
+                    <LinkMeta link={link} />
                   </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <p className="w-full text-sm font-semibold text-foreground sm:w-auto sm:text-end">
-                    {formatMoney(link.amount, link.currency)}
-                  </p>
-                  {link.wompiCheckoutUrl ? (
-                    <>
+
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <p className="mr-1 text-sm font-semibold tabular-nums text-foreground">
+                      {formatMoney(link.amount, link.currency)}
+                    </p>
+
+                    {link.wompiCheckoutUrl ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2.5 text-xs"
+                          onClick={() => copyUrl(link.wompiCheckoutUrl!)}
+                        >
+                          <Copy className="mr-1 h-3.5 w-3.5" />
+                          Copiar
+                        </Button>
+                        <a
+                          href={link.wompiCheckoutUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-xs font-medium hover:bg-muted/50"
+                        >
+                          <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                          Abrir
+                        </a>
+                        <a
+                          href={whatsappShare(link.wompiCheckoutUrl, link.description)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-8 items-center rounded-lg border border-border px-2.5 text-xs font-medium hover:bg-muted/50"
+                        >
+                          <MessageCircle className="mr-1 h-3.5 w-3.5" />
+                          WhatsApp
+                        </a>
+                      </>
+                    ) : showIssue ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="brand"
+                        className="h-8 text-xs"
+                        disabled={pending}
+                        onClick={() => issue(link.id)}
+                      >
+                        Emitir
+                      </Button>
+                    ) : null}
+
+                    {canDuplicate ? (
                       <button
                         type="button"
-                        className="rounded-lg border border-border p-2 hover:bg-muted"
-                        onClick={() => copyUrl(link.wompiCheckoutUrl!)}
-                        aria-label="Copiar"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted/50"
+                        disabled={pending}
+                        onClick={() => duplicate(link.id)}
+                        title="Duplicar"
+                        aria-label="Duplicar"
                       >
-                        <Copy className="h-4 w-4" />
+                        <CopyPlus className="h-3.5 w-3.5" />
                       </button>
-                      <a
-                        href={link.wompiCheckoutUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-border p-2 hover:bg-muted"
+                    ) : null}
+
+                    {canCancel ? (
+                      <button
+                        type="button"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted/50 hover:text-danger"
+                        disabled={pending}
+                        onClick={() => cancel(link.id)}
+                        title="Cancelar"
+                        aria-label="Cancelar"
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                      <a
-                        href={whatsappShare(link.wompiCheckoutUrl, link.description)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-border px-2 py-1.5 text-xs font-medium hover:bg-muted"
-                      >
-                        WhatsApp
-                      </a>
-                    </>
-                  ) : canWrite && link.status === "DRAFT" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="brand"
-                      disabled={pending}
-                      onClick={() => issue(link.id)}
-                    >
-                      Emitir
-                    </Button>
-                  ) : null}
-                  {canWrite && link.status !== "PAID" ? (
-                    <button
-                      type="button"
-                      className="rounded-lg border border-border p-2 hover:bg-muted"
-                      disabled={pending}
-                      onClick={() => duplicate(link.id)}
-                      aria-label="Duplicar"
-                    >
-                      <CopyPlus className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                  {canWrite &&
-                  link.status !== "PAID" &&
-                  link.status !== "CANCELLED" ? (
-                    <button
-                      type="button"
-                      className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-muted hover:text-danger"
-                      disabled={pending}
-                      onClick={() => cancel(link.id)}
-                      aria-label="Cancelar"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                        <XCircle className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </SectionCard>

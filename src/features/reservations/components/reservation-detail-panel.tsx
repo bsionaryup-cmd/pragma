@@ -29,7 +29,6 @@ import { formatDateTime as formatDateTimeInBogota } from "@/lib/helpers/date";
 import {
   countNights,
   formatStayRange,
-  totalGuests,
 } from "@/features/reservations/lib/reservation-dates";
 import {
   displayStatusLabels,
@@ -55,6 +54,7 @@ import {
 } from "@/lib/reservations/reservation-hold-display";
 import { formatPropertyLabel, formatPropertyUnit } from "@/lib/property-display";
 import { isOtaImportedReservation } from "@/lib/reservations/reservation-ota";
+import { isPaymentLinkEligibleReservation } from "@/lib/reservations/reservation-payment-links";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
@@ -74,15 +74,17 @@ function ReservationDetailSection({
   return (
     <section
       className={cn(
-        "space-y-2.5 border-b border-border/60 pb-5 last:border-0",
+        "space-y-2 border-b border-border/60 pb-4 last:border-0",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-base font-medium text-foreground/80">{title}</h4>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h4>
         {headerAside}
       </div>
-      <div className="space-y-1">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }
@@ -240,7 +242,7 @@ function TitularContactSummary({
   if (!contactLine && !localeLine) return null;
 
   return (
-    <div className="mt-1.5 space-y-0.5 text-base text-foreground/80">
+    <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
       {contactLine ? <p className="break-words">{contactLine}</p> : null}
       {localeLine ? <p>{localeLine}</p> : null}
     </div>
@@ -289,11 +291,11 @@ function RegisteredGuestsCompactList({
                   {guestStatusLabels[guest.status]}
                 </span>
               </div>
-              <p className="mt-0.5 text-base text-foreground/80">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {documentLabel} · {guest.documentNumber}
               </p>
               {metaParts.length > 0 ? (
-                <p className="mt-0.5 truncate text-[11px] text-foreground/65">
+                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                   {metaParts.join(" · ")}
                 </p>
               ) : null}
@@ -328,11 +330,6 @@ export function ReservationDetailPanel({
     reservation.checkOut,
   );
   const nights = countNights(reservation.checkIn, reservation.checkOut);
-  const guests = totalGuests(
-    reservation.adults,
-    reservation.children,
-    reservation.infants,
-  );
   const relatedBlocks = reservation.relatedBlocks ?? [];
   const registeredGuests = reservation.guests ?? [];
   const registration = reservation.guestRegistration;
@@ -353,6 +350,8 @@ export function ReservationDetailPanel({
     platform: reservation.platform,
     icalUid: reservation.icalUid,
   });
+  const showPaymentLinks =
+    canManagePayments && isPaymentLinkEligibleReservation(reservation.platform);
   const allowDelete = canDelete && !otaImported;
   const allowManualEdit = canWrite && properties.length > 0 && reservation.platform !== "AIRBNB";
   const displayReservationId =
@@ -485,30 +484,20 @@ export function ReservationDetailPanel({
   return (
     <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background">
       {holdActive ? (
-        <div className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-3">
-          <p className="text-sm font-medium text-foreground">
-            Reserva en espera de pago
-          </p>
-          <p className="mt-1 text-xs text-foreground/65">
-            Las fechas están reservadas temporalmente (30 min). El huésped debe
-            pagar al menos el depósito ({holdDepositPercentLabel()})
-            {holdExpiryLabel ? ` — ${holdExpiryLabel.toLowerCase()}` : ""}. Si no
-            paga, la disponibilidad se libera automáticamente.
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2">
+          <p className="text-xs font-medium text-foreground">
+            Esperando pago · depósito {holdDepositPercentLabel()}
+            {holdExpiryLabel ? ` · ${holdExpiryLabel.toLowerCase()}` : ""}
           </p>
         </div>
       ) : null}
 
       {registrationDueSoon && canManageGuestRegistration && !holdActive ? (
-        <div className="border-b border-pragma-cyan/30 bg-pragma-soft-cyan/30 px-5 py-3">
-          <p className="text-sm font-medium text-foreground">
-            Tu huésped llega pronto
+        <div className="border-b border-pragma-cyan/30 bg-pragma-soft-cyan/25 px-4 py-2.5">
+          <p className="text-xs font-medium text-foreground">
+            Check-in pronto · falta registro en {propertyLabel}
           </p>
-          <p className="mt-1 text-xs text-foreground/65">
-            El check-in es en los próximos 2 días y aún falta el registro en{" "}
-            {propertyLabel}. Comparte el enlace con calidez — un mensaje claro
-            reduce fricción en la llegada.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             <Button
               type="button"
               size="sm"
@@ -580,73 +569,95 @@ export function ReservationDetailPanel({
         </div>
       ) : null}
 
-      <div className="shrink-0 w-full border-b border-border/60 px-5 py-4">
+      <div className="shrink-0 w-full border-b border-border/60 px-4 py-3">
         <div className="flex w-full items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="mb-0.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <PropertyIdentity
                 name={reservation.property.name}
                 unitNumber={reservation.property.unitNumber}
                 showName={false}
-                size="lg"
-                unitClassName="text-2xl font-bold"
+                size="sm"
+              />
+              <ReservationSourceBadge
+                platform={reservation.platform}
+                size="sm"
+                showLabel
+              />
+              <ReservationStatusBadge
+                status={displayStatus}
+                label={displayStatusLabels[displayStatus]}
               />
             </div>
-            <h3 className="mt-2 text-3xl font-semibold leading-snug tracking-tight text-foreground">
+            <h3 className="mt-1.5 text-lg font-semibold leading-tight text-foreground">
               {reservation.guestName}
             </h3>
             <TitularContactSummary reservation={reservation} />
-            <p className="mt-2 flex items-center gap-1.5 text-lg font-semibold leading-relaxed text-foreground/85">
-              {formatStayRange(reservation.checkIn, reservation.checkOut)}
-              <span className="mx-1.5" aria-hidden>
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-foreground">
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                {formatStayRange(reservation.checkIn, reservation.checkOut)}
+              </span>
+              <span className="text-muted-foreground" aria-hidden>
                 ·
               </span>
-              <Moon className="h-4 w-4" aria-hidden />
-              <span>{nights}</span>
-            </p>
-            <p className="mt-1 text-base font-semibold text-foreground/85">
-              {reservation.platform === "AIRBNB" &&
-              emailEnrichment?.guestCountTotal != null ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <User className="h-4 w-4" aria-hidden />
-                  <span>
+              <span className="inline-flex items-center gap-1">
+                <Moon className="h-3.5 w-3.5" aria-hidden />
+                {nights} noches
+              </span>
+              <span className="text-muted-foreground" aria-hidden>
+                ·
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <User className="h-3.5 w-3.5" aria-hidden />
+                {reservation.platform === "AIRBNB" &&
+                emailEnrichment?.guestCountTotal != null ? (
+                  <>
                     {emailEnrichment.adultCount ?? 0} adultos
                     {(emailEnrichment.childCount ?? 0) > 0
                       ? `, ${emailEnrichment.childCount} niños`
                       : ""}
-                    {(emailEnrichment.infantCount ?? 0) > 0
-                      ? `, ${emailEnrichment.infantCount} bebés`
-                      : ""}
-                    {(emailEnrichment.petCount ?? 0) > 0
-                      ? `, ${emailEnrichment.petCount} mascotas`
-                      : ""}
-                  </span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5">
-                  <User className="h-4 w-4" aria-hidden />
-                  <span>
+                  </>
+                ) : (
+                  <>
                     {reservation.adults} adultos
                     {reservation.children > 0 ? `, ${reservation.children} niños` : ""}
-                    {reservation.infants > 0 ? `, ${reservation.infants} bebés` : ""}
-                  </span>
-                </span>
-              )}
+                  </>
+                )}
+              </span>
             </p>
-            <div className="mt-1">
-              <ReservationSourceBadge
-                platform={reservation.platform}
-                size="sm"
-                showLabel={false}
-              />
-            </div>
+            <p className="mt-1.5 text-sm font-semibold tabular-nums text-foreground">
+              {formatCurrency(
+                reservation.platform === "AIRBNB" &&
+                  emailEnrichment?.hostPayoutAmount != null
+                  ? emailEnrichment.hostPayoutAmount
+                  : reservation.platform === "AIRBNB" &&
+                      emailEnrichment?.guestTotalPaid != null
+                    ? emailEnrichment.guestTotalPaid
+                    : Number(reservation.totalAmount),
+                (reservation.platform === "AIRBNB"
+                  ? emailEnrichment?.metadataCurrency
+                  : null) ?? reservation.currency,
+              )}
+              {reservation.platform === "AIRBNB" &&
+              emailEnrichment?.hostPayoutAmount != null ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  ingreso anfitrión
+                </span>
+              ) : null}
+            </p>
+            <p className="mt-1 truncate text-[11px] text-muted-foreground">
+              {propertyLabel}
+              {reservation.createdAt
+                ? ` · creada ${formatCreatedAt(reservation.createdAt)}`
+                : null}
+            </p>
           </div>
-          <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-2 max-md:mr-10">
-            <p className="max-w-full truncate text-xs text-foreground/65">
-              ID: <span className="font-medium text-foreground/80">{displayReservationId}</span>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <p className="max-w-[140px] truncate text-[10px] text-muted-foreground">
+              {displayReservationId}
             </p>
             {allowManualEdit || (allowDelete && !editing) ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
               {allowManualEdit ? (
                 <Button
                   type="button"
@@ -679,7 +690,7 @@ export function ReservationDetailPanel({
         </div>
       </div>
 
-      <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-5 py-4">
+      <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-3">
         {editing && canWrite && properties.length > 0 ? (
           <ReservationEditForm
             reservation={reservation}
@@ -695,7 +706,7 @@ export function ReservationDetailPanel({
         {!editing ? (
           <>
             <ReservationDetailSection
-              title="Huéspedes registrados"
+              title="Personas registradas"
               headerAside={
                 registeredGuests.length > 0 ? (
                   <Button
@@ -715,78 +726,49 @@ export function ReservationDetailPanel({
                 <RegisteredGuestsCompactList guests={registeredGuests} />
               ) : (
                 <DetailEmptyState>
-                  Registro de huéspedes pendiente. Los datos aparecerán aquí
-                  cuando completen el formulario del link de registro.
+                  Aún no hay huéspedes registrados. Comparte el enlace de abajo.
                 </DetailEmptyState>
               )}
             </ReservationDetailSection>
 
-            {canManagePayments ? (
-              <ReservationDetailSection title="Cobros">
-                <ReservationPaymentLinks
-                  reservationId={reservation.id}
-                  canManage={canManagePayments}
-                />
+            {showPaymentLinks ? (
+              <ReservationDetailSection title="Cobro directo">
+                <ReservationPaymentLinks reservationId={reservation.id} />
               </ReservationDetailSection>
             ) : null}
 
-            <ReservationDetailSection title="Registro de huéspedes">
+            <ReservationDetailSection title="Enlace de registro">
               {registrationProgress ? (
-                <div className="rounded-xl border border-border/80 bg-muted/20 px-3 py-2.5">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">
-                      {registrationProgress.registered} / {registrationProgress.capacity}
-                    </span>{" "}
-                    huéspedes registrados
-                  </p>
-                  <p className="mt-1 text-xs text-foreground/65">
-                    Capacidad: {registrationProgress.capacity}{" "}
-                    huésped{registrationProgress.capacity === 1 ? "" : "es"}
-                    {!reservation.guestRegistrationCompletedAt &&
-                    registrationProgress.registered < registrationProgress.capacity
-                      ? " · faltan registros"
-                      : null}
-                  </p>
-                </div>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {registrationProgress.registered}/{registrationProgress.capacity}
+                  </span>{" "}
+                  huéspedes completaron el formulario
+                </p>
               ) : null}
               {registration ? (
-                <div className="space-y-3 rounded-xl border border-border/80 bg-card px-3 py-3 shadow-pragma-soft">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {registrationStatusLabels[registration.status]}
-                      </p>
-                      <p className="mt-1 text-xs text-foreground/65">
-                        Creado: {formatDateTime(registration.createdAt)}
-                      </p>
-                      <p className="text-xs text-foreground/65">
-                        Expira: {formatDateTime(registration.expiresAt)}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-foreground/65">
-                      {registration.status}
+                <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">
+                      {registrationStatusLabels[registration.status]}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      expira {formatDateTime(registration.expiresAt)}
                     </span>
                   </div>
 
                   {registration.status === "ACTIVE" ? (
                     <>
-                      <a
-                        href={registration.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block break-all text-xs text-primary underline-offset-4 hover:underline"
-                      >
-                        {registration.url}
-                      </a>
-                      <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="flex flex-wrap gap-1.5">
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="h-8 text-xs"
                           onClick={copyRegistrationLink}
                         >
                           <Copy className="h-3.5 w-3.5" />
-                          Copiar
+                          Copiar link
                         </Button>
                         {canManageGuestRegistration ? (
                           <>
@@ -794,16 +776,18 @@ export function ReservationDetailPanel({
                               type="button"
                               variant="outline"
                               size="sm"
+                              className="h-8 text-xs"
                               onClick={regenerateRegistrationLink}
                               disabled={isTokenPending}
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
-                              Regenerar
+                              Nuevo link
                             </Button>
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
+                              className="h-8 text-xs"
                               onClick={revokeRegistrationLink}
                               disabled={isTokenPending}
                             >
@@ -813,24 +797,31 @@ export function ReservationDetailPanel({
                           </>
                         ) : null}
                       </div>
+                      <a
+                        href={registration.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block truncate text-[11px] text-primary hover:underline"
+                      >
+                        {registration.url}
+                      </a>
                     </>
                   ) : null}
                 </div>
               ) : (
-                <div className="space-y-3">
-                  <DetailEmptyState>
-                    Esta reserva todavía no tiene link activo de registro.
-                  </DetailEmptyState>
+                <div className="space-y-2">
+                  <DetailEmptyState>Sin enlace activo.</DetailEmptyState>
                   {canManageGuestRegistration ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
+                      className="h-8 text-xs"
                       onClick={generateRegistrationLink}
                       disabled={isTokenPending}
                     >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      Generar link de registro de huéspedes
+                      <Link2 className="mr-1.5 h-3.5 w-3.5" />
+                      Generar enlace
                     </Button>
                   ) : null}
                 </div>
@@ -873,45 +864,6 @@ export function ReservationDetailPanel({
                 />
               </ReservationDetailSection>
             ) : null}
-
-            <ReservationDetailSection title="Reserva">
-              <div className="rounded-xl border border-border/80 bg-card px-3 py-1 shadow-pragma-soft">
-                {reservation.createdAt ? (
-                  <p className="py-1.5 text-xs text-foreground/65">
-                    Creada:{" "}
-                    <span className="font-medium text-foreground/80">
-                      {formatCreatedAt(reservation.createdAt)}
-                    </span>
-                  </p>
-                ) : null}
-                <p className="py-1.5 text-sm text-foreground/80">
-                  <span className="text-foreground/80">Cuánto pagó:</span>{" "}
-                  <span className="font-medium text-foreground">
-                    {formatCurrency(
-                      reservation.platform === "AIRBNB" &&
-                        emailEnrichment?.guestTotalPaid != null
-                        ? emailEnrichment.guestTotalPaid
-                        : Number(reservation.totalAmount),
-                      (reservation.platform === "AIRBNB"
-                        ? emailEnrichment?.metadataCurrency
-                        : null) ?? reservation.currency,
-                    )}
-                  </span>
-                </p>
-                {reservation.platform === "AIRBNB" &&
-                emailEnrichment?.hostPayoutAmount != null ? (
-                  <p className="py-1.5 text-sm text-foreground/80">
-                    <span className="text-foreground/80">Gana anfitrión:</span>{" "}
-                    <span className="font-medium text-foreground">
-                      {formatCurrency(
-                        emailEnrichment.hostPayoutAmount,
-                        emailEnrichment.metadataCurrency ?? reservation.currency,
-                      )}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-            </ReservationDetailSection>
           </>
         ) : null}
       </div>

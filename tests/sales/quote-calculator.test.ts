@@ -8,7 +8,7 @@ describe("sales quote calculator", () => {
       plan: "STARTER",
       propertyCount: 2,
     });
-    assert.equal(result.listMonthlyCop, 79_000 * 2);
+    assert.equal(result.listMonthlyCop, 49_900 * 2);
     assert.equal(result.finalMonthlyCop, result.listMonthlyCop);
   });
 

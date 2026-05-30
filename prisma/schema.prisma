@@ -77,7 +77,10 @@ model User {
   ttlockConfigured     TTLockIntegration[]  @relation("TTLockConfigurator")
   loginActivities      LoginActivity[]
   manualExpenses       ManualExpense[]        @relation("ManualExpenseCreator")
+  manualExpensesDeleted ManualExpense[]       @relation("ManualExpenseDeleter")
   otherIncomes         OtherIncome[]          @relation("OtherIncomeCreator")
+  otherIncomesDeleted  OtherIncome[]          @relation("OtherIncomeDeleter")
+  legalDocumentAcceptances LegalDocumentAcceptance[]
   externalIntegrations ExternalIntegration[]  @relation("ExternalIntegrationConfigurator")
   priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
   organizationIntegrations OrganizationIntegration[] @relation("OrgIntegrationConfigurator")
@@ -546,32 +549,57 @@ model ManualExpense {
   expenseDate   DateTime            @db.Date
   description   String?
   attachmentUrl String?
+  deletedAt     DateTime?
+  deletedById   String?
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
-  createdBy User @relation("ManualExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User  @relation("ManualExpenseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  deletedBy User? @relation("ManualExpenseDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([expenseDate])
   @@index([createdById])
+  @@index([deletedAt])
   @@map("manual_expenses")
 }
 
 model OtherIncome {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   createdById String
-  amount      Decimal  @db.Decimal(12, 2)
-  currency    String   @default("COP")
+  amount      Decimal   @db.Decimal(12, 2)
+  currency    String    @default("COP")
   incomeType  String
-  incomeDate  DateTime @db.Date
+  incomeDate  DateTime  @db.Date
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  deletedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  createdBy User @relation("OtherIncomeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy User  @relation("OtherIncomeCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  deletedBy User? @relation("OtherIncomeDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
 
   @@index([incomeDate])
   @@index([createdById])
+  @@index([deletedAt])
   @@map("other_incomes")
+}
+
+model LegalDocumentAcceptance {
+  id              String   @id @default(cuid())
+  userId          String
+  documentType    String
+  documentVersion String
+  acceptedAt      DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([documentType])
+  @@index([acceptedAt])
+  @@map("legal_document_acceptances")
 }
 
 // ─── Organization integrations (multi-tenant) ─────────────────

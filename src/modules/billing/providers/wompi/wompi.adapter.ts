@@ -74,12 +74,21 @@ export class WompiPaymentAdapter implements PaymentProviderAdapter {
         };
       }
 
+      const checkoutUrl =
+        payload.data?.permalink ??
+        (payload.data?.id ? `https://checkout.wompi.co/l/${payload.data.id}` : undefined);
+
+      if (!checkoutUrl) {
+        return {
+          ok: false,
+          message: "Wompi no devolvió URL de checkout",
+        };
+      }
+
       return {
         ok: true,
         message: "Enlace de pago generado",
-        checkoutUrl:
-          payload.data?.permalink ??
-          `https://checkout.wompi.co/l/${payload.data?.id}`,
+        checkoutUrl,
         reference: input.reference,
       };
     } catch (error) {

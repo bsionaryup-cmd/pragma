@@ -1,3 +1,9 @@
+import {
+  LEGAL_DOCUMENTS,
+  legalDocumentHref,
+  type LegalDocumentSlug,
+} from "@/lib/legal/documents";
+
 /** Section ids on the marketing home (`/`). */
 export type LandingHomeSection =
   | "solution"
@@ -38,12 +44,29 @@ export const LANDING_FOOTER_ITEMS: Array<{
   label: string;
 }> = [
   { section: "solution", label: "Solución" },
-  { section: "product", label: "Command Center" },
+  { section: "product", label: "Producto" },
   { section: "integrations", label: "Integraciones" },
   { section: "pricing", label: "Precios" },
   { section: "contact", label: "Contacto" },
 ];
 
+export const LANDING_LEGAL_FOOTER_ITEMS: Array<{
+  slug: LegalDocumentSlug;
+  label: string;
+  href: string;
+}> = (
+  [
+    { slug: "terminos" as const, label: LEGAL_DOCUMENTS.terminos.title },
+    { slug: "privacidad" as const, label: LEGAL_DOCUMENTS.privacidad.title },
+    { slug: "tratamiento-datos" as const, label: "Tratamiento de datos" },
+    { slug: "cookies" as const, label: LEGAL_DOCUMENTS.cookies.title },
+    { slug: "suscripcion-saas" as const, label: "Suscripción SaaS" },
+  ] as const
+).map((item) => ({
+  ...item,
+  href: legalDocumentHref(item.slug),
+}));
+
 export function isInPageAnchorHref(href: string): boolean {
-  return href.startsWith("#");
+  return href.startsWith("#") || href.startsWith("/#");
 }

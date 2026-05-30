@@ -19,7 +19,7 @@ const BillingDashboard = dynamic(
 );
 
 type BillingSettingsPageProps = {
-  searchParams: Promise<{ paid?: string; upgrade?: string }>;
+  searchParams: Promise<{ paid?: string; upgrade?: string; checkout?: string }>;
 };
 
 export default async function BillingSettingsPage({
@@ -36,6 +36,7 @@ export default async function BillingSettingsPage({
         data={data}
         upgradeFeature={params.upgrade}
         showDevActivate={process.env.NODE_ENV !== "production"}
+        autoCheckout={params.checkout === "1"}
       />
     </>
   );

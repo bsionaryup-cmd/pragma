@@ -14,7 +14,6 @@ import { KpiCard } from "@/components/ui/kpi-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -25,6 +24,7 @@ import { formatMoney } from "@/lib/format-currency";
 import { formatPanelDate } from "@/lib/helpers/date";
 import type { FinanceOverview } from "@/services/finance/finance.service";
 import { cn } from "@/lib/utils";
+import { ManualFinanceRowActions } from "@/components/finance/manual-finance-row-actions";
 
 type FinanceViewProps = {
   data: FinanceOverview;
@@ -34,30 +34,15 @@ type FinanceViewProps = {
 
 type FinanceTab = "overview" | "revenue" | "expenses" | "otherIncome";
 
-function ComparisonRow({
-  label,
-  current,
-  previous,
-  trend,
-}: {
-  label: string;
-  current: string;
-  previous: string;
-  trend: number;
-}) {
-  const trendSign = trend > 0 ? "+" : "";
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-pragma-light-blue/20 px-4 py-3">
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      <div className="text-end">
-        <p className="text-sm font-semibold text-foreground">{current}</p>
-        <p className="text-xs text-muted-foreground">
-          {previous} · {trendSign}
-          {trend}%
-        </p>
-      </div>
-    </div>
-  );
+function trendFromPct(pct: number): "up" | "down" | "flat" {
+  if (pct > 0) return "up";
+  if (pct < 0) return "down";
+  return "flat";
+}
+
+function trendLabelFromPct(pct: number): string {
+  const sign = pct > 0 ? "+" : "";
+  return `${sign}${pct}% vs mes anterior`;
 }
 
 function KpiBreakdown({
@@ -71,11 +56,16 @@ function KpiBreakdown({
   reservationLabel: string;
   manualLabel: string;
 }) {
-  if (manualAmount <= 0) return null;
+  if (manualAmount <= 0 && reservationAmount <= 0) return null;
   return (
     <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
-      {reservationLabel}: {reservationAmount.toLocaleString()} · {manualLabel}:{" "}
-      {manualAmount.toLocaleString()}
+      {reservationLabel}: {reservationAmount.toLocaleString()}
+      {manualAmount > 0 ? (
+        <>
+          {" "}
+          · {manualLabel}: {manualAmount.toLocaleString()}
+        </>
+      ) : null}
     </p>
   );
 }
@@ -86,10 +76,12 @@ export function FinanceView({
   scope = "full",
 }: FinanceViewProps) {
   const { t, locale } = useI18n();
-  const { kpis, comparison, profitability } = data;
+  const { kpis, comparison, profitability, selectedMonth, selectedMonthLabel } =
+    data;
   const formatAmount = (amount: number) => formatMoney(amount, undefined, locale);
   const isOperations = scope === "operations";
   const [activeTab, setActiveTab] = useState<FinanceTab>("overview");
+  const selectedMonthIndex = Number(selectedMonth.split("-")[1]) - 1;
 
   const otherIncomeFlow = data.revenueFlow.filter(
     (row) => row.propertyName === "Otros ingresos",
@@ -129,8 +121,8 @@ export function FinanceView({
           </section>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <ExpenseFlowTable data={data} />
-            <OtherIncomeFlowTable rows={otherIncomeFlow} />
+            <ExpenseFlowTable data={data} canWrite={canWrite} />
+            <OtherIncomeFlowTable rows={otherIncomeFlow} canWrite={canWrite} />
           </div>
         </div>
       </ModuleShellFlow>
@@ -162,12 +154,59 @@ export function FinanceView({
           }
         />
 
-        <section className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mb-4">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Periodo · {selectedMonthLabel}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              YTD {data.chartYear}: {data.yearToDateRevenueFormatted}
+            </p>
+          </div>
+          <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 md:grid-cols-12">
+            {data.yearlyChart.map((monthPoint) => {
+              const monthKey = `${data.chartYear}-${String(monthPoint.monthIndex + 1).padStart(2, "0")}`;
+              const isSelected = selectedMonth === monthKey;
+              const className = cn(
+                "rounded-md border px-1.5 py-1 text-center text-xs font-medium transition-colors sm:px-2",
+                monthPoint.isFuture
+                  ? "border-border/50 text-muted-foreground/40"
+                  : isSelected
+                    ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
+                    : "border-border bg-card text-foreground hover:bg-muted/40",
+              );
+
+              if (monthPoint.isFuture) {
+                return (
+                  <span key={monthKey} className={className} aria-disabled>
+                    {monthPoint.label}
+                  </span>
+                );
+              }
+
+              return (
+                <Link
+                  key={monthKey}
+                  href={`/finance?month=${monthKey}`}
+                  aria-current={isSelected ? "page" : undefined}
+                  className={className}
+                >
+                  {monthPoint.label}
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mb-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <KpiCard
               label={t("finance.kpi.revenue")}
               value={kpis.revenueFormatted}
               icon={TrendingUp}
+              trend={trendFromPct(comparison.revenue.trend)}
+              trendLabel={trendLabelFromPct(comparison.revenue.trend)}
+              className="p-3.5"
             />
             <KpiBreakdown
               reservationAmount={kpis.reservationRevenue}
@@ -181,6 +220,9 @@ export function FinanceView({
               label={t("finance.kpi.expenses")}
               value={kpis.expensesFormatted}
               icon={Receipt}
+              trend={trendFromPct(comparison.expenses.trend)}
+              trendLabel={trendLabelFromPct(comparison.expenses.trend)}
+              className="p-3.5"
             />
             <KpiBreakdown
               reservationAmount={kpis.reservationExpenses}
@@ -193,76 +235,26 @@ export function FinanceView({
             label={t("finance.kpi.netProfit")}
             value={kpis.netProfitFormatted}
             icon={Wallet}
+            trend={trendFromPct(comparison.profit.trend)}
+            trendLabel={trendLabelFromPct(comparison.profit.trend)}
+            className="p-3.5"
           />
           <KpiCard
             label={t("finance.kpi.pendingIncome")}
             value={kpis.pendingIncomeFormatted}
             icon={TrendingUp}
+            className="p-3.5"
           />
         </section>
 
-        {canWrite ? (
-          <section className="mb-6 flex flex-col gap-3 rounded-xl border border-border bg-pragma-light-blue/25 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Otros ingresos y gastos
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Registro rápido sin salir del resumen financiero.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab("otherIncome")}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                  activeTab === "otherIncome"
-                    ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
-                    : "border-border bg-card text-foreground hover:bg-muted/40",
-                )}
-              >
-                {t("finance.tabs.otherIncome")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("expenses")}
-                className={cn(
-                  "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                  activeTab === "expenses"
-                    ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
-                    : "border-border bg-card text-foreground hover:bg-muted/40",
-                )}
-              >
-                {t("finance.tabs.expenses")}
-              </button>
-            </div>
-          </section>
-        ) : null}
-
-        <section className="mb-6">
-          <SectionCard
-            title="Financial Overview"
-            description="Vista anual con ingresos confirmados y egresos registrados (ene–dic). Solo datos reales."
-          >
-            <div className="p-4 sm:p-6">
-              <FinanceYearlyOverviewChart
-                months={data.yearlyChart}
-                year={data.chartYear}
-                locale={locale}
-              />
-            </div>
-          </SectionCard>
-        </section>
-
-        <nav className="mb-6 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
+        <nav className="mb-5 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "shrink-0 px-4 py-2.5 text-sm font-semibold transition-colors",
+                "shrink-0 px-3 py-2 text-sm font-semibold transition-colors sm:px-4",
                 activeTab === tab.id
                   ? "border-b-2 border-pragma-electric text-pragma-electric"
                   : "text-muted-foreground hover:text-foreground",
@@ -274,61 +266,45 @@ export function FinanceView({
         </nav>
 
         {activeTab === "overview" ? (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title={t("finance.comparison.title")}>
-              <div className="space-y-3 p-4 sm:p-6">
-                <ComparisonRow
-                  label={t("finance.comparison.revenue")}
-                  current={kpis.revenueFormatted}
-                  previous={formatAmount(comparison.revenue.previous)}
-                  trend={comparison.revenue.trend}
-                />
-                <ComparisonRow
-                  label={t("finance.comparison.expenses")}
-                  current={kpis.expensesFormatted}
-                  previous={formatAmount(comparison.expenses.previous)}
-                  trend={comparison.expenses.trend}
-                />
-                <ComparisonRow
-                  label={t("finance.comparison.profit")}
-                  current={kpis.netProfitFormatted}
-                  previous={formatAmount(comparison.profit.previous)}
-                  trend={comparison.profit.trend}
+          <div className="space-y-5">
+            <SectionCard
+              title={`Resumen anual · ${data.chartYear}`}
+              description="Ingresos confirmados y egresos registrados por mes."
+            >
+              <div className="p-4 sm:p-5">
+                <FinanceYearlyOverviewChart
+                  months={data.yearlyChart}
+                  year={data.chartYear}
+                  locale={locale}
+                  selectedMonthIndex={selectedMonthIndex}
                 />
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Acumulado del año"
-              description="Ingresos confirmados en el año en curso, sin proyecciones."
-            >
-              <div className="space-y-4 p-6">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Ingresos YTD ({data.chartYear})
-                  </p>
-                  <p className="font-heading mt-2 text-3xl font-semibold text-pragma-electric">
-                    {data.yearToDateRevenueFormatted}
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl border border-border p-3">
-                    <p className="text-xs text-muted-foreground">
-                      {t("finance.profitability.margin")}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold">{profitability.margin}%</p>
-                  </div>
-                  <div className="rounded-xl border border-border p-3">
-                    <p className="text-xs text-muted-foreground">
-                      {t("finance.profitability.avgProperty")}
-                    </p>
-                    <p className="mt-1 text-lg font-semibold">
-                      {profitability.avgPerProperty.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("finance.profitability.margin")} · {selectedMonthLabel}
+                </p>
+                <p className="mt-1 text-lg font-semibold">{profitability.margin}%</p>
               </div>
-            </SectionCard>
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  {t("finance.profitability.avgProperty")}
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {profitability.avgPerProperty.toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-card px-4 py-3">
+                <p className="text-xs text-muted-foreground">
+                  Ingresos YTD ({data.chartYear})
+                </p>
+                <p className="mt-1 text-lg font-semibold text-pragma-electric">
+                  {data.yearToDateRevenueFormatted}
+                </p>
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -337,24 +313,37 @@ export function FinanceView({
             <FinanceTable>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-xs uppercase">{t("finance.flows.source")}</TableHead>
-                  <TableHead className="text-xs uppercase">Huésped</TableHead>
-                  <TableHead className="text-xs uppercase">{t("finance.flows.property")}</TableHead>
-                  <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
-                  <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
+                  <TableHead className="w-[46%] text-xs uppercase">
+                    Reserva
+                  </TableHead>
+                  <TableHead className="w-[24%] text-xs uppercase">
+                    {t("finance.flows.date")}
+                  </TableHead>
+                  <TableHead className="w-[30%] text-end text-xs uppercase">
+                    {t("finance.flows.amount")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {reservationFlow.length === 0 ? (
-                  <EmptyRow colSpan={5} message={t("finance.empty")} />
+                  <EmptyRow colSpan={3} message={t("finance.empty")} />
                 ) : (
                   reservationFlow.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.source}</TableCell>
-                      <TableCell>{row.guestName ?? "—"}</TableCell>
-                      <TableCell>{row.propertyName}</TableCell>
-                      <TableCell>{formatPanelDate(row.date)}</TableCell>
-                      <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
+                      <TableCell>
+                        <p className="truncate font-medium">
+                          {row.guestName ?? row.source}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {row.propertyName}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {formatPanelDate(row.date)}
+                      </TableCell>
+                      <TableCell className="text-end text-sm font-semibold tabular-nums">
+                        {row.amountFormatted}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -364,15 +353,15 @@ export function FinanceView({
         ) : null}
 
         {activeTab === "expenses" ? (
-          <div className="space-y-6">
-            <ExpenseFlowTable data={data} />
+          <div className="space-y-5">
+            <ExpenseFlowTable data={data} canWrite={canWrite} />
             {canWrite ? <ExpenseSubmodule /> : null}
           </div>
         ) : null}
 
         {activeTab === "otherIncome" ? (
-          <div className="space-y-6">
-            <OtherIncomeFlowTable rows={otherIncomeFlow} />
+          <div className="space-y-5">
+            <OtherIncomeFlowTable rows={otherIncomeFlow} canWrite={canWrite} />
             {canWrite ? <OtherIncomeSubmodule /> : null}
           </div>
         ) : null}
@@ -381,33 +370,63 @@ export function FinanceView({
   );
 }
 
-function ExpenseFlowTable({ data }: { data: FinanceOverview }) {
+function ExpenseFlowTable({
+  data,
+  canWrite = false,
+}: {
+  data: FinanceOverview;
+  canWrite?: boolean;
+}) {
   const { t } = useI18n();
+  const colSpan = canWrite ? 4 : 3;
   return (
     <SectionCard title={t("finance.flows.expenses")}>
       <FinanceTable>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="text-xs uppercase">{t("finance.flows.category")}</TableHead>
-            <TableHead className="text-xs uppercase">{t("finance.flows.property")}</TableHead>
-            <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
-            <TableHead className="text-xs uppercase">Detalle</TableHead>
-            <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
+            <TableHead className="w-[40%] text-xs uppercase">
+              {t("finance.flows.category")}
+            </TableHead>
+            <TableHead className="w-[22%] text-xs uppercase">
+              {t("finance.flows.date")}
+            </TableHead>
+            <TableHead className="w-[22%] text-end text-xs uppercase">
+              {t("finance.flows.amount")}
+            </TableHead>
+            {canWrite ? (
+              <TableHead className="w-[16%] text-end text-xs uppercase">Acciones</TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.expenseFlow.length === 0 ? (
-            <EmptyRow colSpan={5} message={t("finance.empty")} />
+            <EmptyRow colSpan={colSpan} message={t("finance.empty")} />
           ) : (
             data.expenseFlow.map((row) => (
               <TableRow key={row.id}>
-                <TableCell>{row.category}</TableCell>
-                <TableCell>{row.propertyName}</TableCell>
-                <TableCell>{formatPanelDate(row.date)}</TableCell>
-                <TableCell className="max-w-[180px] truncate text-muted-foreground">
-                  {row.detail ?? "—"}
+                <TableCell>
+                  <p className="truncate font-medium">{row.category}</p>
+                  {row.detail ? (
+                    <p className="truncate text-xs text-muted-foreground">{row.detail}</p>
+                  ) : null}
                 </TableCell>
-                <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {formatPanelDate(row.date)}
+                </TableCell>
+                <TableCell className="text-end text-sm font-semibold tabular-nums">
+                  {row.amountFormatted}
+                </TableCell>
+                {canWrite ? (
+                  <TableCell>
+                    <ManualFinanceRowActions
+                      kind="expense"
+                      id={row.id}
+                      amount={row.amount}
+                      date={row.date}
+                      label={row.category}
+                    />
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))
           )}
@@ -419,29 +438,56 @@ function ExpenseFlowTable({ data }: { data: FinanceOverview }) {
 
 function OtherIncomeFlowTable({
   rows,
+  canWrite = false,
 }: {
   rows: FinanceOverview["revenueFlow"];
+  canWrite?: boolean;
 }) {
   const { t } = useI18n();
+  const colSpan = canWrite ? 4 : 3;
   return (
     <SectionCard title={t("finance.kpi.otherIncome")}>
       <FinanceTable>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead className="text-xs uppercase">{t("finance.manual.description")}</TableHead>
-            <TableHead className="text-xs uppercase">{t("finance.flows.date")}</TableHead>
-            <TableHead className="text-end text-xs uppercase">{t("finance.flows.amount")}</TableHead>
+            <TableHead className="w-[46%] text-xs uppercase">
+              {t("finance.manual.description")}
+            </TableHead>
+            <TableHead className="w-[22%] text-xs uppercase">
+              {t("finance.flows.date")}
+            </TableHead>
+            <TableHead className="w-[22%] text-end text-xs uppercase">
+              {t("finance.flows.amount")}
+            </TableHead>
+            {canWrite ? (
+              <TableHead className="w-[10%] text-end text-xs uppercase">Acciones</TableHead>
+            ) : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={3} message={t("finance.empty")} />
+            <EmptyRow colSpan={colSpan} message={t("finance.empty")} />
           ) : (
             rows.map((row) => (
               <TableRow key={row.id}>
-                <TableCell className="font-medium">{row.source}</TableCell>
-                <TableCell>{formatPanelDate(row.date)}</TableCell>
-                <TableCell className="text-end font-semibold">{row.amountFormatted}</TableCell>
+                <TableCell className="truncate font-medium">{row.source}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {formatPanelDate(row.date)}
+                </TableCell>
+                <TableCell className="text-end text-sm font-semibold tabular-nums">
+                  {row.amountFormatted}
+                </TableCell>
+                {canWrite ? (
+                  <TableCell>
+                    <ManualFinanceRowActions
+                      kind="income"
+                      id={row.id}
+                      amount={row.amount}
+                      date={row.date}
+                      label={row.source}
+                    />
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))
           )}
@@ -453,8 +499,8 @@ function OtherIncomeFlowTable({
 
 function FinanceTable({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pragma-scrollbar overflow-x-auto px-4 sm:px-6">
-      <Table>{children}</Table>
+    <div className="px-4 pb-4 sm:px-6">
+      <table className="w-full table-fixed caption-bottom text-sm">{children}</table>
     </div>
   );
 }

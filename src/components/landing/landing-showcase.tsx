@@ -14,8 +14,8 @@ export function LandingShowcase() {
         <FadeIn>
           <SectionHeading
             eyebrow="Dashboard"
-            title="Tu Airbnb Host Command Center."
-            description="Overview, reservas, smart access, pricing y automatización en una interfaz modular, limpia y lista para escalar."
+            title="Panel operativo de PRAGMA."
+            description="Reservas, calendario, finanzas, accesos y tarifas en una interfaz modular lista para escalar."
             align="center"
           />
         </FadeIn>

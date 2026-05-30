@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { getPropertyDetailAction } from "@/features/properties/actions/property.actions";
@@ -83,6 +83,8 @@ export function PropertiesHub({
     );
   }, [properties, query, statusFilter]);
 
+  const hasActiveFilters = statusFilter !== "all" || query.trim().length > 0;
+
   function loadDetail(id: string) {
     startDetailLoad(async () => {
       const data = await getPropertyDetailAction(id);
@@ -159,77 +161,102 @@ export function PropertiesHub({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <header className="shrink-0 border-b border-border bg-white px-4 py-4 dark:bg-background">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-muted/10">
+        <header className="shrink-0 space-y-3 border-b border-border bg-background px-3 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold tracking-tight">
                 Propiedades
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {properties.length} en tu portafolio
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} de {properties.length} en portafolio
               </p>
             </div>
             {canWrite ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                 <AirbnbHubActions
                   canSync={canWrite}
                   onImportClick={() => setAirbnbImportOpen(true)}
                 />
                 <Button
+                  type="button"
+                  size="sm"
                   onClick={openCreate}
-                  className="h-9 rounded-full bg-primary px-4 text-primary-foreground hover:bg-primary-hover"
+                  className="h-8 gap-1 px-2.5"
                 >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Crear propiedad
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Crear propiedad</span>
+                  <span className="sm:hidden">Nueva</span>
                 </Button>
               </div>
             ) : null}
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nombre, ciudad o barrio..."
-                className="h-9 pl-9"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {FILTER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setStatusFilter(opt.value)}
-                  className={cn(
-                    "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                    statusFilter === opt.value
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border bg-white text-muted-foreground hover:bg-muted dark:bg-background",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar nombre, ciudad o barrio…"
+              className="h-8 pl-8 pr-8 text-sm"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setStatusFilter(opt.value)}
+                className={cn(
+                  "rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors",
+                  statusFilter === opt.value
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setStatusFilter("all");
+                }}
+                className="ml-auto text-[11px] text-pragma-electric hover:underline"
+              >
+                Limpiar
+              </button>
+            ) : null}
           </div>
         </header>
 
-        <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+        <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto p-3">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
               <p className="text-sm font-medium">Sin propiedades</p>
               <p className="max-w-xs text-xs text-muted-foreground">
-                {query || statusFilter !== "all"
+                {hasActiveFilters
                   ? "Prueba otro filtro o término de búsqueda."
                   : canWrite
                     ? "Crea tu primera propiedad para empezar a operar."
                     : "No hay propiedades registradas."}
               </p>
-              {canWrite && !query && statusFilter === "all" ? (
-                <Button onClick={openCreate}>Crear propiedad</Button>
+              {canWrite && !hasActiveFilters ? (
+                <Button size="sm" onClick={openCreate}>
+                  Crear propiedad
+                </Button>
               ) : null}
             </div>
           ) : (

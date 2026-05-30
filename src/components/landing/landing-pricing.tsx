@@ -7,53 +7,42 @@ import {
   APP_PRICING_HEADLINE,
   SUBSCRIPTION_TRIAL_LABEL,
 } from "@/lib/constants";
-import { FreeTrialButton, LogInButton } from "@/components/brand/auth-cta-buttons";
-import {
-  getLandingPrimaryCta,
-  type LandingSession,
-} from "@/lib/landing-session";
+import { CommercialContactButton } from "@/components/landing/commercial-contact-button";
 import {
   calculateSubscriptionAmount,
   clampPropertyCount,
   formatCop,
   PLAN_CATALOG,
-  proPlanMonthlySavingsVsStarter,
 } from "@/modules/billing/domain/plan-catalog";
 import { FadeIn } from "@/components/landing/motion";
 import { Button } from "@/components/ui/button";
 
-type LandingPricingProps = {
-  session: LandingSession;
-};
-
-export function LandingPricing({ session }: LandingPricingProps) {
+export function LandingPricing() {
   const plans = Object.values(PLAN_CATALOG);
-  const primary = getLandingPrimaryCta(session);
   const [propertyCount, setPropertyCount] = useState(3);
 
   const count = clampPropertyCount(propertyCount);
-  const proExtra = useMemo(() => proPlanMonthlySavingsVsStarter(count), [count]);
+  const proPlan = useMemo(() => PLAN_CATALOG.PRO, []);
 
   return (
-    <section id="pricing" className="border-t border-pragma-border bg-white py-20 md:py-28">
+    <section id="pricing" className="border-t border-pragma-border bg-white py-16 md:py-24">
       <div className="mx-auto max-w-7xl px-6">
         <FadeIn>
           <div className="mx-auto max-w-2xl text-center">
             <p className="font-accent text-xs font-semibold uppercase tracking-[0.18em] text-pragma-electric">
               Precios
             </p>
-            <h2 className="font-heading mt-3 text-3xl font-bold tracking-tight text-pragma-black md:text-4xl">
+            <h2 className="font-heading mt-3 text-2xl font-bold tracking-tight text-pragma-black md:text-3xl">
               {APP_PRICING_HEADLINE}
             </h2>
-            <p className="mt-4 text-base text-pragma-mid-gray">
-              {SUBSCRIPTION_TRIAL_LABEL}. Elige cuántas propiedades necesitas y paga solo
-              por eso — sin paquetes rígidos.
+            <p className="mt-3 text-base text-pragma-mid-gray">
+              {SUBSCRIPTION_TRIAL_LABEL}. Paga por propiedad activa — sin paquetes rígidos.
             </p>
           </div>
         </FadeIn>
 
         <FadeIn delay={0.04}>
-          <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-pragma-border bg-pragma-soft-gray/40 p-5">
+          <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-pragma-border bg-pragma-soft-gray/40 p-5">
             <p className="text-center text-sm font-medium text-pragma-black">
               Simula tu inversión mensual
             </p>
@@ -86,7 +75,7 @@ export function LandingPricing({ session }: LandingPricingProps) {
           </div>
         </FadeIn>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3 lg:items-center">
           {plans.map((plan, index) => {
             const total = calculateSubscriptionAmount(plan.code, count);
             const isPro = plan.code === "PRO";
@@ -95,10 +84,10 @@ export function LandingPricing({ session }: LandingPricingProps) {
             return (
               <FadeIn key={plan.code} delay={index * 0.06}>
                 <motion.div
-                  whileHover={{ y: -4 }}
+                  whileHover={{ y: isPro ? -6 : -4 }}
                   className={`relative overflow-hidden rounded-3xl border bg-white shadow-pragma-card ${
                     plan.highlighted
-                      ? "border-pragma-cyan ring-2 ring-pragma-cyan/20"
+                      ? "z-10 scale-[1.02] border-pragma-cyan ring-2 ring-pragma-cyan/25 lg:py-2"
                       : "border-pragma-border"
                   }`}
                 >
@@ -110,28 +99,28 @@ export function LandingPricing({ session }: LandingPricingProps) {
                   ) : null}
 
                   <div
-                    className={`px-8 py-6 ${plan.highlighted ? "bg-pragma-light-blue/40" : "bg-pragma-soft-gray/50"}`}
+                    className={`px-8 py-6 ${plan.highlighted ? "bg-pragma-light-blue/50" : "bg-pragma-soft-gray/50"}`}
                   >
                     <p className="text-sm font-semibold uppercase tracking-wide text-pragma-electric">
                       {plan.name}
                     </p>
                     <p className="mt-1 text-sm text-pragma-mid-gray">{plan.tagline}</p>
-                    <p className="font-heading mt-4 text-4xl font-bold tabular-nums">
+                    <p className="font-heading mt-4 text-3xl font-bold tabular-nums md:text-4xl">
                       {formatCop(plan.pricePerPropertyCop)}
                     </p>
-                    <p className="mt-1 text-sm text-pragma-mid-gray">por propiedad / mes</p>
-                    <p className="mt-3 text-lg font-semibold text-pragma-black tabular-nums">
-                      {formatCop(total)}/mes con {count}{" "}
+                    <p className="mt-1 text-sm text-pragma-mid-gray">por unidad / mes</p>
+                    <p className="mt-3 text-base font-semibold text-pragma-black tabular-nums">
+                      {formatCop(total)}/mes · {count}{" "}
                       {count === 1 ? "propiedad" : "propiedades"}
                     </p>
                     {isPro ? (
-                      <p className="mt-2 text-sm text-pragma-mid-gray">
-                        +{formatCop(proExtra)}/mes vs Start — TTLock, PriceLabs y finanzas.
+                      <p className="mt-2 text-sm text-pragma-electric/90">
+                        Recomendado · TTLock, PriceLabs y finanzas incluidos.
                       </p>
                     ) : null}
                     {isScale ? (
                       <p className="mt-2 text-sm text-pragma-mid-gray">
-                        Volumen + cumplimiento SIRE/TRAA para property managers.
+                        Volumen alto, soporte prioritario y consola comercial.
                       </p>
                     ) : null}
                     <p className="mt-3 text-sm text-pragma-mid-gray">{plan.description}</p>
@@ -144,25 +133,28 @@ export function LandingPricing({ session }: LandingPricingProps) {
                       </li>
                     ))}
                   </ul>
-                  <div className="space-y-3 border-t px-8 py-6">
-                    <FreeTrialButton
-                      href={primary.href}
+                  <div className="border-t px-8 py-6">
+                    <CommercialContactButton
                       label={
-                        isPro
-                          ? "Probar plan Pro"
-                          : isScale
-                            ? "Hablar con ventas"
-                            : primary.label
+                        isScale
+                          ? "Agendar una llamada"
+                          : isPro
+                            ? "Solicitar demo del plan Pro"
+                            : "Contactar asesor"
                       }
                       className="w-full"
                     />
-                    <LogInButton className="w-full" />
                   </div>
                 </motion.div>
               </FadeIn>
             );
           })}
         </div>
+
+        <p className="mx-auto mt-8 max-w-xl text-center text-xs text-pragma-mid-gray">
+          Plan Pro desde {formatCop(proPlan.pricePerPropertyCop)}/unidad — el más elegido por
+          operadores en crecimiento.
+        </p>
       </div>
     </section>
   );

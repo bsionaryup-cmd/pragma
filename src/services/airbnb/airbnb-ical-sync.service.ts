@@ -14,6 +14,7 @@ import {
   guardActiveIcalImportUrl,
   hasActiveAirbnbIcalImport,
   isPragmaExportedUid,
+  isHistoricalBackfillUid,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
 import {
@@ -456,6 +457,7 @@ export async function syncPropertyIcalCalendarInner(
 
     for (const row of stale) {
       if (row.icalUid && !seenUids.has(row.icalUid)) {
+        if (isHistoricalBackfillUid(row.icalUid)) continue;
         await db.reservation.update({
           where: { id: row.id },
           data: { status: ReservationStatus.CANCELLED },

@@ -1,6 +1,6 @@
 import { PropertyStatus, ReservationStatus, PaymentStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
-import { prismaDateToKey } from "@/lib/dates";
+import { prismaDateToKey, todayPrismaDate } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
@@ -12,7 +12,12 @@ import {
 } from "@/lib/platform/tenant-data-scope";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 import {
+  pickLatestEnrichmentByReservation,
+  resolveReservationRevenueAmount,
+} from "@/lib/finance/reservation-revenue-amount";
+import {
   buildFinanceYearlySeries,
+  FINANCE_YEAR_MONTH_LABELS,
   type FinanceYearMonthPoint,
 } from "@/services/finance/finance-yearly-series";
 import type { Locale } from "@/i18n/types";
@@ -87,6 +92,8 @@ export type TopPropertyRow = {
 };
 
 export type FinanceOverview = {
+  selectedMonth: string;
+  selectedMonthLabel: string;
   kpis: FinanceKpis;
   comparison: MonthComparison;
   /** Solo ingresos reales acumulados del año (sin proyección de pendientes). */
@@ -109,6 +116,16 @@ function monthBounds(reference = new Date()) {
   return monthBoundsInTimezone(reference);
 }
 
+function parseFinanceMonthReference(monthKey?: string): Date {
+  if (monthKey && /^\d{4}-\d{2}$/.test(monthKey)) {
+    const [year, month] = monthKey.split("-").map(Number);
+    if (month >= 1 && month <= 12) {
+      return new Date(Date.UTC(year, month - 1, 15, 12, 0, 0, 0));
+    }
+  }
+  return todayPrismaDate();
+}
+
 function trendPct(current: number, previous: number): number {
   if (previous <= 0) return current > 0 ? 100 : 0;
   return Math.round(((current - previous) / previous) * 100);
@@ -120,9 +137,39 @@ function sortByDateDesc<T extends { date: string }>(rows: T[]): T[] {
   );
 }
 
-export async function getFinanceOverview(locale: Locale = "es"): Promise<FinanceOverview> {
+async function loadEnrichmentByReservationId(
+  reservationIds: string[],
+): Promise<Map<string, unknown>> {
+  if (reservationIds.length === 0) return new Map();
+
+  const events = await db.reservationEmailEvent.findMany({
+    where: { reservationId: { in: reservationIds } },
+    select: { reservationId: true, enrichedFields: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return pickLatestEnrichmentByReservation(events);
+}
+
+function revenueForReservation(
+  reservation: { id: string; totalAmount: unknown },
+  enrichmentByReservationId: Map<string, unknown>,
+): number {
+  return resolveReservationRevenueAmount({
+    totalAmount: reservation.totalAmount,
+    enrichedFields: enrichmentByReservationId.get(reservation.id),
+  });
+}
+
+export async function getFinanceOverview(
+  locale: Locale = "es",
+  options?: { month?: string },
+): Promise<FinanceOverview> {
   const scope = await requireTenantDataScope();
-  const { start, end, prevStart, prevEnd } = monthBounds();
+  const reference = parseFinanceMonthReference(options?.month);
+  const { start, end, prevStart, prevEnd, year, month } = monthBounds(reference);
+  const selectedMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const selectedMonthLabel = `${FINANCE_YEAR_MONTH_LABELS[month - 1]} ${year}`;
 
   const [
     currentReservations,
@@ -165,6 +212,7 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
         }),
       ),
       select: {
+        id: true,
         totalAmount: true,
         paymentStatus: true,
         property: { select: { cleaningFee: true } },
@@ -181,6 +229,13 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   const manualExpenseTotal = currentManual.expenseTotal;
   const manualIncomeTotal = currentManual.incomeTotal;
 
+  const enrichmentByReservationId = await loadEnrichmentByReservationId([
+    ...new Set([
+      ...currentReservations.map((r) => r.id),
+      ...previousReservations.map((r) => r.id),
+    ]),
+  ]);
+
   const paidReservations = currentReservations.filter((r) =>
     PAID_STATUSES.includes(r.paymentStatus),
   );
@@ -192,15 +247,15 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   );
 
   const reservationRevenue = paidReservations.reduce(
-    (sum, r) => sum + Number(r.totalAmount),
+    (sum, r) => sum + revenueForReservation(r, enrichmentByReservationId),
     0,
   );
   const prevReservationRevenue = prevPaidReservations.reduce(
-    (sum, r) => sum + Number(r.totalAmount),
+    (sum, r) => sum + revenueForReservation(r, enrichmentByReservationId),
     0,
   );
   const pendingIncome = pendingReservations.reduce(
-    (sum, r) => sum + Number(r.totalAmount),
+    (sum, r) => sum + revenueForReservation(r, enrichmentByReservationId),
     0,
   );
 
@@ -215,18 +270,21 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
   const reservationExpenses = 0;
 
   const revenueFlow: RevenueFlowRow[] = sortByDateDesc([
-    ...currentReservations.map((r) => ({
-      id: r.id,
-      source: r.platform,
-      guestName: r.guestName,
-      amount: Number(r.totalAmount),
-      amountFormatted: formatMoney(Number(r.totalAmount), undefined, locale),
-      date: prismaDateToKey(r.checkIn),
-      propertyName: formatPropertyLabel(r.property),
-      status: PAID_STATUSES.includes(r.paymentStatus)
-        ? ("confirmed" as const)
-        : ("pending" as const),
-    })),
+    ...currentReservations.map((r) => {
+      const amount = revenueForReservation(r, enrichmentByReservationId);
+      return {
+        id: r.id,
+        source: r.platform,
+        guestName: r.guestName,
+        amount,
+        amountFormatted: formatMoney(amount, undefined, locale),
+        date: prismaDateToKey(r.checkIn),
+        propertyName: formatPropertyLabel(r.property),
+        status: PAID_STATUSES.includes(r.paymentStatus)
+          ? ("confirmed" as const)
+          : ("pending" as const),
+      };
+    }),
     ...manualIncomes.map((row) => ({
       id: row.id,
       source: row.description ?? row.incomeType,
@@ -264,7 +322,7 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
       revenue: 0,
       count: 0,
     };
-    existing.revenue += Number(r.totalAmount);
+    existing.revenue += revenueForReservation(r, enrichmentByReservationId);
     existing.count += 1;
     byProperty.set(r.property.id, existing);
   }
@@ -309,6 +367,8 @@ export async function getFinanceOverview(locale: Locale = "es"): Promise<Finance
     .reduce((sum, m) => sum + m.revenue, 0);
 
   return {
+    selectedMonth,
+    selectedMonthLabel,
     kpis: {
       revenue,
       revenueFormatted: formatMoney(revenue, undefined, locale),

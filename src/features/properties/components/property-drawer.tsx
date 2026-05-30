@@ -91,7 +91,14 @@ export function PropertyDrawer({
           "data-[state=open]:duration-300 data-[state=closed]:duration-200",
         )}
       >
-        <SheetHeader className="shrink-0 space-y-0 border-b border-border px-5 py-4 text-left">
+        <SheetHeader
+          className={cn(
+            "shrink-0 space-y-0 text-left",
+            mode === "detail"
+              ? "sr-only"
+              : "border-b border-border px-5 py-4",
+          )}
+        >
           <SheetTitle className="text-base font-semibold">{title}</SheetTitle>
         </SheetHeader>
 

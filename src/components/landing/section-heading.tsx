@@ -34,7 +34,7 @@ export function SectionHeading({
       </p>
       <h2
         className={cn(
-          "font-heading mt-3 text-3xl font-bold tracking-tight md:text-4xl",
+          "font-heading mt-3 text-2xl font-bold tracking-tight md:text-3xl",
           inverted ? "text-white" : "text-pragma-black",
         )}
       >
