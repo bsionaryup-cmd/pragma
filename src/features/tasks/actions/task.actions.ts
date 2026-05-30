@@ -1,37 +1,26 @@
 "use server";
 
+import { TaskStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import {
   taskFormSchema,
   type TaskFormValues,
 } from "@/features/tasks/schemas/task.schema";
 import { requirePermission } from "@/lib/auth";
 import { createTask, updateTaskStatus } from "@/services/tasks/task.service";
-import {
-  getCategorySlugForTaskType,
-  isTaskCategorySlug,
-} from "@/lib/tasks/task-categories";
 
 export async function createTaskAction(data: TaskFormValues) {
   const user = await requirePermission("tasks:write");
   const parsed = taskFormSchema.parse(data);
   await createTask(user.dbUserId, parsed);
-  const slug = getCategorySlugForTaskType(parsed.type);
   revalidatePath("/tasks");
-  revalidatePath(`/tasks/${slug}`);
-  redirect(`/tasks/${slug}`);
 }
 
-export async function updateTaskStatusAction(
-  id: string,
-  status: TaskFormValues["status"],
-  categorySlug?: string,
-) {
+export async function toggleTaskCompletedAction(id: string, completed: boolean) {
   await requirePermission("tasks:write");
-  await updateTaskStatus(id, status);
+  await updateTaskStatus(
+    id,
+    completed ? TaskStatus.COMPLETED : TaskStatus.PENDING,
+  );
   revalidatePath("/tasks");
-  if (categorySlug && isTaskCategorySlug(categorySlug)) {
-    revalidatePath(`/tasks/${categorySlug}`);
-  }
 }

@@ -1,5 +1,4 @@
 import type { ReservationStatus } from "@prisma/client";
-import { getTodayKey } from "@/features/calendar/lib/calendar-dates";
 
 export type ReservationDisplayStatus =
   | "CONFIRMED"
@@ -11,14 +10,11 @@ export type ReservationDisplayStatus =
 
 export function resolveDisplayStatus(
   status: ReservationStatus,
-  checkOut: string,
 ): ReservationDisplayStatus {
   if (status === "BLOCKED") return "BLOCKED";
   if (status === "CANCELLED") return "CANCELLED";
   if (status === "CHECKED_OUT") return "CHECKED_OUT";
-  if (status === "CHECKOUT_TODAY" || checkOut === getTodayKey()) {
-    return "CHECKOUT_TODAY";
-  }
+  if (status === "CHECKOUT_TODAY") return "CHECKOUT_TODAY";
   if (status === "CHECKED_IN") return "IN_PROGRESS";
   return "CONFIRMED";
 }

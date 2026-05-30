@@ -7,10 +7,12 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { todayPrismaDate } from "@/lib/dates";
 import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
+import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
+import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
 import {
-  pickLatestEnrichmentByReservation,
-  resolveReservationRevenueAmount,
-} from "@/lib/finance/reservation-revenue-amount";
+  isReservationIncomeConfirmed,
+  isReservationIncomePending,
+} from "@/lib/finance/reservation-income-status";
 import { mergePropertyScope, mergeReservationScope } from "@/lib/platform/tenant-data-scope";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
@@ -37,15 +39,16 @@ export type FinanceYearMonthPoint = {
   monthIndex: number;
   label: string;
   revenue: number;
+  pendingRevenue: number;
   expenses: number;
   occupancy: number;
   paidReservations: number;
+  pendingReservations: number;
   cancellations: number;
-  /** Mes futuro dentro del año en curso — sin proyecciones. */
+  /** Mes futuro dentro del año en curso. */
   isFuture: boolean;
 };
 
-const PAID: PaymentStatus[] = [PaymentStatus.PAID];
 const ACCOUNTING: ReservationStatus[] = [
   ReservationStatus.CONFIRMED,
   ReservationStatus.CHECKED_IN,
@@ -129,39 +132,54 @@ export async function buildFinanceYearlySeries(
       }),
     ]);
 
-  const enrichmentByReservationId = await (async () => {
-    const events = await db.reservationEmailEvent.findMany({
-      where: { reservationId: { in: reservations.map((r) => r.id) } },
-      select: { reservationId: true, enrichedFields: true },
-      orderBy: { createdAt: "desc" },
-    });
-    return pickLatestEnrichmentByReservation(events);
-  })();
+  const revenueSourcesByReservationId =
+    await loadReservationRevenueSourcesByReservationId(
+      reservations.map((row) => row.id),
+    );
 
   const buckets = Array.from({ length: 12 }, (_, monthIndex) => {
     const { start, end } = monthRange(year, monthIndex);
     const isFuture = start > today;
 
     let revenue = 0;
+    let pendingRevenue = 0;
     let expenses = 0;
     let bookedNights = 0;
     let paidReservations = 0;
+    let pendingReservations = 0;
 
-    if (!isFuture) {
-      for (const r of reservations) {
-        if (!overlapsMonth(r.checkIn, r.checkOut, start, end)) continue;
-        if (PAID.includes(r.paymentStatus)) {
-          if (r.checkIn >= start && r.checkIn <= end) {
-            revenue += resolveReservationRevenueAmount({
-              totalAmount: r.totalAmount,
-              enrichedFields: enrichmentByReservationId.get(r.id),
-            });
-            paidReservations += 1;
-          }
-          bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
+    for (const r of reservations) {
+      if (!overlapsMonth(r.checkIn, r.checkOut, start, end)) continue;
+
+      const amount = resolveReservationRevenueAmount({
+        totalAmount: r.totalAmount,
+        enrichedFields: revenueSourcesByReservationId.get(r.id)?.enrichedFields,
+        payloadSignals: revenueSourcesByReservationId.get(r.id)?.payloadSignals,
+        emailMatchBlob: revenueSourcesByReservationId.get(r.id)?.emailMatchBlob,
+        payoutNet: revenueSourcesByReservationId.get(r.id)?.payoutNet,
+      });
+      const checkInInMonth = r.checkIn >= start && r.checkIn <= end;
+
+      if (isReservationIncomePending(r.checkIn, r.paymentStatus, today)) {
+        if (checkInInMonth) {
+          pendingRevenue += amount;
+          pendingReservations += 1;
         }
+        bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
+        continue;
       }
 
+      if (
+        isReservationIncomeConfirmed(r.checkIn, r.paymentStatus, today) &&
+        checkInInMonth
+      ) {
+        revenue += amount;
+        paidReservations += 1;
+      }
+      bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
+    }
+
+    if (!isFuture) {
       for (const row of manualExpenses) {
         if (row.expenseDate >= start && row.expenseDate <= end) {
           expenses += Number(row.amount);
@@ -189,9 +207,11 @@ export async function buildFinanceYearlySeries(
       monthIndex,
       label: FINANCE_YEAR_MONTH_LABELS[monthIndex],
       revenue: Math.round(revenue),
+      pendingRevenue: Math.round(pendingRevenue),
       expenses: Math.round(expenses),
       occupancy,
       paidReservations,
+      pendingReservations,
       cancellations,
       isFuture,
     };

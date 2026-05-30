@@ -54,10 +54,23 @@ export function otherIncomeWhere(
 }
 
 export function taskWhere(scope: TenantDataScope): Prisma.TaskWhereInput {
+  const manualTaskScope: Prisma.TaskWhereInput = scope.organizationId
+    ? {
+        propertyId: null,
+        reservationId: null,
+        assignee: { organizationId: scope.organizationId },
+      }
+    : {
+        propertyId: null,
+        reservationId: null,
+        assigneeId: scope.userId,
+      };
+
   return {
     OR: [
       { property: propertyWhere(scope) },
       { reservation: reservationPropertyWhere(scope) },
+      manualTaskScope,
     ],
   };
 }

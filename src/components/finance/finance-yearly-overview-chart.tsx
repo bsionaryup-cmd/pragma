@@ -27,7 +27,11 @@ function FinanceYearlyOverviewChartInner({
   const [tooltip, setTooltip] = useState<TooltipState>(null);
 
   const maxValue = useMemo(
-    () => Math.max(...months.flatMap((m) => [m.revenue, m.expenses]), 1),
+    () =>
+      Math.max(
+        ...months.flatMap((m) => [m.revenue, m.pendingRevenue, m.expenses]),
+        1,
+      ),
     [months],
   );
 
@@ -43,6 +47,10 @@ function FinanceYearlyOverviewChartInner({
           Ingresos confirmados
         </span>
         <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm bg-amber-400/90" aria-hidden />
+          Ingresos pendientes
+        </span>
+        <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-sm bg-slate-400/80" aria-hidden />
           Egresos registrados
         </span>
@@ -53,12 +61,19 @@ function FinanceYearlyOverviewChartInner({
         onMouseLeave={() => setTooltip(null)}
       >
         {months.map((month) => {
-          const revenueHeight = month.isFuture
-            ? 4
-            : Math.max(6, (month.revenue / maxValue) * 100);
+          const revenueHeight = Math.max(
+            6,
+            (month.revenue / maxValue) * 100,
+          );
+          const pendingHeight = Math.max(
+            month.pendingRevenue > 0 ? 6 : 0,
+            (month.pendingRevenue / maxValue) * 100,
+          );
           const expenseHeight = month.isFuture
             ? 4
             : Math.max(6, (month.expenses / maxValue) * 100);
+          const hasPendingOnly =
+            month.isFuture && month.pendingRevenue > 0 && month.revenue === 0;
 
           const isSelected = selectedMonthIndex === month.monthIndex;
 
@@ -79,15 +94,36 @@ function FinanceYearlyOverviewChartInner({
               }}
             >
               <div className="flex h-28 w-full items-end justify-center gap-0.5 sm:h-32 sm:gap-1">
-                <div
-                  className={cn(
-                    "w-[42%] max-w-[14px] rounded-t-md transition-all duration-200 sm:max-w-[18px]",
-                    month.isFuture
-                      ? "bg-pragma-electric/15"
-                      : "bg-pragma-electric group-hover:bg-pragma-cyan",
-                  )}
-                  style={{ height: `${revenueHeight}%` }}
-                />
+                <div className="flex h-full w-[42%] max-w-[14px] flex-col justify-end sm:max-w-[18px]">
+                  {month.revenue > 0 ? (
+                    <div
+                      className={cn(
+                        "w-full rounded-t-md transition-all duration-200",
+                        month.isFuture
+                          ? "bg-pragma-electric/15"
+                          : "bg-pragma-electric group-hover:bg-pragma-cyan",
+                      )}
+                      style={{ height: `${revenueHeight}%` }}
+                    />
+                  ) : null}
+                  {month.pendingRevenue > 0 ? (
+                    <div
+                      className={cn(
+                        "w-full rounded-t-md transition-all duration-200",
+                        hasPendingOnly
+                          ? "bg-amber-400/80 group-hover:bg-amber-500/90"
+                          : "bg-amber-300/70 group-hover:bg-amber-400/80",
+                      )}
+                      style={{ height: `${pendingHeight}%` }}
+                    />
+                  ) : null}
+                  {month.revenue === 0 && month.pendingRevenue === 0 ? (
+                    <div
+                      className="h-1 w-full rounded-t-md bg-muted/30"
+                      aria-hidden
+                    />
+                  ) : null}
+                </div>
                 <div
                   className={cn(
                     "w-[42%] max-w-[14px] rounded-t-md transition-all duration-200 sm:max-w-[18px]",
@@ -122,36 +158,56 @@ function FinanceYearlyOverviewChartInner({
           <p className="text-xs font-semibold text-foreground">
             {activeMonth.label} {year}
           </p>
-          {activeMonth.isFuture ? (
+          {activeMonth.isFuture && activeMonth.pendingRevenue <= 0 ? (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Sin datos proyectados
+              Sin reservas futuras
             </p>
           ) : (
             <dl className="mt-2 space-y-1 text-[11px] text-muted-foreground">
               <div className="flex justify-between gap-4">
-                <dt>Ingresos</dt>
+                <dt>Ingresos confirmados</dt>
                 <dd className="font-medium text-pragma-electric">
                   {formatMoney(activeMonth.revenue, undefined, locale)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt>Egresos</dt>
-                <dd className="font-medium text-foreground">
-                  {formatMoney(activeMonth.expenses, undefined, locale)}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt>Ocupación</dt>
-                <dd className="font-medium text-foreground">
-                  {activeMonth.occupancy}%
-                </dd>
-              </div>
+              {activeMonth.pendingRevenue > 0 ? (
+                <div className="flex justify-between gap-4">
+                  <dt>Ingresos pendientes</dt>
+                  <dd className="font-medium text-amber-700">
+                    {formatMoney(activeMonth.pendingRevenue, undefined, locale)}
+                  </dd>
+                </div>
+              ) : null}
+              {!activeMonth.isFuture ? (
+                <>
+                  <div className="flex justify-between gap-4">
+                    <dt>Egresos</dt>
+                    <dd className="font-medium text-foreground">
+                      {formatMoney(activeMonth.expenses, undefined, locale)}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Ocupación</dt>
+                    <dd className="font-medium text-foreground">
+                      {activeMonth.occupancy}%
+                    </dd>
+                  </div>
+                </>
+              ) : null}
               <div className="flex justify-between gap-4">
                 <dt>Pagos confirmados</dt>
                 <dd className="font-medium text-foreground">
                   {activeMonth.paidReservations}
                 </dd>
               </div>
+              {activeMonth.pendingReservations > 0 ? (
+                <div className="flex justify-between gap-4">
+                  <dt>Reservas pendientes</dt>
+                  <dd className="font-medium text-amber-700">
+                    {activeMonth.pendingReservations}
+                  </dd>
+                </div>
+              ) : null}
               {activeMonth.cancellations > 0 ? (
                 <div className="flex justify-between gap-4">
                   <dt>Cancelaciones</dt>

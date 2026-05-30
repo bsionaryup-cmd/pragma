@@ -171,8 +171,9 @@
   --cal-bg-weekend: #f5f5f5;
   --cal-bg-hover: #f3f3f3;
   --cal-bg-hover-cell: #f7f7f7;
-  --cal-bg-today: #f5f5f5;
-  --cal-bg-today-header: #3a3f47;
+  /** Columna del día en curso — tinte azul PRAGMA (distinto de weekend #f5f5f5) */
+  --cal-bg-today: rgba(0, 102, 255, 0.1);
+  --cal-bg-today-header: var(--pragma-electric);
   --cal-bg-selected: #eeeeee;
   /** Rango seleccionado al crear reserva (estilo Lodgify) */
   --cal-bg-range-select: #262626;

@@ -1,29 +1,22 @@
-import type { Metadata } from "next";
-import { NovedadesFeed } from "@/features/novedades/components/novedades-feed";
-import { ModuleShellFlow } from "@/components/layout/module-shell";
-import { PageHeader } from "@/components/ui/page-header";
+import { NovedadesPageView } from "@/features/novedades/components/novedades-page-view";
 import { requirePermission } from "@/lib/auth";
-import { listReservationEventsForTenant } from "@/services/reservation-events/reservation-events-list.service";
-
-export const metadata: Metadata = {
-  title: "Novedades",
-  robots: { index: false, follow: false },
-};
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { listNovedadesFeedForTenant, getLatestOperationalFeedTimestamp } from "@/services/novedades/operational-feed.service";
 
 export default async function NovedadesPage() {
   await requirePermission("reservations:read");
-  const rows = await listReservationEventsForTenant();
+  const scope = await requireTenantDataScope();
+  const scopeKey = scope.organizationId ?? scope.userId;
+  const [cards, latest] = await Promise.all([
+    listNovedadesFeedForTenant(scope),
+    getLatestOperationalFeedTimestamp(scope),
+  ]);
 
   return (
-    <ModuleShellFlow className="bg-background">
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
-        <PageHeader
-          eyebrow="Observabilidad"
-          title="Novedades"
-          description="Eventos informativos detectados en correos Airbnb (automático vía Resend o reenvío). Solo lectura — no modifican reservas, calendario ni disponibilidad."
-        />
-        <NovedadesFeed rows={rows} />
-      </div>
-    </ModuleShellFlow>
+    <NovedadesPageView
+      cards={cards}
+      scopeKey={scopeKey}
+      latestAt={latest.latestAt}
+    />
   );
 }

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import { hasPermission, requireAnyPermission } from "@/lib/auth";
+import { isBillingRestrictedPath } from "@/lib/billing/billing-access";
 import { getServerLocale } from "@/i18n/locale.server";
+import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import type { AppUserRole } from "@/types/auth";
-import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
 import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import FinanceLoading from "./loading";
 
@@ -28,13 +29,21 @@ type FinancePageProps = {
 
 export default async function FinancePage({ searchParams }: FinancePageProps) {
   await redirectIfMissingPlanFeature("finance", "/finance");
-  const locale = await getServerLocale();
-  const { month } = await searchParams;
+
+  const [locale, billing, params] = await Promise.all([
+    getServerLocale(),
+    getBillingAccessSnapshot(),
+    searchParams,
+  ]);
+
+  if (billing.locked && isBillingRestrictedPath("/finance")) {
+    redirect("/settings/billing");
+  }
+
   const [auth, data] = await Promise.all([
     requireAnyPermission("finance:read", "finance:operations:read"),
-    getFinanceOverview(locale, { month }),
+    getFinanceOverview(locale, { month: params.month }),
   ]);
-  await redirectIfBillingLocked("/finance");
 
   const role = auth.role as AppUserRole;
   const hasFullFinance = hasPermission(role, "finance:read");

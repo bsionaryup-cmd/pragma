@@ -281,7 +281,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         id: true,
         title: true,
         completedAt: true,
-        property: { select: { name: true } },
+        property: { select: { name: true, unitNumber: true } },
       },
     }),
     db.property.aggregate({
@@ -417,7 +417,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         id: `task-${t.id}`,
         type: "task" as const,
         title: t.title,
-        subtitle: t.property ? t.property.name : "—",
+        subtitle: t.property ? formatPropertyLabel(t.property) : "—",
         at: t.completedAt!.toISOString(),
       })),
   ]

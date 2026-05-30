@@ -1,6 +1,7 @@
 import { PropertyPriceLabsSyncStatus } from "@prisma/client";
 import { getPriceLabsOverview } from "@/services/integrations/pricelabs.service";
 import { getFinanceOverview } from "@/services/finance/finance.service";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 
@@ -76,7 +77,7 @@ export function buildAttentionItems(
       if (!reason) return null;
       return {
         propertyId: property.id,
-        propertyName: property.name,
+        propertyName: formatPropertyLabel(property),
         city: property.city,
         reason,
         recommendedRate: property.recommendedRate,

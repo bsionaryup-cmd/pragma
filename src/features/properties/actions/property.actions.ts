@@ -21,6 +21,7 @@ function revalidatePropertyPaths() {
   revalidatePath("/properties");
   revalidatePath("/calendar");
   revalidatePath("/reservations");
+  revalidatePath("/smart-access");
   revalidatePath("/");
 }
 

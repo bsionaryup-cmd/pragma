@@ -4,8 +4,8 @@ import {
   ReservationStatus,
   TTLockIntegrationStatus,
 } from "@prisma/client";
-import { prismaDateToKey } from "@/lib/dates";
 import { formatAccessCode, formatAccessCodeForLockApi } from "@/lib/access-code";
+import { resolveStayScheduleWindow } from "@/lib/stay-schedule";
 import { db } from "@/lib/db";
 import {
   requestTTLockAddKeyboardPwd,
@@ -25,22 +25,9 @@ import {
 import {
   resolveTTLockApiSessionForProperty,
 } from "@/modules/integrations/ttlock/ttlock.client";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { beforeAccessCredentialPersist } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
-
-const BOGOTA_OFFSET_MINUTES = -5 * 60;
-
-function parseTime(value: string | null | undefined, fallback: string): {
-  hours: number;
-  minutes: number;
-} {
-  const raw = (value ?? fallback).trim();
-  const match = /^(\d{1,2}):(\d{2})$/.exec(raw);
-  if (!match) return { hours: 15, minutes: 0 };
-  return {
-    hours: Number.parseInt(match[1]!, 10),
-    minutes: Number.parseInt(match[2]!, 10),
-  };
-}
 
 /** Combina fecha de reserva (UTC date) + hora local Colombia para TTLock. */
 export function resolveAccessWindow(input: {
@@ -49,22 +36,7 @@ export function resolveAccessWindow(input: {
   checkInTime?: string | null;
   checkOutTime?: string | null;
 }): { validFrom: Date; validTo: Date } {
-  const checkInKey = prismaDateToKey(input.checkIn);
-  const checkOutKey = prismaDateToKey(input.checkOut);
-  const inTime = parseTime(input.checkInTime, "15:00");
-  const outTime = parseTime(input.checkOutTime, "13:00");
-
-  const validFrom = localColombiaDateTime(checkInKey, inTime.hours, inTime.minutes);
-  const validTo = localColombiaDateTime(checkOutKey, outTime.hours, outTime.minutes);
-  return { validFrom, validTo };
-}
-
-function localColombiaDateTime(dateKey: string, hours: number, minutes: number): Date {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const utcMs =
-    Date.UTC(y, m - 1, d, hours, minutes, 0, 0) -
-    BOGOTA_OFFSET_MINUTES * 60 * 1000;
-  return new Date(utcMs);
+  return resolveStayScheduleWindow(input);
 }
 
 function generatePasscode(): string {
@@ -109,11 +81,39 @@ async function loadManagedAccessCredential(reservationId: string) {
       reservation: {
         select: {
           propertyId: true,
-          property: { select: { ownerId: true } },
+          checkIn: true,
+          checkOut: true,
+          property: {
+            select: { ownerId: true, checkInTime: true, checkOutTime: true },
+          },
         },
       },
     },
   });
+}
+
+async function applyAccessWindowUpdate(input: {
+  credential: NonNullable<Awaited<ReturnType<typeof loadManagedAccessCredential>>>;
+  validFrom: Date;
+  validTo: Date;
+}): Promise<{ ok: boolean; message: string }> {
+  const sync = await syncCredentialWindowOnLock(input);
+  if (!sync.ok) {
+    return {
+      ok: false,
+      message: sync.message ?? "No se pudo actualizar la ventana en TTLock",
+    };
+  }
+
+  await db.accessCredential.update({
+    where: { id: input.credential.id },
+    data: {
+      validFrom: input.validFrom,
+      validTo: input.validTo,
+    },
+  });
+
+  return { ok: true, message: "Ventana de acceso actualizada" };
 }
 
 async function syncCredentialWindowOnLock(input: {
@@ -175,29 +175,7 @@ export async function syncAccessCodeDatesForReservation(
 ): Promise<GenerateAccessCodeResult> {
   const reservation = await db.reservation.findUnique({
     where: { id: reservationId },
-    select: {
-      id: true,
-      propertyId: true,
-      checkIn: true,
-      checkOut: true,
-      guestRegistrationCompletedAt: true,
-      property: {
-        select: { checkInTime: true, checkOutTime: true },
-      },
-      accessCredentials: {
-        where: {
-          status: {
-            in: [
-              AccessCredentialStatus.GENERATED,
-              AccessCredentialStatus.ACTIVE,
-              AccessCredentialStatus.SENT,
-            ],
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-    },
+    select: { guestRegistrationCompletedAt: true },
   });
 
   if (!reservation?.guestRegistrationCompletedAt) {
@@ -207,32 +185,69 @@ export async function syncAccessCodeDatesForReservation(
     };
   }
 
-  const active = reservation.accessCredentials[0];
-  if (!active) {
+  const credential = await loadManagedAccessCredential(reservationId);
+  if (!credential) {
     return generateAccessCodeForReservation(reservationId);
   }
 
   const { validFrom, validTo } = resolveAccessWindow({
-    checkIn: reservation.checkIn,
-    checkOut: reservation.checkOut,
-    checkInTime: reservation.property.checkInTime,
-    checkOutTime: reservation.property.checkOutTime,
+    checkIn: credential.reservation.checkIn,
+    checkOut: credential.reservation.checkOut,
+    checkInTime: credential.reservation.property.checkInTime,
+    checkOutTime: credential.reservation.property.checkOutTime,
   });
 
   const sameWindow =
-    active.validFrom?.getTime() === validFrom.getTime() &&
-    active.validTo?.getTime() === validTo.getTime();
+    credential.validFrom?.getTime() === validFrom.getTime() &&
+    credential.validTo?.getTime() === validTo.getTime();
 
   if (sameWindow) {
     return {
       ok: true,
       message: "Ventana de acceso sin cambios",
-      credentialId: active.id,
+      credentialId: credential.id,
     };
   }
 
-  await revokeAccessCodeForReservation(reservationId);
-  return generateAccessCodeForReservation(reservationId, { force: true });
+  const updated = await applyAccessWindowUpdate({
+    credential,
+    validFrom,
+    validTo,
+  });
+
+  return {
+    ok: updated.ok,
+    message: updated.message,
+    credentialId: credential.id,
+  };
+}
+
+/** Propaga horarios de check-in/out de la propiedad a códigos TTLock activos. */
+export async function syncAccessCodeWindowsForProperty(
+  propertyId: string,
+): Promise<void> {
+  const credentials = await db.accessCredential.findMany({
+    where: {
+      status: {
+        in: [
+          AccessCredentialStatus.GENERATED,
+          AccessCredentialStatus.ACTIVE,
+          AccessCredentialStatus.SENT,
+          AccessCredentialStatus.SUSPENDED,
+        ],
+      },
+      reservation: {
+        propertyId,
+        status: { not: ReservationStatus.CANCELLED },
+      },
+    },
+    select: { reservationId: true },
+    distinct: ["reservationId"],
+  });
+
+  for (const row of credentials) {
+    await syncAccessCodeDatesForReservation(row.reservationId);
+  }
 }
 
 export type GenerateAccessCodeResult = {
@@ -253,11 +268,15 @@ export async function generateAccessCodeForReservation(
       status: true,
       checkIn: true,
       checkOut: true,
+      platform: true,
       guestName: true,
-      guestFirstName: true,
-      guestLastName: true,
       guestRegistrationCompletedAt: true,
       propertyId: true,
+      guests: {
+        orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
+        take: 1,
+        select: { fullName: true, isReservationOwner: true, isPrimary: true },
+      },
       property: {
         select: {
           ownerId: true,
@@ -283,6 +302,11 @@ export async function generateAccessCodeForReservation(
 
   if (!reservation) {
     return { ok: false, message: "Reserva no encontrada" };
+  }
+
+  if (options?.force) {
+    const restored = await restoreRevokedAccessCodeForReservation(reservationId);
+    if (restored.ok) return restored;
   }
 
   if (reservation.status === ReservationStatus.CANCELLED) {
@@ -380,13 +404,16 @@ export async function generateAccessCodeForReservation(
     };
   }
 
-  const guestLabel =
-    reservation.guestName?.trim() ||
-    [reservation.guestFirstName, reservation.guestLastName]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    "Huésped PRAGMA";
+  const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds([
+    reservation.id,
+  ]);
+  const ownerGuest = reservation.guests[0];
+  const guestLabel = resolveReservationDisplayGuestName({
+    platform: reservation.platform,
+    airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
+    guestName: reservation.guestName,
+    primaryGuestName: ownerGuest?.fullName ?? null,
+  });
 
   const { validFrom, validTo } = resolveAccessWindow({
     checkIn: reservation.checkIn,
@@ -512,13 +539,138 @@ export async function approvePendingAccessCode(
   });
 }
 
+export async function restoreRevokedAccessCodeForReservation(
+  reservationId: string,
+): Promise<GenerateAccessCodeResult> {
+  const credential = await db.accessCredential.findFirst({
+    where: {
+      reservationId,
+      status: AccessCredentialStatus.REVOKED,
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      propertyLock: { select: { id: true, ttlockLockId: true } },
+      reservation: {
+        select: {
+          propertyId: true,
+          checkIn: true,
+          checkOut: true,
+          property: { select: { checkInTime: true, checkOutTime: true } },
+        },
+      },
+    },
+  });
+
+  if (!credential) {
+    return { ok: false, message: "No hay código revocado para restaurar" };
+  }
+
+  if (!credential.validFrom || !credential.validTo) {
+    return { ok: false, message: "Faltan fechas de validez del código" };
+  }
+
+  if (new Date() >= credential.validTo) {
+    return { ok: false, message: "La ventana de acceso ya expiró" };
+  }
+
+  const lockPasscode = decryptTTLockSecret(credential.codeEncrypted);
+  if (!lockPasscode) {
+    return { ok: false, message: "No se pudo leer el código almacenado" };
+  }
+
+  const propertyLock = credential.propertyLock;
+  if (!propertyLock?.ttlockLockId) {
+    return { ok: false, message: "La propiedad no tiene cerradura TTLock vinculada" };
+  }
+
+  const integration = await resolveTTLockIntegrationForProperty(
+    credential.reservation.propertyId,
+  );
+  let ttlockCodeId = credential.ttlockCodeId;
+  let apiMessage = "Código restaurado";
+
+  const apiSession = await resolveAccessTokenForProperty(
+    credential.reservation.propertyId,
+  );
+  if (apiSession && isTTLockLiveApiEnabled()) {
+    const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
+    if (!Number.isFinite(lockId)) {
+      return { ok: false, message: "ID de cerradura TTLock inválido" };
+    }
+
+    const result = await requestTTLockAddKeyboardPwd({
+      environment: apiSession.environment,
+      clientId: apiSession.clientId,
+      accessToken: apiSession.accessToken,
+      lockId,
+      keyboardPwd: lockPasscode,
+      keyboardPwdName: "Restaurado PRAGMA",
+      startDate: credential.validFrom.getTime(),
+      endDate: credential.validTo.getTime(),
+      addType: 2,
+    });
+
+    if (!result.ok) {
+      return { ok: false, message: result.message };
+    }
+
+    ttlockCodeId = String(result.keyboardPwdId);
+    apiMessage = "Código restaurado en TTLock";
+  }
+
+  await db.accessCredential.update({
+    where: { id: credential.id },
+    data: {
+      status: AccessCredentialStatus.ACTIVE,
+      ttlockCodeId,
+    },
+  });
+
+  if (integration) {
+    await db.accessEvent.create({
+      data: {
+        reservationId,
+        integrationId: integration.id,
+        eventType: AccessEventType.CODE_GENERATED,
+        payload: {
+          credentialId: credential.id,
+          ttlockCodeId,
+          restored: true,
+        },
+      },
+    });
+  }
+
+  return {
+    ok: true,
+    message: apiMessage,
+    credentialId: credential.id,
+    code: formatAccessCode(lockPasscode) ?? undefined,
+  };
+}
+
 export async function revokeAccessCodeForReservation(
   reservationId: string,
+  options?: { force?: boolean },
 ): Promise<{ ok: boolean; message: string }> {
   const credential = await loadManagedAccessCredential(reservationId);
 
   if (!credential) {
     return { ok: true, message: "No había código activo" };
+  }
+
+  const { validTo } = resolveAccessWindow({
+    checkIn: credential.reservation.checkIn,
+    checkOut: credential.reservation.checkOut,
+    checkInTime: credential.reservation.property.checkInTime,
+    checkOutTime: credential.reservation.property.checkOutTime,
+  });
+
+  if (!options?.force && new Date() < validTo) {
+    return {
+      ok: true,
+      message: "El código sigue vigente hasta la hora de checkout",
+    };
   }
 
   if (

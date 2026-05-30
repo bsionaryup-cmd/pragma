@@ -9,11 +9,12 @@ import { GuestRegistrationStatus, PropertyStatus, ReservationGuestStatus, Reserv
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
-import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { getReservationActivityUnreadMap } from "@/services/reservation-activity/reservation-activity-unread.service";
 import {
   assertPropertyInScope,
   assertReservationInScope,
 } from "@/lib/platform/tenant-access";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   mergeReservationScope,
 } from "@/lib/platform/tenant-data-scope";
@@ -42,11 +43,16 @@ import { writePlatformAuditLog } from "@/services/platform/platform-audit.servic
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import {
+  resolveReservationGuestCounts,
+  type GuestCountEnrichment,
+} from "@/lib/reservations/display-guest-count";
+import {
   isOtaImportedReservation,
   OTA_RESERVATION_DELETE_MESSAGE,
 } from "@/lib/reservations/reservation-ota";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import { getAirbnbEnrichedGuestCountsByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -97,6 +103,9 @@ type ReservationRow = {
   guestRegistrationProgress?: ReservationInboxItem["guestRegistrationProgress"];
   accessCode?: ReservationDetailItem["accessCode"];
   airbnbEnrichmentGuestName?: string | null;
+  airbnbEnrichmentGuestCounts?: GuestCountEnrichment | null;
+  activityUnreadCount?: number;
+  activityUnreadHint?: string | null;
 };
 
 function toInboxItem(r: ReservationRow): ReservationInboxItem {
@@ -127,6 +136,13 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     guests: r.guests,
     propertyMaxGuests: r.property.maxGuests,
   });
+  const guestCounts = resolveReservationGuestCounts({
+    adults: r.adults,
+    children: r.children,
+    infants: r.infants,
+    enrichment: r.airbnbEnrichmentGuestCounts,
+    registeredGuestCount: progress.registered > 0 ? progress.registered : undefined,
+  });
 
   return {
     id: r.id,
@@ -137,9 +153,9 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     guestPhone: r.guestPhone,
     guestCountry: r.guestCountry,
     guestLanguage: r.guestLanguage,
-    adults: r.adults,
-    children: r.children,
-    infants: r.infants,
+    adults: guestCounts.adults,
+    children: guestCounts.children,
+    infants: guestCounts.infants,
     checkIn: prismaDateToKey(r.checkIn),
     checkOut: prismaDateToKey(r.checkOut),
     createdAt: r.createdAt?.toISOString(),
@@ -180,6 +196,8 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       checkOutTime:
         "checkOutTime" in r.property ? r.property.checkOutTime : undefined,
     },
+    activityUnreadCount: r.activityUnreadCount ?? 0,
+    activityUnreadHint: r.activityUnreadHint ?? null,
   };
 }
 
@@ -295,20 +313,27 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
   });
 
   const ids = rows.map((row) => row.id);
-  const [guestsByReservation, registrationsByReservation, airbnbGuestByReservation] = await Promise.all([
+  const [guestsByReservation, registrationsByReservation, airbnbGuestByReservation, airbnbGuestCountsByReservation, activityUnreadMap] =
+    await Promise.all([
     getGuestsByReservationIds(ids),
     getRegistrationsByReservationIds(ids),
     getAirbnbEnrichedGuestNameByReservationIds(ids),
+    getAirbnbEnrichedGuestCountsByReservationIds(ids),
+    getReservationActivityUnreadMap(scope, ids),
   ]);
 
-  return rows.map((row) =>
-    toInboxItem({
+  return rows.map((row) => {
+    const unread = activityUnreadMap.get(row.id);
+    return toInboxItem({
       ...row,
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registrationsByReservation.get(row.id) ?? null,
       airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
-    }),
-  );
+      airbnbEnrichmentGuestCounts: airbnbGuestCountsByReservation.get(row.id) ?? null,
+      activityUnreadCount: unread?.unreadCount ?? 0,
+      activityUnreadHint: unread?.hint ?? null,
+    });
+  });
 }
 
 /** @deprecated Usar listReservationsForInbox */
@@ -398,7 +423,8 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  const [guestsByReservation, registration, accessCredential, airbnbGuestByReservation] = await Promise.all([
+  const [guestsByReservation, registration, accessCredential, airbnbGuestByReservation, airbnbGuestCountsByReservation, activityUnreadMap] =
+    await Promise.all([
     getGuestsByReservationIds([row.id]),
     getActiveGuestRegistrationForReservation(row.id),
     db.accessCredential.findFirst({
@@ -407,6 +433,8 @@ export async function getReservationForInbox(
       select: { status: true, codeEncrypted: true },
     }),
     getAirbnbEnrichedGuestNameByReservationIds([row.id]),
+    getAirbnbEnrichedGuestCountsByReservationIds([row.id]),
+    getReservationActivityUnreadMap(scope, [row.id]),
   ]);
 
   const accessCode = accessCredential
@@ -419,6 +447,8 @@ export async function getReservationForInbox(
       }
     : null;
 
+  const unread = activityUnreadMap.get(row.id);
+
   return toDetailItem(
     {
       ...row,
@@ -426,6 +456,10 @@ export async function getReservationForInbox(
       guestRegistration: registration,
       accessCode,
       airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
+      airbnbEnrichmentGuestCounts:
+        airbnbGuestCountsByReservation.get(row.id) ?? null,
+      activityUnreadCount: unread?.unreadCount ?? 0,
+      activityUnreadHint: unread?.hint ?? null,
     },
     relatedBlocks,
   );
@@ -490,7 +524,10 @@ export async function createReservation(data: ReservationWizardValues) {
   await assertNoReservationOverlap(data.propertyId, checkIn, checkOut);
 
   const guestName = buildGuestName(data.guestFirstName, data.guestLastName);
-  const status = deriveReservationStatusFromDates(checkIn, checkOut);
+  const status = deriveReservationStatusFromDates(checkIn, checkOut, {
+    checkInTime: property.checkInTime,
+    checkOutTime: property.checkOutTime,
+  });
 
   const created = await db.reservation.create({
     data: {

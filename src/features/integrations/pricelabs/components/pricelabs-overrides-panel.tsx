@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { formatPriceLabsMoney, formatShortDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
 
 type PriceLabsOverridesPanelProps = {
@@ -77,7 +78,7 @@ export function PriceLabsOverridesPanel({
               <SelectContent>
                 {mapped.map((property) => (
                   <SelectItem key={property.id} value={property.id}>
-                    {property.name}
+                    {formatPropertyLabel(property)}
                   </SelectItem>
                 ))}
               </SelectContent>

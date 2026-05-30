@@ -52,7 +52,7 @@ function ReservationBarComponent({
         size="xs"
         className="shrink-0 opacity-90"
       />
-      <span className="truncate font-normal">{reservation.guestName}</span>
+      <span className="truncate">{reservation.guestName}</span>
     </button>
   );
 }

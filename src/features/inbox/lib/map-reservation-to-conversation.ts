@@ -10,11 +10,11 @@ import {
   displayStatusLabels,
   resolveDisplayStatus,
 } from "@/features/reservations/lib/reservation-status";
-import { formatDate, formatDateRange, formatPanelDate } from "@/lib/helpers/date";
 import {
-  formatCalendarUnitDisplay,
-  resolveCalendarUnitLabel,
-} from "@/features/calendar/lib/property-unit";
+  formatPropertyUnitDisplay,
+  resolvePropertyUnit,
+} from "@/lib/property-display";
+import { formatDate, formatDateRange, formatPanelDate } from "@/lib/helpers/date";
 import { isInboxConversationUnread } from "@/features/inbox/lib/inbox-unread";
 
 type ReservationExtras = {
@@ -49,7 +49,7 @@ function resolveInboxStatus(
     return { status: "open", label: "Pendiente" };
   }
 
-  const display = resolveDisplayStatus(reservation.status, reservation.checkOut);
+  const display = resolveDisplayStatus(reservation.status);
   return { status: "reserved", label: displayStatusLabels[display] };
 }
 
@@ -80,11 +80,11 @@ function mapBaseFields(
   const paymentStatus =
     extras?.paymentStatus ?? reservation.paymentStatus ?? "PENDING";
   const { paidAmount, dueAmount } = resolvePaymentAmounts(total, paymentStatus);
-  const unitLabel = resolveCalendarUnitLabel({
+  const unitLabel = resolvePropertyUnit({
     name: reservation.property.name,
     unitNumber: reservation.property.unitNumber,
   });
-  const unit = unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
+  const unit = unitLabel ? formatPropertyUnitDisplay(unitLabel) : null;
   const activityAt =
     extras?.updatedAt.toISOString() ??
     reservation.updatedAt ??

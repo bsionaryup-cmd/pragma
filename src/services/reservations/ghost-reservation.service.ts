@@ -2,6 +2,7 @@ import { BookingPlatform, ReservationStatus } from "@prisma/client";
 import {
   activeIcalUrlOnPropertyFilter,
   hasActiveAirbnbIcalImport,
+  HISTORICAL_BACKFILL_ICAL_PREFIX,
   isHistoricalBackfillUid,
 } from "@/lib/airbnb/ical-sync-utils";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
@@ -43,6 +44,9 @@ export async function purgeGhostReservations(
 ): Promise<number> {
   const candidates = await db.reservation.findMany({
     where: mergeReservationScope(scope, {
+      NOT: {
+        icalUid: { startsWith: HISTORICAL_BACKFILL_ICAL_PREFIX },
+      },
       OR: [
         { platform: BookingPlatform.BOOKING },
         { platform: BookingPlatform.AIRBNB, icalUid: null },

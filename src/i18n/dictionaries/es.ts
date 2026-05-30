@@ -34,7 +34,7 @@ export const es = {
     cleaning: "Limpieza",
     inventory: "Inventario",
     revenue: "Tarifas",
-    smartAccess: "TTLock",
+    smartAccess: "Códigos de acceso",
     integrations: "Integraciones",
     integrationsOverview: "Resumen",
     integrationsAirbnb: "Airbnb",
@@ -45,14 +45,14 @@ export const es = {
     integrationsTraa: "TRAA",
     messages: "Mensajes",
     finance: "Finanzas",
-    financeOverview: "Financial Overview",
-    paymentLinks: "Payment Links",
+    financeOverview: "Resumen",
+    paymentLinks: "Enlaces de cobro",
     paymentHistory: "Historial de cobros",
-    billing: "Mi Suscripción",
+    billing: "Mi suscripción",
     settings: "Ajustes",
-    configuration: "Configuraciones",
+    configuration: "Configuración",
     users: "Usuarios",
-    hostCommandCenter: "Host Command Center",
+    hostCommandCenter: "Centro del anfitrión",
   },
   language: {
     label: "Idioma",
@@ -103,8 +103,8 @@ export const es = {
       activityDesc: "Últimos eventos en tu operación.",
     },
     operational: {
-      checkIns: "Próximos check-ins",
-      checkOuts: "Próximos check-outs",
+      checkIns: "Próximas llegadas",
+      checkOuts: "Próximas salidas",
       activeStays: "Reservas activas",
       pendingCleaning: "Limpieza pendiente",
       incidents: "Incidentes",
@@ -139,14 +139,14 @@ export const es = {
     },
     activity: {
       reservation: "Nueva reserva",
-      checkIn: "Check-in",
-      checkOut: "Check-out",
+      checkIn: "Llegada",
+      checkOut: "Salida",
       task: "Tarea",
       sync: "Sincronización",
     },
     emptyProperty: {
       title: "Aún no tienes propiedades",
-      description: "Crea tu primera propiedad para activar el Command Center.",
+      description: "Crea tu primera propiedad para empezar a operar.",
       cta: "Crear propiedad",
     },
   },
@@ -164,6 +164,18 @@ export const es = {
     eyebrow: "Finanzas",
     title: "Finanzas",
     description: "Ingresos, gastos y utilidad de tus alojamientos.",
+    period: "Periodo",
+    ytd: "Acumulado {{year}}",
+    annualSummaryTitle: "Resumen anual · {{year}}",
+    annualSummaryDescription:
+      "Ingresos cobrados y gastos registrados, mes a mes.",
+    ytdRevenue: "Ingresos del año ({{year}})",
+    operationsTitle: "Finanzas operativas",
+    operationsDescription: "Consulta gastos y otros ingresos registrados.",
+    links: {
+      history: "Historial de cobros",
+      chargeLinks: "Enlaces de cobro",
+    },
     kpi: {
       revenue: "Ingresos",
       expenses: "Gastos",
@@ -189,8 +201,8 @@ export const es = {
       projected: "Proyección",
     },
     flows: {
-      revenue: "Flujo de ingresos",
-      expenses: "Flujo de gastos",
+      revenue: "Detalle de ingresos",
+      expenses: "Detalle de gastos",
       source: "Origen",
       category: "Categoría",
       amount: "Monto",
@@ -201,7 +213,7 @@ export const es = {
     profitability: {
       title: "Rentabilidad",
       margin: "Margen",
-      roi: "ROI estimado",
+      roi: "Rentabilidad estimada",
       avgProperty: "Ingreso prom. / propiedad",
       avgReservation: "Ingreso prom. / reserva",
     },
@@ -231,7 +243,8 @@ export const es = {
       },
       otherIncome: {
         title: "Registrar ingreso extra",
-        description: "Late check-out, servicios adicionales, reembolsos u otros ingresos del mes.",
+        description:
+          "Salida tardía, servicios adicionales, reembolsos u otros ingresos del mes.",
       },
     },
     manual: {
@@ -245,7 +258,7 @@ export const es = {
       attachmentUrlPlaceholder: "O pega un enlace (Drive, Dropbox, etc.)",
       categoryPlaceholder: "Limpieza, mantenimiento, servicios…",
       expenseDescriptionPlaceholder: "Ej. Limpieza profunda Apt 801",
-      incomeDescriptionPlaceholder: "Ej. Late check-out · Loft 1202",
+      incomeDescriptionPlaceholder: "Ej. Salida tardía · Loft 1202",
       saveExpense: "Guardar gasto",
       saveIncome: "Guardar ingreso",
       expenseSaved: "Gasto registrado",
@@ -258,6 +271,24 @@ export const es = {
       },
     },
   },
+  payments: {
+    linksTitle: "Enlaces de cobro",
+    linksDescription:
+      "Crea enlaces para cobrar al huésped y comparte el enlace de pago.",
+    historyTitle: "Historial de cobros",
+    historyDescription:
+      "Consulta los cobros enviados, su estado y la reserva asociada.",
+    historyShort: "Historial",
+    listTitle: "Enlaces de cobro",
+    listEmpty: "Sin enlaces aún.",
+    listHint: "Crea un enlace arriba o desde el detalle de una reserva.",
+    listCount: "{{total}} en total · {{active}} activos",
+    searchGuest: "Buscar por nombre de huésped…",
+    search: "Buscar",
+    noCharges: "Sin cobros registrados.",
+    createdAt: "Creado",
+    paidAt: "Pagado",
+  },
   reservations: {
     title: "Reservas",
     moduleTitle: "Reservas y Huéspedes",
@@ -269,10 +300,10 @@ export const es = {
     title: "Propiedades",
   },
   smartprice: {
-    eyebrow: "Revenue",
+    eyebrow: "Tarifas",
     title: "Tarifas",
     description:
-      "Gestión diaria de precios: límites, calendario, overrides y alertas. La conexión API vive en Configuración.",
+      "Gestión diaria de precios: límites, calendario, ajustes puntuales y alertas. La conexión con PriceLabs está en Ajustes.",
     verdict: {
       attention: "{{count}} alojamientos con acciones pendientes",
       balanced: "Tarifas alineadas — sin pendientes urgentes",
@@ -298,7 +329,7 @@ export const es = {
     reasons: {
       underpriced: "Tarifa baja",
       overpriced: "Tarifa alta",
-      sync_error: "Error de sync",
+      sync_error: "Error de sincronización",
       pending_sync: "Sin sincronizar",
     },
     pricelabs: {
@@ -355,7 +386,7 @@ export const es = {
   },
   integrations: {
     title: "Integraciones",
-    subtitle: "Hub de conectores",
+    subtitle: "Conexiones con Airbnb, cerraduras, tarifas y reportes",
     description:
       "Airbnb, smart locks, PriceLabs y reportes gubernamentales desde un solo módulo.",
   },
@@ -371,6 +402,6 @@ export const es = {
     title: "Calendario",
   },
   tasks: {
-    title: "Limpieza",
+    title: "Tareas",
   },
 } as const;

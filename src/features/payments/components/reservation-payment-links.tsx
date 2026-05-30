@@ -12,6 +12,7 @@ import {
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
 import { PaymentChargeDialog } from "@/components/payments/payment-charge-dialog";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/helpers/date";
 import { formatMoney } from "@/lib/format-currency";
 import type { SerializedGuestPaymentLink } from "@/lib/payments/guest-payment-link-serializer";
 import { cn } from "@/lib/utils";
@@ -153,6 +154,12 @@ export function ReservationPaymentLinks({ reservationId }: ReservationPaymentLin
                     </p>
                     <p className="text-muted-foreground">
                       {guestPaymentLinkStatusLabel(link.status)}
+                    </p>
+                    <p className="mt-0.5 tabular-nums text-[11px] text-muted-foreground/90">
+                      Creado {formatDateTime(link.createdAt)}
+                      {link.status === "PAID"
+                        ? ` · Pagado ${formatDateTime(link.updatedAt)}`
+                        : null}
                     </p>
                   </div>
                   <div className="flex items-center gap-1">

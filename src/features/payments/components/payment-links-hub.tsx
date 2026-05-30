@@ -17,8 +17,10 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { guestPaymentLinkStatusLabel } from "@/lib/payments/guest-payment-link-labels";
+import { formatDateTime } from "@/lib/helpers/date";
 import { formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { useI18n } from "@/components/providers/i18n-provider";
 import type { SerializedGuestPaymentLinkForHub } from "@/lib/payments/guest-payment-link-serializer";
 import type { GuestPaymentLinkStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -44,14 +46,25 @@ function LinkStatusBadge({ status }: { status: GuestPaymentLinkStatus }) {
 }
 
 function LinkMeta({ link }: { link: SerializedGuestPaymentLinkForHub }) {
+  const { t } = useI18n();
   const parts = [
     paymentLinkCategoryLabel(link.category),
     link.reservation?.guestName,
     link.property ? formatPropertyLabel(link.property) : null,
   ].filter(Boolean);
 
+  const timestamps = [
+    `${t("payments.createdAt")} ${formatDateTime(link.createdAt)}`,
+    link.status === "PAID"
+      ? `${t("payments.paidAt")} ${formatDateTime(link.updatedAt)}`
+      : null,
+  ].filter(Boolean);
+
   return (
-    <p className="mt-0.5 truncate text-xs text-muted-foreground">{parts.join(" · ")}</p>
+    <div className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
+      {parts.length > 0 ? <p className="truncate">{parts.join(" · ")}</p> : null}
+      <p className="truncate tabular-nums">{timestamps.join(" · ")}</p>
+    </div>
   );
 }
 
@@ -63,6 +76,7 @@ export function PaymentLinksHub({
   canWrite: boolean;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [pending, startTransition] = useTransition();
 
   function refresh() {
@@ -122,16 +136,16 @@ export function PaymentLinksHub({
   return (
     <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
       <PageHeader
-        eyebrow="Finanzas"
-        title="Payment Links"
-        description="Crea enlaces de cobro, compártelos con el huésped y consulta su estado."
+        eyebrow={t("finance.eyebrow")}
+        title={t("payments.linksTitle")}
+        description={t("payments.linksDescription")}
         actions={
           <div className="flex flex-wrap gap-2">
             <Link
               href="/finance/payment-history"
               className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted/50"
             >
-              Historial
+              {t("payments.historyShort")}
             </Link>
             <Link
               href="/integrations/wompi"
@@ -144,18 +158,21 @@ export function PaymentLinksHub({
       />
 
       <SectionCard
-        title="Enlaces de cobro"
+        title={t("payments.listTitle")}
         description={
           initialLinks.length > 0
-            ? `${initialLinks.length} en total · ${activeCount} activos`
-            : "Sin enlaces aún."
+            ? t("payments.listCount", {
+                total: initialLinks.length,
+                active: activeCount,
+              })
+            : t("payments.listEmpty")
         }
       >
         {canWrite ? <PaymentLinkCreateForm /> : null}
 
         {initialLinks.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-5">
-            Crea un enlace arriba o desde el detalle de una reserva.
+            {t("payments.listHint")}
           </p>
         ) : (
           <ul className="divide-y divide-border">

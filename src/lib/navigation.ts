@@ -25,7 +25,8 @@ export type NavIconName =
   | "settings"
   | "key-round"
   | "credit-card"
-  | "list-checks";
+  | "list-checks"
+  | "bell";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -85,7 +86,7 @@ const reservationsNavItem: NavItem = {
 const novedadesNavItem: NavItem = {
   labelKey: "nav.novedades",
   href: "/novedades",
-  icon: "message-circle",
+  icon: "bell",
   permission: "reservations:read",
 };
 
@@ -96,48 +97,27 @@ const calendarNavItem: NavItem = {
   permission: "calendar:read",
 };
 
-const tasksNavGroup: Omit<NavGroupModule, "children"> = {
-  type: "group",
-  id: "tasks",
+const tasksNavItem: NavItem = {
   labelKey: "nav.tasks",
-  href: "/tasks/compras",
+  href: "/tasks",
   icon: "list-checks",
   permission: "tasks:read",
   planFeature: "tasks",
 };
-
-const tasksNavChildren: NavChildLink[] = [
-  {
-    labelKey: "nav.purchases",
-    href: "/tasks/compras",
-    permission: "tasks:read",
-    planFeature: "tasks",
-  },
-  {
-    labelKey: "nav.maintenance",
-    href: "/tasks/mantenimiento",
-    permission: "tasks:read",
-    planFeature: "tasks",
-  },
-  {
-    labelKey: "nav.cleaning",
-    href: "/tasks/limpieza",
-    permission: "tasks:read",
-    planFeature: "tasks",
-  },
-  {
-    labelKey: "nav.inventory",
-    href: "/tasks/inventario",
-    permission: "tasks:read",
-    planFeature: "tasks",
-  },
-];
 
 const propertiesNavItem: NavItem = {
   labelKey: "nav.properties",
   href: "/properties",
   icon: "building-2",
   permission: "properties:read",
+};
+
+const accessCodesNavItem: NavItem = {
+  labelKey: "nav.smartAccess",
+  href: "/smart-access",
+  icon: "key-round",
+  permission: "access:read",
+  planFeature: "ttlock",
 };
 
 const revenueNavItem: NavItem = {
@@ -156,6 +136,7 @@ const financeNavGroup: Omit<NavGroupModule, "children"> = {
   icon: "wallet",
   permission: "finance:read",
   planFeature: "finance",
+  navigateOnOpen: false,
 };
 
 /** Rutas secundarias bajo Finanzas (solo ADMIN con finance:read). */
@@ -193,12 +174,6 @@ const configurationNavChildren: NavChildLink[] = [
     labelKey: "nav.integrations",
     href: "/integrations",
     permission: "integrations:read",
-  },
-  {
-    labelKey: "nav.smartAccess",
-    href: "/smart-access",
-    permission: "access:read",
-    planFeature: "ttlock",
   },
   {
     labelKey: "nav.users",
@@ -342,13 +317,16 @@ export function getNavigationModulesForRole(
     modules.push(navLinkModule(calendarNavItem));
   }
 
-  const tasksChildren = filterNavChildren(tasksNavChildren, role, plan);
-  if (tasksChildren.length > 0) {
-    modules.push({ ...tasksNavGroup, children: tasksChildren });
+  if (navLinkAllowed(tasksNavItem, role, plan)) {
+    modules.push(navLinkModule(tasksNavItem));
   }
 
   if (navLinkAllowed(propertiesNavItem, role, plan)) {
     modules.push(navLinkModule(propertiesNavItem));
+  }
+
+  if (navLinkAllowed(accessCodesNavItem, role, plan)) {
+    modules.push(navLinkModule(accessCodesNavItem));
   }
 
   if (navLinkAllowed(revenueNavItem, role, plan)) {
@@ -381,16 +359,6 @@ export function getNavigationModulesForRole(
         plan,
       ),
     );
-  }
-
-  const smartAccessChild = configurationNavChildren.find(
-    (child) => child.href === "/smart-access",
-  );
-  if (
-    smartAccessChild &&
-    navChildAllowedForRole(smartAccessChild, role, plan)
-  ) {
-    configurationChildren.push(smartAccessChild);
   }
 
   const usersChild = configurationNavChildren.find(

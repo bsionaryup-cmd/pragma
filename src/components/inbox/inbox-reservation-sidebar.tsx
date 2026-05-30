@@ -69,12 +69,7 @@ export function InboxReservationSidebar({
             <div className="min-w-0">
               <PropertyIdentity
                 name={conversation.propertyName}
-                unitNumber={
-                  conversation.propertyUnit &&
-                  conversation.propertyUnit !== conversation.propertyName
-                    ? conversation.propertyUnit
-                    : null
-                }
+                unitNumber={conversation.propertyUnit || null}
                 size="md"
               />
               <p className="mt-1 text-xs text-text-subtle">

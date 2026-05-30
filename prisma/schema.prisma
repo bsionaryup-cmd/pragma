@@ -40,6 +40,7 @@ model Organization {
   airbnbListingEmailMaps AirbnbListingEmailMap[]
   emailIngestionAudits   EmailIngestionAudit[]
   reservationEvents      ReservationEvent[]
+  pendingActivityEntries ReservationActivityPending[]
 
   @@map("organizations")
 }
@@ -95,6 +96,7 @@ model User {
   salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
   salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
   airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
+  reservationActivitySeen          ReservationActivitySeen[]
 
   @@index([role, isActive])
   @@index([organizationId])
@@ -181,6 +183,8 @@ model Property {
   airbnbEmailTasks     AirbnbEmailTask[]
   listingEmailMaps     AirbnbListingEmailMap[]
   observabilityEvents  ReservationEvent[]
+  activityEntries      ReservationActivity[]
+  pendingActivityEntries ReservationActivityPending[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -250,6 +254,8 @@ model Reservation {
   emailReviews            ReservationReview[]
   airbnbEmailTasks        AirbnbEmailTask[]
   observabilityEvents     ReservationEvent[]
+  activityEntries         ReservationActivity[]
+  activitySeenByUsers     ReservationActivitySeen[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -637,6 +643,76 @@ model ReservationEvent {
   @@index([eventType, createdAt(sort: Desc)])
   @@index([sourceEmailId, eventType])
   @@map("reservation_events")
+}
+
+// ─── Reservation activity (read-only timeline; no business logic) ──
+
+enum ReservationActivityType {
+  AIRBNB_MESSAGE
+  MODIFICATION_REQUEST
+  MODIFICATION_APPROVED
+  UNMATCHED_AIRBNB
+}
+
+model ReservationActivity {
+  id             String                  @id @default(cuid())
+  reservationId  String
+  propertyId     String?
+  activityType   ReservationActivityType
+  title          String
+  content        String                  @db.Text
+  source         String                  @default("airbnb_email")
+  sourceEmailId  String?                 @unique
+  senderName     String?
+  senderEmail    String?
+  metadataJson   Json?
+  createdAt      DateTime                @default(now())
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  property    Property?   @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([reservationId, createdAt(sort: Desc)])
+  @@index([propertyId])
+  @@index([activityType, createdAt(sort: Desc)])
+  @@map("reservation_activity")
+}
+
+model ReservationActivityPending {
+  id                       String                  @id @default(cuid())
+  organizationId           String?
+  propertyId               String?
+  activityType             ReservationActivityType
+  title                    String
+  content                  String                  @db.Text
+  source                   String                  @default("airbnb_email")
+  sourceEmailId            String                  @unique
+  rawSubject               String?
+  senderName               String?
+  senderEmail              String?
+  metadataJson             Json?
+  classificationConfidence Decimal?                @db.Decimal(5, 4)
+  createdAt                DateTime                @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  property     Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([propertyId, createdAt(sort: Desc)])
+  @@map("reservation_activity_pending")
+}
+
+model ReservationActivitySeen {
+  id            String   @id @default(cuid())
+  userId        String
+  reservationId String
+  lastSeenAt    DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reservationId])
+  @@index([reservationId])
+  @@map("reservation_activity_seen")
 }
 
 // ─── Organization integrations (multi-tenant) ─────────────────

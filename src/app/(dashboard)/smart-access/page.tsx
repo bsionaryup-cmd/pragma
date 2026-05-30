@@ -23,9 +23,11 @@ const SmartAccessDashboard = dynamic(
 
 export default async function SmartAccessPage() {
   await redirectIfMissingPlanFeature("ttlock", "/smart-access");
-  const user = await requirePermission("access:read");
+  const [user, data] = await Promise.all([
+    requirePermission("access:read"),
+    getSmartAccessOverview(),
+  ]);
   const canManage = hasPermission(user.role as AppUserRole, "access:manage");
-  const data = await getSmartAccessOverview();
 
   return <SmartAccessDashboard data={data} canManage={canManage} />;
 }

@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/format-currency";
 import { formatDate } from "@/lib/helpers/date";
 import { db } from "@/lib/db";
 import { buildGuestRegistrationUrl } from "@/services/guests/guest-registration.service";
+import { formatPropertyLabel } from "@/lib/property-display";
 
 export async function sendGuestRegistrationInviteEmail(input: {
   reservationId: string;
@@ -42,10 +43,7 @@ export async function sendGuestRegistrationInviteEmail(input: {
     reservation.guestFirstName?.trim() ||
     reservation.guestName.split(" ")[0] ||
     "Huésped";
-  const unit = reservation.property.unitNumber?.trim();
-  const propertyLabel = unit
-    ? `${unit} — ${reservation.property.name}`
-    : reservation.property.name;
+  const propertyLabel = formatPropertyLabel(reservation.property);
   const cleaningFee = reservation.property.cleaningFee
     ? Number(reservation.property.cleaningFee)
     : 0;

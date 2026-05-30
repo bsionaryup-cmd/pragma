@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { processInboundAirbnbEmail } from "@/modules/airbnb-email";
+import { recordReservationActivityFromInboundEmail } from "@/modules/reservation-activity";
 import { recordModificationObservabilityFromInboundEmail } from "@/modules/reservation-events";
 import {
   fetchResendReceivedEmail,
@@ -132,6 +133,26 @@ export async function POST(request: Request) {
     );
 
     if (outcome.auditId) {
+      await recordReservationActivityFromInboundEmail({
+        organizationId: resolved.organizationId,
+        auditId: outcome.auditId,
+        reservationId: outcome.reservationId ?? null,
+        propertyId: propertyResolution.propertyId ?? null,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        from: email.from,
+        signals,
+        pipelineEventKind: outcome.eventKind ?? null,
+        receivedAt: email.created_at ?? event.created_at ?? null,
+      }).catch((error) => {
+        airbnbEmailLog.warn("reservation_activity_failed", {
+          auditId: outcome.auditId,
+          reservationId: outcome.reservationId ?? undefined,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      });
+
       await recordModificationObservabilityFromInboundEmail({
         organizationId: resolved.organizationId,
         auditId: outcome.auditId,
@@ -141,12 +162,19 @@ export async function POST(request: Request) {
         html: email.html,
         text: email.text,
         signals,
-      }).catch((error) => {
-        airbnbEmailLog.warn("modification_observability_failed", {
-          auditId: outcome.auditId,
-          error: error instanceof Error ? error.message : "unknown",
+      })
+        .then((result) => {
+          if (result.recorded) {
+            revalidatePath("/novedades");
+          }
+        })
+        .catch((error) => {
+          airbnbEmailLog.warn("modification_observability_failed", {
+            auditId: outcome.auditId,
+            reservationId: outcome.reservationId ?? undefined,
+            error: error instanceof Error ? error.message : "unknown",
+          });
         });
-      });
     }
 
     const success =
@@ -165,7 +193,6 @@ export async function POST(request: Request) {
     if (outcome.reservationId) {
       revalidatePath("/reservations");
     }
-    revalidatePath("/novedades");
 
     return NextResponse.json({ ok: true, outcome });
   } catch (error) {

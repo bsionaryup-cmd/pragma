@@ -1,12 +1,10 @@
 import { PropertyUnitBadge } from "@/components/properties/property-unit-badge";
 import {
-  formatPropertyUnit,
   formatPropertyLabel,
+  formatPropertyUnit,
+  formatPropertyUnitDisplay,
+  resolvePropertyUnit,
 } from "@/lib/property-display";
-import {
-  formatCalendarUnitDisplay,
-  resolveCalendarUnitLabel,
-} from "@/features/calendar/lib/property-unit";
 import { cn } from "@/lib/utils";
 
 type PropertyIdentityProps = {
@@ -29,11 +27,11 @@ function resolveUnit(
   listingName?: string | null,
 ): string | null {
   const fromField = formatPropertyUnit(unitNumber);
-  if (fromField) return formatCalendarUnitDisplay(fromField);
+  if (fromField) return formatPropertyUnitDisplay(fromField);
 
-  const fromLabel = resolveCalendarUnitLabel({ name, unitNumber, listingName });
+  const fromLabel = resolvePropertyUnit({ name, unitNumber, listingName });
   if (!fromLabel) return null;
-  const display = formatCalendarUnitDisplay(fromLabel);
+  const display = formatPropertyUnitDisplay(fromLabel);
   return display === "—" ? null : display;
 }
 

@@ -2,7 +2,7 @@ export const DASHBOARD_DATA_REFRESH_EVENT = "pragma-dashboard-data-refresh";
 
 /** Intervalo de sync en vivo; menos agresivo en prod para reducir RSC refresh. */
 export const DASHBOARD_DATA_POLL_MS =
-  process.env.NODE_ENV === "development" ? 60_000 : 45_000;
+  process.env.NODE_ENV === "development" ? 60_000 : 60_000;
 
 /** Rutas que necesitan router.refresh() completo (datos server-only). */
 export const DASHBOARD_FULL_REFRESH_PREFIXES = [
@@ -15,7 +15,7 @@ export function needsDashboardFullRefresh(pathname: string): boolean {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }
-export const DASHBOARD_DATA_REFRESH_COOLDOWN_MS = 4_000;
+export const DASHBOARD_DATA_REFRESH_COOLDOWN_MS = 8_000;
 
 const LIVE_DASHBOARD_PREFIXES = [
   "/panel",

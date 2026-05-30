@@ -8,6 +8,7 @@ import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { useNovedadesUnread } from "@/features/novedades/components/novedades-unread-provider";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import {
   isNavGroupModule,
@@ -37,21 +38,22 @@ function SidebarNavLink({
   collapsed,
   title,
   onNavigate,
+  showUnreadDot = false,
 }: {
   item: NavItem;
   isActive: boolean;
   collapsed: boolean;
   title: string;
   onNavigate?: () => void;
+  showUnreadDot?: boolean;
 }) {
   return (
     <Link
       href={item.href}
-      prefetch={false}
       title={collapsed ? title : undefined}
       onClick={() => onNavigate?.()}
       className={cn(
-        "group flex items-center rounded-xl text-[14px] font-medium transition-colors duration-150",
+        "group relative flex items-center rounded-xl text-[14px] font-medium transition-colors duration-150",
         collapsed
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
@@ -63,16 +65,30 @@ function SidebarNavLink({
       <NavIcon
         name={item.icon}
         className={cn(
-          "shrink-0 transition-colors",
+          "relative shrink-0 transition-colors",
           collapsed ? "h-[18px] w-[18px]" : "h-4 w-4",
           isActive
             ? "text-pragma-electric"
             : "text-pragma-mid-gray group-hover:text-pragma-electric",
         )}
       />
+      {collapsed && showUnreadDot ? (
+        <span
+          className="absolute left-1/2 top-1.5 h-2 w-2 -translate-x-1/2 rounded-full bg-red-500 ring-2 ring-sidebar"
+          aria-hidden
+        />
+      ) : null}
       {!collapsed ? (
         <>
-          <span className="min-w-0 flex-1 truncate">{title}</span>
+          <span className="relative min-w-0 flex-1 truncate">
+            {title}
+            {showUnreadDot ? (
+              <span
+                className="absolute -right-1 top-0 h-2 w-2 translate-x-full rounded-full bg-red-500"
+                aria-hidden
+              />
+            ) : null}
+          </span>
           {item.badge ? (
             <span className="shrink-0 rounded-md bg-pragma-light-blue px-1.5 py-0.5 text-[10px] font-semibold leading-none text-pragma-electric">
               {item.badge}
@@ -169,6 +185,7 @@ export function Sidebar({
   const { collapsed: storedCollapsed, toggle } = useSidebarCollapsed();
   const collapsed = forceExpanded ? false : storedCollapsed;
   const { t } = useI18n();
+  const { hasUnread: hasNovedadesUnread } = useNovedadesUnread();
 
   return (
     <aside
@@ -250,6 +267,7 @@ export function Sidebar({
               collapsed={collapsed}
               title={t(module.labelKey)}
               isActive={strongActive}
+              showUnreadDot={module.href === "/novedades" && hasNovedadesUnread}
               onNavigate={onMainLinkNavigate ?? onNavigate}
             />
           );

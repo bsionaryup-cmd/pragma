@@ -19,9 +19,12 @@ const CommandCenterView = dynamic(
 export const metadata: Metadata = dashboardMetadata;
 
 export default async function PanelControlPage() {
-  const locale = await getServerLocale();
-  const auth = await requirePermission("dashboard:read");
-  const data = await getCommandCenterData(locale);
+  const localePromise = getServerLocale();
+  const [locale, auth, data] = await Promise.all([
+    localePromise,
+    requirePermission("dashboard:read"),
+    localePromise.then((resolvedLocale) => getCommandCenterData(resolvedLocale)),
+  ]);
   const novedades = getActiveSystemAnnouncements(locale);
 
   const canCreateProperties = hasPermission(auth.role, "properties:write");

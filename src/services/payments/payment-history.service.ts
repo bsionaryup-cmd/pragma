@@ -109,7 +109,7 @@ export async function listReservationPaymentHistory(
     guestName: link.guestName ?? link.reservation?.guestName ?? null,
     reservationId: link.reservationId,
     propertyLabel: link.reservation?.property
-      ? link.reservation.property.name
+      ? formatPropertyLabel(link.reservation.property)
       : null,
     paidAt: link.status === "PAID" ? link.updatedAt.toISOString() : null,
     createdAt: link.createdAt.toISOString(),

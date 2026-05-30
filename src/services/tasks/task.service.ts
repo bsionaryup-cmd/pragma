@@ -1,57 +1,41 @@
-import type { TaskType } from "@prisma/client";
+import { TaskStatus, TaskType } from "@prisma/client";
 import type { TaskFormValues } from "@/features/tasks/schemas/task.schema";
 import { db } from "@/lib/db";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
-import {
-  assertPropertyInScope,
-  assertReservationInScope,
-} from "@/lib/platform/tenant-access";
 import { taskWhere } from "@/lib/platform/tenant-data-scope";
 
-export async function listTasks(options?: { type?: TaskType }) {
+const DEFAULT_TASK_TYPE = TaskType.MAINTENANCE;
+
+export async function listTasks() {
   const scope = await requireTenantDataScope();
   return db.task.findMany({
-    where: {
-      ...taskWhere(scope),
-      ...(options?.type ? { type: options.type } : {}),
+    where: taskWhere(scope),
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      createdAt: true,
     },
-    include: {
-      property: { select: { name: true } },
-      assignee: { select: { firstName: true, lastName: true } },
-    },
-    orderBy: [{ status: "asc" }, { dueDate: "asc" }],
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
   });
 }
 
 export async function createTask(assigneeId: string, data: TaskFormValues) {
-  const scope = await requireTenantDataScope();
-
-  if (data.propertyId) {
-    await assertPropertyInScope(scope, data.propertyId);
-  }
-
-  if (data.reservationId) {
-    await assertReservationInScope(scope, data.reservationId);
-  }
+  await requireTenantDataScope();
 
   return db.task.create({
     data: {
-      type: data.type,
-      title: data.title,
-      description: data.description || null,
-      status: data.status,
-      propertyId: data.propertyId || null,
-      reservationId: data.reservationId || null,
+      type: DEFAULT_TASK_TYPE,
+      title: data.title.trim(),
+      description: data.description?.trim() || null,
+      status: TaskStatus.PENDING,
       assigneeId,
-      dueDate: data.dueDate ? new Date(data.dueDate) : null,
     },
   });
 }
 
-export async function updateTaskStatus(
-  id: string,
-  status: TaskFormValues["status"],
-) {
+export async function updateTaskStatus(id: string, status: TaskStatus) {
   const scope = await requireTenantDataScope();
   const task = await db.task.findFirst({
     where: { id, ...taskWhere(scope) },
@@ -66,7 +50,7 @@ export async function updateTaskStatus(
     where: { id },
     data: {
       status,
-      completedAt: status === "COMPLETED" ? new Date() : null,
+      completedAt: status === TaskStatus.COMPLETED ? new Date() : null,
     },
   });
 }

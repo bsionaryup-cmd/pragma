@@ -167,20 +167,40 @@ export async function applySafeReservationEnrichment(input: {
         skipped.push("guestPhone");
       }
 
-      const guestCount = input.signals.guestCount;
       const defaultOccupancy =
         reservation.adults === 1 &&
         reservation.children === 0 &&
         reservation.infants === 0;
-      if (
-        guestCount != null &&
-        guestCount > 0 &&
-        defaultOccupancy &&
-        guestCount !== reservation.adults
-      ) {
-        updates.adults = guestCount;
-        applied.adults = guestCount;
-      } else if (guestCount != null) {
+
+      if (defaultOccupancy) {
+        const adultCount = input.signals.adultCount ?? null;
+        const childCount = input.signals.childCount ?? null;
+        const infantCount = input.signals.infantCount ?? null;
+
+        if (adultCount != null && adultCount > 0) {
+          updates.adults = adultCount;
+          applied.adults = adultCount;
+          if (childCount != null) {
+            updates.children = childCount;
+            applied.children = childCount;
+          }
+          if (infantCount != null) {
+            updates.infants = infantCount;
+            applied.infants = infantCount;
+          }
+        } else {
+          const guestTotal =
+            input.signals.guestCountTotal ??
+            input.signals.guestCount ??
+            null;
+          if (guestTotal != null && guestTotal > 0 && guestTotal !== reservation.adults) {
+            updates.adults = guestTotal;
+            applied.adults = guestTotal;
+          } else if (guestTotal != null) {
+            skipped.push("adults");
+          }
+        }
+      } else {
         skipped.push("adults");
       }
     } else {

@@ -11,10 +11,12 @@ import {
   mergeReservationScope,
 } from "@/lib/platform/tenant-data-scope";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
+import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
+import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
 import {
-  pickLatestEnrichmentByReservation,
-  resolveReservationRevenueAmount,
-} from "@/lib/finance/reservation-revenue-amount";
+  isReservationIncomeConfirmed,
+  isReservationIncomePending,
+} from "@/lib/finance/reservation-income-status";
 import {
   buildFinanceYearlySeries,
   FINANCE_YEAR_MONTH_LABELS,
@@ -76,12 +78,6 @@ const ACCOUNTING_RESERVATION_STATUSES: ReservationStatus[] = [
   ReservationStatus.CHECKED_OUT,
 ];
 
-const PAID_STATUSES: PaymentStatus[] = [PaymentStatus.PAID];
-const PENDING_PAYMENT_STATUSES: PaymentStatus[] = [
-  PaymentStatus.PENDING,
-  PaymentStatus.PARTIAL,
-];
-
 export type TopPropertyRow = {
   propertyId: string;
   name: string;
@@ -139,25 +135,23 @@ function sortByDateDesc<T extends { date: string }>(rows: T[]): T[] {
 
 async function loadEnrichmentByReservationId(
   reservationIds: string[],
-): Promise<Map<string, unknown>> {
-  if (reservationIds.length === 0) return new Map();
-
-  const events = await db.reservationEmailEvent.findMany({
-    where: { reservationId: { in: reservationIds } },
-    select: { reservationId: true, enrichedFields: true },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return pickLatestEnrichmentByReservation(events);
+) {
+  return loadReservationRevenueSourcesByReservationId(reservationIds);
 }
 
 function revenueForReservation(
   reservation: { id: string; totalAmount: unknown },
-  enrichmentByReservationId: Map<string, unknown>,
+  revenueSourcesByReservationId: Awaited<
+    ReturnType<typeof loadReservationRevenueSourcesByReservationId>
+  >,
 ): number {
+  const sources = revenueSourcesByReservationId.get(reservation.id);
   return resolveReservationRevenueAmount({
     totalAmount: reservation.totalAmount,
-    enrichedFields: enrichmentByReservationId.get(reservation.id),
+    enrichedFields: sources?.enrichedFields,
+    payloadSignals: sources?.payloadSignals,
+    emailMatchBlob: sources?.emailMatchBlob,
+    payoutNet: sources?.payoutNet,
   });
 }
 
@@ -170,6 +164,7 @@ export async function getFinanceOverview(
   const { start, end, prevStart, prevEnd, year, month } = monthBounds(reference);
   const selectedMonth = `${year}-${String(month).padStart(2, "0")}`;
   const selectedMonthLabel = `${FINANCE_YEAR_MONTH_LABELS[month - 1]} ${year}`;
+  const today = todayPrismaDate();
 
   const [
     currentReservations,
@@ -215,6 +210,7 @@ export async function getFinanceOverview(
         id: true,
         totalAmount: true,
         paymentStatus: true,
+        checkIn: true,
         property: { select: { cleaningFee: true } },
       },
     }),
@@ -237,13 +233,13 @@ export async function getFinanceOverview(
   ]);
 
   const paidReservations = currentReservations.filter((r) =>
-    PAID_STATUSES.includes(r.paymentStatus),
+    isReservationIncomeConfirmed(r.checkIn, r.paymentStatus, today),
   );
   const pendingReservations = currentReservations.filter((r) =>
-    PENDING_PAYMENT_STATUSES.includes(r.paymentStatus),
+    isReservationIncomePending(r.checkIn, r.paymentStatus, today),
   );
   const prevPaidReservations = previousReservations.filter((r) =>
-    PAID_STATUSES.includes(r.paymentStatus),
+    isReservationIncomeConfirmed(r.checkIn, r.paymentStatus, today),
   );
 
   const reservationRevenue = paidReservations.reduce(
@@ -280,9 +276,9 @@ export async function getFinanceOverview(
         amountFormatted: formatMoney(amount, undefined, locale),
         date: prismaDateToKey(r.checkIn),
         propertyName: formatPropertyLabel(r.property),
-        status: PAID_STATUSES.includes(r.paymentStatus)
-          ? ("confirmed" as const)
-          : ("pending" as const),
+        status: isReservationIncomePending(r.checkIn, r.paymentStatus, today)
+          ? ("pending" as const)
+          : ("confirmed" as const),
       };
     }),
     ...manualIncomes.map((row) => ({
@@ -360,7 +356,7 @@ export async function getFinanceOverview(
   const margin = revenue > 0 ? clampPercent((netProfit / revenue) * 100) : 0;
   const roi = expenses > 0 ? clampPercent((netProfit / expenses) * 100) : 0;
 
-  const chartYear = new Date().getFullYear();
+  const chartYear = year;
   const yearlyChart = await buildFinanceYearlySeries(scope, chartYear);
   const yearToDateRevenue = yearlyChart
     .filter((m) => !m.isFuture)

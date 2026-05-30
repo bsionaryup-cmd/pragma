@@ -23,7 +23,12 @@ import {
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
 import { ReservationEditForm } from "@/features/reservations/components/reservation-edit-form";
+import {
+  getReservationActivityAction,
+  markReservationActivitySeenAction,
+} from "@/features/reservations/actions/reservation-activity.actions";
 import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
+import { ReservationActivityTimeline } from "@/features/reservations/components/reservation-activity-timeline";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
 import { formatDateTime as formatDateTimeInBogota } from "@/lib/helpers/date";
 import {
@@ -59,6 +64,9 @@ import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
 import { cn } from "@/lib/utils";
 import type { ReservationEmailEnrichmentDetail } from "@/services/reservations/reservation-email-enrichment.service";
+import type { ReservationActivityRow } from "@/services/reservation-activity/reservation-activity-list.service";
+
+type ReservationDetailTab = "detalles" | "huesped" | "pagos" | "actividad";
 
 function ReservationDetailSection({
   title,
@@ -324,11 +332,13 @@ export function ReservationDetailPanel({
   const [editing, setEditing] = useState(false);
   const [emailEnrichment, setEmailEnrichment] =
     useState<ReservationEmailEnrichmentDetail | null>(null);
-  const [isTokenPending, startTokenTransition] = useTransition();
-  const displayStatus = resolveDisplayStatus(
-    reservation.status,
-    reservation.checkOut,
+  const [activeTab, setActiveTab] = useState<ReservationDetailTab>("detalles");
+  const [activityRows, setActivityRows] = useState<ReservationActivityRow[]>(
+    [],
   );
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [isTokenPending, startTokenTransition] = useTransition();
+  const displayStatus = resolveDisplayStatus(reservation.status);
   const nights = countNights(reservation.checkIn, reservation.checkOut);
   const relatedBlocks = reservation.relatedBlocks ?? [];
   const registeredGuests = reservation.guests ?? [];
@@ -378,6 +388,50 @@ export function ReservationDetailPanel({
       cancelled = true;
     };
   }, [reservation.id, reservation.platform]);
+
+  useEffect(() => {
+    setActiveTab("detalles");
+    setActivityRows([]);
+  }, [reservation.id]);
+
+  useEffect(() => {
+    if (activeTab !== "actividad") return;
+    let cancelled = false;
+    setActivityLoading(true);
+    void getReservationActivityAction(reservation.id)
+      .then((rows) => {
+        if (!cancelled) setActivityRows(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setActivityRows([]);
+      })
+      .finally(() => {
+        if (!cancelled) setActivityLoading(false);
+      });
+
+    void markReservationActivitySeenAction(reservation.id)
+      .then(() => {
+        dispatchDashboardDataRefresh();
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, reservation.id]);
+
+  const activityUnreadCount = reservation.activityUnreadCount ?? 0;
+
+  const detailTabs: { id: ReservationDetailTab; label: string; badge?: number }[] = [
+    { id: "detalles", label: "Detalles" },
+    { id: "huesped", label: "Huésped" },
+    ...(showPaymentLinks ? [{ id: "pagos" as const, label: "Pagos" }] : []),
+    {
+      id: "actividad",
+      label: "Actividad",
+      badge: activityUnreadCount > 0 ? activityUnreadCount : undefined,
+    },
+  ];
 
   async function handleDelete() {
     if (!confirm("¿Eliminar esta reserva?")) return;
@@ -690,6 +744,38 @@ export function ReservationDetailPanel({
         </div>
       </div>
 
+      {!editing ? (
+        <nav
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 px-4"
+          aria-label="Secciones de reserva"
+        >
+          {detailTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={cn(
+                "shrink-0 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors",
+                activeTab === tab.id
+                  ? "border-pragma-electric text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {tab.label}
+                {tab.badge ? (
+                  <span className="rounded-full bg-sky-500/15 px-1.5 py-px text-[10px] font-semibold tabular-nums text-sky-800 dark:text-sky-200">
+                    {tab.badge}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
       <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-3">
         {editing && canWrite && properties.length > 0 ? (
           <ReservationEditForm
@@ -705,38 +791,51 @@ export function ReservationDetailPanel({
 
         {!editing ? (
           <>
-            <ReservationDetailSection
-              title="Personas registradas"
-              headerAside={
-                registeredGuests.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 rounded-full px-3 text-xs"
-                    onClick={copyReservationAndGuestsDetails}
-                  >
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    Copiar datos
-                  </Button>
-                ) : null
-              }
-            >
-              {registeredGuests.length > 0 ? (
-                <RegisteredGuestsCompactList guests={registeredGuests} />
-              ) : (
-                <DetailEmptyState>
-                  Aún no hay huéspedes registrados. Comparte el enlace de abajo.
-                </DetailEmptyState>
-              )}
-            </ReservationDetailSection>
+            {activeTab === "huesped" ? (
+              <ReservationDetailSection
+                title="Personas registradas"
+                headerAside={
+                  registeredGuests.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-full px-3 text-xs"
+                      onClick={copyReservationAndGuestsDetails}
+                    >
+                      <Copy className="mr-1.5 h-3.5 w-3.5" />
+                      Copiar datos
+                    </Button>
+                  ) : null
+                }
+              >
+                {registeredGuests.length > 0 ? (
+                  <RegisteredGuestsCompactList guests={registeredGuests} />
+                ) : (
+                  <DetailEmptyState>
+                    Aún no hay huéspedes registrados. Comparte el enlace desde
+                    Detalles.
+                  </DetailEmptyState>
+                )}
+              </ReservationDetailSection>
+            ) : null}
 
-            {showPaymentLinks ? (
+            {activeTab === "pagos" && showPaymentLinks ? (
               <ReservationDetailSection title="Cobro directo">
                 <ReservationPaymentLinks reservationId={reservation.id} />
               </ReservationDetailSection>
             ) : null}
 
+            {activeTab === "actividad" ? (
+              <ReservationActivityTimeline
+                reservation={reservation}
+                activities={activityRows}
+                loading={activityLoading}
+              />
+            ) : null}
+
+            {activeTab === "detalles" ? (
+              <>
             <ReservationDetailSection title="Enlace de registro">
               {registrationProgress ? (
                 <p className="mb-2 text-xs text-muted-foreground">
@@ -863,6 +962,8 @@ export function ReservationDetailPanel({
                   }}
                 />
               </ReservationDetailSection>
+            ) : null}
+              </>
             ) : null}
           </>
         ) : null}

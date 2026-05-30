@@ -3,11 +3,13 @@ import {
   type PropertyType,
   ReservationStatus,
 } from "@prisma/client";
-import { resolveCalendarUnitLabel } from "@/features/calendar/lib/property-unit";
 import { formatAccessCode } from "@/lib/access-code";
+import { resolvePropertyUnit } from "@/lib/property-display";
 import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import {
   ensureTTLockIntegrationForScope,
@@ -67,7 +69,7 @@ export type SmartAccessOverview = {
 
 const STAGE_LABELS: Record<SmartAccessStage, string> = {
   awaiting_registration: "Registro pendiente",
-  awaiting_integration: "TTLock no conectado",
+  awaiting_integration: "Conexión pendiente",
   awaiting_lock: "Sin cerradura vinculada",
   pending_approval: "Pendiente de aprobación",
   ready_to_generate: "Listo para generar código",
@@ -133,6 +135,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
       status: true,
       checkIn: true,
       checkOut: true,
+      platform: true,
       guestName: true,
       guestRegistrationCompletedAt: true,
       property: {
@@ -152,7 +155,8 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
             in: ["REGISTERED", "VERIFIED", "CHECKED_IN", "CHECKED_OUT"],
           },
         },
-        select: { id: true },
+        orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
+        select: { id: true, fullName: true, isReservationOwner: true, isPrimary: true },
       },
       accessCredentials: {
         orderBy: { createdAt: "desc" },
@@ -179,6 +183,10 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     a.checkIn.getTime() - b.checkIn.getTime(),
   );
 
+  const airbnbGuestByReservation = await getAirbnbEnrichedGuestNameByReservationIds(
+    sortedReservations.map((reservation) => reservation.id),
+  );
+
   const items: SmartAccessItem[] = sortedReservations.map((reservation) => {
     const credentialRow = reservation.accessCredentials[0] ?? null;
     const lockMapped = Boolean(reservation.property.propertyLock);
@@ -188,6 +196,9 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     const registrationProgress = registrationComplete
       ? null
       : `${registeredCount}/${capacity}`;
+    const ownerGuest =
+      reservation.guests.find((guest) => guest.isReservationOwner) ??
+      reservation.guests.find((guest) => guest.isPrimary);
     const stage = resolveStage({
       registrationComplete,
       integrationConnected,
@@ -197,9 +208,15 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
 
     return {
       id: reservation.id,
-      guestName: reservation.guestName?.trim() || "Sin registrar",
+      guestName: resolveReservationDisplayGuestName({
+        platform: reservation.platform,
+        airbnbEnrichmentGuestName:
+          airbnbGuestByReservation.get(reservation.id) ?? null,
+        guestName: reservation.guestName,
+        primaryGuestName: ownerGuest?.fullName ?? null,
+      }),
       propertyName: reservation.property.name,
-      propertyUnitNumber: resolveCalendarUnitLabel({
+      propertyUnitNumber: resolvePropertyUnit({
         name: reservation.property.name,
         unitNumber: reservation.property.unitNumber,
       }),

@@ -34,7 +34,8 @@ function CalendarDayHeaderComponent({
             key={day.date}
             className={cn(
               "flex shrink-0 items-center justify-center border-r border-[var(--cal-col-divider)] bg-[var(--cal-header-cell-bg)] text-center",
-              index % 2 === 1 && "bg-[var(--cal-bg-alt)]",
+              index % 2 === 1 && !day.isToday && "bg-[var(--cal-bg-alt)]",
+              day.isToday && "bg-[var(--cal-bg-today)]",
               !day.isCurrentMonth && "text-[var(--cal-text-muted)]",
             )}
             style={{ width: CALENDAR_DAY_WIDTH }}

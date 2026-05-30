@@ -243,7 +243,7 @@ export async function syncPropertyIcalCalendarInner(
 ): Promise<PropertyIcalSyncResult> {
   const property = await db.property.findFirst({
     where: { id: propertyId, ownerId },
-    select: { id: true, name: true, icalUrl: true, currency: true, organizationId: true },
+    select: { id: true, name: true, icalUrl: true, currency: true, organizationId: true, checkInTime: true, checkOutTime: true },
   });
 
   if (!property) {
@@ -317,6 +317,8 @@ export async function syncPropertyIcalCalendarInner(
       const guestName = parseGuestName(event.summary, blocked);
       const status = deriveReservationStatusFromDates(checkIn, checkOut, {
         blocked,
+        checkInTime: property.checkInTime,
+        checkOutTime: property.checkOutTime,
       });
 
       const existing = await findReservationByIcalUid(property.id, event.uid);

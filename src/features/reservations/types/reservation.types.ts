@@ -91,6 +91,8 @@ export type ReservationInboxItem = {
   } | null;
   accessCode?: ReservationAccessCodeDto | null;
   property: ReservationPropertyDto & { maxGuests?: number };
+  activityUnreadCount?: number;
+  activityUnreadHint?: string | null;
 };
 
 /** Detalle ampliado (calendario / drawer) con metadatos y bloqueos relacionados. */

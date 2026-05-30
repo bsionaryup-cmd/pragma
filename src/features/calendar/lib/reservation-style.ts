@@ -1,4 +1,3 @@
-import { getTodayKey } from "@/features/calendar/lib/calendar-dates";
 import type {
   CalendarReservationDto,
   ReservationVisualState,
@@ -8,10 +7,6 @@ import type { BookingPlatform, ReservationStatus } from "@prisma/client";
 export function getReservationVisualState(
   reservation: CalendarReservationDto,
 ): ReservationVisualState {
-  const today = getTodayKey();
-  const checkInKey = reservation.checkIn;
-  const checkOutKey = reservation.checkOut;
-
   if (reservation.status === "BLOCKED") {
     return "blocked";
   }
@@ -24,14 +19,11 @@ export function getReservationVisualState(
     return "checked_out";
   }
 
-  if (reservation.status === "CHECKOUT_TODAY" || checkOutKey === today) {
+  if (reservation.status === "CHECKOUT_TODAY") {
     return "checkout_today";
   }
 
-  if (
-    reservation.status === "CHECKED_IN" ||
-    (checkInKey <= today && checkOutKey > today)
-  ) {
+  if (reservation.status === "CHECKED_IN") {
     return "in_stay";
   }
 
@@ -43,7 +35,7 @@ export function getReservationVisualState(
 }
 
 const pillBase =
-  "absolute top-[28px] z-20 flex h-[32px] min-w-[36px] cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border border-[var(--cal-pill-border)] bg-white px-2.5 text-xs font-normal leading-none tracking-tight text-[var(--cal-text-day)] shadow-none transition-[box-shadow] duration-150 hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] pointer-events-auto";
+  "absolute top-[28px] z-20 flex h-[33px] min-w-[36px] cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border border-[var(--cal-pill-border)] bg-white px-2.5 text-[13px] font-medium leading-none tracking-tight text-[var(--cal-text-day)] shadow-none transition-[box-shadow] duration-150 hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] pointer-events-auto";
 
 export function getReservationBarClasses(state: ReservationVisualState): string {
   switch (state) {

@@ -27,11 +27,14 @@ type ReservationsPageProps = {
 export default async function ReservationsPage({
   searchParams,
 }: ReservationsPageProps) {
-  const auth = await requirePermission("reservations:read");
-  const [params, reservations, properties] = await Promise.all([
+  const authPromise = requirePermission("reservations:read");
+  const [auth, params, reservations, properties] = await Promise.all([
+    authPromise,
     searchParams,
     listReservationsForInbox(),
-    listPropertiesForInbox(auth.dbUserId),
+    authPromise.then((resolvedAuth) =>
+      listPropertiesForInbox(resolvedAuth.dbUserId),
+    ),
   ]);
   const role = auth.role as AppUserRole;
   const canCreate = hasPermission(role, "reservations:create");

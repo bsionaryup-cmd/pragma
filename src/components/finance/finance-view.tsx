@@ -103,8 +103,8 @@ export function FinanceView({
         <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
           <PageHeader
             eyebrow={t("finance.eyebrow")}
-            title="Finanzas operativas"
-            description="Consulta gastos y otros ingresos registrados."
+            title={t("finance.operationsTitle")}
+            description={t("finance.operationsDescription")}
           />
 
           <section className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -142,13 +142,13 @@ export function FinanceView({
                 href="/finance/payment-history"
                 className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-muted/50"
               >
-                Historial de cobros
+                {t("finance.links.history")}
               </Link>
               <Link
                 href="/finance/payment-links"
                 className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
               >
-                Payment Links
+                {t("finance.links.chargeLinks")}
               </Link>
             </div>
           }
@@ -157,10 +157,10 @@ export function FinanceView({
         <section className="mb-4">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Periodo · {selectedMonthLabel}
+              {t("finance.period")} · {selectedMonthLabel}
             </p>
             <p className="text-xs text-muted-foreground">
-              YTD {data.chartYear}: {data.yearToDateRevenueFormatted}
+              {t("finance.ytd", { year: data.chartYear })}: {data.yearToDateRevenueFormatted}
             </p>
           </div>
           <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 md:grid-cols-12">
@@ -176,7 +176,12 @@ export function FinanceView({
                     : "border-border bg-card text-foreground hover:bg-muted/40",
               );
 
-              if (monthPoint.isFuture) {
+              const isFutureWithoutData =
+                monthPoint.isFuture &&
+                monthPoint.pendingRevenue <= 0 &&
+                monthPoint.revenue <= 0;
+
+              if (isFutureWithoutData) {
                 return (
                   <span key={monthKey} className={className} aria-disabled>
                     {monthPoint.label}
@@ -268,8 +273,8 @@ export function FinanceView({
         {activeTab === "overview" ? (
           <div className="space-y-5">
             <SectionCard
-              title={`Resumen anual · ${data.chartYear}`}
-              description="Ingresos confirmados y egresos registrados por mes."
+              title={t("finance.annualSummaryTitle", { year: data.chartYear })}
+              description={t("finance.annualSummaryDescription")}
             >
               <div className="p-4 sm:p-5">
                 <FinanceYearlyOverviewChart
@@ -298,7 +303,7 @@ export function FinanceView({
               </div>
               <div className="rounded-xl border border-border bg-card px-4 py-3">
                 <p className="text-xs text-muted-foreground">
-                  Ingresos YTD ({data.chartYear})
+                  {t("finance.ytdRevenue", { year: data.chartYear })}
                 </p>
                 <p className="mt-1 text-lg font-semibold text-pragma-electric">
                   {data.yearToDateRevenueFormatted}
@@ -343,6 +348,11 @@ export function FinanceView({
                       </TableCell>
                       <TableCell className="text-end text-sm font-semibold tabular-nums">
                         {row.amountFormatted}
+                        {row.status === "pending" ? (
+                          <span className="ml-1.5 text-[10px] font-medium text-amber-700">
+                            Pendiente
+                          </span>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   ))

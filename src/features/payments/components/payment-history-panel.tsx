@@ -4,14 +4,17 @@ import { useState, useTransition } from "react";
 import { Search } from "lucide-react";
 import { searchGuestPaymentHistoryAction } from "@/features/payments/actions/guest-payment.actions";
 import type { PaymentHistoryRow } from "@/services/payments/payment-history.service";
+import { useI18n } from "@/components/providers/i18n-provider";
 import { SectionCard } from "@/components/ui/section-card";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/helpers/date";
 
 type PaymentHistoryPanelProps = {
   initialRows: PaymentHistoryRow[];
 };
 
 export function PaymentHistoryPanel({ initialRows }: PaymentHistoryPanelProps) {
+  const { t } = useI18n();
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useState("");
   const [pending, startTransition] = useTransition();
@@ -29,26 +32,26 @@ export function PaymentHistoryPanel({ initialRows }: PaymentHistoryPanelProps) {
 
   return (
     <SectionCard
-      title="Historial de cobros"
-      description="Payment Links del tenant: categoría contable, estado y reserva asociada."
+      title={t("payments.historyTitle")}
+      description={t("payments.historyDescription")}
       className="mt-6"
     >
       <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3 sm:px-6">
         <input
           className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
-          placeholder="Buscar por nombre de huésped…"
+          placeholder={t("payments.searchGuest")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
         <Button type="button" size="sm" variant="outline" disabled={pending} onClick={search}>
           <Search className="mr-1.5 h-4 w-4" />
-          Buscar
+          {t("payments.search")}
         </Button>
       </div>
 
       {rows.length === 0 ? (
-        <p className="p-6 text-sm text-muted-foreground">Sin cobros registrados.</p>
+        <p className="p-6 text-sm text-muted-foreground">{t("payments.noCharges")}</p>
       ) : (
         <ul className="divide-y divide-border">
           {rows.map((row) => (
@@ -62,6 +65,12 @@ export function PaymentHistoryPanel({ initialRows }: PaymentHistoryPanelProps) {
                   {row.incomeCategory} · {row.statusLabel}
                   {row.guestName ? ` · ${row.guestName}` : ""}
                   {row.propertyLabel ? ` · ${row.propertyLabel}` : ""}
+                </p>
+                <p className="text-xs tabular-nums text-muted-foreground/90">
+                  {t("payments.createdAt")} {formatDateTime(row.createdAt)}
+                  {row.paidAt
+                    ? ` · ${t("payments.paidAt")} ${formatDateTime(row.paidAt)}`
+                    : null}
                 </p>
               </div>
               <p className="text-sm font-semibold tabular-nums">{row.amountFormatted}</p>

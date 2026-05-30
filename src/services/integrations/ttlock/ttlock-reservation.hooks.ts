@@ -1,8 +1,11 @@
+import { db } from "@/lib/db";
 import {
+  resolveAccessWindow,
   revokeAccessCodeForReservation,
   syncAccessCodeDatesForReservation,
   tryGenerateAccessCodeForReservation,
 } from "@/services/integrations/ttlock/ttlock-access.service";
+import { resolveTTLockAutomationSettingsForProperty } from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export type TTLockReservationAccessContext = {
   reservationId: string;
@@ -53,10 +56,32 @@ export async function onReservationModifiedForTTLock(
   await syncAccessCodeDatesForReservation(ctx.reservationId);
 }
 
-/** booking.checked_out — revoke active code (idempotent). */
+/** booking.checked_out — revoke active code only after checkout hour (idempotent). */
 export async function onReservationCheckedOutForTTLock(
   ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
 ): Promise<void> {
+  const settings = await resolveTTLockAutomationSettingsForProperty(ctx.propertyId);
+  if (settings?.revokeAfterCheckout === false) return;
+
+  const reservation = await db.reservation.findUnique({
+    where: { id: ctx.reservationId },
+    select: {
+      checkIn: true,
+      checkOut: true,
+      property: { select: { checkInTime: true, checkOutTime: true } },
+    },
+  });
+  if (!reservation) return;
+
+  const { validTo } = resolveAccessWindow({
+    checkIn: reservation.checkIn,
+    checkOut: reservation.checkOut,
+    checkInTime: reservation.property.checkInTime,
+    checkOutTime: reservation.property.checkOutTime,
+  });
+
+  if (new Date() < validTo) return;
+
   await revokeAccessCodeForReservation(ctx.reservationId);
 }
 
@@ -64,7 +89,7 @@ export async function onReservationCheckedOutForTTLock(
 export async function onReservationCancelledForTTLock(
   ctx: Pick<TTLockReservationAccessContext, "reservationId" | "propertyId" | "ownerId">,
 ): Promise<void> {
-  await revokeAccessCodeForReservation(ctx.reservationId);
+  await revokeAccessCodeForReservation(ctx.reservationId, { force: true });
 }
 
 /** Triggers TTLock passcode flow once guest registration is complete. */

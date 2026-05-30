@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -14,48 +15,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTaskAction } from "@/features/tasks/actions/task.actions";
 import {
   taskFormSchema,
   type TaskFormValues,
 } from "@/features/tasks/schemas/task.schema";
-import { TaskStatus, TaskType } from "@prisma/client";
-import { taskTypeLabels } from "@/lib/labels";
-import {
-  getTaskCategoryConfig,
-  type TaskCategorySlug,
-} from "@/lib/tasks/task-categories";
 
-type PropertyOption = { id: string; name: string };
-
-type TaskFormProps = {
-  properties: PropertyOption[];
-  categorySlug?: TaskCategorySlug;
-};
-
-export function TaskForm({ properties, categorySlug }: TaskFormProps) {
-  const category = categorySlug ? getTaskCategoryConfig(categorySlug) : null;
-  const defaultType = category?.taskType ?? TaskType.CLEANING;
-
+export function TaskForm() {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
     defaultValues: {
-      type: defaultType,
       title: "",
       description: "",
-      propertyId: properties[0]?.id ?? "",
-      dueDate: "",
-      status: TaskStatus.PENDING,
     },
   });
 
@@ -64,6 +39,7 @@ export function TaskForm({ properties, categorySlug }: TaskFormProps) {
       try {
         await createTaskAction(values);
         toast.success("Tarea creada");
+        router.push("/tasks");
       } catch {
         toast.error("No se pudo crear la tarea");
       }
@@ -80,70 +56,7 @@ export function TaskForm({ properties, categorySlug }: TaskFormProps) {
             <FormItem>
               <FormLabel>Título</FormLabel>
               <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipo</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {Object.values(TaskType).map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {taskTypeLabels[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {properties.length > 0 && (
-          <FormField
-            control={form.control}
-            name="propertyId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Propiedad</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={form.control}
-          name="dueDate"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Fecha</FormLabel>
-              <FormControl>
-                <Input type="date" {...field} />
+                <Input {...field} placeholder="Ej. Comprar detergente" />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -156,7 +69,11 @@ export function TaskForm({ properties, categorySlug }: TaskFormProps) {
             <FormItem>
               <FormLabel>Descripción</FormLabel>
               <FormControl>
-                <Textarea {...field} />
+                <Textarea
+                  {...field}
+                  rows={4}
+                  placeholder="Detalle libre: qué hacer, dónde, observaciones…"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

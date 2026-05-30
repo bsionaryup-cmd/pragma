@@ -1,11 +1,12 @@
 import dynamic from "next/dynamic";
+import { redirect } from "next/navigation";
 import { ModuleShellFill } from "@/components/layout/module-shell";
 import { resolveCalendarAnchor } from "@/features/calendar/lib/calendar-dates";
 import { hasPermission, requirePermission } from "@/lib/auth";
+import { isBillingRestrictedPath } from "@/lib/billing/billing-access";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getCalendarData } from "@/services/calendar/calendar.service";
 import type { AppUserRole } from "@/types/auth";
-import { redirectIfBillingLocked } from "@/lib/billing/require-billing-route";
 import CalendarLoading from "./loading";
 
 const MultiCalendar = dynamic(
@@ -21,14 +22,18 @@ type CalendarPageProps = {
 };
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
-  const [auth, billing, params] = await Promise.all([
+  const params = await searchParams;
+  const anchor = resolveCalendarAnchor(params.anchor);
+
+  const [auth, billing, data] = await Promise.all([
     requirePermission("calendar:read"),
     getBillingAccessSnapshot(),
-    searchParams,
+    getCalendarData(anchor),
   ]);
-  await redirectIfBillingLocked("/calendar");
 
-  const anchor = resolveCalendarAnchor(params.anchor);
+  if (billing.locked && isBillingRestrictedPath("/calendar")) {
+    redirect("/settings/billing");
+  }
   const canWrite =
     !billing.locked &&
     hasPermission(auth.role as AppUserRole, "reservations:write");
@@ -39,7 +44,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const canManagePayments =
     !billing.locked &&
     hasPermission(auth.role as AppUserRole, "finance:write");
-  const data = await getCalendarData(anchor);
   const propertyOptions = data.properties.map((property) => ({
     id: property.id,
     name: property.name,

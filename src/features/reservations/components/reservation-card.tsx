@@ -13,7 +13,7 @@ import {
 } from "@/features/reservations/lib/reservation-status";
 import type { ReservationInboxItem } from "@/features/reservations/types/reservation.types";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
-import { formatPropertyUnit } from "@/lib/property-display";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { formatCurrency } from "@/lib/helpers";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
@@ -30,16 +30,12 @@ function ReservationCardComponent({
   isActive,
   onSelect,
 }: ReservationCardProps) {
-  const displayStatus = resolveDisplayStatus(
-    reservation.status,
-    reservation.checkOut,
-  );
+  const displayStatus = resolveDisplayStatus(reservation.status);
   const guests = totalGuests(
     reservation.adults,
     reservation.children,
     reservation.infants,
   );
-  const unit = formatPropertyUnit(reservation.property.unitNumber);
   const registrationDueSoon = isGuestRegistrationDueSoon({
     checkIn: reservation.checkIn,
     guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
@@ -63,11 +59,6 @@ function ReservationCardComponent({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            {unit ? (
-              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-foreground">
-                {unit}
-              </span>
-            ) : null}
             <ReservationSourceBadge
               platform={reservation.platform}
               showLabel={false}
@@ -82,12 +73,19 @@ function ReservationCardComponent({
                 Falta registro
               </span>
             ) : null}
+            {(reservation.activityUnreadCount ?? 0) > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/12 px-1.5 py-0.5 text-[10px] font-medium text-sky-800 dark:text-sky-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-500" aria-hidden />
+                {reservation.activityUnreadHint ??
+                  `${reservation.activityUnreadCount} actividades nuevas`}
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 truncate text-sm font-semibold text-foreground">
             {reservation.guestName}
           </p>
           <p className="truncate text-xs text-muted-foreground">
-            {reservation.property.name}
+            {formatPropertyLabel(reservation.property)}
           </p>
         </div>
         <span

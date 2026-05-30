@@ -16,14 +16,14 @@ const SmartpriceDashboard = dynamic(
 
 export default async function SmartpricePage() {
   await redirectIfMissingPlanFeature("revenue", "/revenue");
-  const user = await requirePermission("finance:revenue:read");
-  const canEditPrices = hasPermission(user.role as AppUserRole, "finance:write");
-
-  const [billing, overview, finance] = await Promise.all([
+  const userPromise = requirePermission("finance:revenue:read");
+  const [user, billing, overview, finance] = await Promise.all([
+    userPromise,
     getBillingAccessSnapshot(),
     getPriceLabsOverview(false),
     getFinanceOverview("es").catch(() => null),
   ]);
+  const canEditPrices = hasPermission(user.role as AppUserRole, "finance:write");
 
   return (
     <ModuleShellFlow className="bg-background">

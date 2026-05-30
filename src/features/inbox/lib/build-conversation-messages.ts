@@ -17,10 +17,7 @@ export function buildConversationMessages(
   hostLabel = "Anfitrión",
 ): InboxMessage[] {
   const messages: InboxMessage[] = [];
-  const displayStatus = resolveDisplayStatus(
-    reservation.status,
-    reservation.checkOut,
-  );
+  const displayStatus = resolveDisplayStatus(reservation.status);
   const statusLabel = displayStatusLabels[displayStatus];
 
   if (reservation.createdAt) {

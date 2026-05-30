@@ -9,7 +9,7 @@ export const PAYMENT_LINK_CATEGORIES = [
   { value: "MANUAL_OPERATIONAL", label: "Cobro operativo" },
   { value: "DAMAGE_FEE", label: "Daños" },
   { value: "CLEANING_FEE", label: "Limpieza" },
-  { value: "LATE_CHECKOUT", label: "Late check-out" },
+  { value: "LATE_CHECKOUT", label: "Salida tardía" },
   { value: "EXTRA_SERVICES", label: "Servicios extra" },
   { value: "DEPOSIT", label: "Depósito" },
 ] as const;

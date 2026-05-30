@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ContextualSubSidebar } from "@/components/layout/contextual-sub-sidebar";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -38,18 +38,44 @@ export function DashboardNavigation({
 }: DashboardNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const previousPathnameRef = useRef(pathname);
   const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(null);
   const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
-    setPinnedModuleId(readPinnedNavGroupId());
-    setSuppressedGroupId(readSuppressedNavGroupId());
+    let pinned = readPinnedNavGroupId();
+    const suppressed = readSuppressedNavGroupId();
+
+    if (getActiveNavGroupId(pathname, modules) === null && pinned !== null) {
+      writePinnedNavGroupId(null);
+      pinned = null;
+    }
+
+    setPinnedModuleId(pinned);
+    setSuppressedGroupId(suppressed);
+    // Solo restaurar persistencia al montar el shell.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeGroupId = useMemo(
     () => getActiveNavGroupId(pathname, modules),
     [modules, pathname],
   );
+
+  useEffect(() => {
+    const previousPathname = previousPathnameRef.current;
+    if (pathname === previousPathname) return;
+    previousPathnameRef.current = pathname;
+
+    // Rutas sueltas (p. ej. /revenue) no deben mantener un submenú de grupo abierto.
+    if (getActiveNavGroupId(pathname, modules) !== null) return;
+
+    setPinnedModuleId((current) => {
+      if (current === null) return current;
+      writePinnedNavGroupId(null);
+      return null;
+    });
+  }, [pathname, modules]);
 
   useEffect(() => {
     setSuppressedGroupId((current) => {
@@ -99,8 +125,7 @@ export function DashboardNavigation({
 
     if (
       isOpening &&
-      activeGroupId !== module.id &&
-      module.navigateOnOpen !== false &&
+      module.navigateOnOpen === true &&
       module.href !== pathname
     ) {
       router.push(module.href);

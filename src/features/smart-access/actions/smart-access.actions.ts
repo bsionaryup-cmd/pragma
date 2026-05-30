@@ -33,7 +33,7 @@ export async function approveAccessCodeAction(credentialId: string) {
 
 export async function revokeAccessCodeAction(reservationId: string) {
   await requirePermission("access:manage");
-  const result = await revokeAccessCodeForReservation(reservationId);
+  const result = await revokeAccessCodeForReservation(reservationId, { force: true });
   revalidateSmartAccess();
   return result;
 }

@@ -548,10 +548,29 @@ export async function updateProperty(
     }
   }
   const scope = await resolvePropertyScope(userId, id);
-  return db.property.updateMany({
+  const existing = await db.property.findFirst({
     where: scope,
-    data: normalizeFormData(data),
+    select: { checkInTime: true, checkOutTime: true },
   });
+  const normalized = normalizeFormData(data);
+  const result = await db.property.updateMany({
+    where: scope,
+    data: normalized,
+  });
+
+  const scheduleChanged =
+    existing != null &&
+    (existing.checkInTime !== normalized.checkInTime ||
+      existing.checkOutTime !== normalized.checkOutTime);
+
+  if (scheduleChanged && result.count > 0) {
+    const { syncAccessCodeWindowsForProperty } = await import(
+      "@/services/integrations/ttlock/ttlock-access.service"
+    );
+    await syncAccessCodeWindowsForProperty(id);
+  }
+
+  return result;
 }
 
 export async function deleteProperty(id: string, userId: string) {

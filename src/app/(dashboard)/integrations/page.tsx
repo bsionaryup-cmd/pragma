@@ -11,9 +11,13 @@ import { BRAND_ASSETS } from "@/lib/brand-assets";
 import type { AppUserRole } from "@/types/auth";
 
 export default async function IntegrationsPage() {
-  const auth = await requirePermission("integrations:read");
-  const user = await requireDbUser();
-  const planContext = await getOrganizationPlanContextForUser(user.id);
+  const [auth, user, planContext] = await Promise.all([
+    requirePermission("integrations:read"),
+    requireDbUser(),
+    requireDbUser().then((resolvedUser) =>
+      getOrganizationPlanContextForUser(resolvedUser.id),
+    ),
+  ]);
   const plan = planContext?.plan ?? "STARTER";
   const canManage = hasPermission(auth.role as AppUserRole, "integrations:manage");
 
@@ -43,7 +47,6 @@ export default async function IntegrationsPage() {
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/integrations/airbnb"
-            prefetch={false}
             className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
           >
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-danger/10">
@@ -65,7 +68,6 @@ export default async function IntegrationsPage() {
           {showTtlock ? (
             <Link
               href="/integrations/ttlock"
-              prefetch={false}
               className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -86,7 +88,6 @@ export default async function IntegrationsPage() {
           {showPriceLabs ? (
             <Link
               href="/integrations/pricelabs"
-              prefetch={false}
               className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
@@ -108,7 +109,6 @@ export default async function IntegrationsPage() {
           {canManage && showSire ? (
             <Link
               href="/integrations/sire"
-              prefetch={false}
               className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
@@ -129,7 +129,6 @@ export default async function IntegrationsPage() {
           {canManage && showFinance ? (
             <Link
               href="/integrations/wompi"
-              prefetch={false}
               className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
@@ -150,7 +149,6 @@ export default async function IntegrationsPage() {
           {canManage && showTraa ? (
             <Link
               href="/integrations/traa"
-              prefetch={false}
               className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
             >
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-pragma-light-blue text-pragma-electric">
