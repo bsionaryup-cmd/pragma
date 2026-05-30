@@ -82,6 +82,13 @@ const reservationsNavItem: NavItem = {
   permission: "reservations:read",
 };
 
+const novedadesNavItem: NavItem = {
+  labelKey: "nav.novedades",
+  href: "/novedades",
+  icon: "message-circle",
+  permission: "reservations:read",
+};
+
 const calendarNavItem: NavItem = {
   labelKey: "nav.calendar",
   href: "/calendar",
@@ -325,6 +332,10 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(reservationsNavItem, role, plan)) {
     modules.push(navLinkModule(reservationsNavItem));
+  }
+
+  if (navLinkAllowed(novedadesNavItem, role, plan)) {
+    modules.push(navLinkModule(novedadesNavItem));
   }
 
   if (navLinkAllowed(calendarNavItem, role, plan)) {

@@ -81,6 +81,7 @@ const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
 export const RECEPTIONIST_ROUTE_PREFIXES = [
   "/panel",
   "/reservations",
+  "/novedades",
   "/calendar",
   "/tasks",
 ] as const;
@@ -92,6 +93,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/properties": "properties:read",
   "/reservations/new": "reservations:create",
   "/reservations": "reservations:read",
+  "/novedades": "reservations:read",
   "/inbox": "reservations:read",
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",

@@ -26,6 +26,7 @@ export const en = {
     overview: "Overview",
     operations: "Operations",
     reservations: "Reservations",
+    novedades: "Updates",
     properties: "Properties",
     calendar: "Calendar",
     tasks: "Tasks",

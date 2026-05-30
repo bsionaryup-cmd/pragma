@@ -39,6 +39,7 @@ model Organization {
   airbnbEmailIntegration TenantAirbnbEmailIntegration?
   airbnbListingEmailMaps AirbnbListingEmailMap[]
   emailIngestionAudits   EmailIngestionAudit[]
+  reservationEvents      ReservationEvent[]
 
   @@map("organizations")
 }
@@ -179,6 +180,7 @@ model Property {
   emailIngestionAudits EmailIngestionAudit[]
   airbnbEmailTasks     AirbnbEmailTask[]
   listingEmailMaps     AirbnbListingEmailMap[]
+  observabilityEvents  ReservationEvent[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -247,6 +249,7 @@ model Reservation {
   emailCommunications     ReservationCommunication[]
   emailReviews            ReservationReview[]
   airbnbEmailTasks        AirbnbEmailTask[]
+  observabilityEvents     ReservationEvent[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -600,6 +603,40 @@ model LegalDocumentAcceptance {
   @@index([documentType])
   @@index([acceptedAt])
   @@map("legal_document_acceptances")
+}
+
+// ─── Reservation observability (read-only feed; no business logic) ──
+
+enum ReservationEventType {
+  MODIFICATION_REQUEST
+  MODIFICATION_APPROVED
+}
+
+model ReservationEvent {
+  id             String               @id @default(cuid())
+  organizationId String?
+  reservationId  String?
+  propertyId     String?
+  eventType      ReservationEventType
+  title          String
+  description    String               @db.Text
+  metadataJson   Json?
+  source         String               @default("airbnb_email")
+  sourceEmailId  String?
+  rawSubject         String?
+  classificationConfidence Decimal?   @db.Decimal(5, 4)
+  createdAt      DateTime             @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  reservation  Reservation?  @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  property     Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([reservationId])
+  @@index([propertyId])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([sourceEmailId, eventType])
+  @@map("reservation_events")
 }
 
 // ─── Organization integrations (multi-tenant) ─────────────────

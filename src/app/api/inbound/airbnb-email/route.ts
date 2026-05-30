@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { processInboundAirbnbEmail } from "@/modules/airbnb-email";
+import { recordModificationObservabilityFromInboundEmail } from "@/modules/reservation-events";
 import {
   assertAirbnbEmailIntegrationEnabled,
   assertPropertyInOrganization,
 } from "@/modules/airbnb-email/lib/tenant-guard";
+import {
+  buildEmailBody,
+  extractReservationSignals,
+} from "@/modules/airbnb-email/parsing/extractors";
 import type { InboundAirbnbEmailPayload } from "@/modules/airbnb-email/types";
 
 export const runtime = "nodejs";
@@ -73,6 +78,35 @@ export async function POST(request: Request) {
     propertyId: body.propertyId ?? null,
     organizationId: body.organizationId,
   });
+
+  if (outcome.auditId) {
+    const bodyPreview = buildEmailBody({
+      subject: body.subject,
+      html: body.html,
+      text: body.text,
+    });
+    const signals = extractReservationSignals({
+      subject: body.subject,
+      body: bodyPreview,
+      html: body.html,
+    });
+
+    await recordModificationObservabilityFromInboundEmail({
+      organizationId: body.organizationId,
+      auditId: outcome.auditId,
+      reservationId: outcome.reservationId ?? null,
+      propertyId: body.propertyId ?? null,
+      subject: body.subject,
+      html: body.html,
+      text: body.text,
+      signals,
+    }).catch((error) => {
+      airbnbEmailLog.warn("modification_observability_failed", {
+        auditId: outcome.auditId,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    });
+  }
 
   airbnbEmailLog.info("manual_inbound", {
     organizationId: body.organizationId,

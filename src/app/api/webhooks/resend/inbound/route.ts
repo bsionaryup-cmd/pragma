@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { processInboundAirbnbEmail } from "@/modules/airbnb-email";
+import { recordModificationObservabilityFromInboundEmail } from "@/modules/reservation-events";
 import {
   fetchResendReceivedEmail,
   isResendInboundConfigured,
@@ -130,6 +131,24 @@ export async function POST(request: Request) {
       },
     );
 
+    if (outcome.auditId) {
+      await recordModificationObservabilityFromInboundEmail({
+        organizationId: resolved.organizationId,
+        auditId: outcome.auditId,
+        reservationId: outcome.reservationId ?? null,
+        propertyId: propertyResolution.propertyId ?? null,
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+        signals,
+      }).catch((error) => {
+        airbnbEmailLog.warn("modification_observability_failed", {
+          auditId: outcome.auditId,
+          error: error instanceof Error ? error.message : "unknown",
+        });
+      });
+    }
+
     const success =
       outcome.status === "processed" ||
       outcome.status === "manual_review" ||
@@ -146,6 +165,7 @@ export async function POST(request: Request) {
     if (outcome.reservationId) {
       revalidatePath("/reservations");
     }
+    revalidatePath("/novedades");
 
     return NextResponse.json({ ok: true, outcome });
   } catch (error) {

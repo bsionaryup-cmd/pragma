@@ -25,6 +25,7 @@ export const es = {
     overview: "Panel de Control",
     operations: "Operaciones",
     reservations: "Reservas",
+    novedades: "Novedades",
     properties: "Propiedades",
     calendar: "Calendario",
     tasks: "Tareas",
