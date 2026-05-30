@@ -33,7 +33,7 @@ export function MobileDashboardHeader({
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-pragma-soft xl:hidden dark:shadow-none">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-pragma-soft dark:shadow-none">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -60,6 +60,7 @@ export function MobileDashboardHeader({
             modules={navModules}
             settingsItem={settingsItem}
             user={user}
+            overlay
             onNavigate={() => setOpen(false)}
             className="h-full w-full border-0 shadow-none"
           />

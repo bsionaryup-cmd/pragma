@@ -1,6 +1,9 @@
 import type { ReservationStatus } from "@prisma/client";
 import { getTodayKey } from "@/features/calendar/lib/calendar-dates";
 
+/** TEMP: quitar cuando termine el backfill de reservas directas históricas. */
+export const TEMP_ALLOW_PAST_RESERVATION_CREATE = true;
+
 export type ReservationDateSnapshot = {
   checkIn: string;
   checkOut: string;
@@ -51,7 +54,7 @@ export function assertReservationDateMutationAllowed(options: {
   const { checkIn, checkOut, existing, operation } = options;
 
   if (operation === "create") {
-    if (checkIn < today) {
+    if (!TEMP_ALLOW_PAST_RESERVATION_CREATE && checkIn < today) {
       throw new ReservationMutationPolicyError(
         "No se pueden crear reservas con fecha de entrada en el pasado.",
       );

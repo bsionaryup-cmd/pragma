@@ -27,6 +27,8 @@ type DashboardNavigationProps = {
   user: SidebarUser;
   className?: string;
   onNavigate?: () => void;
+  /** Menú en sheet (PWA/tablet): sin sub-sidebar lateral, navega al abrir grupo. */
+  overlay?: boolean;
 };
 
 export function DashboardNavigation({
@@ -35,6 +37,7 @@ export function DashboardNavigation({
   user,
   className,
   onNavigate,
+  overlay = false,
 }: DashboardNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -43,6 +46,8 @@ export function DashboardNavigation({
   const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (overlay) return;
+
     let pinned = readPinnedNavGroupId();
     const suppressed = readSuppressedNavGroupId();
 
@@ -109,6 +114,12 @@ export function DashboardNavigation({
   );
 
   function handleGroupClick(module: NavGroupModule) {
+    if (overlay) {
+      router.push(module.href);
+      onNavigate?.();
+      return;
+    }
+
     if (activeGroupId === module.id && openModuleId === module.id) {
       setSuppressedGroupId(module.id);
       setPinnedModuleId(null);
@@ -157,17 +168,20 @@ export function DashboardNavigation({
         modules={modules}
         settingsItem={settingsItem}
         user={user}
-        openModuleId={openModuleId}
+        forceExpanded={overlay}
+        openModuleId={overlay ? null : openModuleId}
         isModuleStrongActive={isModuleStrongActive}
         onGroupClick={handleGroupClick}
         onMainLinkNavigate={handleMainLinkNavigate}
         onNavigate={onNavigate}
       />
-      <ContextualSubSidebar
-        module={openModule}
-        onClose={handleCloseSubSidebar}
-        onNavigate={onNavigate}
-      />
+      {!overlay ? (
+        <ContextualSubSidebar
+          module={openModule}
+          onClose={handleCloseSubSidebar}
+          onNavigate={onNavigate}
+        />
+      ) : null}
     </div>
   );
 }
