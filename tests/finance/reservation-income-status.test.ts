@@ -23,7 +23,7 @@ describe("reservation income status", () => {
     );
   });
 
-  it("confirms income after check-in when paid", () => {
+  it("confirms income after check-in regardless of payment status", () => {
     assert.equal(
       isReservationIncomePending(pastCheckIn, PaymentStatus.PAID, today),
       false,
@@ -32,16 +32,13 @@ describe("reservation income status", () => {
       isReservationIncomeConfirmed(pastCheckIn, PaymentStatus.PAID, today),
       true,
     );
-  });
-
-  it("keeps unpaid past check-ins as pending", () => {
     assert.equal(
       isReservationIncomePending(pastCheckIn, PaymentStatus.PENDING, today),
-      true,
+      false,
     );
     assert.equal(
       isReservationIncomeConfirmed(pastCheckIn, PaymentStatus.PENDING, today),
-      false,
+      true,
     );
   });
 });

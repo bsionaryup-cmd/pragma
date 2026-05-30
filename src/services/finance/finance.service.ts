@@ -177,8 +177,7 @@ export async function getFinanceOverview(
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
           status: { in: ACCOUNTING_RESERVATION_STATUSES },
-          checkIn: { lte: end },
-          checkOut: { gte: start },
+          checkIn: { gte: start, lte: end },
         }),
       ),
       select: {
@@ -202,8 +201,7 @@ export async function getFinanceOverview(
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
           status: { in: ACCOUNTING_RESERVATION_STATUSES },
-          checkIn: { lte: prevEnd },
-          checkOut: { gte: prevStart },
+          checkIn: { gte: prevStart, lte: prevEnd },
         }),
       ),
       select: {
@@ -357,10 +355,8 @@ export async function getFinanceOverview(
   const roi = expenses > 0 ? clampPercent((netProfit / expenses) * 100) : 0;
 
   const chartYear = year;
-  const yearlyChart = await buildFinanceYearlySeries(scope, chartYear);
-  const yearToDateRevenue = yearlyChart
-    .filter((m) => !m.isFuture)
-    .reduce((sum, m) => sum + m.revenue, 0);
+  const { months: yearlyChart, yearToDateRevenue } =
+    await buildFinanceYearlySeries(scope, chartYear);
 
   return {
     selectedMonth,

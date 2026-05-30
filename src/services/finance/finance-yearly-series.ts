@@ -1,12 +1,18 @@
 import {
-  PaymentStatus,
   PropertyStatus,
   ReservationStatus,
 } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
-import { todayPrismaDate } from "@/lib/dates";
+import { todayPrismaDate, toReservationDateKey } from "@/lib/dates";
 import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
+import {
+  checkInFallsInMonth,
+  financeMonthBounds,
+  financeYearBounds,
+  reservationNightsInMonth,
+  reservationOverlapsMonth,
+} from "@/lib/finance/finance-month-attribution";
 import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
 import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
 import {
@@ -49,6 +55,12 @@ export type FinanceYearMonthPoint = {
   isFuture: boolean;
 };
 
+export type FinanceYearlySeriesResult = {
+  months: FinanceYearMonthPoint[];
+  /** Ingresos confirmados por check-in en el año hasta hoy (sin doble conteo). */
+  yearToDateRevenue: number;
+};
+
 const ACCOUNTING: ReservationStatus[] = [
   ReservationStatus.CONFIRMED,
   ReservationStatus.CHECKED_IN,
@@ -56,45 +68,15 @@ const ACCOUNTING: ReservationStatus[] = [
   ReservationStatus.CHECKED_OUT,
 ];
 
-function monthRange(year: number, monthIndex: number) {
-  const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-  const end = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
-  return { start, end };
-}
-
-function daysInMonth(year: number, monthIndex: number): number {
-  return new Date(year, monthIndex + 1, 0).getDate();
-}
-
-function overlapsMonth(
-  checkIn: Date,
-  checkOut: Date,
-  monthStart: Date,
-  monthEnd: Date,
-): boolean {
-  return checkIn <= monthEnd && checkOut > monthStart;
-}
-
-function nightsInMonth(
-  checkIn: Date,
-  checkOut: Date,
-  monthStart: Date,
-  monthEnd: Date,
-): number {
-  const start = checkIn > monthStart ? checkIn : monthStart;
-  const end = checkOut < monthEnd ? checkOut : monthEnd;
-  const ms = end.getTime() - start.getTime();
-  if (ms <= 0) return 0;
-  return Math.ceil(ms / (1000 * 60 * 60 * 24));
-}
-
 export async function buildFinanceYearlySeries(
   scope: TenantDataScope,
   year = new Date().getFullYear(),
-): Promise<FinanceYearMonthPoint[]> {
-  const yearStart = new Date(year, 0, 1, 0, 0, 0, 0);
-  const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+): Promise<FinanceYearlySeriesResult> {
+  const { start: yearStart, end: yearEnd } = financeYearBounds(year);
   const today = todayPrismaDate();
+  const yearStartKey = toReservationDateKey(yearStart);
+
+  const yearEndKey = toReservationDateKey(yearEnd);
 
   const [reservations, cancelled, manualExpenses, manualIncomes, activeProperties] =
     await Promise.all([
@@ -134,11 +116,16 @@ export async function buildFinanceYearlySeries(
 
   const revenueSourcesByReservationId =
     await loadReservationRevenueSourcesByReservationId(
-      reservations.map((row) => row.id),
+      reservations
+        .filter((row) => {
+          const checkInKey = toReservationDateKey(row.checkIn);
+          return checkInKey >= yearStartKey && checkInKey <= yearEndKey;
+        })
+        .map((row) => row.id),
     );
 
   const buckets = Array.from({ length: 12 }, (_, monthIndex) => {
-    const { start, end } = monthRange(year, monthIndex);
+    const { start, end, daysInMonth } = financeMonthBounds(year, monthIndex);
     const isFuture = start > today;
 
     let revenue = 0;
@@ -149,7 +136,11 @@ export async function buildFinanceYearlySeries(
     let pendingReservations = 0;
 
     for (const r of reservations) {
-      if (!overlapsMonth(r.checkIn, r.checkOut, start, end)) continue;
+      if (reservationOverlapsMonth(r.checkIn, r.checkOut, start, end)) {
+        bookedNights += reservationNightsInMonth(r.checkIn, r.checkOut, start, end);
+      }
+
+      if (!checkInFallsInMonth(r.checkIn, start, end)) continue;
 
       const amount = resolveReservationRevenueAmount({
         totalAmount: r.totalAmount,
@@ -158,25 +149,17 @@ export async function buildFinanceYearlySeries(
         emailMatchBlob: revenueSourcesByReservationId.get(r.id)?.emailMatchBlob,
         payoutNet: revenueSourcesByReservationId.get(r.id)?.payoutNet,
       });
-      const checkInInMonth = r.checkIn >= start && r.checkIn <= end;
 
       if (isReservationIncomePending(r.checkIn, r.paymentStatus, today)) {
-        if (checkInInMonth) {
-          pendingRevenue += amount;
-          pendingReservations += 1;
-        }
-        bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
+        pendingRevenue += amount;
+        pendingReservations += 1;
         continue;
       }
 
-      if (
-        isReservationIncomeConfirmed(r.checkIn, r.paymentStatus, today) &&
-        checkInInMonth
-      ) {
+      if (isReservationIncomeConfirmed(r.checkIn, r.paymentStatus, today)) {
         revenue += amount;
         paidReservations += 1;
       }
-      bookedNights += nightsInMonth(r.checkIn, r.checkOut, start, end);
     }
 
     if (!isFuture) {
@@ -193,11 +176,11 @@ export async function buildFinanceYearlySeries(
     }
 
     const cancellations = cancelled.filter((r) =>
-      overlapsMonth(r.checkIn, r.checkOut, start, end),
+      reservationOverlapsMonth(r.checkIn, r.checkOut, start, end),
     ).length;
 
     const capacityNights =
-      activeProperties > 0 ? activeProperties * daysInMonth(year, monthIndex) : 0;
+      activeProperties > 0 ? activeProperties * daysInMonth : 0;
     const occupancy =
       capacityNights > 0
         ? clampPercent((bookedNights / capacityNights) * 100)
@@ -217,5 +200,10 @@ export async function buildFinanceYearlySeries(
     };
   });
 
-  return buckets;
+  return {
+    months: buckets,
+    yearToDateRevenue: Math.round(
+      buckets.filter((m) => !m.isFuture).reduce((sum, m) => sum + m.revenue, 0),
+    ),
+  };
 }

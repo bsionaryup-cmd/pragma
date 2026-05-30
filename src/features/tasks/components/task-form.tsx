@@ -16,19 +16,25 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { createTaskAction } from "@/features/tasks/actions/task.actions";
+import { createTaskAction, updateTaskAction } from "@/features/tasks/actions/task.actions";
 import {
   taskFormSchema,
   type TaskFormValues,
 } from "@/features/tasks/schemas/task.schema";
 
-export function TaskForm() {
+type TaskFormProps = {
+  taskId?: string;
+  defaultValues?: TaskFormValues;
+};
+
+export function TaskForm({ taskId, defaultValues }: TaskFormProps = {}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const isEdit = Boolean(taskId);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
-    defaultValues: {
+    defaultValues: defaultValues ?? {
       title: "",
       description: "",
     },
@@ -37,11 +43,16 @@ export function TaskForm() {
   function onSubmit(values: TaskFormValues) {
     startTransition(async () => {
       try {
-        await createTaskAction(values);
-        toast.success("Tarea creada");
+        if (isEdit && taskId) {
+          await updateTaskAction(taskId, values);
+          toast.success("Tarea actualizada");
+        } else {
+          await createTaskAction(values);
+          toast.success("Tarea creada");
+        }
         router.push("/tasks");
       } catch {
-        toast.error("No se pudo crear la tarea");
+        toast.error(isEdit ? "No se pudo actualizar la tarea" : "No se pudo crear la tarea");
       }
     });
   }
@@ -80,7 +91,7 @@ export function TaskForm() {
           )}
         />
         <Button type="submit" disabled={pending}>
-          {pending ? "Guardando…" : "Crear tarea"}
+          {pending ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear tarea"}
         </Button>
       </form>
     </Form>

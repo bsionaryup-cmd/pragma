@@ -54,3 +54,51 @@ export async function updateTaskStatus(id: string, status: TaskStatus) {
     },
   });
 }
+
+export async function getTaskById(id: string) {
+  const scope = await requireTenantDataScope();
+  return db.task.findFirst({
+    where: { id, ...taskWhere(scope) },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+}
+
+export async function updateTask(id: string, data: TaskFormValues) {
+  const scope = await requireTenantDataScope();
+  const task = await db.task.findFirst({
+    where: { id, ...taskWhere(scope) },
+    select: { id: true },
+  });
+
+  if (!task) {
+    throw new Error("Tarea no encontrada");
+  }
+
+  return db.task.update({
+    where: { id },
+    data: {
+      title: data.title.trim(),
+      description: data.description?.trim() || null,
+    },
+  });
+}
+
+export async function deleteTask(id: string) {
+  const scope = await requireTenantDataScope();
+  const task = await db.task.findFirst({
+    where: { id, ...taskWhere(scope) },
+    select: { id: true },
+  });
+
+  if (!task) {
+    throw new Error("Tarea no encontrada");
+  }
+
+  return db.task.delete({ where: { id } });
+}

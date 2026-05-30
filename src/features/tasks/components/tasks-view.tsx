@@ -3,6 +3,7 @@ import type { TaskStatus } from "@prisma/client";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { TaskCompleteCheckbox } from "@/features/tasks/components/task-complete-checkbox";
+import { TaskItemActions } from "@/features/tasks/components/task-item-actions";
 import { hasPermission } from "@/lib/auth";
 import type { AppUserRole } from "@/types/auth";
 import { formatDateTime } from "@/lib/helpers/date";
@@ -95,6 +96,9 @@ export function TasksView({ tasks, role }: TasksViewProps) {
                       Creada {formatDateTime(task.createdAt)}
                     </p>
                   </div>
+                  {canWrite ? (
+                    <TaskItemActions taskId={task.id} taskTitle={task.title} />
+                  ) : null}
                 </li>
               );
             })}
