@@ -1,10 +1,30 @@
-import { addCalendarDaysToKey, toReservationDateKey } from "@/lib/dates";
-import { monthBoundsInTimezone } from "@/lib/timezone";
+import {
+  addCalendarDaysToKey,
+  dateKeyToPrismaDate,
+  toReservationDateKey,
+} from "@/lib/dates";
 
-/** Límites del mes calendario en zona Bogotá (monthIndex 0 = enero). */
+export function financeMonthDateKeys(year: number, monthIndex: number) {
+  const monthNumber = monthIndex + 1;
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const monthStr = String(monthNumber).padStart(2, "0");
+  const startKey = `${year}-${monthStr}-01`;
+  const endKey = `${year}-${monthStr}-${String(daysInMonth).padStart(2, "0")}`;
+  return { startKey, endKey, daysInMonth, year, month: monthNumber };
+}
+
+/** Límites del mes calendario (monthIndex 0 = enero) como @db.Date. */
 export function financeMonthBounds(year: number, monthIndex: number) {
-  const reference = new Date(Date.UTC(year, monthIndex, 15, 12, 0, 0, 0));
-  return monthBoundsInTimezone(reference);
+  const keys = financeMonthDateKeys(year, monthIndex);
+  return {
+    start: dateKeyToPrismaDate(keys.startKey),
+    end: dateKeyToPrismaDate(keys.endKey),
+    startKey: keys.startKey,
+    endKey: keys.endKey,
+    daysInMonth: keys.daysInMonth,
+    year: keys.year,
+    month: keys.month,
+  };
 }
 
 export function financeYearBounds(year: number) {
@@ -13,7 +33,8 @@ export function financeYearBounds(year: number) {
   return {
     start: startMonth.start,
     end: endMonth.end,
-    daysInDecember: endMonth.daysInMonth,
+    startKey: startMonth.startKey,
+    endKey: endMonth.endKey,
   };
 }
 
@@ -21,13 +42,11 @@ export function financeYearBounds(year: number) {
 export function reservationOverlapsMonth(
   checkIn: Date,
   checkOut: Date,
-  monthStart: Date,
-  monthEnd: Date,
+  monthStartKey: string,
+  monthEndKey: string,
 ): boolean {
   const checkInKey = toReservationDateKey(checkIn);
   const checkOutKey = toReservationDateKey(checkOut);
-  const monthStartKey = toReservationDateKey(monthStart);
-  const monthEndKey = toReservationDateKey(monthEnd);
   return checkInKey <= monthEndKey && checkOutKey > monthStartKey;
 }
 
@@ -35,13 +54,11 @@ export function reservationOverlapsMonth(
 export function reservationNightsInMonth(
   checkIn: Date,
   checkOut: Date,
-  monthStart: Date,
-  monthEnd: Date,
+  monthStartKey: string,
+  monthEndKey: string,
 ): number {
   const stayStartKey = toReservationDateKey(checkIn);
   const stayEndKey = toReservationDateKey(checkOut);
-  const monthStartKey = toReservationDateKey(monthStart);
-  const monthEndKey = toReservationDateKey(monthEnd);
 
   let cursor =
     stayStartKey > monthStartKey ? stayStartKey : monthStartKey;
@@ -63,11 +80,19 @@ export function reservationNightsInMonth(
 /** Check-in cae dentro del mes calendario (por clave YYYY-MM-DD). */
 export function checkInFallsInMonth(
   checkIn: Date,
-  monthStart: Date,
-  monthEnd: Date,
+  monthStartKey: string,
+  monthEndKey: string,
 ): boolean {
   const checkInKey = toReservationDateKey(checkIn);
-  const monthStartKey = toReservationDateKey(monthStart);
-  const monthEndKey = toReservationDateKey(monthEnd);
   return checkInKey >= monthStartKey && checkInKey <= monthEndKey;
+}
+
+/** Fecha calendario cae dentro del mes (ingresos/egresos manuales). */
+export function calendarDateFallsInMonth(
+  date: Date,
+  monthStartKey: string,
+  monthEndKey: string,
+): boolean {
+  const dateKey = toReservationDateKey(date);
+  return dateKey >= monthStartKey && dateKey <= monthEndKey;
 }

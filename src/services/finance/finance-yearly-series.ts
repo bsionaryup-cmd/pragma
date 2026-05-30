@@ -8,6 +8,7 @@ import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
 import {
   checkInFallsInMonth,
+  calendarDateFallsInMonth,
   financeMonthBounds,
   financeYearBounds,
   reservationNightsInMonth,
@@ -125,8 +126,8 @@ export async function buildFinanceYearlySeries(
     );
 
   const buckets = Array.from({ length: 12 }, (_, monthIndex) => {
-    const { start, end, daysInMonth } = financeMonthBounds(year, monthIndex);
-    const isFuture = start > today;
+    const { startKey, endKey, daysInMonth } = financeMonthBounds(year, monthIndex);
+    const isFuture = startKey > toReservationDateKey(today);
 
     let revenue = 0;
     let pendingRevenue = 0;
@@ -136,11 +137,11 @@ export async function buildFinanceYearlySeries(
     let pendingReservations = 0;
 
     for (const r of reservations) {
-      if (reservationOverlapsMonth(r.checkIn, r.checkOut, start, end)) {
-        bookedNights += reservationNightsInMonth(r.checkIn, r.checkOut, start, end);
+      if (reservationOverlapsMonth(r.checkIn, r.checkOut, startKey, endKey)) {
+        bookedNights += reservationNightsInMonth(r.checkIn, r.checkOut, startKey, endKey);
       }
 
-      if (!checkInFallsInMonth(r.checkIn, start, end)) continue;
+      if (!checkInFallsInMonth(r.checkIn, startKey, endKey)) continue;
 
       const amount = resolveReservationRevenueAmount({
         totalAmount: r.totalAmount,
@@ -164,19 +165,19 @@ export async function buildFinanceYearlySeries(
 
     if (!isFuture) {
       for (const row of manualExpenses) {
-        if (row.expenseDate >= start && row.expenseDate <= end) {
+        if (calendarDateFallsInMonth(row.expenseDate, startKey, endKey)) {
           expenses += Number(row.amount);
         }
       }
       for (const row of manualIncomes) {
-        if (row.incomeDate >= start && row.incomeDate <= end) {
+        if (calendarDateFallsInMonth(row.incomeDate, startKey, endKey)) {
           revenue += Number(row.amount);
         }
       }
     }
 
     const cancellations = cancelled.filter((r) =>
-      reservationOverlapsMonth(r.checkIn, r.checkOut, start, end),
+      reservationOverlapsMonth(r.checkIn, r.checkOut, startKey, endKey),
     ).length;
 
     const capacityNights =

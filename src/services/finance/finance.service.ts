@@ -1,7 +1,8 @@
-import { PropertyStatus, ReservationStatus, PaymentStatus } from "@prisma/client";
+import { PropertyStatus, ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { prismaDateToKey, todayPrismaDate } from "@/lib/dates";
 import { db } from "@/lib/db";
+import { financeMonthBounds } from "@/lib/finance/finance-month-attribution";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { monthBoundsInTimezone } from "@/lib/timezone";
@@ -161,7 +162,12 @@ export async function getFinanceOverview(
 ): Promise<FinanceOverview> {
   const scope = await requireTenantDataScope();
   const reference = parseFinanceMonthReference(options?.month);
-  const { start, end, prevStart, prevEnd, year, month } = monthBounds(reference);
+  const { year, month } = monthBounds(reference);
+  const currentMonth = financeMonthBounds(year, month - 1);
+  const previousMonth = financeMonthBounds(
+    month === 1 ? year - 1 : year,
+    month === 1 ? 11 : month - 2,
+  );
   const selectedMonth = `${year}-${String(month).padStart(2, "0")}`;
   const selectedMonthLabel = `${FINANCE_YEAR_MONTH_LABELS[month - 1]} ${year}`;
   const today = todayPrismaDate();
@@ -177,7 +183,7 @@ export async function getFinanceOverview(
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
           status: { in: ACCOUNTING_RESERVATION_STATUSES },
-          checkIn: { gte: start, lte: end },
+          checkIn: { gte: currentMonth.start, lte: currentMonth.end },
         }),
       ),
       select: {
@@ -201,7 +207,7 @@ export async function getFinanceOverview(
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
           status: { in: ACCOUNTING_RESERVATION_STATUSES },
-          checkIn: { gte: prevStart, lte: prevEnd },
+          checkIn: { gte: previousMonth.start, lte: previousMonth.end },
         }),
       ),
       select: {
@@ -215,8 +221,8 @@ export async function getFinanceOverview(
     db.property.count({
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
     }),
-    getManualFinanceInRange(start, end, scope),
-    getManualFinanceInRange(prevStart, prevEnd, scope),
+    getManualFinanceInRange(currentMonth.start, currentMonth.end, scope),
+    getManualFinanceInRange(previousMonth.start, previousMonth.end, scope),
   ]);
 
   const { expenses: manualExpenses, incomes: manualIncomes } = currentManual;
