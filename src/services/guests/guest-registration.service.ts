@@ -196,16 +196,23 @@ async function resolveGuestRegistrationMaxCapacity(
   registeredCount?: number,
 ): Promise<number> {
   let guestCountTotal: number | null = null;
+  let enrichedAdultCount: number | null = null;
+  let enrichedChildCount: number | null = null;
   if (reservation.platform === BookingPlatform.AIRBNB) {
     const enrichment = await getAirbnbEnrichedGuestCountsByReservationIds([
       reservation.id,
     ]);
-    guestCountTotal = enrichment.get(reservation.id)?.guestCountTotal ?? null;
+    const counts = enrichment.get(reservation.id);
+    guestCountTotal = counts?.guestCountTotal ?? null;
+    enrichedAdultCount = counts?.adultCount ?? null;
+    enrichedChildCount = counts?.childCount ?? null;
   }
 
   return getGuestRegistrationMaxCapacity({
     ...reservation,
     guestCountTotal,
+    enrichedAdultCount,
+    enrichedChildCount,
     registeredCount,
   });
 }

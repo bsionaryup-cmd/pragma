@@ -31,10 +31,6 @@ export function formatReservationQuoteClipboard(
     lines.push(`Alojamiento: ${formatCurrency(input.accommodationTotal, currency)}`);
   }
 
-  if (input.cleaningFee != null && input.cleaningFee > 0) {
-    lines.push(`Limpieza: ${formatCurrency(input.cleaningFee, currency)}`);
-  }
-
   for (const charge of input.otherCharges ?? []) {
     if (charge.amount > 0) {
       lines.push(`${charge.label}: ${formatCurrency(charge.amount, currency)}`);

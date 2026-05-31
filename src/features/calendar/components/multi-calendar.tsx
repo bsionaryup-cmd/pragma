@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
 import { subscribeDashboardDataRefresh } from "@/lib/dashboard-refresh";
+import { formatPropertyLabel } from "@/lib/property-display";
 import { CALENDAR_DAY_WIDTH } from "@/features/calendar/constants";
 import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-header";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
@@ -180,6 +181,38 @@ export function MultiCalendar({
       pendingCreate.checkOut,
       property.cleaningFee,
     );
+  }, [pendingCreate, data.properties]);
+
+  const pendingQuotePreview = useMemo(() => {
+    if (!pendingCreate) return null;
+    const property = data.properties.find((p) => p.id === pendingCreate.propertyId);
+    if (!property) return null;
+
+    const accommodationTotal = sumPriceLabsStayTotal(
+      property.dailyPricesByDate,
+      pendingCreate.checkIn,
+      pendingCreate.checkOut,
+    );
+    const cleaningFee =
+      property.cleaningFee != null && property.cleaningFee > 0
+        ? Math.round(property.cleaningFee)
+        : null;
+    const totalAmount = sumBudgetReservationTotal(
+      property.dailyPricesByDate,
+      pendingCreate.checkIn,
+      pendingCreate.checkOut,
+      property.cleaningFee,
+    );
+
+    return {
+      checkIn: pendingCreate.checkIn,
+      checkOut: pendingCreate.checkOut,
+      propertyLabel: formatPropertyLabel(property),
+      accommodationTotal: accommodationTotal > 0 ? accommodationTotal : null,
+      cleaningFee,
+      totalAmount: totalAmount > 0 ? totalAmount : null,
+      currency: "COP" as const,
+    };
   }, [pendingCreate, data.properties]);
 
   function openCreateDrawer(values: ReservationCreateInitialValues) {
@@ -723,6 +756,7 @@ export function MultiCalendar({
         open={budgetDialogOpen}
         budgetTotal={pendingBudgetTotal}
         hasSelectedDates={pendingCreate !== null}
+        quotePreview={pendingQuotePreview}
         onChooseWithBudget={handleChooseWithBudget}
         onChooseWithoutBudget={handleChooseWithoutBudget}
         onClose={closeBudgetDialog}

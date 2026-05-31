@@ -48,13 +48,7 @@ export async function activateReservationPaymentHold(input: {
   return { paymentLinkIssued: false };
 }
 
-/** Cancela enlaces de depósito emitidos automáticamente al crear reserva (solo manual / flag). */
-export async function cancelAutoIssuedHoldDepositLinks(): Promise<number> {
-  if (!isAutoPaymentLinkCleanupEnabled()) {
-    console.info("AUTO PAYMENT LINK CLEANUP SKIPPED");
-    return 0;
-  }
-
+async function findAutoIssuedHoldDepositLinkIds(): Promise<string[]> {
   const candidates = await db.guestPaymentLink.findMany({
     where: {
       category: "DEPOSIT",
@@ -80,29 +74,46 @@ export async function cancelAutoIssuedHoldDepositLinks(): Promise<number> {
     take: 200,
   });
 
-  const toCancel = candidates.filter((link) => {
-    const reservation = link.reservation;
-    if (!reservation?.holdExpiresAt || !link.expiresAt) return false;
+  return candidates
+    .filter((link) => {
+      const reservation = link.reservation;
+      if (!reservation?.holdExpiresAt || !link.expiresAt) return false;
 
-    const createdDeltaMs = Math.abs(
-      link.createdAt.getTime() - reservation.createdAt.getTime(),
-    );
-    if (createdDeltaMs > 5 * 60 * 1000) return false;
+      const createdDeltaMs = Math.abs(
+        link.createdAt.getTime() - reservation.createdAt.getTime(),
+      );
+      if (createdDeltaMs > 5 * 60 * 1000) return false;
 
-    const expiresDeltaMs = Math.abs(
-      link.expiresAt.getTime() - reservation.holdExpiresAt.getTime(),
-    );
-    return expiresDeltaMs <= 2000;
-  });
+      const expiresDeltaMs = Math.abs(
+        link.expiresAt.getTime() - reservation.holdExpiresAt.getTime(),
+      );
+      return expiresDeltaMs <= 2000;
+    })
+    .map((link) => link.id);
+}
 
-  if (toCancel.length === 0) return 0;
+/** Cancela enlaces de depósito emitidos automáticamente al crear reserva (cron / script). */
+export async function cancelAutoIssuedHoldDepositLinks(options?: {
+  force?: boolean;
+}): Promise<number> {
+  if (!options?.force && !isAutoPaymentLinkCleanupEnabled()) {
+    console.info("AUTO PAYMENT LINK CLEANUP SKIPPED");
+    return 0;
+  }
 
-  const result = await db.guestPaymentLink.updateMany({
-    where: { id: { in: toCancel.map((link) => link.id) } },
-    data: { status: "CANCELLED" },
-  });
+  let total = 0;
+  for (;;) {
+    const ids = await findAutoIssuedHoldDepositLinkIds();
+    if (ids.length === 0) break;
 
-  return result.count;
+    const result = await db.guestPaymentLink.updateMany({
+      where: { id: { in: ids } },
+      data: { status: "CANCELLED" },
+    });
+    total += result.count;
+  }
+
+  return total;
 }
 
 async function finalizeGuestRegistrationAfterHold(reservationId: string) {
