@@ -30,7 +30,7 @@ export async function updateTaskAction(id: string, data: TaskFormValues) {
   const parsed = taskFormSchema.parse(data);
   await updateTask(id, parsed);
   revalidatePath("/tasks");
-  revalidatePath(`/tasks/${id}/edit`);
+  revalidatePath(`/tasks/edit/${id}`);
 }
 
 export async function deleteTaskAction(id: string) {

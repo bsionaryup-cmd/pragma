@@ -61,6 +61,35 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/tasks/compras",
+        destination: "/tasks",
+        permanent: false,
+      },
+      {
+        source: "/tasks/mantenimiento",
+        destination: "/tasks",
+        permanent: false,
+      },
+      {
+        source: "/tasks/limpieza",
+        destination: "/tasks",
+        permanent: false,
+      },
+      {
+        source: "/tasks/inventario",
+        destination: "/tasks",
+        permanent: false,
+      },
+      {
+        source: "/tasks/:id/edit",
+        destination: "/tasks/edit/:id",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -26,7 +26,6 @@ import type { FinanceOverview } from "@/services/finance/finance.service";
 import { cn } from "@/lib/utils";
 import { ManualFinanceRowActions } from "@/components/finance/manual-finance-row-actions";
 import { FinanceMonthlyOccupancyHistoryTable } from "@/components/finance/finance-monthly-occupancy-history-table";
-import { FinanceMonthlyOccupancySummaryCard } from "@/components/finance/finance-monthly-occupancy-summary-card";
 import { FinancePlanningSection } from "@/components/finance/finance-planning-section";
 
 type FinanceViewProps = {
@@ -35,7 +34,7 @@ type FinanceViewProps = {
   scope?: "full" | "operations";
 };
 
-type FinanceTab = "overview" | "planning" | "revenue" | "expenses" | "otherIncome";
+type FinanceTab = "planning" | "revenue" | "expenses" | "otherIncome";
 
 function trendFromPct(pct: number): "up" | "down" | "flat" {
   if (pct > 0) return "up";
@@ -73,17 +72,60 @@ function KpiBreakdown({
   );
 }
 
+function FinanceSecondaryMetrics({
+  data,
+}: {
+  data: FinanceOverview;
+}) {
+  const { t } = useI18n();
+  const { monthlyOccupancy, profitability } = data;
+
+  const items = [
+    {
+      label: t("finance.comparison.occupancy"),
+      value: `${monthlyOccupancy.occupancyPct}%`,
+    },
+    {
+      label: t("finance.forecast.projected"),
+      value: monthlyOccupancy.projectedRevenueFormatted,
+    },
+    {
+      label: t("finance.profitability.margin"),
+      value: `${profitability.margin}%`,
+    },
+    {
+      label: t("finance.profitability.avgProperty"),
+      value: profitability.avgPerProperty.toLocaleString(),
+    },
+  ];
+
+  return (
+    <section className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="rounded-lg border border-border bg-card px-3 py-2"
+        >
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            {item.label}
+          </p>
+          <p className="mt-0.5 text-sm font-semibold tabular-nums">{item.value}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function FinanceView({
   data,
   canWrite = false,
   scope = "full",
 }: FinanceViewProps) {
   const { t, locale } = useI18n();
-  const { kpis, comparison, profitability, selectedMonth, selectedMonthLabel } =
-    data;
+  const { kpis, comparison, selectedMonth, selectedMonthLabel } = data;
   const formatAmount = (amount: number) => formatMoney(amount, undefined, locale);
   const isOperations = scope === "operations";
-  const [activeTab, setActiveTab] = useState<FinanceTab>("overview");
+  const [activeTab, setActiveTab] = useState<FinanceTab>("revenue");
   const selectedMonthIndex = Number(selectedMonth.split("-")[1]) - 1;
 
   const otherIncomeFlow = data.revenueFlow.filter(
@@ -94,7 +136,6 @@ export function FinanceView({
   );
 
   const tabs: { id: FinanceTab; label: string }[] = [
-    { id: "overview", label: t("finance.tabs.overview") },
     { id: "planning", label: t("finance.tabs.planning") },
     { id: "revenue", label: t("finance.tabs.revenue") },
     { id: "expenses", label: t("finance.tabs.expenses") },
@@ -158,8 +199,6 @@ export function FinanceView({
           }
         />
 
-        <FinanceMonthlyOccupancySummaryCard data={data} />
-
         <section className="mb-4">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -209,7 +248,7 @@ export function FinanceView({
           </div>
         </section>
 
-        <section className="mb-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <div>
             <KpiCard
               label={t("finance.kpi.revenue")}
@@ -258,11 +297,30 @@ export function FinanceView({
           />
         </section>
 
-        <FinancePlanningSection data={data} canWrite={canWrite} />
+        <FinanceSecondaryMetrics data={data} />
 
-        <FinanceMonthlyOccupancyHistoryTable data={data} />
+        <SectionCard
+          title={t("finance.annualSummaryTitle", { year: data.chartYear })}
+          description={t("finance.annualSummaryDescription")}
+          className="mb-5"
+        >
+          <div className="space-y-4 p-4 sm:p-5">
+            <FinanceYearlyOverviewChart
+              months={data.yearlyChart}
+              year={data.chartYear}
+              locale={locale}
+              selectedMonthIndex={selectedMonthIndex}
+            />
+            <div className="border-t border-border pt-4">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {t("finance.monthlyOccupancy.historyTitle")}
+              </p>
+              <FinanceMonthlyOccupancyHistoryTable data={data} embedded />
+            </div>
+          </div>
+        </SectionCard>
 
-        <nav className="mb-5 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
+        <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -279,49 +337,6 @@ export function FinanceView({
             </button>
           ))}
         </nav>
-
-        {activeTab === "overview" ? (
-          <div className="space-y-5">
-            <SectionCard
-              title={t("finance.annualSummaryTitle", { year: data.chartYear })}
-              description={t("finance.annualSummaryDescription")}
-            >
-              <div className="p-4 sm:p-5">
-                <FinanceYearlyOverviewChart
-                  months={data.yearlyChart}
-                  year={data.chartYear}
-                  locale={locale}
-                  selectedMonthIndex={selectedMonthIndex}
-                />
-              </div>
-            </SectionCard>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("finance.profitability.margin")} · {selectedMonthLabel}
-                </p>
-                <p className="mt-1 text-lg font-semibold">{profitability.margin}%</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("finance.profitability.avgProperty")}
-                </p>
-                <p className="mt-1 text-lg font-semibold">
-                  {profitability.avgPerProperty.toLocaleString()}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("finance.ytdRevenue", { year: data.chartYear })}
-                </p>
-                <p className="mt-1 text-lg font-semibold text-pragma-electric">
-                  {data.yearToDateRevenueFormatted}
-                </p>
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {activeTab === "planning" ? (
           <FinancePlanningSection data={data} canWrite={canWrite} />

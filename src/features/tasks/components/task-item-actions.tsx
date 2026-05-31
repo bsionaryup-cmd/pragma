@@ -41,7 +41,7 @@ export function TaskItemActions({ taskId, taskTitle }: TaskItemActionsProps) {
         className="h-8 w-8 text-muted-foreground hover:text-foreground"
         asChild
       >
-        <Link href={`/tasks/${taskId}/edit`} aria-label="Editar tarea">
+        <Link href={`/tasks/edit/${taskId}`} aria-label="Editar tarea">
           <Pencil className="h-3.5 w-3.5" />
         </Link>
       </Button>
