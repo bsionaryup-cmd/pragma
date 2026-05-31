@@ -117,8 +117,10 @@ export function DashboardNavigation({
     writeSuppressedNavGroupId(null);
     setExplicitGroupId(module.id);
 
+    // Usar activeGroupId (ruta actual), no routeGroupId: si el submenú está
+    // suprimido en localStorage, routeGroupId es null pero la URL sigue en Finanzas.
     const switchingAwayFromRouteGroup =
-      routeGroupId != null && module.id !== routeGroupId;
+      activeGroupId != null && module.id !== activeGroupId;
     const shouldNavigate =
       module.href !== pathname &&
       (module.navigateOnOpen === true || switchingAwayFromRouteGroup);
