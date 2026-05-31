@@ -34,6 +34,7 @@ import { purgeGhostReservationsThrottled } from "@/services/reservations/ghost-r
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import { schedulePriceLabsCalendarRefreshIfStale } from "@/services/integrations/pricelabs/pricelabs-refresh";
 
 async function loadCalendarProperties(scope: TenantDataScope) {
   const base = {
@@ -58,6 +59,7 @@ async function loadCalendarProperties(scope: TenantDataScope) {
         ...base,
         priceLabs: {
           select: {
+            listingId: true,
             recommendedRate: true,
             priceDelta: true,
             baseRateAtSync: true,
@@ -69,11 +71,12 @@ async function loadCalendarProperties(scope: TenantDataScope) {
     });
   } catch (error) {
     if (!isPriceLabsSchemaDriftError(error)) throw error;
-    return await db.property.findMany({
+    const rows = await db.property.findMany({
       where: propertyFilter,
       select: base,
       orderBy: [{ name: "asc" }],
     });
+    return rows.map((row) => ({ ...row, priceLabs: null }));
   }
 }
 
@@ -210,6 +213,10 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
       orderBy: { checkIn: "asc" },
     }),
   ]);
+
+  if (scope.organizationId) {
+    schedulePriceLabsCalendarRefreshIfStale(propertiesRaw);
+  }
 
   const primaryGuests =
     reservations.length === 0

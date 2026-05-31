@@ -219,7 +219,10 @@ export function matchListingsToProperties(input: {
   return matches;
 }
 
-export function buildPricingDateRange(days = 90): {
+/** Debe cubrir el horizonte del calendario (CALENDAR_DAYS_AFTER + margen). */
+export const PRICELABS_PRICING_WINDOW_DAYS = 134;
+
+export function buildPricingDateRange(days = PRICELABS_PRICING_WINDOW_DAYS): {
   dateFrom: string;
   dateTo: string;
 } {

@@ -34,20 +34,44 @@ export function getReservationVisualState(
   return "confirmed";
 }
 
-const pillBase =
-  "absolute top-[28px] z-20 flex h-[33px] min-w-[36px] cursor-pointer items-center gap-1.5 overflow-hidden rounded-full border border-[var(--cal-pill-border)] bg-white px-2.5 text-[13px] font-medium leading-none tracking-tight text-[var(--cal-text-day)] shadow-none transition-[box-shadow] duration-150 hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)] pointer-events-auto";
+export const reservationBarTrackClasses =
+  "group absolute top-[28px] z-20 flex h-[33px] min-w-[36px] cursor-pointer items-center overflow-visible border-0 bg-transparent p-0 shadow-none pointer-events-auto";
 
-export function getReservationBarClasses(state: ReservationVisualState): string {
+const shellBase =
+  "pointer-events-none absolute inset-0 box-border border-2 border-[var(--cal-pill-border)] bg-white transition-[box-shadow] duration-150 group-hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
+
+const stickyNameBase =
+  "sticky left-0 z-10 inline-flex h-[33px] max-w-full min-w-0 items-center gap-1.5 px-2.5 text-[13px] font-medium leading-none tracking-tight text-[var(--cal-text-day)]";
+
+export function getReservationBarShellClasses(
+  state: ReservationVisualState,
+): string {
   switch (state) {
     case "in_stay":
     case "checkout_today":
     case "confirmed":
     default:
-      return pillBase;
+      return shellBase;
     case "checked_out":
-      return `${pillBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-muted-bg)] text-[var(--cal-reservation-muted-text)]`;
+      return `${shellBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-muted-bg)]`;
     case "blocked":
-      return `${pillBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-blocked-bg)] text-[var(--cal-reservation-muted-text)]`;
+      return `${shellBase} border-[var(--cal-border-strong)] bg-[var(--cal-reservation-blocked-bg)]`;
+  }
+}
+
+export function getReservationStickyNameClasses(
+  state: ReservationVisualState,
+): string {
+  switch (state) {
+    case "in_stay":
+    case "checkout_today":
+    case "confirmed":
+    default:
+      return `${stickyNameBase} bg-white`;
+    case "checked_out":
+      return `${stickyNameBase} bg-[var(--cal-reservation-muted-bg)] text-[var(--cal-reservation-muted-text)]`;
+    case "blocked":
+      return `${stickyNameBase} bg-[var(--cal-reservation-blocked-bg)] text-[var(--cal-reservation-muted-text)]`;
   }
 }
 

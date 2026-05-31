@@ -14,13 +14,17 @@ import { runWithPriceLabsOrganization } from "@/services/integrations/pricelabs/
 import { listConnectedPriceLabsOrganizations } from "@/services/integrations/organization-integration.service";
 
 export type PriceLabsPipelineSource = "manual" | "cron" | "reservation" | "system";
+export type PriceLabsPipelineMode = "full" | "pricesOnly";
 
 export async function runPriceLabsSyncPipeline(input?: {
   source?: PriceLabsPipelineSource;
   skipConnectionTest?: boolean;
   organizationId?: string;
+  /** full = listings + precios (manual). pricesOnly = solo precios (cron, calendario, reservas). */
+  mode?: PriceLabsPipelineMode;
 }): Promise<{ ok: boolean; message: string }> {
   const source = input?.source ?? "manual";
+  const mode = input?.mode ?? "full";
 
   if (source !== "cron") {
     try {
@@ -59,13 +63,15 @@ export async function runPriceLabsSyncPipeline(input?: {
     }
 
     const locked = await runWithPriceLabsSyncLock(async () => {
-      await updatePriceLabsIntegrationState({
-        status: OrganizationIntegrationStatus.SYNC_REQUIRED,
-        lastError: null,
-        organizationId,
-      });
+      if (mode === "full") {
+        await updatePriceLabsIntegrationState({
+          status: OrganizationIntegrationStatus.SYNC_REQUIRED,
+          lastError: null,
+          organizationId,
+        });
+      }
 
-      if (!input?.skipConnectionTest) {
+      if (!input?.skipConnectionTest && mode === "full") {
         const health = await checkConnection();
         await appendPriceLabsSyncLog({
           action: "test_connection",
@@ -77,16 +83,21 @@ export async function runPriceLabsSyncPipeline(input?: {
         if (!health.ok) return { ok: false, message: health.message };
       }
 
-      const listings = await syncListings();
-      await appendPriceLabsSyncLog({
-        action: "sync_listings",
-        result: listings.ok ? "success" : "failure",
-        message: listings.message,
-        source,
-        organizationId,
-        meta: { synced: listings.synced, failed: listings.failed },
-      });
-      if (!listings.ok) return { ok: false, message: listings.message };
+      let listingsSynced = 0;
+
+      if (mode === "full") {
+        const listings = await syncListings();
+        await appendPriceLabsSyncLog({
+          action: "sync_listings",
+          result: listings.ok ? "success" : "failure",
+          message: listings.message,
+          source,
+          organizationId,
+          meta: { synced: listings.synced, failed: listings.failed },
+        });
+        if (!listings.ok) return { ok: false, message: listings.message };
+        listingsSynced = listings.synced;
+      }
 
       const prices = await fetchDynamicPrices();
       await appendPriceLabsSyncLog({
@@ -99,12 +110,21 @@ export async function runPriceLabsSyncPipeline(input?: {
           updated: prices.updated,
           failed: prices.failed,
           skipped: prices.skipped,
+          mode,
         },
       });
 
       if (prices.ok) {
         await updatePriceLabsIntegrationState({
+          status:
+            prices.failed > 0
+              ? OrganizationIntegrationStatus.DEGRADED
+              : OrganizationIntegrationStatus.CONNECTED,
           lastSyncAt: new Date(),
+          lastError:
+            prices.failed > 0
+              ? `${prices.failed} propiedad(es) sin precios`
+              : null,
           organizationId,
         });
       }
@@ -112,7 +132,9 @@ export async function runPriceLabsSyncPipeline(input?: {
       return {
         ok: prices.ok,
         message: prices.ok
-          ? `Pipeline: ${listings.synced} listings, ${prices.updated} precios`
+          ? mode === "full"
+            ? `Pipeline: ${listingsSynced} listings, ${prices.updated} precios`
+            : `Precios actualizados (${prices.updated})`
           : prices.message,
       };
     }, organizationId);
@@ -138,6 +160,7 @@ export async function runPriceLabsCronSyncForAllOrganizations(): Promise<{
     const result = await runPriceLabsSyncPipeline({
       source: "cron",
       skipConnectionTest: true,
+      mode: "pricesOnly",
       organizationId,
     });
     if (result.ok) okCount += 1;

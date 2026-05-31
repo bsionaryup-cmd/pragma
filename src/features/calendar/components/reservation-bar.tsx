@@ -3,9 +3,11 @@
 import { memo } from "react";
 import { PlatformIcon } from "@/features/calendar/components/platform-icon";
 import {
-  getReservationBarClasses,
+  getReservationBarShellClasses,
+  getReservationStickyNameClasses,
   getReservationVisualState,
   getStatusLabel,
+  reservationBarTrackClasses,
 } from "@/features/calendar/lib/reservation-style";
 import type {
   CalendarReservationDto,
@@ -32,27 +34,31 @@ function ReservationBarComponent({
     onSelect(reservation.id);
   }
 
+  const roundStart = span.roundedStart ? "rounded-l-full" : "rounded-l-none";
+  const roundEnd = span.roundedEnd ? "rounded-r-full" : "rounded-r-none";
+
   return (
     <button
       type="button"
-      className={cn(
-        getReservationBarClasses(visualState),
-        "text-left",
-        span.roundedStart ? "rounded-l-full" : "rounded-l-none",
-        span.roundedEnd ? "rounded-r-full" : "rounded-r-none",
-      )}
+      className={cn(reservationBarTrackClasses, "text-left")}
       style={{ left: span.leftPx, width: span.widthPx }}
       title={`${reservation.guestName} · ${getStatusLabel(reservation.status)}`}
       onClick={openReservationDetail}
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <PlatformIcon
-        platform={reservation.platform}
-        size="xs"
-        className="shrink-0 opacity-90"
+      <span
+        aria-hidden
+        className={cn(getReservationBarShellClasses(visualState), roundStart, roundEnd)}
       />
-      <span className="truncate">{reservation.guestName}</span>
+      <span className={getReservationStickyNameClasses(visualState)}>
+        <PlatformIcon
+          platform={reservation.platform}
+          size="xs"
+          className="shrink-0 opacity-90"
+        />
+        <span className="truncate">{reservation.guestName}</span>
+      </span>
     </button>
   );
 }

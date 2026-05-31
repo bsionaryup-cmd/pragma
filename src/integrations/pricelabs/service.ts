@@ -423,7 +423,7 @@ export async function checkConnection(): Promise<PriceLabsConnectionCheck> {
         status: invalidKey
           ? OrganizationIntegrationStatus.INVALID_KEY
           : OrganizationIntegrationStatus.SYNC_FAILED,
-        isConnected: false,
+        ...(invalidKey ? { isConnected: false } : {}),
         lastHealthCheckAt: new Date(),
         lastError: result.message,
       });
@@ -579,6 +579,13 @@ export async function syncListings(): Promise<
         ? Number.parseFloat(property.baseRate.toString())
         : null);
 
+    const priorMeta =
+      property?.priceLabs?.meta &&
+      typeof property.priceLabs.meta === "object" &&
+      !Array.isArray(property.priceLabs.meta)
+        ? (property.priceLabs.meta as StoredPriceLabsMeta)
+        : {};
+
     await upsertPropertyPriceLabsSync({
       propertyId: match.propertyId,
       listingId: match.listingId,
@@ -597,6 +604,7 @@ export async function syncListings(): Promise<
             : null,
       lastError: null,
       meta: {
+        ...priorMeta,
         listing: match.listing,
         matchReason: match.matchReason,
         lastListingRefresh: new Date().toISOString(),
@@ -763,7 +771,7 @@ export async function fetchDynamicPrices(): Promise<
     }
   }
 
-  const { dateFrom, dateTo } = buildPricingDateRange(90);
+  const { dateFrom, dateTo } = buildPricingDateRange();
   const listingIds = withListing.map((p) => p.priceLabs!.listingId!);
 
   const BATCH = 10;
