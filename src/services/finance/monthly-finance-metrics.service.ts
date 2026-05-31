@@ -29,14 +29,22 @@ const RECALC_STATUSES: ReservationStatus[] = [
 ];
 
 function monthBoundsForKeys(monthKeys: string[]) {
-  let minStartKey = monthKeys[0];
-  let maxEndKey = monthKeys[0];
+  let minStartKey: string | null = null;
+  let maxEndKey: string | null = null;
 
   for (const monthKey of monthKeys) {
     const { year, month } = parseMonthKey(monthKey);
     const bounds = financeMonthBounds(year, month - 1);
-    if (bounds.startKey < minStartKey) minStartKey = bounds.startKey;
-    if (bounds.endKey > maxEndKey) maxEndKey = bounds.endKey;
+    if (minStartKey === null || bounds.startKey < minStartKey) {
+      minStartKey = bounds.startKey;
+    }
+    if (maxEndKey === null || bounds.endKey > maxEndKey) {
+      maxEndKey = bounds.endKey;
+    }
+  }
+
+  if (!minStartKey || !maxEndKey) {
+    throw new Error("monthBoundsForKeys requires at least one valid month key");
   }
 
   return {

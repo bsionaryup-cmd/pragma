@@ -10,6 +10,7 @@ import {
   incrementMonthKey,
   listMonthKeysForStay,
   listMonthKeysForYear,
+  parseMonthKey,
   unionMonthKeys,
 } from "@/lib/finance/monthly-finance-month-keys";
 
@@ -36,6 +37,11 @@ describe("monthly-finance-month-keys", () => {
       unionMonthKeys(["2026-05"], ["2026-05", "2026-06"]),
       ["2026-05", "2026-06"],
     );
+  });
+
+  it("rechaza claves de mes inválidas", () => {
+    assert.throws(() => parseMonthKey("2026-01-01"), /Invalid month key/);
+    assert.throws(() => parseMonthKey("2026-13"), /Invalid month key/);
   });
 });
 

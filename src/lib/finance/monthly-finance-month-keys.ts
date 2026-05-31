@@ -5,8 +5,16 @@ export function monthKeyFromParts(year: number, month: number): string {
 }
 
 export function parseMonthKey(monthKey: string): { year: number; month: number } {
-  const [yearRaw, monthRaw] = monthKey.split("-");
-  return { year: Number(yearRaw), month: Number(monthRaw) };
+  const match = /^(\d{4})-(\d{2})$/.exec(monthKey.trim());
+  if (!match) {
+    throw new Error(`Invalid month key: ${monthKey}`);
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) {
+    throw new Error(`Invalid month key: ${monthKey}`);
+  }
+  return { year, month };
 }
 
 export function incrementMonthKey(monthKey: string): string {
