@@ -19,9 +19,15 @@ import { cn } from "@/lib/utils";
 
 type ReservationPaymentLinksProps = {
   reservationId: string;
+  hideBalanceSummary?: boolean;
+  canManage?: boolean;
 };
 
-export function ReservationPaymentLinks({ reservationId }: ReservationPaymentLinksProps) {
+export function ReservationPaymentLinks({
+  reservationId,
+  hideBalanceSummary = false,
+  canManage = true,
+}: ReservationPaymentLinksProps) {
   const [pending, startTransition] = useTransition();
   const [chargeOpen, setChargeOpen] = useState(false);
   const [balance, setBalance] = useState<{
@@ -87,7 +93,7 @@ export function ReservationPaymentLinks({ reservationId }: ReservationPaymentLin
   return (
     <>
       <div className="space-y-3">
-        {balance ? (
+        {balance && !hideBalanceSummary ? (
           <p className="text-sm text-foreground">
             <span className="font-semibold tabular-nums">
               {formatMoney(balance.remainingBalance, balance.currency)}
@@ -105,38 +111,40 @@ export function ReservationPaymentLinks({ reservationId }: ReservationPaymentLin
           </p>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant="brand"
-            className="h-8 text-xs"
-            disabled={pending || !hasBalance}
-            onClick={() => issue("full")}
-          >
-            Generar enlace
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            disabled={pending || !hasBalance}
-            onClick={() => issue("deposit_50")}
-          >
-            Depósito 50%
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs"
-            disabled={pending || !hasBalance}
-            onClick={() => setChargeOpen(true)}
-          >
-            Otro monto
-          </Button>
-        </div>
+        {canManage ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="brand"
+              className="h-8 text-xs"
+              disabled={pending || !hasBalance}
+              onClick={() => issue("full")}
+            >
+              Generar enlace
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={pending || !hasBalance}
+              onClick={() => issue("deposit_50")}
+            >
+              Depósito 50%
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={pending || !hasBalance}
+              onClick={() => setChargeOpen(true)}
+            >
+              Otro monto
+            </Button>
+          </div>
+        ) : null}
 
         {links.length > 0 ? (
           <ul className="divide-y divide-border/60 rounded-lg border border-border/80">

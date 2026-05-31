@@ -2,6 +2,7 @@ import "server-only";
 
 import type { GuestPaymentLinkStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { computeReservationPaymentBalance } from "@/lib/payments/reservation-payment-balance-calc";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
 
@@ -18,12 +19,16 @@ export type ReservationPaymentBalance = {
   reservationId: string;
   totalAmount: number;
   paidAmount: number;
+  manualPaidAmount: number;
+  linkPaidAmount: number;
   pendingAmount: number;
   remainingBalance: number;
   currency: string;
   guestName: string;
   propertyId: string;
 };
+
+export { computeReservationPaymentBalance } from "@/lib/payments/reservation-payment-balance-calc";
 
 export async function getReservationPaymentBalance(
   reservationId: string,
@@ -46,31 +51,36 @@ export async function getReservationPaymentBalance(
     throw new Error("Reserva no encontrada");
   }
 
-  const links = await db.guestPaymentLink.findMany({
-    where: {
-      reservationId,
-      status: { in: COMMITTED_STATUSES },
-    },
-    select: { amount: true, status: true },
-  });
-
-  const paidAmount = links
-    .filter((l) => PAID_STATUSES.includes(l.status))
-    .reduce((sum, l) => sum + Number(l.amount), 0);
-
-  const pendingAmount = links
-    .filter((l) => l.status !== "PAID")
-    .reduce((sum, l) => sum + Number(l.amount), 0);
+  const [links, manualPayments] = await Promise.all([
+    db.guestPaymentLink.findMany({
+      where: {
+        reservationId,
+        status: { in: COMMITTED_STATUSES },
+      },
+      select: { amount: true, status: true },
+    }),
+    db.reservationPayment.findMany({
+      where: { reservationId },
+      select: { amount: true },
+    }),
+  ]);
 
   const totalAmount = Number(row.totalAmount);
-  const remainingBalance = Math.max(0, totalAmount - paidAmount - pendingAmount);
+  const computed = computeReservationPaymentBalance({
+    totalAmount,
+    links: links.map((link) => ({
+      amount: Number(link.amount),
+      status: link.status,
+    })),
+    manualPayments: manualPayments.map((payment) => ({
+      amount: Number(payment.amount),
+    })),
+  });
 
   return {
     reservationId: row.id,
     totalAmount,
-    paidAmount,
-    pendingAmount,
-    remainingBalance,
+    ...computed,
     currency: row.currency,
     guestName: row.guestName,
     propertyId: row.propertyId,

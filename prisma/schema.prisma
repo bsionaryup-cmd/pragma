@@ -43,6 +43,7 @@ model Organization {
   pendingActivityEntries ReservationActivityPending[]
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
+  paymentMethodConfig    OrganizationPaymentMethodConfig?
 
   @@map("organizations")
 }
@@ -94,6 +95,7 @@ model User {
   supportTickets         SupportTicket[] @relation("SupportTicketCreator")
   supportTicketsAssigned SupportTicket[] @relation("SupportTicketAssignee")
   guestPaymentLinks      GuestPaymentLink[] @relation("GuestPaymentLinkCreator")
+  reservationPaymentsCreated ReservationPayment[] @relation("ReservationPaymentCreator")
   salesQuotesCreated     SalesQuote[] @relation("SalesQuoteCreator")
   salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
   salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
@@ -251,6 +253,7 @@ model Reservation {
   tasks                   Task[]
   paymentInvoices         PaymentInvoice[]
   guestPaymentLinks       GuestPaymentLink[]
+  reservationPayments     ReservationPayment[]
   emailIngestionAudits    EmailIngestionAudit[]
   emailEvents             ReservationEmailEvent[]
   emailPayouts            ReservationPayout[]
@@ -1399,6 +1402,43 @@ enum GuestPaymentCategory {
   LATE_CHECKOUT
   EXTRA_SERVICES
   MANUAL_OPERATIONAL
+}
+
+enum ReservationPaymentMethod {
+  PAYMENT_LINK
+  CASH
+  BANK_TRANSFER
+  OTHER
+}
+
+model OrganizationPaymentMethodConfig {
+  organizationId String   @id
+  methods        Json     @default("[]")
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_payment_method_configs")
+}
+
+model ReservationPayment {
+  id               String                   @id @default(cuid())
+  reservationId    String
+  amount           Decimal                  @db.Decimal(12, 2)
+  currency         String                   @default("COP")
+  method           ReservationPaymentMethod
+  paymentReference String?
+  accountMethodId  String?
+  receivedAt       DateTime                 @db.Date
+  notes            String?
+  createdById      String
+  createdAt        DateTime                 @default(now())
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  createdBy   User        @relation("ReservationPaymentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, receivedAt(sort: Desc)])
+  @@map("reservation_payments")
 }
 
 model GuestPaymentLink {

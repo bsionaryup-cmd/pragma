@@ -154,20 +154,24 @@ export async function releaseReservationHoldIfDepositMet(
       paymentStatus: true,
     },
   });
-  if (!row?.holdExpiresAt) return false;
+  if (!row) return false;
 
   const balance = await getReservationPaymentBalance(reservationId);
   if (!hasSatisfiedHoldDeposit(balance.paidAmount, Number(row.totalAmount))) {
     return false;
   }
 
-  await db.reservation.update({
-    where: { id: reservationId },
-    data: { holdExpiresAt: null },
-  });
+  const hadHold = row.holdExpiresAt != null;
+
+  if (hadHold) {
+    await db.reservation.update({
+      where: { id: reservationId },
+      data: { holdExpiresAt: null },
+    });
+  }
 
   await finalizeGuestRegistrationAfterHold(reservationId);
-  return true;
+  return hadHold;
 }
 
 /** Cron: libera disponibilidad si el hold expiró sin depósito. */

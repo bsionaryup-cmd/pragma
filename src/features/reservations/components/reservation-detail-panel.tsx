@@ -50,7 +50,7 @@ import { DetailEmptyState } from "@/components/detail/detail-section";
 import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { PropertyIdentity } from "@/components/properties/property-identity";
-import { ReservationPaymentLinks } from "@/features/payments/components/reservation-payment-links";
+import { ReservationPaymentsPanel } from "@/features/payments/components/reservation-payments-panel";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
 import {
@@ -821,8 +821,11 @@ export function ReservationDetailPanel({
             ) : null}
 
             {activeTab === "pagos" && showPaymentLinks ? (
-              <ReservationDetailSection title="Cobro directo">
-                <ReservationPaymentLinks reservationId={reservation.id} />
+              <ReservationDetailSection title="Pagos">
+                <ReservationPaymentsPanel
+                  reservationId={reservation.id}
+                  canManagePayments={canManagePayments}
+                />
               </ReservationDetailSection>
             ) : null}
 

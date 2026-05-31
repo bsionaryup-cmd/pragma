@@ -4,7 +4,6 @@ import {
   PaymentInvoiceLedgerStatus,
   PaymentMethodType,
   PaymentProviderCode,
-  PaymentStatus,
   PaymentTransactionStatus,
   type GuestPaymentCategory,
   type GuestPaymentLinkStatus,
@@ -22,9 +21,7 @@ import {
   findTransactionByProviderReference,
   updateTransactionStatus,
 } from "@/modules/billing/repositories/transaction.repository";
-import {
-  getReservationPaymentBalance,
-} from "@/services/payments/reservation-payment-balance";
+import { syncReservationPaymentStatus } from "@/services/payments/reservation-payment-status.service";
 import { ensureFinancialEntryForGuestPayment } from "@/services/payments/guest-payment-financial-entry";
 import {
   fetchWompiTransactionById,
@@ -33,7 +30,6 @@ import {
   mapWompiPaymentMethod,
 } from "@/services/payments/wompi-transaction-lookup.service";
 import { guestPaymentIncomeLabel } from "@/lib/payments/guest-payment-categories";
-import { releaseReservationHoldIfDepositMet } from "@/services/reservations/reservation-hold.service";
 
 function mapWompiToLinkStatus(
   status: PaymentTransactionStatus,
@@ -55,28 +51,6 @@ function mapWompiToLinkStatus(
 
 function mapCategoryToIncomeType(category: GuestPaymentCategory): string {
   return guestPaymentIncomeLabel(category);
-}
-
-async function syncReservationPaymentStatus(reservationId: string) {
-  const balance = await getReservationPaymentBalance(reservationId);
-  let paymentStatus: PaymentStatus = PaymentStatus.PENDING;
-
-  if (balance.paidAmount <= 0) {
-    paymentStatus = PaymentStatus.PENDING;
-  } else if (balance.remainingBalance <= 0.009) {
-    paymentStatus = PaymentStatus.PAID;
-  } else {
-    paymentStatus = PaymentStatus.PARTIAL;
-  }
-
-  await db.reservation.update({
-    where: { id: reservationId },
-    data: { paymentStatus },
-  });
-
-  if (paymentStatus === PaymentStatus.PAID || paymentStatus === PaymentStatus.PARTIAL) {
-    await releaseReservationHoldIfDepositMet(reservationId);
-  }
 }
 
 export async function reconcileGuestPaymentFromWebhook(input: {

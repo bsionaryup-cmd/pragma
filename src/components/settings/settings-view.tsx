@@ -13,10 +13,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PRAGMA_TIMEZONE } from "@/lib/timezone";
+import { PaymentMethodsSettings } from "@/components/settings/payment-methods-settings";
 import { saveUserPreferencesAction } from "@/features/settings/actions/settings.actions";
 
 /** Secciones enlazables vía `/settings?tab=profile|preferences|appearance` */
-export const SETTINGS_TABS = ["profile", "preferences", "appearance"] as const;
+export const SETTINGS_TABS = [
+  "profile",
+  "preferences",
+  "appearance",
+  "payment-methods",
+] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 function isSettingsTab(value: string | null): value is SettingsTab {
@@ -32,6 +38,7 @@ type SettingsViewProps = {
   initialLocale: string;
   initialTheme: string;
   canManageBilling?: boolean;
+  canManagePaymentMethods?: boolean;
 };
 
 export function SettingsView({
@@ -40,6 +47,7 @@ export function SettingsView({
   initialLocale,
   initialTheme,
   canManageBilling = false,
+  canManagePaymentMethods = false,
 }: SettingsViewProps) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
@@ -94,6 +102,23 @@ export function SettingsView({
                 {t("nav.billing")}
               </Link>
             </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canManagePaymentMethods ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Métodos de pago</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <section
+              id="payment-methods"
+              className="scroll-mt-6"
+              aria-label="Métodos de pago"
+            >
+              <PaymentMethodsSettings canManage={canManagePaymentMethods} />
+            </section>
           </CardContent>
         </Card>
       ) : null}
