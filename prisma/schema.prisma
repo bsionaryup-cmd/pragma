@@ -41,6 +41,8 @@ model Organization {
   emailIngestionAudits   EmailIngestionAudit[]
   reservationEvents      ReservationEvent[]
   pendingActivityEntries ReservationActivityPending[]
+  monthlyFinanceMetrics  MonthlyFinanceMetric[]
+  financialPlanningSetting FinancialPlanningSetting?
 
   @@map("organizations")
 }
@@ -185,6 +187,8 @@ model Property {
   observabilityEvents  ReservationEvent[]
   activityEntries      ReservationActivity[]
   pendingActivityEntries ReservationActivityPending[]
+  monthlyFinanceMetrics MonthlyFinanceMetric[]
+  financialPlanningSettings FinancialPlanningSetting[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -803,6 +807,41 @@ model PriceLabsSyncLog {
   @@index([createdAt])
   @@index([organizationId, createdAt(sort: Desc)])
   @@map("pricelabs_sync_logs")
+}
+
+model MonthlyFinanceMetric {
+  id               String   @id @default(cuid())
+  organizationId   String
+  propertyId       String
+  month            String
+  availableNights  Int      @default(0)
+  occupiedNights   Int      @default(0)
+  occupancyPct     Decimal  @default(0) @db.Decimal(5, 2)
+  grossRevenue     Decimal  @default(0) @db.Decimal(14, 2)
+  projectedRevenue Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, propertyId, month])
+  @@index([organizationId, month])
+  @@map("monthly_finance_metrics")
+}
+
+model FinancialPlanningSetting {
+  organizationId    String   @id
+  propertyId        String?
+  fixedExpenses     Json     @default("[]")
+  variableExpenses  Json     @default("[]")
+  monthlyProfitGoal Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([propertyId])
+  @@map("financial_planning_settings")
 }
 
 enum PropertyPriceLabsSyncStatus {

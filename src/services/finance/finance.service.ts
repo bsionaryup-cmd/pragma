@@ -23,6 +23,14 @@ import {
   FINANCE_YEAR_MONTH_LABELS,
   type FinanceYearMonthPoint,
 } from "@/services/finance/finance-yearly-series";
+import {
+  listMonthKeysForYear,
+  monthKeyFromParts,
+  unionMonthKeys,
+} from "@/lib/finance/monthly-finance-month-keys";
+import { loadMonthlyFinanceAggregates } from "@/services/finance/monthly-finance-metrics.service";
+import { loadFinancePlanningSnapshot } from "@/services/finance/finance-planning.service";
+import type { FinancePlanningSnapshot } from "@/lib/finance/finance-planning-types";
 import type { Locale } from "@/i18n/types";
 
 export type FinanceKpis = {
@@ -88,11 +96,30 @@ export type TopPropertyRow = {
   reservations: number;
 };
 
+export type FinanceMonthlyOccupancyHistoryRow = {
+  monthKey: string;
+  label: string;
+  occupancyPct: number;
+  revenue: number;
+  revenueFormatted: string;
+  isFuture: boolean;
+};
+
+export type FinanceMonthlyOccupancySummary = {
+  occupancyPct: number;
+  occupancyTrendPct: number;
+  projectedRevenue: number;
+  projectedRevenueFormatted: string;
+  history: FinanceMonthlyOccupancyHistoryRow[];
+};
+
 export type FinanceOverview = {
   selectedMonth: string;
   selectedMonthLabel: string;
   kpis: FinanceKpis;
   comparison: MonthComparison;
+  monthlyOccupancy: FinanceMonthlyOccupancySummary;
+  planning: FinancePlanningSnapshot;
   /** Solo ingresos reales acumulados del año (sin proyección de pendientes). */
   yearToDateRevenue: number;
   yearToDateRevenueFormatted: string;
@@ -364,6 +391,48 @@ export async function getFinanceOverview(
   const { months: yearlyChart, yearToDateRevenue } =
     await buildFinanceYearlySeries(scope, chartYear);
 
+  const previousMonthKey = monthKeyFromParts(
+    month === 1 ? year - 1 : year,
+    month === 1 ? 12 : month - 1,
+  );
+  const metricMonthKeys = unionMonthKeys(
+    [selectedMonth, previousMonthKey],
+    listMonthKeysForYear(chartYear),
+  );
+  const monthlyAggregates = await loadMonthlyFinanceAggregates(
+    scope,
+    metricMonthKeys,
+  );
+  const currentOccupancy = monthlyAggregates.get(selectedMonth);
+  const previousOccupancy = monthlyAggregates.get(previousMonthKey);
+  const occupancyPct = currentOccupancy?.occupancyPct ?? 0;
+  const previousOccupancyPct = previousOccupancy?.occupancyPct ?? 0;
+  const projectedRevenue = revenue + pendingIncome;
+
+  const monthlyOccupancyHistory = yearlyChart.map((monthPoint) => {
+    const monthKey = `${chartYear}-${String(monthPoint.monthIndex + 1).padStart(2, "0")}`;
+    const aggregate = monthlyAggregates.get(monthKey);
+    return {
+      monthKey,
+      label: monthPoint.label,
+      occupancyPct: aggregate?.occupancyPct ?? monthPoint.occupancy,
+      revenue: monthPoint.revenue,
+      revenueFormatted: formatMoney(monthPoint.revenue, undefined, locale),
+      isFuture: monthPoint.isFuture,
+    };
+  });
+
+  const bookingCount =
+    paidReservations.length +
+    pendingReservations.length;
+  const planning = await loadFinancePlanningSnapshot(scope, locale, {
+    currentRevenue: revenue,
+    currentOccupancyPct: occupancyPct,
+    occupiedNights: currentOccupancy?.occupiedNights ?? 0,
+    availableNights: currentOccupancy?.availableNights ?? 0,
+    bookingCount,
+  });
+
   return {
     selectedMonth,
     selectedMonthLabel,
@@ -400,9 +469,9 @@ export async function getFinanceOverview(
         trend: trendPct(netProfit, prevProfit),
       },
       occupancy: {
-        current: 0,
-        previous: 0,
-        trend: 0,
+        current: occupancyPct,
+        previous: previousOccupancyPct,
+        trend: trendPct(occupancyPct, previousOccupancyPct),
       },
       reservations: {
         current: paidReservations.length,
@@ -426,5 +495,13 @@ export async function getFinanceOverview(
       avgPerReservation,
     },
     topProperties: topProperties.slice(0, 5),
+    monthlyOccupancy: {
+      occupancyPct,
+      occupancyTrendPct: trendPct(occupancyPct, previousOccupancyPct),
+      projectedRevenue,
+      projectedRevenueFormatted: formatMoney(projectedRevenue, undefined, locale),
+      history: monthlyOccupancyHistory,
+    },
+    planning,
   };
 }

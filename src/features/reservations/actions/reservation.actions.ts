@@ -23,6 +23,7 @@ import {
 } from "@/services/reservations/reservation.service";
 import { prismaDateToKey } from "@/lib/dates";
 import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
+import { scheduleMonthlyFinanceMetricsRefreshForStay } from "@/services/finance/monthly-finance-metrics-refresh";
 
 function toInboxFromCreated(
   r: Awaited<ReturnType<typeof createReservation>>,
@@ -69,11 +70,16 @@ export async function createReservationAction(data: ReservationWizardValues) {
   try {
     const created = await createReservation(parsed);
     schedulePriceLabsRefresh("reservation");
+    scheduleMonthlyFinanceMetricsRefreshForStay(null, {
+      checkIn: prismaDateToKey(created.checkIn),
+      checkOut: prismaDateToKey(created.checkOut),
+    });
 
     revalidatePath("/reservations");
     revalidatePath("/calendar");
     revalidatePath("/properties");
     revalidatePath("/");
+    revalidatePath("/finance");
 
     const airbnbCalendarLinked = await isPropertyLinkedToAirbnb(
       parsed.propertyId,
@@ -125,12 +131,17 @@ export async function updateReservationAction(
   try {
     await updateReservation(id, parsed);
     schedulePriceLabsRefresh("reservation");
+    scheduleMonthlyFinanceMetricsRefreshForStay(
+      { checkIn: existing.checkIn, checkOut: existing.checkOut },
+      { checkIn: parsed.checkIn, checkOut: parsed.checkOut },
+    );
 
     revalidatePath("/reservations");
     revalidatePath("/calendar");
     revalidatePath("/properties");
     revalidatePath("/");
     revalidatePath("/smart-access");
+    revalidatePath("/finance");
 
     const reservation = await getReservationForInbox(id);
     if (!reservation) {
@@ -154,6 +165,10 @@ export async function updateReservationAction(
 export async function deleteReservationAction(id: string) {
   await requirePermission("reservations:delete");
   await assertBillingUnlocked();
+  const existing = await getReservationForInbox(id);
+  if (!existing) {
+    return { success: false as const, error: "Reserva no encontrada" };
+  }
   try {
     await deleteReservation(id);
   } catch (error) {
@@ -163,8 +178,13 @@ export async function deleteReservationAction(id: string) {
     throw error;
   }
   schedulePriceLabsRefresh("reservation");
+  scheduleMonthlyFinanceMetricsRefreshForStay(
+    { checkIn: existing.checkIn, checkOut: existing.checkOut },
+    null,
+  );
   revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/");
+  revalidatePath("/finance");
   return { success: true as const };
 }

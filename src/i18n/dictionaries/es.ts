@@ -200,6 +200,42 @@ export const es = {
       description: "Basada en reservas confirmadas y ocupación histórica.",
       projected: "Proyección",
     },
+    monthlyOccupancy: {
+      historyTitle: "Histórico mensual",
+      month: "Mes",
+      vsPreviousMonth: "vs mes anterior",
+    },
+    planning: {
+      title: "Planeación del mes · {{month}}",
+      description:
+        "Proyección operativa según tus costos, meta de utilidad e ingresos actuales.",
+      profitGoal: "Meta utilidad",
+      fixedCosts: "Costos fijos",
+      variableCosts: "Costos variables",
+      requiredRevenue: "Ingresos requeridos",
+      targetOccupancy: "Ocupación objetivo",
+      currentOccupancy: "Actual",
+      remaining: "Faltante",
+      editSettings: "Editar configuración",
+      editTitle: "Configuración de planeación",
+      editDescription:
+        "Define costos fijos, variables y la meta de utilidad del mes.",
+      empty:
+        "Aún no hay configuración. Agrega costos y meta para ver proyecciones.",
+      repeatHintTitle: "Detectamos gastos repetidos",
+      repeatHintItem: "{{name}} · {{amount}} ({{count}} veces)",
+      addAsFixed: "Agregar como fijo",
+      addRow: "Agregar",
+      namePlaceholder: "Nombre",
+      variablePercent: "% sobre ingresos",
+      variablePerBooking: "Por reserva",
+      noVariableCosts: "Sin costos variables configurados.",
+      cancel: "Cancelar",
+      save: "Guardar",
+      errors: {
+        invalidGoal: "Ingresa una meta de utilidad válida.",
+      },
+    },
     flows: {
       revenue: "Detalle de ingresos",
       expenses: "Detalle de gastos",
@@ -232,6 +268,7 @@ export const es = {
     empty: "Sin movimientos financieros en este periodo.",
     tabs: {
       overview: "Resumen",
+      planning: "Planeación",
       revenue: "Ingresos",
       expenses: "Gastos",
       otherIncome: "Otros ingresos",

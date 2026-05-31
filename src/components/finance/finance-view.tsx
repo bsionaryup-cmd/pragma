@@ -25,6 +25,9 @@ import { formatPanelDate } from "@/lib/helpers/date";
 import type { FinanceOverview } from "@/services/finance/finance.service";
 import { cn } from "@/lib/utils";
 import { ManualFinanceRowActions } from "@/components/finance/manual-finance-row-actions";
+import { FinanceMonthlyOccupancyHistoryTable } from "@/components/finance/finance-monthly-occupancy-history-table";
+import { FinanceMonthlyOccupancySummaryCard } from "@/components/finance/finance-monthly-occupancy-summary-card";
+import { FinancePlanningSection } from "@/components/finance/finance-planning-section";
 
 type FinanceViewProps = {
   data: FinanceOverview;
@@ -32,7 +35,7 @@ type FinanceViewProps = {
   scope?: "full" | "operations";
 };
 
-type FinanceTab = "overview" | "revenue" | "expenses" | "otherIncome";
+type FinanceTab = "overview" | "planning" | "revenue" | "expenses" | "otherIncome";
 
 function trendFromPct(pct: number): "up" | "down" | "flat" {
   if (pct > 0) return "up";
@@ -92,6 +95,7 @@ export function FinanceView({
 
   const tabs: { id: FinanceTab; label: string }[] = [
     { id: "overview", label: t("finance.tabs.overview") },
+    { id: "planning", label: t("finance.tabs.planning") },
     { id: "revenue", label: t("finance.tabs.revenue") },
     { id: "expenses", label: t("finance.tabs.expenses") },
     { id: "otherIncome", label: t("finance.tabs.otherIncome") },
@@ -153,6 +157,8 @@ export function FinanceView({
             </div>
           }
         />
+
+        <FinanceMonthlyOccupancySummaryCard data={data} />
 
         <section className="mb-4">
           <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -252,6 +258,10 @@ export function FinanceView({
           />
         </section>
 
+        <FinancePlanningSection data={data} canWrite={canWrite} />
+
+        <FinanceMonthlyOccupancyHistoryTable data={data} />
+
         <nav className="mb-5 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
           {tabs.map((tab) => (
             <button
@@ -311,6 +321,10 @@ export function FinanceView({
               </div>
             </div>
           </div>
+        ) : null}
+
+        {activeTab === "planning" ? (
+          <FinancePlanningSection data={data} canWrite={canWrite} />
         ) : null}
 
         {activeTab === "revenue" ? (
