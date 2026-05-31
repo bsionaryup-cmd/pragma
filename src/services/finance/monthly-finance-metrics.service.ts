@@ -1,7 +1,6 @@
 import { ReservationStatus } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import {
-  dateKeyToPrismaDate,
   todayPrismaDate,
   toReservationDateKey,
 } from "@/lib/dates";
@@ -28,29 +27,31 @@ const RECALC_STATUSES: ReservationStatus[] = [
   ReservationStatus.BLOCKED,
 ];
 
-function monthBoundsForKeys(monthKeys: string[]) {
-  let minStartKey: string | null = null;
-  let maxEndKey: string | null = null;
+function monthBoundsForKeys(monthKeys: string[]): { rangeStart: Date; rangeEnd: Date } {
+  let rangeStart: Date | null = null;
+  let rangeEnd: Date | null = null;
 
   for (const monthKey of monthKeys) {
     const { year, month } = parseMonthKey(monthKey);
     const bounds = financeMonthBounds(year, month - 1);
-    if (minStartKey === null || bounds.startKey < minStartKey) {
-      minStartKey = bounds.startKey;
+    if (rangeStart === null || bounds.start.getTime() < rangeStart.getTime()) {
+      rangeStart = bounds.start;
     }
-    if (maxEndKey === null || bounds.endKey > maxEndKey) {
-      maxEndKey = bounds.endKey;
+    if (rangeEnd === null || bounds.end.getTime() > rangeEnd.getTime()) {
+      rangeEnd = bounds.end;
     }
   }
 
-  if (!minStartKey || !maxEndKey) {
+  if (
+    !rangeStart ||
+    !rangeEnd ||
+    Number.isNaN(rangeStart.getTime()) ||
+    Number.isNaN(rangeEnd.getTime())
+  ) {
     throw new Error("monthBoundsForKeys requires at least one valid month key");
   }
 
-  return {
-    rangeStart: dateKeyToPrismaDate(minStartKey),
-    rangeEnd: dateKeyToPrismaDate(maxEndKey),
-  };
+  return { rangeStart, rangeEnd };
 }
 
 export async function recalculateMonthlyFinanceMetrics(
@@ -60,7 +61,15 @@ export async function recalculateMonthlyFinanceMetrics(
   if (!scope.organizationId || monthKeys.length === 0) return;
 
   const uniqueMonthKeys = [...new Set(monthKeys)];
-  const { rangeStart, rangeEnd } = monthBoundsForKeys(uniqueMonthKeys);
+  let rangeStart: Date;
+  let rangeEnd: Date;
+  try {
+    ({ rangeStart, rangeEnd } = monthBoundsForKeys(uniqueMonthKeys));
+  } catch (error) {
+    console.error("[monthly-finance-metrics] invalid month keys", uniqueMonthKeys, error);
+    return;
+  }
+
   const today = todayPrismaDate();
 
   const [properties, reservations] = await Promise.all([
