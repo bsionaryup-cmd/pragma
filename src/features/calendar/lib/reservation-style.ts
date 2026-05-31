@@ -41,7 +41,7 @@ const shellBase =
   "pointer-events-none absolute inset-0 box-border border-2 border-[var(--cal-pill-border)] bg-white transition-[box-shadow] duration-150 group-hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)]";
 
 const stickyNameBase =
-  "sticky left-0 z-10 inline-flex h-[33px] max-w-full min-w-0 items-center gap-1.5 px-2.5 text-[13px] font-medium leading-none tracking-tight text-[var(--cal-text-day)]";
+  "sticky left-0 z-10 inline-flex h-[33px] max-w-full min-w-0 items-center gap-1.5 border-0 bg-transparent px-2.5 text-[13px] font-medium leading-none tracking-tight text-[var(--cal-text-day)] shadow-none outline-none ring-0";
 
 export function getReservationBarShellClasses(
   state: ReservationVisualState,
@@ -67,11 +67,11 @@ export function getReservationStickyNameClasses(
     case "checkout_today":
     case "confirmed":
     default:
-      return `${stickyNameBase} bg-white`;
+      return stickyNameBase;
     case "checked_out":
-      return `${stickyNameBase} bg-[var(--cal-reservation-muted-bg)] text-[var(--cal-reservation-muted-text)]`;
+      return `${stickyNameBase} text-[var(--cal-reservation-muted-text)]`;
     case "blocked":
-      return `${stickyNameBase} bg-[var(--cal-reservation-blocked-bg)] text-[var(--cal-reservation-muted-text)]`;
+      return `${stickyNameBase} text-[var(--cal-reservation-muted-text)]`;
   }
 }
 
