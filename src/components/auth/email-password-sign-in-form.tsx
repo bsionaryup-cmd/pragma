@@ -138,7 +138,6 @@ export function EmailPasswordSignInForm({
   const { signIn, errors, fetchStatus } = useSignIn();
 
   const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
-  const [signInFlowReady, setSignInFlowReady] = useState(!clearStaleSession);
   const [step, setStep] = useState<Step>("credentials");
   const [verificationStrategy, setVerificationStrategy] =
     useState<VerificationStrategy | null>(null);
@@ -155,6 +154,7 @@ export function EmailPasswordSignInForm({
   const verificationSendStartedRef = useRef(false);
   const restoredVerificationRef = useRef(false);
   const staleSessionCleanupRef = useRef(false);
+  const postLogoutResetRef = useRef(false);
 
   const authBootstrapComplete = authLoaded || authBootstrapTimedOut;
 
@@ -192,9 +192,10 @@ export function EmailPasswordSignInForm({
   }, [authLoaded, clearStaleSession, isSignedIn, signOut]);
 
   useEffect(() => {
-    if (!signIn || !authBootstrapComplete || !clearStaleSession) return;
+    if (!clearStaleSession || !authBootstrapComplete || !signIn) return;
+    if (postLogoutResetRef.current) return;
+    postLogoutResetRef.current = true;
 
-    let cancelled = false;
     setStep("credentials");
     setVerificationStrategy(null);
     setVerificationReasonState(null);
@@ -203,20 +204,15 @@ export function EmailPasswordSignInForm({
     setInfo(null);
     verificationSendStartedRef.current = false;
     restoredVerificationRef.current = false;
-    setSignInFlowReady(false);
 
-    void signIn.reset().finally(() => {
-      if (!cancelled) setSignInFlowReady(true);
+    void signIn.reset().catch(() => {
+      // El formulario sigue usable aunque falle el reset del flujo previo.
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, [authBootstrapComplete, clearStaleSession, signIn]);
 
   useEffect(() => {
     if (!signIn || !authBootstrapComplete || restoredVerificationRef.current) return;
-    if (clearStaleSession || !signInFlowReady) return;
+    if (clearStaleSession) return;
     if (!requiresSecondFactor(signIn.status)) return;
 
     const strategy = resolveSecondFactorStrategy(signIn);
@@ -233,13 +229,7 @@ export function EmailPasswordSignInForm({
           : verificationHint(strategy, normalizedEmail, verificationReason(signIn.status)),
       );
     });
-  }, [authBootstrapComplete, clearStaleSession, signIn, signIn?.status, signInFlowReady, normalizedEmail]);
-
-  useEffect(() => {
-    if (!clearStaleSession || signInFlowReady) return;
-    const timer = window.setTimeout(() => setSignInFlowReady(true), 3000);
-    return () => window.clearTimeout(timer);
-  }, [clearStaleSession, signInFlowReady]);
+  }, [authBootstrapComplete, clearStaleSession, signIn, signIn?.status, normalizedEmail]);
 
   function startResendCooldown() {
     setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
@@ -390,7 +380,7 @@ export function EmailPasswordSignInForm({
 
   function handleCredentialsSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!authBootstrapComplete || !signIn || !signInFlowReady) return;
+    if (!authBootstrapComplete || !signIn) return;
 
     if (!normalizedEmail || !password) {
       setError("Ingresa tu correo y contraseña.");
@@ -547,18 +537,15 @@ export function EmailPasswordSignInForm({
     setVerificationReasonState(null);
     verificationSendStartedRef.current = false;
     restoredVerificationRef.current = false;
-    setSignInFlowReady(false);
     await signIn.reset();
-    setSignInFlowReady(true);
   }
 
   const showVerificationStep =
-    signInFlowReady &&
     !clearStaleSession &&
     (step === "verification" ||
       (signIn != null && requiresSecondFactor(signIn.status)));
 
-  if (!authBootstrapComplete || (clearStaleSession && !signInFlowReady)) {
+  if (!authBootstrapComplete) {
     return (
       <div className="flex min-h-[12rem] items-center justify-center text-sm text-muted-foreground">
         Preparando acceso…
@@ -735,12 +722,7 @@ export function EmailPasswordSignInForm({
         </p>
       </div>
 
-      <Button
-        type="submit"
-        variant="brand"
-        className="h-11 w-full"
-        disabled={isFetching || !signInFlowReady}
-      >
+      <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
         {isFetching ? "Ingresando…" : "Iniciar sesión"}
       </Button>
 

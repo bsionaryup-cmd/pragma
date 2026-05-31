@@ -14,7 +14,7 @@ import {
 import { getNovedadesUnreadSnapshotAction } from "@/features/novedades/actions/novedades.actions";
 
 const NOVEDADES_PATH = "/novedades";
-const POLL_MS = 10_000;
+const POLL_MS = process.env.NODE_ENV === "development" ? 30_000 : 10_000;
 const SEEN_STORAGE_PREFIX = "pragma-novedades-seen-at:";
 
 type NovedadesUnreadContextValue = {
@@ -114,13 +114,15 @@ export function NovedadesUnreadProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void poll("mount");
-
     const onVisible = () => {
       if (document.visibilityState === "visible") {
         void poll("visible");
       }
     };
+
+    const initialDelayId = window.setTimeout(() => {
+      void poll("mount");
+    }, 2_000);
 
     document.addEventListener("visibilitychange", onVisible);
     const intervalId = window.setInterval(() => {
@@ -129,6 +131,7 @@ export function NovedadesUnreadProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialDelayId);
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisible);
     };

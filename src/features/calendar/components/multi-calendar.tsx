@@ -24,7 +24,10 @@ import {
   resolveMonthFromScrollLeft,
   getTodayKey,
 } from "@/features/calendar/lib/calendar-dates";
-import { sumBudgetReservationTotal } from "@/features/calendar/lib/daily-pricing";
+import {
+  sumBudgetReservationTotal,
+  sumPriceLabsStayTotal,
+} from "@/features/calendar/lib/daily-pricing";
 import {
   clampSelectableCheckOut,
   findStayRangeConflict,
@@ -192,6 +195,17 @@ export function MultiCalendar({
   function handleChooseWithBudget() {
     if (pendingCreate) {
       const property = data.properties.find((p) => p.id === pendingCreate.propertyId);
+      const accommodationTotal = property
+        ? sumPriceLabsStayTotal(
+            property.dailyPricesByDate,
+            pendingCreate.checkIn,
+            pendingCreate.checkOut,
+          )
+        : 0;
+      const cleaningFee =
+        property?.cleaningFee != null && property.cleaningFee > 0
+          ? Math.round(property.cleaningFee)
+          : null;
       const totalAmount = property
         ? sumBudgetReservationTotal(
             property.dailyPricesByDate,
@@ -205,6 +219,11 @@ export function MultiCalendar({
         totalAmount,
         clearTotalAmount: false,
         lockTotalAmount: true,
+        quoteBreakdown: {
+          accommodationTotal,
+          cleaningFee,
+          currency: "COP",
+        },
       });
     } else {
       openCreateDrawer({ clearTotalAmount: false, lockTotalAmount: true });

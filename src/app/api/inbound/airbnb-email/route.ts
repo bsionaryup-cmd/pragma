@@ -143,5 +143,9 @@ export async function POST(request: Request) {
     auditId: outcome.auditId || undefined,
   });
 
+  if (outcome.auditId) {
+    revalidatePath("/novedades");
+  }
+
   return NextResponse.json({ ok: true, outcome });
 }

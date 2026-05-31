@@ -6,7 +6,6 @@ import { ContextualSubSidebar } from "@/components/layout/contextual-sub-sidebar
 import { Sidebar } from "@/components/layout/sidebar";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import {
-  readPinnedNavGroupId,
   readSuppressedNavGroupId,
   writePinnedNavGroupId,
   writeSuppressedNavGroupId,
@@ -42,25 +41,14 @@ export function DashboardNavigation({
   const pathname = usePathname();
   const router = useRouter();
   const previousPathnameRef = useRef(pathname);
-  const [pinnedModuleId, setPinnedModuleId] = useState<string | null>(null);
+  const [explicitGroupId, setExplicitGroupId] = useState<string | null>(null);
   const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     if (overlay) return;
-
-    let pinned = readPinnedNavGroupId();
-    const suppressed = readSuppressedNavGroupId();
-
-    if (getActiveNavGroupId(pathname, modules) === null && pinned !== null) {
-      writePinnedNavGroupId(null);
-      pinned = null;
-    }
-
-    setPinnedModuleId(pinned);
-    setSuppressedGroupId(suppressed);
-    // Solo restaurar persistencia al montar el shell.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setSuppressedGroupId(readSuppressedNavGroupId());
+    writePinnedNavGroupId(null);
+  }, [overlay]);
 
   const activeGroupId = useMemo(
     () => getActiveNavGroupId(pathname, modules),
@@ -71,16 +59,8 @@ export function DashboardNavigation({
     const previousPathname = previousPathnameRef.current;
     if (pathname === previousPathname) return;
     previousPathnameRef.current = pathname;
-
-    // Rutas sueltas (p. ej. /revenue) no deben mantener un submenú de grupo abierto.
-    if (getActiveNavGroupId(pathname, modules) !== null) return;
-
-    setPinnedModuleId((current) => {
-      if (current === null) return current;
-      writePinnedNavGroupId(null);
-      return null;
-    });
-  }, [pathname, modules]);
+    setExplicitGroupId(null);
+  }, [pathname]);
 
   useEffect(() => {
     setSuppressedGroupId((current) => {
@@ -90,10 +70,14 @@ export function DashboardNavigation({
     });
   }, [activeGroupId]);
 
+  const routeGroupId =
+    activeGroupId && activeGroupId !== suppressedGroupId ? activeGroupId : null;
+
+  /** Ruta activa primero; clic explícito en otro grupo prevalece hasta cambiar URL. */
   const openModuleId =
-    activeGroupId && activeGroupId !== suppressedGroupId
-      ? activeGroupId
-      : pinnedModuleId;
+    explicitGroupId && explicitGroupId !== routeGroupId
+      ? explicitGroupId
+      : routeGroupId;
 
   const openModule =
     modules.find(
@@ -120,32 +104,33 @@ export function DashboardNavigation({
       return;
     }
 
-    if (activeGroupId === module.id && openModuleId === module.id) {
-      setSuppressedGroupId(module.id);
-      setPinnedModuleId(null);
-      writeSuppressedNavGroupId(module.id);
-      writePinnedNavGroupId(null);
+    if (openModuleId === module.id) {
+      setExplicitGroupId(null);
+      if (routeGroupId === module.id) {
+        setSuppressedGroupId(module.id);
+        writeSuppressedNavGroupId(module.id);
+      }
       return;
     }
 
-    const isOpening = openModuleId !== module.id;
     setSuppressedGroupId(null);
-    setPinnedModuleId(module.id);
     writeSuppressedNavGroupId(null);
-    writePinnedNavGroupId(module.id);
+    setExplicitGroupId(module.id);
 
-    if (
-      isOpening &&
-      module.navigateOnOpen === true &&
-      module.href !== pathname
-    ) {
+    const switchingAwayFromRouteGroup =
+      routeGroupId != null && module.id !== routeGroupId;
+    const shouldNavigate =
+      module.href !== pathname &&
+      (module.navigateOnOpen === true || switchingAwayFromRouteGroup);
+
+    if (shouldNavigate) {
       router.push(module.href);
       onNavigate?.();
     }
   }
 
   function handleMainLinkNavigate() {
-    setPinnedModuleId(null);
+    setExplicitGroupId(null);
     setSuppressedGroupId(null);
     writePinnedNavGroupId(null);
     writeSuppressedNavGroupId(null);
@@ -153,12 +138,12 @@ export function DashboardNavigation({
   }
 
   function handleCloseSubSidebar() {
+    setExplicitGroupId(null);
     if (activeGroupId) {
       setSuppressedGroupId(activeGroupId);
       writeSuppressedNavGroupId(activeGroupId);
       return;
     }
-    setPinnedModuleId(null);
     writePinnedNavGroupId(null);
   }
 

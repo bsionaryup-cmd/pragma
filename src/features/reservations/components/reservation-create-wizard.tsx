@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Copy, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type FormEvent, type MouseEvent, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -48,6 +48,7 @@ import { formatCurrency } from "@/lib/helpers";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { cn } from "@/lib/utils";
 import type { ReservationCreateInitialValues } from "@/features/reservations/components/reservation-drawer";
+import { copyReservationQuoteToClipboard } from "@/features/reservations/lib/reservation-quote-clipboard";
 
 const STEPS = [
   { id: 1, label: "Reserva" },
@@ -72,6 +73,7 @@ export function ReservationCreateWizard({
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [summaryConfirmed, setSummaryConfirmed] = useState(false);
+  const [isCopyingQuote, setIsCopyingQuote] = useState(false);
 
   const leaveTotalBlank = initialValues?.clearTotalAmount === true;
   const lockTotalAmount = initialValues?.lockTotalAmount === true;
@@ -192,6 +194,34 @@ export function ReservationCreateWizard({
     step === 3 && values.checkIn && values.checkOut
       ? countNights(values.checkIn, values.checkOut)
       : 0;
+
+  async function handleCopyQuote() {
+    if (!values.checkIn || !values.checkOut) {
+      toast.error("Selecciona fechas de check-in y check-out.");
+      return;
+    }
+
+    setIsCopyingQuote(true);
+    try {
+      await copyReservationQuoteToClipboard({
+        checkIn: values.checkIn,
+        checkOut: values.checkOut,
+        propertyLabel: selectedProperty
+          ? formatPropertyLabel(selectedProperty)
+          : null,
+        accommodationTotal: initialValues?.quoteBreakdown?.accommodationTotal,
+        cleaningFee: initialValues?.quoteBreakdown?.cleaningFee,
+        otherCharges: initialValues?.quoteBreakdown?.otherCharges,
+        totalAmount: totalAmountBlank ? null : values.totalAmount,
+        currency: initialValues?.quoteBreakdown?.currency ?? "COP",
+      });
+      toast.success("Cotización copiada al portapapeles.");
+    } catch {
+      toast.error("No se pudo copiar la cotización.");
+    } finally {
+      setIsCopyingQuote(false);
+    }
+  }
 
   async function goNext() {
     if (step === 1) {
@@ -600,6 +630,24 @@ export function ReservationCreateWizard({
                   en finanzas.
                 </p>
               </div>
+
+              {values.checkIn && values.checkOut ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-full text-[11px] font-semibold uppercase tracking-wide"
+                  disabled={isCopyingQuote || isSubmitting}
+                  onClick={handleCopyQuote}
+                >
+                  {isCopyingQuote ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Copy className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  Copiar cotización
+                </Button>
+              ) : null}
 
               <FormField
                 control={form.control}

@@ -50,19 +50,34 @@ import {
   isOtaImportedReservation,
   OTA_RESERVATION_DELETE_MESSAGE,
 } from "@/lib/reservations/reservation-ota";
-import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { getAirbnbEnrichedGuestCountsByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
+import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
+  platform: ReservationInboxItem["platform"];
+  adults: number;
+  children: number;
+  infants: number;
   propertyMaxGuests?: number;
+  guestRegistrationCompletedAt?: Date | null;
+  guestCountTotal?: number | null;
 }) {
-  const capacity = Math.max(1, input.propertyMaxGuests ?? 1);
   const registered =
     input.guests?.filter(
       (guest) => guest.status !== ReservationGuestStatus.PENDING_REGISTRATION,
     ).length ?? 0;
+  const capacity = getGuestRegistrationMaxCapacity({
+    platform: input.platform,
+    adults: input.adults,
+    children: input.children,
+    infants: input.infants,
+    propertyMaxGuests: input.propertyMaxGuests,
+    guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
+    guestCountTotal: input.guestCountTotal,
+    registeredCount: registered > 0 ? registered : undefined,
+  });
   return { registered, capacity };
 }
 
@@ -118,23 +133,15 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     guestName: r.guestName,
     primaryGuestName: ownerGuest?.fullName,
   });
-  if (process.env.NODE_ENV !== "production" && r.platform === BookingPlatform.AIRBNB) {
-    airbnbEmailLog.info("reservation_display_guest_name_resolved", {
-      reservationId: r.id,
-      platform: r.platform,
-      resolvedGuestName: visibleGuestName,
-      source: r.airbnbEnrichmentGuestName?.trim()
-        ? "airbnb_enrichment"
-        : r.guestName?.trim()
-          ? "reservation_guest"
-          : ownerGuest?.fullName?.trim()
-            ? "primary_guest"
-            : "fallback",
-    });
-  }
   const progress = computeGuestRegistrationProgress({
     guests: r.guests,
+    platform: r.platform,
+    adults: r.adults,
+    children: r.children,
+    infants: r.infants,
     propertyMaxGuests: r.property.maxGuests,
+    guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
+    guestCountTotal: r.airbnbEnrichmentGuestCounts?.guestCountTotal ?? null,
   });
   const guestCounts = resolveReservationGuestCounts({
     adults: r.adults,

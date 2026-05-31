@@ -255,6 +255,9 @@ export function PropertyFormDrawer({
                         }
                       />
                     </FormControl>
+                    <FormDescription>
+                      Máximo de huéspedes al crear o editar reservas en esta propiedad.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

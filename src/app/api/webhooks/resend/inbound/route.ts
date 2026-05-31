@@ -190,6 +190,9 @@ export async function POST(request: Request) {
     );
 
     revalidatePath("/integrations/airbnb");
+    if (outcome.auditId) {
+      revalidatePath("/novedades");
+    }
     if (outcome.reservationId) {
       revalidatePath("/reservations");
     }

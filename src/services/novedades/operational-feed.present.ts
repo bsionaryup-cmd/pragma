@@ -3,14 +3,14 @@ import { formatMoney } from "@/lib/format-currency";
 import type { OperationalFeedCard, OperationalFeedKind } from "@/services/novedades/operational-feed.types";
 
 const HEADLINES: Record<OperationalFeedKind, string> = {
-  GUEST_MESSAGE: "Nuevo mensaje",
-  MODIFICATION_REQUEST: "Solicitud de modificación",
-  MODIFICATION_APPROVED: "Reserva actualizada",
-  PAYOUT_SENT: "Airbnb envió un pago a tu cuenta",
-  NEW_RESERVATION: "Nueva reserva confirmada",
-  UPCOMING_CHECKIN: "Llegada próxima",
-  UPCOMING_CHECKOUT: "Salida próxima",
-  RESERVATION_CANCELLED: "Reserva cancelada",
+  GUEST_MESSAGE: "Mensaje",
+  MODIFICATION_REQUEST: "Modificación",
+  MODIFICATION_APPROVED: "Actualizada",
+  PAYOUT_SENT: "Pago",
+  NEW_RESERVATION: "Nueva reserva",
+  UPCOMING_CHECKIN: "Check-in",
+  UPCOMING_CHECKOUT: "Check-out",
+  RESERVATION_CANCELLED: "Cancelada",
 };
 
 const EMOJIS: Record<OperationalFeedKind, string> = {

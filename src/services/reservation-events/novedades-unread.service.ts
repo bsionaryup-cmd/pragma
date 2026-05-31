@@ -9,14 +9,32 @@ export type NovedadesUnreadSnapshot = {
   latestId: string | null;
 };
 
+const SNAPSHOT_CACHE_MS = 8_000;
+const snapshotCache = new Map<
+  string,
+  { expiresAt: number; snapshot: NovedadesUnreadSnapshot }
+>();
+
 export async function getNovedadesUnreadSnapshot(): Promise<NovedadesUnreadSnapshot> {
   const scope = await requireTenantDataScope();
   const scopeKey = scope.organizationId ?? scope.userId;
-  const latest = await getLatestOperationalFeedTimestamp(scope);
+  const now = Date.now();
+  const cached = snapshotCache.get(scopeKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.snapshot;
+  }
 
-  return {
+  const latest = await getLatestOperationalFeedTimestamp(scope);
+  const snapshot: NovedadesUnreadSnapshot = {
     scopeKey,
     latestAt: latest.latestAt,
     latestId: latest.latestId,
   };
+
+  snapshotCache.set(scopeKey, {
+    expiresAt: now + SNAPSHOT_CACHE_MS,
+    snapshot,
+  });
+
+  return snapshot;
 }

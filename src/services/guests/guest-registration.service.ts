@@ -23,6 +23,12 @@ import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
+import {
+  getGuestRegistrationMaxCapacity,
+  getReservationGuestCount,
+  type GuestRegistrationCapacityInput,
+} from "@/lib/guest-registration/guest-registration-capacity";
+import { getAirbnbEnrichedGuestCountsByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
 
 export class GuestRegistrationError extends Error {
   constructor(message: string) {
@@ -183,12 +189,25 @@ export type GuestRegistrationLookupResult =
   | { state: "revoked" }
   | { state: "invalid" };
 
-export function getReservationGuestCount(input: {
-  adults: number;
-  children: number;
-  infants: number;
-}): number {
-  return Math.max(1, input.adults + input.children + input.infants);
+export { getGuestRegistrationMaxCapacity, getReservationGuestCount };
+
+async function resolveGuestRegistrationMaxCapacity(
+  reservation: GuestRegistrationCapacityInput & { id: string },
+  registeredCount?: number,
+): Promise<number> {
+  let guestCountTotal: number | null = null;
+  if (reservation.platform === BookingPlatform.AIRBNB) {
+    const enrichment = await getAirbnbEnrichedGuestCountsByReservationIds([
+      reservation.id,
+    ]);
+    guestCountTotal = enrichment.get(reservation.id)?.guestCountTotal ?? null;
+  }
+
+  return getGuestRegistrationMaxCapacity({
+    ...reservation,
+    guestCountTotal,
+    registeredCount,
+  });
 }
 
 function mapGuestRecord(
@@ -259,11 +278,13 @@ async function buildGuestRegistrationReservationView(input: {
   };
   reservation: {
     id: string;
+    platform: BookingPlatform;
     checkIn: Date;
     checkOut: Date;
     adults: number;
     children: number;
     infants: number;
+    guestRegistrationCompletedAt: Date | null;
     property: { name: string; unitNumber?: string | null; maxGuests: number };
   };
   guests: Parameters<typeof mapGuestRecord>[0][];
@@ -272,6 +293,18 @@ async function buildGuestRegistrationReservationView(input: {
   const registeredCount = mappedGuests.filter(
     (guest) => guest.status !== ReservationGuestStatus.PENDING_REGISTRATION,
   ).length;
+  const maxCapacity = await resolveGuestRegistrationMaxCapacity(
+    {
+      id: input.reservation.id,
+      platform: input.reservation.platform,
+      adults: input.reservation.adults,
+      children: input.reservation.children,
+      infants: input.reservation.infants,
+      propertyMaxGuests: input.reservation.property.maxGuests,
+      guestRegistrationCompletedAt: input.reservation.guestRegistrationCompletedAt,
+    },
+    registeredCount,
+  );
 
   return {
     id: input.reservation.id,
@@ -281,7 +314,7 @@ async function buildGuestRegistrationReservationView(input: {
     checkIn: prismaDateToKey(input.reservation.checkIn),
     checkOut: prismaDateToKey(input.reservation.checkOut),
     guestCount: getReservationGuestCount(input.reservation),
-    maxCapacity: Math.max(1, input.reservation.property.maxGuests),
+    maxCapacity,
     registeredCount,
     createdAt: input.registration.createdAt.toISOString(),
     expiresAt: input.registration.expiresAt?.toISOString() ?? null,
@@ -548,11 +581,13 @@ export async function getGuestRegistrationLookupResult(
     where: { id: registration.reservationId },
     select: {
       id: true,
+      platform: true,
       checkIn: true,
       checkOut: true,
       adults: true,
       children: true,
       infants: true,
+      guestRegistrationCompletedAt: true,
       property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
   });
@@ -603,6 +638,7 @@ export async function registerGuestStep(
     where: { id: registration.reservationId },
     select: {
       id: true,
+      platform: true,
       checkIn: true,
       checkOut: true,
       adults: true,
@@ -620,12 +656,23 @@ export async function registerGuestStep(
     throw new GuestRegistrationError("El registro ya fue completado");
   }
 
-  const maxCapacity = Math.max(1, reservation.property.maxGuests);
   const registeredCount = await countRegisteredGuests(reservation.id);
+  const maxCapacity = await resolveGuestRegistrationMaxCapacity(
+    {
+      id: reservation.id,
+      platform: reservation.platform,
+      adults: reservation.adults,
+      children: reservation.children,
+      infants: reservation.infants,
+      propertyMaxGuests: reservation.property.maxGuests,
+      guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
+    },
+    registeredCount,
+  );
 
   if (registeredCount >= maxCapacity) {
     throw new GuestRegistrationError(
-      "No puedes registrar más huéspedes de los que permite esta propiedad.",
+      "No puedes registrar más huéspedes de los permitidos en esta reserva.",
     );
   }
 
@@ -751,11 +798,13 @@ export async function completeGuestRegistration(
     where: { id: registration.reservationId },
     select: {
       id: true,
+      platform: true,
       checkIn: true,
       checkOut: true,
       adults: true,
       children: true,
       infants: true,
+      guestRegistrationCompletedAt: true,
       property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
   });
@@ -807,19 +856,29 @@ export async function submitGuestRegistration(
     where: { id: registration.reservationId },
     select: {
       id: true,
+      platform: true,
       adults: true,
       children: true,
       infants: true,
+      guestRegistrationCompletedAt: true,
       property: { select: { maxGuests: true } },
     },
   });
 
   if (!reservation) throw new GuestRegistrationError("Reserva no encontrada");
 
-  const maxCapacity = Math.max(1, reservation.property.maxGuests);
+  const maxCapacity = await resolveGuestRegistrationMaxCapacity({
+    id: reservation.id,
+    platform: reservation.platform,
+    adults: reservation.adults,
+    children: reservation.children,
+    infants: reservation.infants,
+    propertyMaxGuests: reservation.property.maxGuests,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
+  });
   if (parsed.guests.length > maxCapacity) {
     throw new GuestRegistrationError(
-      "No puedes registrar más huéspedes de los que permite esta propiedad.",
+      "No puedes registrar más huéspedes de los permitidos en esta reserva.",
     );
   }
 

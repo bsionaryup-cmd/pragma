@@ -26,11 +26,12 @@ export function NovedadesPageView({
 
   return (
     <ModuleShellFlow className="bg-background">
-      <div className="mx-auto w-full max-w-[1440px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1440px] px-4 py-4 pb-8 sm:px-6 lg:px-8">
         <PageHeader
-          eyebrow="Airbnb"
+          eyebrow="Operación"
           title="Novedades"
-          description="Pagos que Airbnb envía a tu cuenta de anfitrión. Solo lectura — el detalle llega por correo de Airbnb."
+          description="Notificaciones de Airbnb: reservas, pagos, mensajes y cambios."
+          className="mb-3"
         />
         <OperationalFeed cards={cards} />
       </div>

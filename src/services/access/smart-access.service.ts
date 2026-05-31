@@ -9,6 +9,7 @@ import { prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import {
@@ -137,6 +138,9 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
       checkOut: true,
       platform: true,
       guestName: true,
+      adults: true,
+      children: true,
+      infants: true,
       guestRegistrationCompletedAt: true,
       property: {
         select: {
@@ -191,7 +195,15 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
     const credentialRow = reservation.accessCredentials[0] ?? null;
     const lockMapped = Boolean(reservation.property.propertyLock);
     const registrationComplete = Boolean(reservation.guestRegistrationCompletedAt);
-    const capacity = Math.max(1, reservation.property.maxGuests);
+    const capacity = getGuestRegistrationMaxCapacity({
+      platform: reservation.platform,
+      adults: reservation.adults,
+      children: reservation.children,
+      infants: reservation.infants,
+      propertyMaxGuests: reservation.property.maxGuests,
+      guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
+      registeredCount: reservation.guests.length > 0 ? reservation.guests.length : undefined,
+    });
     const registeredCount = reservation.guests.length;
     const registrationProgress = registrationComplete
       ? null

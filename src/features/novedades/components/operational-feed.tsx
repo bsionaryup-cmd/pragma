@@ -11,13 +11,13 @@ export function OperationalFeed({ cards }: OperationalFeedProps) {
     return (
       <EmptyState
         title="Sin novedades por ahora"
-        description="Cuando Airbnb envíe un pago a tu cuenta de anfitrión, aparecerá aquí con el monto y la reserva asociada."
+        description="Aquí aparecen reservas confirmadas, pagos, mensajes de huéspedes y cambios en reservas cuando Airbnb envíe el correo a tu bandeja conectada."
       />
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-1">
       {cards.map((card) => (
         <OperationalFeedCardView key={card.id} card={card} />
       ))}

@@ -18,11 +18,15 @@ import {
   isGuestRegistrationEligibleStatus,
 } from "@/services/guests/guest-registration.service";
 import { sendGuestRegistrationEmailForReservation } from "@/services/guests/guest-registration-email.service";
-import { createReservationPaymentLink } from "@/services/payments/guest-payment-link.service";
 import { getReservationPaymentBalance } from "@/services/payments/reservation-payment-balance";
 
 const ACTIVE_LINK_STATUSES = ["DRAFT", "SENT", "PENDING", "PROCESSING"] as const;
 
+function isAutoPaymentLinkCleanupEnabled(): boolean {
+  return process.env.ENABLE_AUTO_PAYMENT_LINK_CLEANUP === "true";
+}
+
+/** Activa hold de pago sin emitir enlace (generación manual desde Finanzas). */
 export async function activateReservationPaymentHold(input: {
   reservationId: string;
   createdById: string;
@@ -41,23 +45,64 @@ export async function activateReservationPaymentHold(input: {
     },
   });
 
-  try {
-    await createReservationPaymentLink({
-      reservationId: input.reservationId,
-      mode: "deposit_50",
-      createdById: input.createdById,
-      issue: true,
-      expiresAt: holdExpiresAt,
-    });
-    return { paymentLinkIssued: true };
-  } catch (error) {
-    console.warn(
-      "[reservation-hold] No se pudo emitir enlace de depósito",
-      input.reservationId,
-      error,
-    );
-    return { paymentLinkIssued: false };
+  return { paymentLinkIssued: false };
+}
+
+/** Cancela enlaces de depósito emitidos automáticamente al crear reserva (solo manual / flag). */
+export async function cancelAutoIssuedHoldDepositLinks(): Promise<number> {
+  if (!isAutoPaymentLinkCleanupEnabled()) {
+    console.info("AUTO PAYMENT LINK CLEANUP SKIPPED");
+    return 0;
   }
+
+  const candidates = await db.guestPaymentLink.findMany({
+    where: {
+      category: "DEPOSIT",
+      status: { in: [...ACTIVE_LINK_STATUSES] },
+      description: { startsWith: "Depósito 50%" },
+      reservationId: { not: null },
+      reservation: {
+        platform: BookingPlatform.DIRECT,
+        holdExpiresAt: { not: null },
+      },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      expiresAt: true,
+      reservation: {
+        select: {
+          createdAt: true,
+          holdExpiresAt: true,
+        },
+      },
+    },
+    take: 200,
+  });
+
+  const toCancel = candidates.filter((link) => {
+    const reservation = link.reservation;
+    if (!reservation?.holdExpiresAt || !link.expiresAt) return false;
+
+    const createdDeltaMs = Math.abs(
+      link.createdAt.getTime() - reservation.createdAt.getTime(),
+    );
+    if (createdDeltaMs > 5 * 60 * 1000) return false;
+
+    const expiresDeltaMs = Math.abs(
+      link.expiresAt.getTime() - reservation.holdExpiresAt.getTime(),
+    );
+    return expiresDeltaMs <= 2000;
+  });
+
+  if (toCancel.length === 0) return 0;
+
+  const result = await db.guestPaymentLink.updateMany({
+    where: { id: { in: toCancel.map((link) => link.id) } },
+    data: { status: "CANCELLED" },
+  });
+
+  return result.count;
 }
 
 async function finalizeGuestRegistrationAfterHold(reservationId: string) {

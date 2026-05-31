@@ -335,14 +335,20 @@ export async function reconcilePendingGuestPaymentsFromWompi(): Promise<{
 
 export async function runGuestPaymentReconciliationJob(): Promise<{
   expired: number;
+  autoLinksCancelled: number;
   holdsReleased: number;
   wompi: { scanned: number; reconciled: number; failed: number };
 }> {
   const expired = await expireStaleGuestPaymentLinks();
-  const { expireStaleReservationHolds } = await import(
-    "@/services/reservations/reservation-hold.service"
-  );
+  const { expireStaleReservationHolds, cancelAutoIssuedHoldDepositLinks } =
+    await import("@/services/reservations/reservation-hold.service");
+  let autoLinksCancelled = 0;
+  if (process.env.ENABLE_AUTO_PAYMENT_LINK_CLEANUP === "true") {
+    autoLinksCancelled = await cancelAutoIssuedHoldDepositLinks();
+  } else {
+    console.info("AUTO PAYMENT LINK CLEANUP SKIPPED");
+  }
   const holdsReleased = await expireStaleReservationHolds();
   const wompi = await reconcilePendingGuestPaymentsFromWompi();
-  return { expired, holdsReleased, wompi };
+  return { expired, autoLinksCancelled, holdsReleased, wompi };
 }

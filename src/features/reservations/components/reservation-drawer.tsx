@@ -25,6 +25,13 @@ export type ReservationCreateInitialValues = {
   clearTotalAmount?: boolean;
   /** Monto fijado por presupuesto PriceLabs (no editable). */
   lockTotalAmount?: boolean;
+  /** Desglose opcional del presupuesto (calendario). */
+  quoteBreakdown?: {
+    accommodationTotal?: number | null;
+    cleaningFee?: number | null;
+    otherCharges?: { label: string; amount: number }[];
+    currency?: string;
+  };
 };
 
 type ReservationDrawerProps = {

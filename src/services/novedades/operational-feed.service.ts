@@ -31,6 +31,7 @@ const reservationSelect = {
   guestName: true,
   checkIn: true,
   checkOut: true,
+  status: true,
   totalAmount: true,
   currency: true,
   adults: true,
@@ -346,6 +347,10 @@ function mapEmailEvent(
   }
 
   if (row.eventKind === AirbnbEmailEventKind.CANCELED) {
+    if (row.reservation?.status !== ReservationStatus.CANCELLED) {
+      return null;
+    }
+
     return buildOperationalCard({
       id: `email-event:${row.id}`,
       kind: "RESERVATION_CANCELLED",
@@ -364,6 +369,13 @@ function mapEmailEvent(
   }
 
   if (row.eventKind === AirbnbEmailEventKind.CHECKIN_REMINDER) {
+    const todayKey = todayDateKeyInTimezone();
+    const today = dateKeyToPrismaDate(todayKey);
+    const checkIn = row.reservation?.checkIn;
+    if (!checkIn || checkIn < today) {
+      return null;
+    }
+
     return buildOperationalCard({
       id: `email-event:${row.id}`,
       kind: "UPCOMING_CHECKIN",
@@ -386,53 +398,11 @@ function mapEmailEvent(
   return null;
 }
 
-function mapUpcomingReservation(
-  row: Awaited<
-    ReturnType<
-      typeof db.reservation.findMany<{
-        select: typeof reservationSelect;
-      }>
-    >
-  >[number],
-  kind: "UPCOMING_CHECKIN" | "UPCOMING_CHECKOUT",
-): OperationalFeedCard {
-  const todayKey = todayDateKeyInTimezone();
-  const today = dateKeyToPrismaDate(todayKey);
-  const targetDate = kind === "UPCOMING_CHECKIN" ? row.checkIn : row.checkOut;
-  const detailLines =
-    kind === "UPCOMING_CHECKIN"
-      ? [`Check-in: ${targetDate.getTime() === today.getTime() ? "Hoy" : formatReservationRange(targetDate, targetDate)}`]
-      : [`Check-out: ${targetDate.getTime() === today.getTime() ? "Hoy" : formatReservationRange(targetDate, targetDate)}`];
-
-  return buildOperationalCard({
-    id: `${kind.toLowerCase()}:${row.id}`,
-    kind,
-    createdAt: new Date(),
-    guestName: row.guestName,
-    propertyLabel: propertyLabelFromReservation(row),
-    propertyId: propertyIdFromReservation(row),
-    reservationId: row.id,
-    dateRangeLabel: formatReservationRange(row.checkIn, row.checkOut),
-    detailLines,
-  });
-}
-
 export async function listNovedadesFeedForTenant(
   scope: TenantDataScope,
   limit = 60,
 ): Promise<OperationalFeedCard[]> {
-  const take = Math.min(Math.max(limit, 1), 120);
-  const payouts = await db.reservationPayout.findMany({
-    where: { audit: auditWhere(scope) },
-    orderBy: { createdAt: "desc" },
-    take,
-    include: {
-      reservation: { select: reservationSelect },
-      audit: { select: { createdAt: true } },
-    },
-  });
-
-  return payouts.map(mapPayout);
+  return listOperationalFeedForTenant(scope, limit);
 }
 
 export async function listOperationalFeedForTenant(
@@ -440,10 +410,6 @@ export async function listOperationalFeedForTenant(
   limit = 60,
 ): Promise<OperationalFeedCard[]> {
   const take = Math.min(Math.max(limit, 1), 120);
-  const todayKey = todayDateKeyInTimezone();
-  const today = dateKeyToPrismaDate(todayKey);
-  const horizon = new Date(today);
-  horizon.setUTCDate(horizon.getUTCDate() + 2);
 
   const [
     modificationEvents,
@@ -451,8 +417,6 @@ export async function listOperationalFeedForTenant(
     guestPending,
     payouts,
     emailEvents,
-    upcomingCheckIns,
-    upcomingCheckOuts,
   ] = await Promise.all([
     db.reservationEvent.findMany({
       where: reservationEventWhere(scope),
@@ -507,38 +471,7 @@ export async function listOperationalFeedForTenant(
         audit: { select: { createdAt: true, subject: true } },
       },
     }),
-    db.reservation.findMany({
-      where: mergeReservationScope(scope, {
-        status: { in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN] },
-        checkIn: { gte: today, lte: horizon },
-      }),
-      select: reservationSelect,
-      orderBy: { checkIn: "asc" },
-      take: 8,
-    }),
-    db.reservation.findMany({
-      where: mergeReservationScope(scope, {
-        status: {
-          in: [
-            ReservationStatus.CONFIRMED,
-            ReservationStatus.CHECKED_IN,
-            ReservationStatus.CHECKOUT_TODAY,
-          ],
-        },
-        checkOut: { gte: today, lte: horizon },
-      }),
-      select: reservationSelect,
-      orderBy: { checkOut: "asc" },
-      take: 8,
-    }),
   ]);
-
-  const reminderReservationIds = new Set(
-    emailEvents
-      .filter((row) => row.eventKind === AirbnbEmailEventKind.CHECKIN_REMINDER)
-      .map((row) => row.reservationId)
-      .filter(Boolean) as string[],
-  );
 
   const cards: OperationalFeedCard[] = [
     ...modificationEvents.map(mapModificationEvent),
@@ -546,10 +479,6 @@ export async function listOperationalFeedForTenant(
     ...guestPending.map(mapGuestMessagePending),
     ...payouts.map(mapPayout),
     ...emailEvents.map(mapEmailEvent).filter((row): row is OperationalFeedCard => row != null),
-    ...upcomingCheckIns
-      .filter((row) => !reminderReservationIds.has(row.id))
-      .map((row) => mapUpcomingReservation(row, "UPCOMING_CHECKIN")),
-    ...upcomingCheckOuts.map((row) => mapUpcomingReservation(row, "UPCOMING_CHECKOUT")),
   ];
 
   return cards
@@ -560,16 +489,93 @@ export async function listOperationalFeedForTenant(
 export async function getLatestOperationalFeedTimestamp(
   scope: TenantDataScope,
 ): Promise<{ latestAt: string | null; latestId: string | null }> {
-  const payout = await db.reservationPayout.findFirst({
-    where: { audit: auditWhere(scope) },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, createdAt: true },
-  });
+  const emailEventKinds = [
+    AirbnbEmailEventKind.CONFIRMED,
+    AirbnbEmailEventKind.CHECKIN_REMINDER,
+    AirbnbEmailEventKind.CANCELED,
+  ] as const;
 
-  if (!payout) return { latestAt: null, latestId: null };
+  const [
+    modificationEvent,
+    guestActivity,
+    guestPending,
+    payout,
+    emailEvent,
+  ] = await Promise.all([
+    db.reservationEvent.findFirst({
+      where: reservationEventWhere(scope),
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
+    db.reservationActivity.findFirst({
+      where: guestMessageActivityWhere(scope),
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
+    db.reservationActivityPending.findFirst({
+      where: guestMessagePendingWhere(scope),
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
+    db.reservationPayout.findFirst({
+      where: { audit: auditWhere(scope) },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
+    db.reservationEmailEvent.findFirst({
+      where: {
+        eventKind: { in: [...emailEventKinds] },
+        audit: auditWhere(scope),
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
+  ]);
+
+  type Candidate = { id: string; createdAt: Date };
+  const candidates: Candidate[] = [];
+
+  if (modificationEvent) {
+    candidates.push({
+      id: `event:${modificationEvent.id}`,
+      createdAt: modificationEvent.createdAt,
+    });
+  }
+  if (guestActivity) {
+    candidates.push({
+      id: `activity:${guestActivity.id}`,
+      createdAt: guestActivity.createdAt,
+    });
+  }
+  if (guestPending) {
+    candidates.push({
+      id: `pending:${guestPending.id}`,
+      createdAt: guestPending.createdAt,
+    });
+  }
+  if (payout) {
+    candidates.push({
+      id: `payout:${payout.id}`,
+      createdAt: payout.createdAt,
+    });
+  }
+  if (emailEvent) {
+    candidates.push({
+      id: `email-event:${emailEvent.id}`,
+      createdAt: emailEvent.createdAt,
+    });
+  }
+
+  if (candidates.length === 0) {
+    return { latestAt: null, latestId: null };
+  }
+
+  const latest = candidates.reduce((best, row) =>
+    row.createdAt > best.createdAt ? row : best,
+  );
 
   return {
-    latestAt: payout.createdAt.toISOString(),
-    latestId: `payout:${payout.id}`,
+    latestAt: latest.createdAt.toISOString(),
+    latestId: latest.id,
   };
 }

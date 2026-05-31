@@ -185,7 +185,7 @@ export function GuestRegistrationForm({
                 Progreso: {progressLabel} huéspedes registrados
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Capacidad máxima de la propiedad: {reservation.maxCapacity}
+                Capacidad de la reserva: {reservation.maxCapacity}
               </p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full bg-warning/10 px-3 py-1 text-sm font-semibold text-warning">

@@ -7,6 +7,8 @@ export function sortByUpcomingArrivals(
   return [...items].sort((a, b) => {
     const aCreated = a.createdAt ?? "";
     const bCreated = b.createdAt ?? "";
-    return bCreated.localeCompare(aCreated);
+    const byCreated = bCreated.localeCompare(aCreated);
+    if (byCreated !== 0) return byCreated;
+    return b.id.localeCompare(a.id);
   });
 }
