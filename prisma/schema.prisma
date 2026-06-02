@@ -29,6 +29,7 @@ model Organization {
   users          User[]
   billingAccount BillingAccount?
   wompiIntegration WompiIntegration?
+  epaycoIntegration EpaycoIntegration?
   ttlockIntegration TTLockIntegration?
   properties     Property[]
   impersonationSessions PlatformImpersonationSession[]
@@ -90,6 +91,7 @@ model User {
   priceLabsIntegration PriceLabsIntegration?    @relation("PriceLabsConfigurator")
   organizationIntegrations OrganizationIntegration[] @relation("OrgIntegrationConfigurator")
   wompiIntegrations      WompiIntegration[]       @relation("WompiConfigurator")
+  epaycoIntegrations     EpaycoIntegration[]      @relation("EpaycoConfigurator")
   platformImpersonationSessions PlatformImpersonationSession[] @relation("PlatformImpersonator")
   platformAuditLogs      PlatformAuditLog[]
   supportTickets         SupportTicket[] @relation("SupportTicketCreator")
@@ -997,6 +999,30 @@ model WompiIntegration {
   @@map("wompi_integrations")
 }
 
+// ─── ePayco (PSP Colombia — guest payment links) ───────────────
+
+model EpaycoIntegration {
+  id                     String   @id @default(cuid())
+  organizationId         String   @unique
+  publicKey              String?
+  privateKeyEncrypted    String?
+  pKeyEncrypted          String?
+  custIdCliente          String?
+  env                    String   @default("test")
+  enabled                Boolean  @default(true)
+  preferForGuestPayments Boolean  @default(false)
+  lastHealthCheckAt      DateTime?
+  lastError              String?
+  configuredById         String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  configuredBy User?        @relation("EpaycoConfigurator", fields: [configuredById], references: [id], onDelete: SetNull)
+
+  @@map("epayco_integrations")
+}
+
 enum LeadStatus {
   NEW
   CONTACTED
@@ -1074,6 +1100,7 @@ model BillingInvoice {
 
 enum PaymentProviderCode {
   WOMPI
+  EPAYCO
   STRIPE
   MERCADOPAGO
   PAYU
@@ -1458,6 +1485,10 @@ model GuestPaymentLink {
   status           GuestPaymentLinkStatus @default(DRAFT)
   wompiLinkId      String?
   wompiCheckoutUrl String?
+  epaycoInvoice    String?
+  epaycoCheckoutUrl String?
+  epaycoRefPayco   String?
+  paymentGateway   String?
   expiresAt        DateTime?
   notes            String?
   paymentInvoiceId String?

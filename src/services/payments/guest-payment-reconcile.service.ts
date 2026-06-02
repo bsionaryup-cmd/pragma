@@ -53,13 +53,15 @@ function mapCategoryToIncomeType(category: GuestPaymentCategory): string {
   return guestPaymentIncomeLabel(category);
 }
 
-export async function reconcileGuestPaymentFromWebhook(input: {
+export async function reconcileGuestPaymentFromProvider(input: {
   reference: string;
+  provider?: PaymentProviderCode;
   providerTransactionId?: string;
   status: PaymentTransactionStatus;
   paymentMethod?: PaymentMethodType;
   failureReason?: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const provider = input.provider ?? PaymentProviderCode.WOMPI;
   const linkId = parseGuestPaymentReference(input.reference);
   if (!linkId) {
     return { ok: true, message: "No es referencia de guest payment" };
@@ -83,10 +85,7 @@ export async function reconcileGuestPaymentFromWebhook(input: {
   }
 
   const existingTx = hasPaymentLedgerDelegates()
-    ? await findTransactionByProviderReference(
-        PaymentProviderCode.WOMPI,
-        input.reference,
-      )
+    ? await findTransactionByProviderReference(provider, input.reference)
     : null;
 
   if (
@@ -145,11 +144,11 @@ export async function reconcileGuestPaymentFromWebhook(input: {
           reservationId: link.reservationId,
           amount: Number(link.amount),
           currency: link.currency,
-          provider: PaymentProviderCode.WOMPI,
+          provider,
           providerReference: input.reference,
           status: input.status,
           paymentMethod: input.paymentMethod ?? PaymentMethodType.OTHER,
-          idempotencyKey: `guest-wh-${link.id}`,
+          idempotencyKey: `guest-${provider.toLowerCase()}-${link.id}`,
           metadata: {
             guestPaymentLinkId: link.id,
             providerTransactionId: input.providerTransactionId,
@@ -280,8 +279,9 @@ export async function reconcilePendingGuestPaymentsFromWompi(): Promise<{
       continue;
     }
 
-    const result = await reconcileGuestPaymentFromWebhook({
+    const result = await reconcileGuestPaymentFromProvider({
       reference,
+      provider: PaymentProviderCode.WOMPI,
       providerTransactionId: transactionId ?? undefined,
       status,
       paymentMethod:
@@ -326,3 +326,6 @@ export async function runGuestPaymentReconciliationJob(): Promise<{
   const wompi = await reconcilePendingGuestPaymentsFromWompi();
   return { expired, autoLinksCancelled, holdsReleased, wompi };
 }
+
+/** @deprecated Usar reconcileGuestPaymentFromProvider */
+export const reconcileGuestPaymentFromWebhook = reconcileGuestPaymentFromProvider;

@@ -146,6 +146,27 @@ export default async function IntegrationsPage() {
             />
           ) : null}
 
+          {canManage && showFinance ? (
+            <Link
+              href="/integrations/epayco"
+              className="group rounded-2xl border border-border bg-card p-5 shadow-pragma-soft transition-all hover:-translate-y-0.5 hover:border-primary/35"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
+                <CreditCard className="h-6 w-6" />
+              </span>
+              <h2 className="mt-5 text-lg font-semibold">ePayco</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Pasarela alternativa para Payment Links — checkout OnPage y confirmación por
+                webhook.
+              </p>
+            </Link>
+          ) : canManage ? (
+            <LockedIntegrationCard
+              title="ePayco"
+              description="Disponible con módulo Finanzas (plan Pro+)."
+            />
+          ) : null}
+
           {canManage && showTraa ? (
             <Link
               href="/integrations/traa"

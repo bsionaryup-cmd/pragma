@@ -13,6 +13,8 @@ import {
   isPaymentLinkEligibleReservation,
   PAYMENT_LINK_INELIGIBLE_MESSAGE,
 } from "@/lib/reservations/reservation-payment-links";
+import { createGuestEpaycoCheckout } from "@/services/payments/guest-epayco-checkout.service";
+import { resolveGuestPaymentGateway } from "@/services/payments/guest-payment-gateway.service";
 import { createGuestWompiCheckout } from "@/services/payments/guest-wompi-checkout.service";
 import {
   assertAmountWithinReservationBalance,
@@ -173,13 +175,58 @@ export async function issueGuestPaymentLink(linkId: string, customerEmail?: stri
     throw new Error("El enlace está vencido");
   }
 
+  const gateway = await resolveGuestPaymentGateway(scope.organizationId);
+  if (!gateway) {
+    throw new Error(
+      "Configura Wompi o ePayco en Integraciones antes de emitir enlaces de pago.",
+    );
+  }
+
+  const customerEmailResolved =
+    customerEmail ?? link.reservation?.guestEmail ?? null;
+
+  if (gateway === "EPAYCO") {
+    const checkout = await createGuestEpaycoCheckout({
+      organizationId: scope.organizationId,
+      linkId: link.id,
+      description: link.description,
+      amount: Number(link.amount),
+      currency: link.currency,
+      customerEmail: customerEmailResolved,
+      customerName: link.guestName,
+    });
+
+    if (!checkout.ok || !checkout.checkoutUrl) {
+      throw new Error(checkout.message);
+    }
+
+    const updated = await db.guestPaymentLink.update({
+      where: { id: link.id },
+      data: {
+        status: "SENT",
+        paymentGateway: "EPAYCO",
+        epaycoCheckoutUrl: checkout.checkoutUrl,
+        epaycoInvoice: checkout.invoice ?? null,
+      },
+    });
+
+    await writePaymentAuditLog({
+      entityType: "guest_payment_link",
+      entityId: link.id,
+      action: "checkout_issued",
+      after: { paymentGateway: "EPAYCO", epaycoInvoice: checkout.invoice },
+    });
+
+    return updated;
+  }
+
   const checkout = await createGuestWompiCheckout({
     organizationId: scope.organizationId,
     linkId: link.id,
     description: link.description,
     amount: Number(link.amount),
     currency: link.currency,
-    customerEmail: customerEmail ?? link.reservation?.guestEmail ?? null,
+    customerEmail: customerEmailResolved,
   });
 
   if (!checkout.ok || !checkout.checkoutUrl) {
@@ -190,6 +237,7 @@ export async function issueGuestPaymentLink(linkId: string, customerEmail?: stri
     where: { id: link.id },
     data: {
       status: "SENT",
+      paymentGateway: "WOMPI",
       wompiCheckoutUrl: checkout.checkoutUrl,
       wompiLinkId: checkout.wompiLinkId ?? null,
     },
@@ -199,7 +247,7 @@ export async function issueGuestPaymentLink(linkId: string, customerEmail?: stri
     entityType: "guest_payment_link",
     entityId: link.id,
     action: "checkout_issued",
-    after: { wompiLinkId: checkout.wompiLinkId },
+    after: { paymentGateway: "WOMPI", wompiLinkId: checkout.wompiLinkId },
   });
 
   return updated;
