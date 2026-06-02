@@ -61,6 +61,8 @@ export type PropertyDetailDto = PropertyGridItem & {
   airbnbListingUrl: string | null;
   icalUrl: string | null;
   lastIcalSyncedAt: string | null;
+  /** Multiline text for the property form (one email per line). */
+  notificationEmails: string;
   smartAccess?: {
     lock: import("@/modules/integrations/ttlock/ttlock.types").SmartLockSnapshot | null;
     integrationConnected: boolean;

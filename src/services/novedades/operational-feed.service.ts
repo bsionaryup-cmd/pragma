@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   AirbnbEmailEventKind,
+  BookingPlatform,
   ReservationActivityType,
   ReservationEventType,
   ReservationStatus,
@@ -25,6 +26,9 @@ import {
 import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
 import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
+import { buildQuickMessage } from "@/lib/reservations/quick-messages";
+import { parsePropertyNotificationEmails } from "@/lib/property-notification-emails";
+import { buildGuestRegistrationUrl } from "@/services/guests/guest-registration.service";
 
 const reservationSelect = {
   id: true,
@@ -37,8 +41,22 @@ const reservationSelect = {
   adults: true,
   children: true,
   infants: true,
+  guestRegistrationToken: true,
+  guestRegistrationCompletedAt: true,
+  createdAt: true,
   property: {
-    select: { id: true, name: true, unitNumber: true, city: true },
+    select: {
+      id: true,
+      name: true,
+      unitNumber: true,
+      city: true,
+      address: true,
+      checkInTime: true,
+      checkOutTime: true,
+      accessCode: true,
+      wifiName: true,
+      wifiPassword: true,
+    },
   },
 } as const;
 
@@ -398,6 +416,101 @@ function mapEmailEvent(
   return null;
 }
 
+async function listGuestRegistrationAdminNotificationCards(
+  scope: TenantDataScope,
+): Promise<OperationalFeedCard[]> {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const rows = await db.reservation.findMany({
+    where: mergeReservationScope(scope, {
+      guestRegistrationCompletedAt: { gte: sevenDaysAgo },
+      OR: [
+        { guestRegistrationAdminNotifiedAt: { gte: sevenDaysAgo } },
+        {
+          guestRegistrationAdminNotifiedAt: null,
+          guestRegistrationAdminNotificationError: { not: null },
+        },
+      ],
+    }),
+    orderBy: { guestRegistrationCompletedAt: "desc" },
+    take: 40,
+    select: {
+      id: true,
+      guestName: true,
+      reservationCode: true,
+      checkIn: true,
+      checkOut: true,
+      guestRegistrationCompletedAt: true,
+      guestRegistrationAdminNotifiedAt: true,
+      guestRegistrationAdminNotificationError: true,
+      property: {
+        select: {
+          id: true,
+          name: true,
+          unitNumber: true,
+          notificationEmails: true,
+        },
+      },
+    },
+  });
+
+  const cards: OperationalFeedCard[] = [];
+
+  for (const row of rows) {
+    if (!row.guestRegistrationCompletedAt) continue;
+
+    const propertyLabel = formatPropertyLabel(row.property);
+    const dateRangeLabel = formatReservationRange(row.checkIn, row.checkOut);
+    const recipients = parsePropertyNotificationEmails(row.property.notificationEmails);
+    const recipientsLine =
+      recipients.length > 0 ? `Destinatarios: ${recipients.join(", ")}` : null;
+
+    if (row.guestRegistrationAdminNotifiedAt) {
+      cards.push(
+        buildOperationalCard({
+          id: `guest-reg-admin:sent:${row.id}`,
+          kind: "GUEST_REGISTRATION_ADMIN_SENT",
+          createdAt: row.guestRegistrationAdminNotifiedAt,
+          guestName: row.guestName,
+          summary: "Registro completado y enviado a administración.",
+          propertyLabel,
+          propertyId: row.property.id,
+          reservationId: row.id,
+          confirmationCode: row.reservationCode,
+          dateRangeLabel,
+          detailLines: recipientsLine ? [recipientsLine] : [],
+        }),
+      );
+      continue;
+    }
+
+    if (row.guestRegistrationAdminNotificationError) {
+      cards.push(
+        buildOperationalCard({
+          id: `guest-reg-admin:failed:${row.id}`,
+          kind: "GUEST_REGISTRATION_ADMIN_FAILED",
+          createdAt: row.guestRegistrationCompletedAt,
+          guestName: row.guestName,
+          summary:
+            "Registro completado, pero falló el envío a administración.",
+          propertyLabel,
+          propertyId: row.property.id,
+          reservationId: row.id,
+          confirmationCode: row.reservationCode,
+          dateRangeLabel,
+          detailLines: [
+            ...(recipientsLine ? [recipientsLine] : []),
+            `Error: ${row.guestRegistrationAdminNotificationError}`,
+          ],
+        }),
+      );
+    }
+  }
+
+  return cards;
+}
+
 export async function listNovedadesFeedForTenant(
   scope: TenantDataScope,
   limit = 60,
@@ -411,12 +524,185 @@ export async function listOperationalFeedForTenant(
 ): Promise<OperationalFeedCard[]> {
   const take = Math.min(Math.max(limit, 1), 120);
 
+  const quickMessageDataFromReservation = (
+    reservation: {
+      guestName: string;
+      property: {
+        name: string;
+        address: string;
+        checkInTime: string | null;
+        checkOutTime: string | null;
+        accessCode: string | null;
+        wifiName: string | null;
+        wifiPassword: string | null;
+      };
+      guestRegistrationToken: string | null;
+    },
+  ) => ({
+    guestName: reservation.guestName,
+    propertyName: reservation.property.name,
+    address: reservation.property.address,
+    checkInTime: reservation.property.checkInTime,
+    checkOutTime: reservation.property.checkOutTime,
+    accessCode: reservation.property.accessCode,
+    wifiName: reservation.property.wifiName,
+    wifiPassword: reservation.property.wifiPassword,
+    registrationLink: reservation.guestRegistrationToken
+      ? buildGuestRegistrationUrl(reservation.guestRegistrationToken)
+      : null,
+  });
+
+  async function listQuickMessageReminders(): Promise<OperationalFeedCard[]> {
+    const now = new Date();
+    const today = dateKeyToPrismaDate(todayDateKeyInTimezone());
+    const in48h = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000);
+    const in24h = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+    const rows = await db.reservation.findMany({
+      where: mergeReservationScope(scope, {
+        platform: { in: [BookingPlatform.DIRECT, BookingPlatform.AIRBNB] },
+        status: { not: ReservationStatus.CANCELLED },
+        checkOut: { gte: new Date(today.getTime() - 24 * 60 * 60 * 1000) },
+      }),
+      orderBy: { createdAt: "desc" },
+      take: 150,
+      select: reservationSelect,
+    });
+
+    const cards: OperationalFeedCard[] = [];
+    const dedupe = new Set<string>();
+
+    for (const row of rows) {
+      const messageData = quickMessageDataFromReservation(row);
+      const propertyLabel = formatPropertyLabel(row.property);
+      const dateRangeLabel = formatReservationRange(row.checkIn, row.checkOut);
+
+      if (row.createdAt >= twoDaysAgo) {
+        const id = `quick:welcome:${row.id}`;
+        if (!dedupe.has(id)) {
+          dedupe.add(id);
+          cards.push(
+            buildOperationalCard({
+              id,
+              kind: "NEW_RESERVATION",
+              createdAt: row.createdAt,
+              guestName: row.guestName,
+              summary: "Enviar mensaje de bienvenida",
+              propertyLabel,
+              propertyId: row.property.id,
+              reservationId: row.id,
+              dateRangeLabel,
+              quickActionLabel: "Copiar mensaje",
+              quickActionMessage: buildQuickMessage("WELCOME", messageData),
+            }),
+          );
+        }
+      }
+
+      if (row.checkIn >= today && row.checkIn <= in48h && !row.guestRegistrationCompletedAt) {
+        const id = `quick:registration:${row.id}`;
+        if (!dedupe.has(id)) {
+          dedupe.add(id);
+          cards.push(
+            buildOperationalCard({
+              id,
+              kind: "UPCOMING_CHECKIN",
+              createdAt: row.checkIn,
+              guestName: row.guestName,
+              summary: "Solicitar registro de huéspedes",
+              propertyLabel,
+              propertyId: row.property.id,
+              reservationId: row.id,
+              dateRangeLabel,
+              quickActionLabel: "Copiar mensaje",
+              quickActionMessage: buildQuickMessage("REGISTRATION", messageData),
+            }),
+          );
+        }
+      }
+
+      if (row.guestRegistrationCompletedAt && row.guestRegistrationCompletedAt >= twoDaysAgo) {
+        const id = `quick:access:${row.id}`;
+        if (!dedupe.has(id)) {
+          dedupe.add(id);
+          cards.push(
+            buildOperationalCard({
+              id,
+              kind: "UPCOMING_CHECKIN",
+              createdAt: row.guestRegistrationCompletedAt,
+              guestName: row.guestName,
+              summary: "Enviar instrucciones de acceso",
+              propertyLabel,
+              propertyId: row.property.id,
+              reservationId: row.id,
+              dateRangeLabel,
+              quickActionLabel: "Copiar mensaje",
+              quickActionMessage: buildQuickMessage("ACCESS", messageData),
+            }),
+          );
+        }
+      }
+
+      if (
+        row.status === ReservationStatus.CHECKED_IN ||
+        row.status === ReservationStatus.CHECKOUT_TODAY
+      ) {
+        const id = `quick:followup:${row.id}`;
+        if (!dedupe.has(id)) {
+          dedupe.add(id);
+          cards.push(
+            buildOperationalCard({
+              id,
+              kind: "GUEST_MESSAGE",
+              createdAt: now,
+              guestName: row.guestName,
+              summary: "Realizar seguimiento de estadía",
+              propertyLabel,
+              propertyId: row.property.id,
+              reservationId: row.id,
+              dateRangeLabel,
+              quickActionLabel: "Copiar mensaje",
+              quickActionMessage: buildQuickMessage("FOLLOW_UP", messageData),
+            }),
+          );
+        }
+      }
+
+      if (row.checkOut >= today && row.checkOut <= in24h) {
+        const id = `quick:checkout:${row.id}`;
+        if (!dedupe.has(id)) {
+          dedupe.add(id);
+          cards.push(
+            buildOperationalCard({
+              id,
+              kind: "UPCOMING_CHECKOUT",
+              createdAt: row.checkOut,
+              guestName: row.guestName,
+              summary: "Recordar check-out y solicitar reseña",
+              propertyLabel,
+              propertyId: row.property.id,
+              reservationId: row.id,
+              dateRangeLabel,
+              quickActionLabel: "Copiar mensaje",
+              quickActionMessage: buildQuickMessage("CHECKOUT", messageData),
+            }),
+          );
+        }
+      }
+    }
+
+    return cards;
+  }
+
   const [
     modificationEvents,
     guestActivities,
     guestPending,
     payouts,
     emailEvents,
+    quickMessageReminders,
+    guestRegistrationAdminNotifications,
   ] = await Promise.all([
     db.reservationEvent.findMany({
       where: reservationEventWhere(scope),
@@ -471,6 +757,8 @@ export async function listOperationalFeedForTenant(
         audit: { select: { createdAt: true, subject: true } },
       },
     }),
+    listQuickMessageReminders(),
+    listGuestRegistrationAdminNotificationCards(scope),
   ]);
 
   const cards: OperationalFeedCard[] = [
@@ -479,6 +767,8 @@ export async function listOperationalFeedForTenant(
     ...guestPending.map(mapGuestMessagePending),
     ...payouts.map(mapPayout),
     ...emailEvents.map(mapEmailEvent).filter((row): row is OperationalFeedCard => row != null),
+    ...quickMessageReminders,
+    ...guestRegistrationAdminNotifications,
   ];
 
   return cards

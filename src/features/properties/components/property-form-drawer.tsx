@@ -81,6 +81,7 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
     cleaningFee: property.cleaningFee ? Number(property.cleaningFee) : undefined,
     coverImageUrl: property.coverImageUrl ?? "",
     status: property.status,
+    notificationEmails: property.notificationEmails ?? "",
   };
 }
 
@@ -108,6 +109,7 @@ const defaultCreateValues: PropertyFormValues = {
   cleaningFee: undefined,
   coverImageUrl: "",
   status: PropertyStatus.ACTIVE,
+  notificationEmails: "",
 };
 
 type PropertyFormDrawerProps = {
@@ -490,6 +492,27 @@ export function PropertyFormDrawer({
                   <FormControl>
                     <Textarea rows={3} {...field} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notificationEmails"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Correos de administración / recepción</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder={"administracion@edificio.com\nrecepcion@edificio.com"}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Opcional. Un correo por línea. Al completar el registro de
+                    huéspedes se envía un aviso a estas direcciones.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

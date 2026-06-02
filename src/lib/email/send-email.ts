@@ -13,7 +13,21 @@ export function resolveEmailFromAddress(): string {
   );
 }
 
+/** Production/staging hosts where simulated delivery must never count as sent. */
+export function isProductionEmailRuntime(): boolean {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL === "1" ||
+    process.env.VERCEL_ENV === "production"
+  );
+}
+
+/**
+ * Simulated delivery is allowed only outside production (local dev / tests).
+ * In production, missing RESEND_API_KEY always yields sendEmail ok: false.
+ */
 export function shouldSimulateEmailDelivery(): boolean {
+  if (isProductionEmailRuntime()) return false;
   return !process.env.RESEND_API_KEY?.trim();
 }
 
@@ -37,7 +51,14 @@ export async function sendEmail(input: SendEmailInput): Promise<{
     return { ok: true, message: "Correo simulado", id: "simulated" };
   }
 
-  const apiKey = process.env.RESEND_API_KEY!.trim();
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    console.error("[email] RESEND_API_KEY no configurada (producción)");
+    return {
+      ok: false,
+      message: "RESEND_API_KEY no configurada",
+    };
+  }
 
   try {
     const response = await fetch("https://api.resend.com/emails", {

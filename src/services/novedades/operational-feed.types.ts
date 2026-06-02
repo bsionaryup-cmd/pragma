@@ -6,7 +6,9 @@ export type OperationalFeedKind =
   | "NEW_RESERVATION"
   | "UPCOMING_CHECKIN"
   | "UPCOMING_CHECKOUT"
-  | "RESERVATION_CANCELLED";
+  | "RESERVATION_CANCELLED"
+  | "GUEST_REGISTRATION_ADMIN_SENT"
+  | "GUEST_REGISTRATION_ADMIN_FAILED";
 
 export type OperationalFeedCard = {
   id: string;
@@ -22,6 +24,8 @@ export type OperationalFeedCard = {
   amountLabel: string | null;
   dateRangeLabel: string | null;
   detailLines: string[];
+  quickActionLabel?: string | null;
+  quickActionMessage?: string | null;
   relativeTime: string;
   createdAt: string;
 };

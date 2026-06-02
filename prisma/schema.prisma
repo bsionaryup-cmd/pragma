@@ -173,6 +173,7 @@ model Property {
   lastIcalSyncedAt   DateTime?
   status             PropertyStatus @default(ACTIVE)
   currency           String         @default("COP")
+  notificationEmails Json           @default("[]")
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -241,9 +242,11 @@ model Reservation {
   internalNotes                String?
   icalUid                      String?
   guestRegistrationToken       String?           @unique
-  guestRegistrationCompletedAt DateTime?
-  createdAt                    DateTime          @default(now())
-  updatedAt                    DateTime          @updatedAt
+  guestRegistrationCompletedAt           DateTime?
+  guestRegistrationAdminNotifiedAt       DateTime?
+  guestRegistrationAdminNotificationError String?
+  createdAt                              DateTime          @default(now())
+  updatedAt                              DateTime          @updatedAt
 
   property                Property                 @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   guests                  ReservationGuest[]

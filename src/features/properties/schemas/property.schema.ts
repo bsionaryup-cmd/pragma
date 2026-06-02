@@ -1,5 +1,6 @@
 import { PropertyStatus, PropertyType } from "@prisma/client";
 import { z } from "zod";
+import { parsePropertyNotificationEmails } from "@/lib/property-notification-emails";
 
 export const propertyFormSchema = z.object({
   name: z.string().min(2, "Mínimo 2 caracteres"),
@@ -28,6 +29,14 @@ export const propertyFormSchema = z.object({
     .optional()
     .refine((v) => !v || v === "" || /^https?:\/\/.+/.test(v), "URL inválida"),
   status: z.nativeEnum(PropertyStatus),
+  /** One email per line in the form; stored as JSON array on the property. */
+  notificationEmails: z.string().optional(),
 });
 
 export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
+
+export function notificationEmailsFormToJson(
+  value: string | undefined,
+): string[] {
+  return parsePropertyNotificationEmails(value ?? "");
+}

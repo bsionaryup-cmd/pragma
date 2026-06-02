@@ -395,6 +395,22 @@ async function finalizeGuestRegistration(
       guestRegistrationCompleted: true,
     });
   }
+
+  scheduleAdminGuestRegistrationNotification(reservationId);
+}
+
+function scheduleAdminGuestRegistrationNotification(reservationId: string): void {
+  void import("@/services/guests/guest-registration-admin-notification.service")
+    .then(({ notifyAdminGuestRegistrationCompleted }) =>
+      notifyAdminGuestRegistrationCompleted(reservationId),
+    )
+    .catch((error) => {
+      console.error(
+        "[guest-registration-admin-notify] Unhandled",
+        reservationId,
+        error,
+      );
+    });
 }
 
 export function buildGuestRegistrationUrl(token: string): string {
@@ -955,4 +971,6 @@ export async function submitGuestRegistration(
       guestRegistrationCompleted: true,
     });
   }
+
+  scheduleAdminGuestRegistrationNotification(reservation.id);
 }

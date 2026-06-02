@@ -1,4 +1,8 @@
-import type { PropertyFormValues } from "@/features/properties/schemas/property.schema";
+import {
+  notificationEmailsFormToJson,
+  type PropertyFormValues,
+} from "@/features/properties/schemas/property.schema";
+import { formatNotificationEmailsForForm } from "@/lib/property-notification-emails";
 import { mapSmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.mapper";
 import {
   isTTLockIntegrationConnected,
@@ -388,6 +392,7 @@ export async function getPropertyDetail(
       sumMonthRevenue(enrichedAllMonthReservations, monthStart, monthEnd),
     ),
     createdAt: property.createdAt.toISOString(),
+    notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),
     smartAccess: {
       lock: property.propertyLock
         ? mapSmartLockSnapshot({
@@ -459,6 +464,7 @@ function normalizeFormData(data: PropertyFormValues) {
     cleaningFee: data.cleaningFee ?? null,
     coverImageUrl: data.coverImageUrl?.trim() || null,
     status: data.status,
+    notificationEmails: notificationEmailsFormToJson(data.notificationEmails),
   };
 }
 

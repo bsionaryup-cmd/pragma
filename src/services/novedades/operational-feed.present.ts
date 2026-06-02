@@ -11,6 +11,8 @@ const HEADLINES: Record<OperationalFeedKind, string> = {
   UPCOMING_CHECKIN: "Check-in",
   UPCOMING_CHECKOUT: "Check-out",
   RESERVATION_CANCELLED: "Cancelada",
+  GUEST_REGISTRATION_ADMIN_SENT: "Registro",
+  GUEST_REGISTRATION_ADMIN_FAILED: "Registro",
 };
 
 const EMOJIS: Record<OperationalFeedKind, string> = {
@@ -22,6 +24,8 @@ const EMOJIS: Record<OperationalFeedKind, string> = {
   UPCOMING_CHECKIN: "🛬",
   UPCOMING_CHECKOUT: "🛫",
   RESERVATION_CANCELLED: "❌",
+  GUEST_REGISTRATION_ADMIN_SENT: "📧",
+  GUEST_REGISTRATION_ADMIN_FAILED: "⚠️",
 };
 
 export function formatOperationalRelativeTime(date: Date | string): string {
@@ -77,6 +81,8 @@ export function buildOperationalCard(input: {
   amountLabel?: string | null;
   dateRangeLabel?: string | null;
   detailLines?: string[];
+  quickActionLabel?: string | null;
+  quickActionMessage?: string | null;
 }): OperationalFeedCard {
   return {
     id: input.id,
@@ -92,6 +98,8 @@ export function buildOperationalCard(input: {
     amountLabel: input.amountLabel ?? null,
     dateRangeLabel: input.dateRangeLabel ?? null,
     detailLines: input.detailLines ?? [],
+    quickActionLabel: input.quickActionLabel ?? null,
+    quickActionMessage: input.quickActionMessage ?? null,
     relativeTime: formatOperationalRelativeTime(input.createdAt),
     createdAt: input.createdAt.toISOString(),
   };
