@@ -6,6 +6,7 @@ import {
   parseBillingAccountMetadata,
   resolveBillablePropertyCount,
 } from "@/modules/billing/domain/subscription-property-count";
+import { getTenantTrialRetrialPolicy } from "@/lib/billing/trial-eligibility";
 
 import { PLATFORM_EPAYCO_ORG_NAME } from "@/modules/billing/services/epayco-platform.service";
 
@@ -389,6 +390,10 @@ export async function getOwnerClientDetail(organizationId: string) {
 
   const owner = org.users.find((u) => u.isAccountOwner) ?? org.users[0];
 
+  const trialRetrial = org.billingAccount
+    ? await getTenantTrialRetrialPolicy(organizationId)
+    : null;
+
   return {
     id: org.id,
     name: org.name,
@@ -408,6 +413,7 @@ export async function getOwnerClientDetail(organizationId: string) {
           currentPeriodEnd:
             org.billingAccount.currentPeriodEnd?.toISOString() ?? null,
           metadata: org.billingAccount.metadata,
+          trialRetrial,
           invoices: org.billingAccount.invoices.map((inv) => ({
             id: inv.id,
             amount: inv.amount.toString(),

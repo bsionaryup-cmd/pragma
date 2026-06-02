@@ -3,6 +3,7 @@ import "server-only";
 import type { User } from "@prisma/client";
 import { OrganizationStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { buildTrialBillingMetadata } from "@/lib/billing/trial-eligibility-metadata";
 import { assertSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { cancelOrganizationSubscription } from "@/modules/billing/services/subscription-cancel.service";
@@ -45,6 +46,7 @@ export async function softDeleteTenantByOwner(input: {
   platformUser: User;
   organizationId: string;
   reason: string;
+  allowRetrial?: boolean;
 }) {
   assertSuperAdminOwner(input.platformUser);
 
@@ -59,6 +61,21 @@ export async function softDeleteTenantByOwner(input: {
     where: { organizationId: input.organizationId },
     select: { id: true },
   });
+
+  const owner = await db.user.findFirst({
+    where: { organizationId: input.organizationId, isAccountOwner: true },
+    select: { email: true },
+  });
+
+  if (billing?.id && input.allowRetrial) {
+    await db.billingAccount.update({
+      where: { id: billing.id },
+      data: {
+        trialRetrialPolicy: "ALLOW",
+        metadata: owner?.email ? buildTrialBillingMetadata(owner.email) : undefined,
+      },
+    });
+  }
 
   await db.$transaction([
     db.organization.update({
@@ -91,7 +108,7 @@ export async function softDeleteTenantByOwner(input: {
     targetTenantId: input.organizationId,
     previousState: { deletedAt: org.deletedAt, status: org.status },
     newState: { deletedAt: new Date().toISOString(), status: OrganizationStatus.SUSPENDED },
-    metadata: { reason: input.reason },
+    metadata: { reason: input.reason, allowRetrial: Boolean(input.allowRetrial) },
   });
 }
 

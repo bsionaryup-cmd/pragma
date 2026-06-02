@@ -31,6 +31,8 @@ import {
   PLAN_CATALOG,
 } from "@/modules/billing/domain/plan-catalog";
 import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { trialRetrialPolicyLabel } from "@/lib/billing/trial-retrial-policy";
+import type { TrialRetrialPolicy } from "@prisma/client";
 
 type TenantDetail = NonNullable<
   Awaited<
@@ -57,6 +59,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   const [inviteRole, setInviteRole] = useState<UserRole>("RECEPTIONIST");
   const [tenantName, setTenantName] = useState(tenant.name);
   const [deleteReason, setDeleteReason] = useState("");
+  const [allowRetrialOnDelete, setAllowRetrialOnDelete] = useState(false);
   const [propertySlots, setPropertySlots] = useState(() => {
     const meta = parseSalesBillingMetadata(tenant.billing?.metadata);
     return String(meta.propertySlots ?? tenant.propertyCount ?? 1);
@@ -258,13 +261,20 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
 
   function softDeleteTenant() {
     if (deleteReason.trim().length < 3) {
-      setError("Indica un reason (mínimo 3 caracteres)");
+      setError("Indica un motivo (mínimo 3 caracteres)");
       return;
     }
     runAction(`/api/owner/tenant/${tenant.id}/delete`, () => router.push("/owner-dashboard"), {
       reason: deleteReason.trim(),
+      allowRetrial: allowRetrialOnDelete,
     });
   }
+
+  function setTrialRetrialPolicy(policy: TrialRetrialPolicy) {
+    billingAction("trial-retrial-policy", { policy, reason: "owner_ops" });
+  }
+
+  const trialRetrial = tenant.billing?.trialRetrial ?? null;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 py-6 pb-16 sm:px-6">
@@ -334,16 +344,30 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
             </div>
 
             <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3">
-              <p className="text-sm font-semibold text-destructive">Soft delete tenant</p>
+              <p className="text-sm font-semibold text-destructive">Eliminar cuenta (soft delete)</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Desactiva usuarios (no owner), suspende tenant y cancela suscripción. No hard delete.
+                Desactiva usuarios (excepto el owner), suspende el tenant y cancela la suscripción. No borra datos de forma permanente.
               </p>
               <input
                 className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                placeholder="Reason (ej. fraude, duplicado, solicitud cliente)…"
+                placeholder="Motivo (ej. fraude, duplicado, solicitud del cliente)…"
                 value={deleteReason}
                 onChange={(e) => setDeleteReason(e.target.value)}
               />
+              <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={allowRetrialOnDelete}
+                  onChange={(e) => setAllowRetrialOnDelete(e.target.checked)}
+                />
+                <span>
+                  Permitir nueva prueba gratuita con el mismo correo del owner
+                  {tenant.mainEmail ? (
+                    <span className="block text-xs text-muted-foreground">{tenant.mainEmail}</span>
+                  ) : null}
+                </span>
+              </label>
               <div className="mt-2">
                 <Button
                   type="button"
@@ -352,7 +376,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                   disabled={pending}
                   onClick={softDeleteTenant}
                 >
-                  Soft delete
+                  Eliminar cuenta
                 </Button>
               </div>
             </div>
@@ -486,6 +510,80 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                       onClick={() => billingAction("block-trial", { reason: "owner_ops" })}
                     >
                       Bloquear trial
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/80 bg-muted/20 p-3">
+                  <p className="text-sm font-medium">Política de nueva prueba gratuita</p>
+                  {trialRetrial ? (
+                    <dl className="mt-2 space-y-1 text-sm">
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">Política actual</dt>
+                        <dd className="font-medium">{trialRetrialPolicyLabel(trialRetrial.policy)}</dd>
+                      </div>
+                      {trialRetrial.trialEmail ? (
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-muted-foreground">Correo de trial</dt>
+                          <dd className="font-mono text-xs">{trialRetrial.trialEmail}</dd>
+                        </div>
+                      ) : null}
+                      {trialRetrial.eligibility ? (
+                        <div className="flex justify-between gap-4">
+                          <dt className="text-muted-foreground">Si se registra de nuevo</dt>
+                          <dd className="text-right">
+                            {trialRetrial.eligibility.eligible ? "Puede iniciar trial" : "No elegible"}
+                            <span className="block text-xs text-muted-foreground">
+                              {trialRetrial.eligibility.reason}
+                            </span>
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  ) : (
+                    <p className="mt-1 text-xs text-muted-foreground">Sin datos de facturación.</p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => setTrialRetrialPolicy("ALLOW")}
+                    >
+                      Permitir nueva prueba
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => setTrialRetrialPolicy("BLOCK")}
+                    >
+                      Bloquear prueba
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => setTrialRetrialPolicy("DEFAULT")}
+                    >
+                      Regla estándar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={pending}
+                      onClick={() =>
+                        billingAction("reset-trial", {
+                          days: Number.parseInt(extendTrialDays || "14", 10),
+                          reason: "owner_ops",
+                        })
+                      }
+                    >
+                      Reiniciar trial
                     </Button>
                   </div>
                 </div>

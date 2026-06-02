@@ -962,6 +962,12 @@ enum BillingSubscriptionStatus {
   LOCKED
 }
 
+enum TrialRetrialPolicy {
+  DEFAULT
+  ALLOW
+  BLOCK
+}
+
 enum BillingPlanCode {
   STARTER
   PRO
@@ -1054,6 +1060,7 @@ model BillingAccount {
   organizationId        String?                   @unique
   status                BillingSubscriptionStatus @default(TRIAL)
   plan                  BillingPlanCode           @default(STARTER)
+  trialRetrialPolicy    TrialRetrialPolicy        @default(DEFAULT)
   trialEndsAt           DateTime?
   currentPeriodEnd      DateTime?
   gracePeriodEndsAt     DateTime?

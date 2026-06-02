@@ -4,13 +4,17 @@ import {
   BillingInvoiceStatus,
   BillingSubscriptionStatus,
   type BillingPlanCode,
+  type TrialRetrialPolicy,
   type User,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { buildTrialBillingMetadata } from "@/lib/billing/trial-eligibility-metadata";
 import { assertSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
 import { mergeSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
 import { syncOpenInvoiceAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
+import { SUBSCRIPTION_TRIAL_DAYS } from "@/modules/billing/domain/subscription-pricing";
+import { ensureOpenSubscriptionInvoice } from "@/modules/billing/services/billing-lifecycle.service";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { cancelOrganizationSubscription } from "@/modules/billing/services/subscription-cancel.service";
 
@@ -91,6 +95,7 @@ export async function blockTenantTrialByOwner(input: {
     where: { id: account.id },
     data: {
       status: BillingSubscriptionStatus.LOCKED,
+      trialRetrialPolicy: "BLOCK",
       trialEndsAt: new Date(),
       gracePeriodEndsAt: null,
       billingLockedAt: new Date(),
@@ -112,7 +117,10 @@ export async function blockTenantTrialByOwner(input: {
     action: "billing_trial_block",
     targetTenantId: input.organizationId,
     previousState: { status: account.status, trialEndsAt: account.trialEndsAt?.toISOString() ?? null },
-    newState: { status: BillingSubscriptionStatus.LOCKED },
+    newState: {
+      status: BillingSubscriptionStatus.LOCKED,
+      trialRetrialPolicy: "BLOCK",
+    },
     metadata: { reason: input.reason ?? "owner_ops" },
   });
 }
@@ -227,6 +235,97 @@ export async function cancelTenantSubscriptionByOwner(input: {
     targetTenantId: input.organizationId,
     previousState: { status: account.status },
     newState: { status: BillingSubscriptionStatus.CANCELED },
+    metadata: { reason: input.reason ?? "owner_ops" },
+  });
+}
+
+export async function setTenantTrialRetrialPolicyByOwner(input: {
+  platformUser: User;
+  organizationId: string;
+  policy: TrialRetrialPolicy;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+  const account = await ensureOrganizationBillingAccount(input.organizationId);
+  const owner = await db.user.findFirst({
+    where: { organizationId: input.organizationId, isAccountOwner: true, deletedAt: null },
+    select: { email: true },
+  });
+
+  const metadata =
+    owner?.email != null
+      ? buildTrialBillingMetadata(owner.email)
+      : account.metadata;
+
+  await db.billingAccount.update({
+    where: { id: account.id },
+    data: {
+      trialRetrialPolicy: input.policy,
+      ...(owner?.email ? { metadata } : {}),
+    },
+  });
+
+  await writePlatformAuditLog({
+    platformUserId: input.platformUser.id,
+    ownerEmail: input.platformUser.email,
+    action: "billing_trial_retrial_policy",
+    targetTenantId: input.organizationId,
+    previousState: { trialRetrialPolicy: account.trialRetrialPolicy },
+    newState: { trialRetrialPolicy: input.policy, trialOwnerEmail: owner?.email ?? null },
+    metadata: { reason: input.reason ?? "owner_ops" },
+  });
+}
+
+export async function resetTenantTrialByOwner(input: {
+  platformUser: User;
+  organizationId: string;
+  days?: number;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+  const days = Math.max(1, Math.min(60, Math.round(input.days ?? SUBSCRIPTION_TRIAL_DAYS)));
+  const account = await ensureOrganizationBillingAccount(input.organizationId);
+  const trialEndsAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+  await db.billingAccount.update({
+    where: { id: account.id },
+    data: {
+      status: BillingSubscriptionStatus.TRIAL,
+      trialEndsAt,
+      currentPeriodEnd: null,
+      gracePeriodEndsAt: null,
+      billingLockedAt: null,
+    },
+  });
+
+  await db.billingInvoice.updateMany({
+    where: {
+      billingAccountId: account.id,
+      status: { in: [BillingInvoiceStatus.OPEN, BillingInvoiceStatus.DRAFT] },
+    },
+    data: { status: BillingInvoiceStatus.VOID },
+  });
+
+  await ensureOpenSubscriptionInvoice(
+    account.id,
+    "Suscripción PRAGMA — prueba reiniciada por owner",
+  );
+  await syncOpenInvoiceAmountForAccount(account.id);
+
+  await writePlatformAuditLog({
+    platformUserId: input.platformUser.id,
+    ownerEmail: input.platformUser.email,
+    action: "billing_trial_reset",
+    targetTenantId: input.organizationId,
+    previousState: {
+      status: account.status,
+      trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
+    },
+    newState: {
+      status: BillingSubscriptionStatus.TRIAL,
+      trialEndsAt: trialEndsAt.toISOString(),
+      days,
+    },
     metadata: { reason: input.reason ?? "owner_ops" },
   });
 }
