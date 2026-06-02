@@ -5,7 +5,11 @@ import {
 } from "@prisma/client";
 import { formatAccessCode } from "@/lib/access-code";
 import { resolvePropertyUnit } from "@/lib/property-display";
-import { prismaDateToKey } from "@/lib/dates";
+import {
+  dateKeyToPrismaDate,
+  prismaDateToKey,
+  todayDateKeyInTimezone,
+} from "@/lib/dates";
 import { db } from "@/lib/db";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
@@ -80,6 +84,32 @@ const STAGE_LABELS: Record<SmartAccessStage, string> = {
   expired: "Código expirado",
 };
 
+async function expireStaleAccessCredentials(scope: {
+  organizationId: string | null;
+  userId: string;
+}) {
+  const reservationScope = scope.organizationId
+    ? { property: { organizationId: scope.organizationId } }
+    : { property: { ownerId: scope.userId } };
+
+  await db.accessCredential.updateMany({
+    where: {
+      status: {
+        in: [
+          AccessCredentialStatus.PENDING,
+          AccessCredentialStatus.GENERATED,
+          AccessCredentialStatus.ACTIVE,
+          AccessCredentialStatus.SENT,
+          AccessCredentialStatus.SUSPENDED,
+        ],
+      },
+      validTo: { not: null, lt: new Date() },
+      reservation: reservationScope,
+    },
+    data: { status: AccessCredentialStatus.EXPIRED },
+  });
+}
+
 function resolveStage(input: {
   registrationComplete: boolean;
   integrationConnected: boolean;
@@ -110,6 +140,8 @@ function resolveStage(input: {
 
 export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
   const scope = await requireTenantDataScope();
+  await expireStaleAccessCredentials(scope);
+  const today = dateKeyToPrismaDate(todayDateKeyInTimezone());
 
   const integration = await ensureTTLockIntegrationForScope(scope);
   const integrationConnected = isTTLockIntegrationConnected(integration);
@@ -128,6 +160,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
           ReservationStatus.CHECKOUT_TODAY,
         ],
       },
+      checkOut: { gte: today },
     },
     orderBy: { checkIn: "asc" },
     take: 80,

@@ -202,6 +202,16 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
         "checkInTime" in r.property ? r.property.checkInTime : undefined,
       checkOutTime:
         "checkOutTime" in r.property ? r.property.checkOutTime : undefined,
+      accessCode:
+        "accessCode" in r.property ? r.property.accessCode : undefined,
+      accessInstructions:
+        "accessInstructions" in r.property
+          ? r.property.accessInstructions
+          : undefined,
+      wifiName:
+        "wifiName" in r.property ? r.property.wifiName : undefined,
+      wifiPassword:
+        "wifiPassword" in r.property ? r.property.wifiPassword : undefined,
     },
     activityUnreadCount: r.activityUnreadCount ?? 0,
     activityUnreadHint: r.activityUnreadHint ?? null,
@@ -313,6 +323,12 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
           city: true,
           maxGuests: true,
           coverImageUrl: true,
+          checkInTime: true,
+          checkOutTime: true,
+          accessCode: true,
+          accessInstructions: true,
+          wifiName: true,
+          wifiPassword: true,
         },
       },
     },
@@ -398,6 +414,10 @@ export async function getReservationForInbox(
           propertyType: true,
           checkInTime: true,
           checkOutTime: true,
+          accessCode: true,
+          accessInstructions: true,
+          wifiName: true,
+          wifiPassword: true,
         },
       },
     },

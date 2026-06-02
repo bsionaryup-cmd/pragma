@@ -17,6 +17,10 @@ export type ReservationPropertyDto = {
   propertyType?: PropertyType;
   checkInTime?: string | null;
   checkOutTime?: string | null;
+  accessCode?: string | null;
+  accessInstructions?: string | null;
+  wifiName?: string | null;
+  wifiPassword?: string | null;
 };
 
 export type ReservationRelatedBlock = {

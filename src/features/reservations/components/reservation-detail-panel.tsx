@@ -51,6 +51,7 @@ import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { ReservationPaymentsPanel } from "@/features/payments/components/reservation-payments-panel";
+import { ReservationQuickMessages } from "@/features/reservations/components/reservation-quick-messages";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
 import {
@@ -839,6 +840,13 @@ export function ReservationDetailPanel({
 
             {activeTab === "detalles" ? (
               <>
+            <ReservationDetailSection title="Mensajes Rápidos">
+              <ReservationQuickMessages
+                reservation={reservation}
+                registrationLink={registration?.url ?? reservation.guestRegistrationUrl}
+                accessCode={accessCode?.code ?? null}
+              />
+            </ReservationDetailSection>
             <ReservationDetailSection title="Enlace de registro">
               {registrationProgress ? (
                 <p className="mb-2 text-xs text-muted-foreground">
