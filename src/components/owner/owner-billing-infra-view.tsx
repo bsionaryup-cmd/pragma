@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Radio, ShieldAlert } from "lucide-react";
 import { WompiCredentialsCard } from "@/features/billing/components/wompi-credentials-card";
+import { EpaycoCredentialsCard } from "@/features/billing/components/epayco-credentials-card";
 import type { OwnerBillingInfraSnapshot } from "@/services/platform/owner-billing-infra.service";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,11 +22,12 @@ type OwnerBillingInfraViewProps = {
 };
 
 export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) {
-  const { wompi, webhookStats, failedPayments, recentWebhooks } = snapshot;
+  const { wompi, epayco, webhookStats, failedPayments, recentWebhooks } = snapshot;
 
   return (
     <div className="space-y-6">
       <WompiCredentialsCard wompi={wompi} canManage />
+      <EpaycoCredentialsCard epayco={epayco} canManage />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>

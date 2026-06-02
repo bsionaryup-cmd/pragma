@@ -7,7 +7,10 @@ import {
   resolveBillablePropertyCount,
 } from "@/modules/billing/domain/subscription-property-count";
 
+import { PLATFORM_EPAYCO_ORG_NAME } from "@/modules/billing/services/epayco-platform.service";
+
 const PLATFORM_WOMPI_ORG_NAME = "PRAGMA Platform (Wompi)";
+const PLATFORM_INTERNAL_ORG_NAMES = [PLATFORM_WOMPI_ORG_NAME, PLATFORM_EPAYCO_ORG_NAME];
 
 export type OwnerClientSortField =
   | "createdAt"
@@ -179,7 +182,7 @@ export async function listOwnerClients(
       ? { billingAccount: { status: query.billingStatus } }
       : {}),
     // Internal platform org must not appear as a commercial tenant.
-    name: { not: PLATFORM_WOMPI_ORG_NAME },
+    name: { notIn: PLATFORM_INTERNAL_ORG_NAMES },
     deletedAt: null,
   };
 
@@ -477,13 +480,13 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     recentPaidInvoices,
   ] = await Promise.all([
     db.organization.count({
-      where: { name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+      where: { name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
     }),
     db.organization.count({
-      where: { status: "ACTIVE", name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+      where: { status: "ACTIVE", name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
     }),
     db.organization.count({
-      where: { status: "SUSPENDED", name: { not: PLATFORM_WOMPI_ORG_NAME }, deletedAt: null },
+      where: { status: "SUSPENDED", name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
     }),
     db.billingAccount.count({
       where: { status: BillingSubscriptionStatus.TRIAL, ...billingAccountExclusion },

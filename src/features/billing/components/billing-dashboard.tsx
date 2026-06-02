@@ -113,6 +113,9 @@ export function BillingDashboard({
     });
   };
 
+  const paymentGatewayLabel =
+    paymentMethods.subscriptionGateway === "EPAYCO" ? "ePayco" : "Wompi";
+
   useEffect(() => {
     if (!autoCheckout || autoCheckoutStarted.current) return;
     autoCheckoutStarted.current = true;
@@ -121,14 +124,16 @@ export function BillingDashboard({
       toast.error("Elige tu plan y vuelve a pulsar Activar suscripción.");
       return;
     }
-    if (!paymentMethods.wompiEnabled) {
-      toast.error("Wompi no configurado. Revisa WOMPI_PUBLIC_KEY y WOMPI_PRIVATE_KEY.");
+    if (!paymentMethods.onlinePaymentsEnabled) {
+      toast.error(
+        "Ninguna pasarela configurada. Configura Wompi o ePayco en Owner Dashboard.",
+      );
       return;
     }
 
     payInvoice(payableInvoice.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoCheckout, payableInvoice?.id, paymentMethods.wompiEnabled]);
+  }, [autoCheckout, payableInvoice?.id, paymentMethods.onlinePaymentsEnabled]);
 
   const downloadPdf = (url: string) => {
     startTransition(async () => {
@@ -165,7 +170,7 @@ export function BillingDashboard({
           backLabel="Configuración"
           eyebrow="Configuración"
           title="Mi Suscripción"
-          description="Plan, pago con Wompi e historial de facturas."
+          description="Plan, pago con Wompi o ePayco e historial de facturas."
         />
 
         {!ready ? (
@@ -228,27 +233,27 @@ export function BillingDashboard({
                       </p>
                     </div>
                     <Button
-                      disabled={pending || !paymentMethods.wompiEnabled}
+                      disabled={pending || !paymentMethods.onlinePaymentsEnabled}
                       className="min-w-[180px]"
                       onClick={() => payInvoice(payableInvoice.id)}
                     >
                       {needsActivation
-                        ? "Activar · Pagar con Wompi"
+                        ? `Activar · Pagar con ${paymentGatewayLabel}`
                         : payableInvoice.status === "FAILED"
                           ? "Reintentar pago"
-                          : "Pagar con Wompi"}
+                          : `Pagar con ${paymentGatewayLabel}`}
                     </Button>
                   </div>
-                  {!paymentMethods.wompiEnabled ? (
+                  {!paymentMethods.onlinePaymentsEnabled ? (
                     <p className="text-xs text-muted-foreground">
-                      Wompi no disponible. Configura las llaves sandbox en el servidor.
+                      Pasarela no disponible. El owner debe configurar Wompi o ePayco.
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Pago seguro con tarjeta, PSE o Nequi vía Wompi.
+                      Pago seguro con tarjeta, PSE u otros medios vía {paymentGatewayLabel}.
                     </p>
                   )}
-                  {showDevActivate && !paymentMethods.wompiEnabled ? (
+                  {showDevActivate && !paymentMethods.onlinePaymentsEnabled ? (
                     <Button
                       variant="outline"
                       size="sm"

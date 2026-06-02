@@ -44,8 +44,11 @@ Migración: `20260602130000_epayco_integration`
 
 Panel ePayco → **Probar conexión** (login Apify `https://apify.epayco.co/login`).
 
-## Prioridad Wompi vs ePayco
+## Dos rieles ePayco
 
-- Checkbox **Usar ePayco por defecto** en `/integrations/epayco`.
-- Si está activo y ePayco configurado → Payment Links usan ePayco.
-- Si no, se usa Wompi cuando esté configurado; si solo ePayco, se usa ePayco.
+| Riel | Quién configura | Org interna | Referencia |
+|------|-----------------|-------------|------------|
+| SaaS (suscripción) | Owner → `/owner-dashboard/billing` | `PRAGMA Platform (Epayco)` | `pragma-{invoiceId}` |
+| Guest (Payment Links) | Tenant → `/integrations/epayco` | Org del tenant | `guest-{linkId}` |
+
+Checkout suscripción: `/pay/epayco/billing/[invoiceId]`

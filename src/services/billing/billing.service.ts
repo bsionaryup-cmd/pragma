@@ -26,6 +26,11 @@ import {
 } from "@/modules/billing/domain/subscription-property-count";
 import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-credentials";
 import {
+  isSubscriptionPaymentAvailable,
+  resolveSubscriptionPaymentGateway,
+} from "@/modules/billing/services/subscription-payment-gateway.service";
+import { isPlatformEpaycoConfigured } from "@/modules/integrations/epayco/epayco-credentials";
+import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
   ensureOpenSubscriptionInvoice,
@@ -113,6 +118,9 @@ export type BillingOverviewDto = {
   }>;
   paymentMethods: {
     wompiEnabled: boolean;
+    epaycoEnabled: boolean;
+    onlinePaymentsEnabled: boolean;
+    subscriptionGateway: "WOMPI" | "EPAYCO" | null;
     wompiWebhookReady: boolean;
     pse: boolean;
     nequi: boolean;
@@ -164,7 +172,13 @@ export async function activateBillingSubscription(): Promise<{
 
 export async function getBillingOverview(): Promise<BillingOverviewDto> {
   let account = (await getBillingAccountSafe()) ?? (await ensureBillingAccount());
-  const wompi = await resolvePlatformWompiConfig();
+  const [wompi, epaycoConfigured, subscriptionGateway, onlinePaymentsEnabled] =
+    await Promise.all([
+      resolvePlatformWompiConfig(),
+      isPlatformEpaycoConfigured(),
+      resolveSubscriptionPaymentGateway(),
+      isSubscriptionPaymentAvailable(),
+    ]);
 
   if (!account) {
     return {
@@ -190,6 +204,9 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       invoices: [],
       paymentMethods: {
         wompiEnabled: wompi.configured,
+        epaycoEnabled: epaycoConfigured,
+        onlinePaymentsEnabled,
+        subscriptionGateway,
         wompiWebhookReady: Boolean(wompi.eventsSecret),
         pse: true,
         nequi: true,
@@ -263,6 +280,9 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
     })),
     paymentMethods: {
       wompiEnabled: wompi.configured,
+      epaycoEnabled: epaycoConfigured,
+      onlinePaymentsEnabled,
+      subscriptionGateway,
       wompiWebhookReady: Boolean(wompi.eventsSecret),
       pse: true,
       nequi: true,

@@ -47,6 +47,7 @@ export type SaveEpaycoCredentialsInput = {
   custIdCliente?: string;
   env: EpaycoEnvironment;
   preferForGuestPayments?: boolean;
+  preferForSubscriptionPayments?: boolean;
 };
 
 export async function saveEpaycoCredentialsEncrypted(
@@ -98,6 +99,7 @@ export async function saveEpaycoCredentialsEncrypted(
         env: input.env,
         enabled: true,
         preferForGuestPayments: input.preferForGuestPayments ?? false,
+        preferForSubscriptionPayments: input.preferForSubscriptionPayments ?? false,
         configuredById: input.configuredById,
       },
       update: {
@@ -108,6 +110,10 @@ export async function saveEpaycoCredentialsEncrypted(
         env: input.env,
         preferForGuestPayments:
           input.preferForGuestPayments ?? existing?.preferForGuestPayments ?? false,
+        preferForSubscriptionPayments:
+          input.preferForSubscriptionPayments ??
+          existing?.preferForSubscriptionPayments ??
+          false,
         configuredById: input.configuredById,
         lastError: null,
       },

@@ -21,20 +21,33 @@ declare global {
 
 export function EpaycoCheckoutClient({
   linkId,
+  sessionPath,
 }: {
-  linkId: string;
+  linkId?: string;
+  sessionPath?: string;
 }) {
+  const resolvedSessionPath =
+    sessionPath ??
+    (linkId ? `/api/payments/epayco/session/${encodeURIComponent(linkId)}` : null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<GuestEpaycoCheckoutSession | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
 
   useEffect(() => {
+    if (!resolvedSessionPath) {
+      setError("Checkout no configurado");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadSession() {
       try {
-        const response = await fetch(`/api/payments/epayco/session/${encodeURIComponent(linkId)}`);
+        const path = resolvedSessionPath;
+        if (!path) throw new Error("Checkout no configurado");
+        const response = await fetch(path);
         const payload = (await response.json()) as GuestEpaycoCheckoutSession & {
           error?: string;
         };
@@ -55,7 +68,7 @@ export function EpaycoCheckoutClient({
     return () => {
       cancelled = true;
     };
-  }, [linkId]);
+  }, [resolvedSessionPath]);
 
   useEffect(() => {
     if (document.getElementById("epayco-checkout-script")) {

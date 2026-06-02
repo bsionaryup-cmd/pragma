@@ -28,11 +28,11 @@ export default async function OwnerBillingInfraPage() {
           Plataforma · SaaS
         </p>
         <h1 className="mt-1 font-heading text-2xl font-semibold">
-          Infraestructura Wompi y cobros
+          Infraestructura Wompi, ePayco y cobros
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Cuenta Wompi centralizada de PRAGMA. Solo suscripciones SaaS — no pagos
-          de reservas ni operación hotelera.
+          Cuentas centralizadas de PRAGMA para suscripciones SaaS — no pagos de
+          reservas ni operación hotelera.
         </p>
       </header>
 

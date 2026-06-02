@@ -7,8 +7,11 @@ import { db } from "@/lib/db";
 import { hasPaymentLedgerDelegates } from "@/modules/billing/lib/billing-schema-guard";
 import { getPlatformWompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
 import type { WompiCredentialSnapshot } from "@/modules/billing/services/wompi-credentials";
+import { getPlatformEpaycoCredentialSnapshot } from "@/modules/integrations/epayco/epayco-credentials";
+import type { EpaycoCredentialSnapshot } from "@/modules/integrations/epayco/epayco-credentials";
+import { PLATFORM_EPAYCO_ORG_NAME } from "@/modules/billing/services/epayco-platform.service";
 
-const PLATFORM_ORG_NAME = "PRAGMA Platform (Wompi)";
+const PLATFORM_WOMPI_ORG_NAME = "PRAGMA Platform (Wompi)";
 
 export type OwnerWebhookLogRow = {
   id: string;
@@ -36,6 +39,7 @@ export type OwnerFailedPaymentRow = {
 
 export type OwnerBillingInfraSnapshot = {
   wompi: WompiCredentialSnapshot;
+  epayco: EpaycoCredentialSnapshot;
   webhookStats: {
     total24h: number;
     invalidSignature24h: number;
@@ -47,7 +51,10 @@ export type OwnerBillingInfraSnapshot = {
 };
 
 export async function getOwnerBillingInfraSnapshot(): Promise<OwnerBillingInfraSnapshot> {
-  const wompi = await getPlatformWompiCredentialSnapshot();
+  const [wompi, epayco] = await Promise.all([
+    getPlatformWompiCredentialSnapshot(),
+    getPlatformEpaycoCredentialSnapshot(),
+  ]);
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   const [failedPayments, recentWebhooks, webhookStats] = await Promise.all([
@@ -58,6 +65,7 @@ export async function getOwnerBillingInfraSnapshot(): Promise<OwnerBillingInfraS
 
   return {
     wompi,
+    epayco,
     webhookStats,
     failedPayments,
     recentWebhooks,
@@ -91,7 +99,11 @@ async function listFailedSubscriptionPayments(
   });
 
   return rows
-    .filter((row) => row.account.organization?.name !== PLATFORM_ORG_NAME)
+    .filter(
+      (row) =>
+        row.account.organization?.name !== PLATFORM_WOMPI_ORG_NAME &&
+        row.account.organization?.name !== PLATFORM_EPAYCO_ORG_NAME,
+    )
     .map((row) => ({
       invoiceId: row.id,
       organizationId: row.account.organizationId,

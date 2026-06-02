@@ -27,7 +27,7 @@ export type WompiCheckoutResult = {
 
 export { verifyWompiEventChecksum, processWompiWebhook };
 
-export async function createWompiCheckout(
+export async function createSubscriptionCheckout(
   input: WompiCheckoutInput,
 ): Promise<WompiCheckoutResult> {
   const result = await initiateSubscriptionPayment({
@@ -43,6 +43,12 @@ export async function createWompiCheckout(
     checkoutUrl: result.ok && "checkoutUrl" in result ? result.checkoutUrl : undefined,
     reference: "reference" in result ? result.reference : undefined,
   };
+}
+
+export async function createWompiCheckout(
+  input: WompiCheckoutInput,
+): Promise<WompiCheckoutResult> {
+  return createSubscriptionCheckout(input);
 }
 
 export async function reconcileWompiTransactionEvent(event: {

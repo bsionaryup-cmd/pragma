@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth";
-import { assertWompiConfigured } from "@/modules/billing/config/wompi.config";
-import { PaymentProviderNotConfiguredError } from "@/modules/billing/domain/errors";
+import { isSubscriptionPaymentAvailable } from "@/modules/billing/services/subscription-payment-gateway.service";
 import { prepareBillingInvoiceForPayment } from "@/modules/billing/services/billing-invoice.service";
 import type { BillingPlanCode } from "@prisma/client";
 import {
@@ -17,7 +16,7 @@ import {
   activateBillingSubscription,
   getBillingOverview,
 } from "@/services/billing/billing.service";
-import { createWompiCheckout } from "@/services/billing/wompi.service";
+import { createSubscriptionCheckout } from "@/services/billing/wompi.service";
 
 function revalidateBilling() {
   revalidatePath("/settings/billing");
@@ -28,13 +27,11 @@ function revalidateBilling() {
 export async function payOpenInvoiceAction(invoiceId: string) {
   const user = await requirePermission("billing:manage");
 
-  try {
-    await assertWompiConfigured();
-  } catch (error) {
-    if (error instanceof PaymentProviderNotConfiguredError) {
-      return { ok: false, message: error.message };
-    }
-    throw error;
+  if (!(await isSubscriptionPaymentAvailable())) {
+    return {
+      ok: false,
+      message: "Ninguna pasarela configurada (Wompi o ePayco en Owner Dashboard)",
+    };
   }
 
   const invoice = await prepareBillingInvoiceForPayment(invoiceId);
@@ -56,7 +53,7 @@ export async function payOpenInvoiceAction(invoiceId: string) {
     "http://localhost:3000";
   const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
 
-  const result = await createWompiCheckout({
+  const result = await createSubscriptionCheckout({
     invoiceId,
     amountInCents: Math.round(amount * 100),
     currency: invoice.currency ?? "COP",

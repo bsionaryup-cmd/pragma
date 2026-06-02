@@ -24,7 +24,9 @@ import {
 } from "@/modules/billing/repositories/transaction.repository";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
 import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
+import { buildBillingSubscriptionReference } from "@/lib/payments/guest-payment-reference";
 import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
+import { resolveSubscriptionPaymentGateway } from "@/modules/billing/services/subscription-payment-gateway.service";
 import { resolveOrganizationIdForBillingInvoice } from "@/modules/billing/services/wompi-org";
 import { isGuestPaymentReference } from "@/lib/payments/guest-payment-reference";
 import { reconcileGuestPaymentFromWebhook } from "@/services/payments/guest-payment-reconcile.service";
@@ -64,11 +66,21 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
     return { ok: false as const, message: "Factura no encontrada" };
   }
 
+  const gateway = await resolveSubscriptionPaymentGateway();
+  if (!gateway) {
+    return {
+      ok: false as const,
+      message: "Ninguna pasarela configurada (Wompi o ePayco)",
+    };
+  }
+
   const reference =
     billingInvoice.externalRef?.startsWith("pragma-")
       ? billingInvoice.externalRef
-      : `pragma-${input.billingInvoiceId}`;
+      : buildBillingSubscriptionReference(input.billingInvoiceId);
   const idempotencyKey = `pay-${input.billingInvoiceId}`;
+  const providerCode =
+    gateway === "EPAYCO" ? PaymentProviderCode.EPAYCO : PaymentProviderCode.WOMPI;
 
   let paymentInvoiceId: string | null = null;
 
@@ -96,12 +108,12 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
           invoice: { connect: { id: paymentInvoice.id } },
           amount: input.amountInCents / 100,
           currency: input.currency,
-          provider: PaymentProviderCode.WOMPI,
+          provider: providerCode,
           providerReference: reference,
           status: PaymentTransactionStatus.PENDING,
           paymentMethod: PaymentMethodType.OTHER,
           idempotencyKey,
-          metadata: { billingInvoiceId: input.billingInvoiceId },
+          metadata: { billingInvoiceId: input.billingInvoiceId, gateway },
         }));
 
       if (!existingTx) {
@@ -110,7 +122,7 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
           transactionId: transaction.id,
           amount: input.amountInCents / 100,
           currency: input.currency,
-          metadata: { reference },
+          metadata: { reference, gateway },
         });
       }
     }
@@ -123,7 +135,7 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
     });
   }
 
-  const provider = getPaymentProvider("WOMPI");
+  const provider = getPaymentProvider(gateway);
   const organizationId =
     (await resolveOrganizationIdForBillingInvoice(input.billingInvoiceId)) ??
     "unknown";
@@ -152,6 +164,7 @@ export async function initiateSubscriptionPayment(input: InitiatePaymentInput) {
 
 export async function reconcileTransactionFromWebhook(input: {
   reference: string;
+  provider?: PaymentProviderCode;
   providerTransactionId?: string;
   status: PaymentTransactionStatus;
   paymentMethod?: PaymentMethodType;
@@ -161,15 +174,14 @@ export async function reconcileTransactionFromWebhook(input: {
     return reconcileGuestPaymentFromWebhook(input);
   }
 
+  const provider = input.provider ?? PaymentProviderCode.WOMPI;
+
   const billingInvoice = await db.billingInvoice.findFirst({
     where: { externalRef: input.reference },
   });
 
   let transaction = hasPaymentLedgerDelegates()
-    ? await findTransactionByProviderReference(
-        PaymentProviderCode.WOMPI,
-        input.reference,
-      )
+    ? await findTransactionByProviderReference(provider, input.reference)
     : null;
 
   if (!transaction && billingInvoice && hasPaymentLedgerDelegates()) {
@@ -184,14 +196,14 @@ export async function reconcileTransactionFromWebhook(input: {
           invoice: { connect: { id: paymentInvoice.id } },
           amount: Number(billingInvoice.amount),
           currency: billingInvoice.currency,
-          provider: PaymentProviderCode.WOMPI,
+          provider,
           providerReference: input.reference,
           status: PaymentTransactionStatus.PENDING,
-          idempotencyKey: `wh-${input.reference}`,
+          idempotencyKey: `wh-${provider}-${input.reference}`,
           metadata: { backfilledFromWebhook: true },
         });
         transaction = await findTransactionByProviderReference(
-          PaymentProviderCode.WOMPI,
+          provider,
           input.reference,
         );
       } catch (error) {

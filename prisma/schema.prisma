@@ -1010,8 +1010,9 @@ model EpaycoIntegration {
   custIdCliente          String?
   env                    String   @default("test")
   enabled                Boolean  @default(true)
-  preferForGuestPayments Boolean  @default(false)
-  lastHealthCheckAt      DateTime?
+  preferForGuestPayments        Boolean  @default(false)
+  preferForSubscriptionPayments Boolean  @default(false)
+  lastHealthCheckAt             DateTime?
   lastError              String?
   configuredById         String?
   createdAt              DateTime @default(now())

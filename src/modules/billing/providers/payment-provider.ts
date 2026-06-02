@@ -5,7 +5,7 @@ import type {
   WompiWebhookEvent,
 } from "@/modules/billing/domain/types";
 
-export type PaymentProviderCode = "WOMPI" | "STRIPE" | "MERCADOPAGO" | "PAYU" | "MANUAL";
+export type PaymentProviderCode = "WOMPI" | "EPAYCO" | "STRIPE" | "MERCADOPAGO" | "PAYU" | "MANUAL";
 
 export interface PaymentProviderAdapter {
   readonly code: PaymentProviderCode;

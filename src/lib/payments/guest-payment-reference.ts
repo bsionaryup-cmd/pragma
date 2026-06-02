@@ -16,8 +16,22 @@ export function isGuestPaymentReference(reference: string | null | undefined): b
   return parseGuestPaymentReference(reference) !== null;
 }
 
+const BILLING_SUBSCRIPTION_REFERENCE_PREFIX = "pragma-";
+
+export function buildBillingSubscriptionReference(invoiceId: string): string {
+  return `${BILLING_SUBSCRIPTION_REFERENCE_PREFIX}${invoiceId}`;
+}
+
+export function parseBillingSubscriptionReference(
+  reference: string | null | undefined,
+): string | null {
+  if (!reference?.startsWith(BILLING_SUBSCRIPTION_REFERENCE_PREFIX)) return null;
+  const id = reference.slice(BILLING_SUBSCRIPTION_REFERENCE_PREFIX.length).trim();
+  return id.length > 0 ? id : null;
+}
+
 export function isBillingSubscriptionReference(
   reference: string | null | undefined,
 ): boolean {
-  return Boolean(reference?.startsWith("pragma-"));
+  return parseBillingSubscriptionReference(reference) !== null;
 }
