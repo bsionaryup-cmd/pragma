@@ -252,16 +252,11 @@ export async function setTenantTrialRetrialPolicyByOwner(input: {
     select: { email: true },
   });
 
-  const metadata =
-    owner?.email != null
-      ? buildTrialBillingMetadata(owner.email)
-      : account.metadata;
-
   await db.billingAccount.update({
     where: { id: account.id },
     data: {
       trialRetrialPolicy: input.policy,
-      ...(owner?.email ? { metadata } : {}),
+      ...(owner?.email ? { metadata: buildTrialBillingMetadata(owner.email) } : {}),
     },
   });
 
