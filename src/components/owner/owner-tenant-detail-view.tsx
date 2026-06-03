@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   Building2,
   CreditCard,
@@ -67,6 +68,9 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   });
   const trialDaysInputRef = useRef<HTMLInputElement>(null);
   const trialDaysInputKey = tenant.billing?.trialEndsAt ?? "no-trial-end";
+  const currentTrialDaysRemaining = computeTrialDaysRemaining(
+    tenant.billing?.trialEndsAt,
+  );
   const [extendTrialDays, setExtendTrialDays] = useState("7");
 
   function formatCop(amount: number) {
@@ -261,9 +265,16 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
         );
         const data = (await res.json()) as { error?: string };
         if (!res.ok) {
-          setError(data.error ?? "No se pudo guardar los días de trial");
+          const message = data.error ?? "No se pudo guardar los días de trial";
+          setError(message);
+          toast.error(message);
           return;
         }
+        toast.success(
+          days === 1
+            ? "Trial actualizado: 1 día restante"
+            : `Trial actualizado: ${days} días restantes`,
+        );
         router.refresh();
       } catch {
         setError("Error de red");
@@ -534,8 +545,17 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                       defaultValue={computeTrialDaysRemaining(tenant.billing.trialEndsAt)}
                     />
                     {tenant.billing.trialEndsAt ? (
-                      <span className="text-xs text-muted-foreground">
-                        Vence {formatDate(tenant.billing.trialEndsAt)}
+                      <span
+                        className={
+                          currentTrialDaysRemaining <= 3
+                            ? "text-xs font-semibold text-red-600"
+                            : "text-xs text-muted-foreground"
+                        }
+                      >
+                        {currentTrialDaysRemaining === 1
+                          ? "1 día restante"
+                          : `${currentTrialDaysRemaining} días restantes`}{" "}
+                        · vence {formatDate(tenant.billing.trialEndsAt)}
                       </span>
                     ) : null}
                   </label>

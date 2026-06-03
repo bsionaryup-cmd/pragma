@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { requirePlatformOwnerUser, platformOwnerErrorResponse } from "@/lib/platform/require-platform-owner";
 import { setTenantTrialRemainingDaysByOwner } from "@/services/platform/owner-billing-actions.service";
@@ -25,6 +26,8 @@ export async function POST(request: Request, context: RouteContext) {
       daysRemaining,
       reason: body.reason,
     });
+    revalidatePath("/", "layout");
+    revalidatePath("/owner-dashboard", "layout");
     return NextResponse.json({ ok: true });
   } catch (error) {
     return platformOwnerErrorResponse(error);
