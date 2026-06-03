@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PRAGMA_TIMEZONE } from "@/lib/timezone";
 import { PaymentMethodsSettings } from "@/components/settings/payment-methods-settings";
+import { QuickMessagesSettings } from "@/components/settings/quick-messages-settings";
 import { saveUserPreferencesAction } from "@/features/settings/actions/settings.actions";
 
 /** Secciones enlazables vía `/settings?tab=profile|preferences|appearance` */
@@ -22,6 +23,7 @@ export const SETTINGS_TABS = [
   "preferences",
   "appearance",
   "payment-methods",
+  "guest-messages",
 ] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
@@ -39,6 +41,7 @@ type SettingsViewProps = {
   initialTheme: string;
   canManageBilling?: boolean;
   canManagePaymentMethods?: boolean;
+  canManageQuickMessages?: boolean;
 };
 
 export function SettingsView({
@@ -48,6 +51,7 @@ export function SettingsView({
   initialTheme,
   canManageBilling = false,
   canManagePaymentMethods = false,
+  canManageQuickMessages = false,
 }: SettingsViewProps) {
   const { t } = useI18n();
   const [pending, startTransition] = useTransition();
@@ -118,6 +122,23 @@ export function SettingsView({
               aria-label="Métodos de pago"
             >
               <PaymentMethodsSettings canManage={canManagePaymentMethods} />
+            </section>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {canManageQuickMessages ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Mensajes rápidos al huésped</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <section
+              id="guest-messages"
+              className="scroll-mt-6"
+              aria-label="Mensajes rápidos al huésped"
+            >
+              <QuickMessagesSettings canManage={canManageQuickMessages} />
             </section>
           </CardContent>
         </Card>

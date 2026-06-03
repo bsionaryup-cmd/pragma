@@ -6,6 +6,7 @@ import type {
   ReservationGuestStatus,
   ReservationStatus,
 } from "@prisma/client";
+import type { QuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
 
 export type ReservationPropertyDto = {
   id: string;
@@ -97,6 +98,8 @@ export type ReservationInboxItem = {
   property: ReservationPropertyDto & { maxGuests?: number };
   activityUnreadCount?: number;
   activityUnreadHint?: string | null;
+  /** Plantillas de mensajes rápidos (nivel organización). */
+  quickMessageTemplates?: QuickMessageTemplates | null;
 };
 
 /** Detalle ampliado (calendario / drawer) con metadatos y bloqueos relacionados. */

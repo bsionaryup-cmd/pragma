@@ -38,7 +38,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PropertyStatus, PropertyType } from "@prisma/client";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
-
 function FormSection({
   title,
   children,

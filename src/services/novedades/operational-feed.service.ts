@@ -27,6 +27,7 @@ import type { OperationalFeedCard } from "@/services/novedades/operational-feed.
 import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
 import { buildQuickMessage } from "@/lib/reservations/quick-messages";
+import { getOrganizationQuickMessageTemplates } from "@/services/settings/organization-quick-messages.service";
 import { parsePropertyNotificationEmails } from "@/lib/property-notification-emails";
 import { buildGuestRegistrationUrl } from "@/services/guests/guest-registration.service";
 
@@ -553,6 +554,7 @@ export async function listOperationalFeedForTenant(
   });
 
   async function listQuickMessageReminders(): Promise<OperationalFeedCard[]> {
+    const quickMessageTemplates = await getOrganizationQuickMessageTemplates();
     const now = new Date();
     const today = dateKeyToPrismaDate(todayDateKeyInTimezone());
     const in48h = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000);
@@ -594,7 +596,11 @@ export async function listOperationalFeedForTenant(
               reservationId: row.id,
               dateRangeLabel,
               quickActionLabel: "Copiar mensaje",
-              quickActionMessage: buildQuickMessage("WELCOME", messageData),
+              quickActionMessage: buildQuickMessage(
+                "WELCOME",
+                messageData,
+                quickMessageTemplates,
+              ),
             }),
           );
         }
@@ -616,7 +622,11 @@ export async function listOperationalFeedForTenant(
               reservationId: row.id,
               dateRangeLabel,
               quickActionLabel: "Copiar mensaje",
-              quickActionMessage: buildQuickMessage("REGISTRATION", messageData),
+              quickActionMessage: buildQuickMessage(
+                "REGISTRATION",
+                messageData,
+                quickMessageTemplates,
+              ),
             }),
           );
         }
@@ -638,7 +648,11 @@ export async function listOperationalFeedForTenant(
               reservationId: row.id,
               dateRangeLabel,
               quickActionLabel: "Copiar mensaje",
-              quickActionMessage: buildQuickMessage("ACCESS", messageData),
+              quickActionMessage: buildQuickMessage(
+                "ACCESS",
+                messageData,
+                quickMessageTemplates,
+              ),
             }),
           );
         }
@@ -663,7 +677,11 @@ export async function listOperationalFeedForTenant(
               reservationId: row.id,
               dateRangeLabel,
               quickActionLabel: "Copiar mensaje",
-              quickActionMessage: buildQuickMessage("FOLLOW_UP", messageData),
+              quickActionMessage: buildQuickMessage(
+                "FOLLOW_UP",
+                messageData,
+                quickMessageTemplates,
+              ),
             }),
           );
         }
@@ -685,7 +703,11 @@ export async function listOperationalFeedForTenant(
               reservationId: row.id,
               dateRangeLabel,
               quickActionLabel: "Copiar mensaje",
-              quickActionMessage: buildQuickMessage("CHECKOUT", messageData),
+              quickActionMessage: buildQuickMessage(
+                "CHECKOUT",
+                messageData,
+                quickMessageTemplates,
+              ),
             }),
           );
         }

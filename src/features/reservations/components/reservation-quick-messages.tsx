@@ -32,17 +32,21 @@ export function ReservationQuickMessages({
   accessCode,
 }: ReservationQuickMessagesProps) {
   async function copyMessage(type: QuickMessageType) {
-    const text = buildQuickMessage(type, {
-      guestName: reservation.guestName,
-      propertyName: reservation.property.name,
-      address: reservation.property.address,
-      checkInTime: formatTime(reservation.property.checkInTime),
-      checkOutTime: formatTime(reservation.property.checkOutTime),
-      wifiName: reservation.property.wifiName ?? null,
-      wifiPassword: reservation.property.wifiPassword ?? null,
-      accessCode: accessCode ?? reservation.property.accessCode ?? null,
-      registrationLink: registrationLink ?? null,
-    });
+    const text = buildQuickMessage(
+      type,
+      {
+        guestName: reservation.guestName,
+        propertyName: reservation.property.name,
+        address: reservation.property.address,
+        checkInTime: formatTime(reservation.property.checkInTime),
+        checkOutTime: formatTime(reservation.property.checkOutTime),
+        wifiName: reservation.property.wifiName ?? null,
+        wifiPassword: reservation.property.wifiPassword ?? null,
+        accessCode: accessCode ?? reservation.property.accessCode ?? null,
+        registrationLink: registrationLink ?? null,
+      },
+      reservation.quickMessageTemplates,
+    );
 
     await navigator.clipboard.writeText(text);
     toast.success("Mensaje copiado");

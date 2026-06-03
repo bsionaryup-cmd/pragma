@@ -1,3 +1,8 @@
+import {
+  applyQuickMessageTemplate,
+  type QuickMessageTemplates,
+} from "@/lib/reservations/quick-message-templates";
+
 export type QuickMessageType =
   | "WELCOME"
   | "REGISTRATION"
@@ -121,7 +126,16 @@ function buildCheckout(data: QuickMessageData): string {
   ].join("\n");
 }
 
-export function buildQuickMessage(type: QuickMessageType, data: QuickMessageData): string {
+export function buildQuickMessage(
+  type: QuickMessageType,
+  data: QuickMessageData,
+  customTemplates?: QuickMessageTemplates | null,
+): string {
+  const custom = customTemplates?.[type]?.trim();
+  if (custom) {
+    return applyQuickMessageTemplate(custom, data);
+  }
+
   switch (type) {
     case "WELCOME":
       return buildWelcome(data);
@@ -140,4 +154,9 @@ export function buildQuickMessage(type: QuickMessageType, data: QuickMessageData
 
 export function quickMessageLabel(type: QuickMessageType): string {
   return quickMessageTitle[type];
+}
+
+/** Texto predeterminado del sistema (sin datos de reserva). */
+export function getDefaultQuickMessageTemplate(type: QuickMessageType): string {
+  return buildQuickMessage(type, {});
 }

@@ -45,6 +45,7 @@ model Organization {
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
+  quickMessageTemplates  Json?
 
   @@map("organizations")
 }
