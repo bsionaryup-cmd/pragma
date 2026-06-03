@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { TrialRetrialPolicy } from "@prisma/client";
+import { Prisma, type TrialRetrialPolicy } from "@prisma/client";
 import { db } from "@/lib/db";
 import { normalizeUserEmail } from "@/lib/auth/clerk-user-upsert-policy";
 import {
@@ -28,9 +28,17 @@ export class TrialBlockedByOwnerError extends Error {
   }
 }
 
-async function listBillingAccountsForTrialEmail(email: string) {
-  const normalized = normalizeUserEmail(email);
-  if (!normalized) return [];
+type TrialEmailBillingRow = {
+  id: string;
+  trialRetrialPolicy: TrialRetrialPolicy;
+  metadata: unknown;
+};
+
+async function fetchBillingAccountsForTrialEmail(
+  normalized: string,
+  includeRetrialPolicy: boolean,
+): Promise<TrialEmailBillingRow[]> {
+  const policySelect = includeRetrialPolicy ? { trialRetrialPolicy: true } : {};
 
   const [byOwner, byMetadata] = await Promise.all([
     db.billingAccount.findMany({
@@ -46,8 +54,8 @@ async function listBillingAccountsForTrialEmail(email: string) {
       },
       select: {
         id: true,
-        trialRetrialPolicy: true,
         metadata: true,
+        ...policySelect,
       },
     }),
     db.billingAccount.findMany({
@@ -59,17 +67,37 @@ async function listBillingAccountsForTrialEmail(email: string) {
       },
       select: {
         id: true,
-        trialRetrialPolicy: true,
         metadata: true,
+        ...policySelect,
       },
     }),
   ]);
 
-  const merged = new Map<string, (typeof byOwner)[number]>();
+  const merged = new Map<string, TrialEmailBillingRow>();
   for (const row of [...byOwner, ...byMetadata]) {
-    merged.set(row.id, row);
+    const policy =
+      "trialRetrialPolicy" in row && row.trialRetrialPolicy
+        ? row.trialRetrialPolicy
+        : "DEFAULT";
+    merged.set(row.id, {
+      id: row.id,
+      metadata: row.metadata,
+      trialRetrialPolicy: policy,
+    });
   }
   return [...merged.values()];
+}
+
+async function listBillingAccountsForTrialEmail(email: string) {
+  const normalized = normalizeUserEmail(email);
+  if (!normalized) return [];
+
+  try {
+    return await fetchBillingAccountsForTrialEmail(normalized, true);
+  } catch (error) {
+    if (!isMissingTrialRetrialPolicyField(error)) throw error;
+    return fetchBillingAccountsForTrialEmail(normalized, false);
+  }
 }
 
 export async function resolveSaasTrialEligibility(email: string): Promise<{
@@ -127,11 +155,23 @@ export async function assertEmailEligibleForNewSaasTrial(email: string): Promise
   throw new TrialAlreadyConsumedError();
 }
 
-export async function getTenantTrialRetrialPolicy(organizationId: string) {
+function isMissingTrialRetrialPolicyField(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientValidationError &&
+    String(error.message).includes("trialRetrialPolicy")
+  );
+}
+
+async function loadTenantTrialRetrialPolicy(
+  organizationId: string,
+  options?: { includeRetrialPolicy?: boolean },
+) {
   const account = await db.billingAccount.findUnique({
     where: { organizationId },
     select: {
-      trialRetrialPolicy: true,
+      ...(options?.includeRetrialPolicy !== false
+        ? { trialRetrialPolicy: true }
+        : {}),
       trialEndsAt: true,
       status: true,
       metadata: true,
@@ -154,11 +194,27 @@ export async function getTenantTrialRetrialPolicy(organizationId: string) {
     ? await resolveSaasTrialEligibility(trialEmail)
     : null;
 
+  const policy =
+    "trialRetrialPolicy" in account && account.trialRetrialPolicy
+      ? account.trialRetrialPolicy
+      : ("DEFAULT" as TrialRetrialPolicy);
+
   return {
-    policy: account.trialRetrialPolicy,
+    policy,
     trialEmail,
     trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
     billingStatus: account.status,
     eligibility,
   };
+}
+
+export async function getTenantTrialRetrialPolicy(organizationId: string) {
+  try {
+    return await loadTenantTrialRetrialPolicy(organizationId);
+  } catch (error) {
+    if (!isMissingTrialRetrialPolicyField(error)) throw error;
+    return loadTenantTrialRetrialPolicy(organizationId, {
+      includeRetrialPolicy: false,
+    });
+  }
 }
