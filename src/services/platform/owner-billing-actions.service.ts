@@ -48,6 +48,43 @@ export async function setTenantPropertySlotsByOwner(input: {
   });
 }
 
+export async function setTenantTrialRemainingDaysByOwner(input: {
+  platformUser: User;
+  organizationId: string;
+  daysRemaining: number;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+  const daysRemaining = Math.max(0, Math.min(365, Math.round(input.daysRemaining)));
+  const account = await ensureOrganizationBillingAccount(input.organizationId);
+  const before = account.trialEndsAt;
+
+  const next =
+    daysRemaining === 0
+      ? new Date()
+      : new Date(Date.now() + daysRemaining * 24 * 60 * 60 * 1000);
+
+  await db.billingAccount.update({
+    where: { id: account.id },
+    data: {
+      status: BillingSubscriptionStatus.TRIAL,
+      trialEndsAt: next,
+      gracePeriodEndsAt: null,
+      billingLockedAt: null,
+    },
+  });
+
+  await writePlatformAuditLog({
+    platformUserId: input.platformUser.id,
+    ownerEmail: input.platformUser.email,
+    action: "billing_trial_set_remaining",
+    targetTenantId: input.organizationId,
+    previousState: { trialEndsAt: before?.toISOString() ?? null },
+    newState: { trialEndsAt: next.toISOString(), daysRemaining },
+    metadata: { reason: input.reason ?? "owner_ops" },
+  });
+}
+
 export async function extendTenantTrialByOwner(input: {
   platformUser: User;
   organizationId: string;
@@ -55,7 +92,7 @@ export async function extendTenantTrialByOwner(input: {
   reason?: string;
 }) {
   assertSuperAdminOwner(input.platformUser);
-  const days = Math.max(1, Math.min(60, Math.round(input.days)));
+  const days = Math.max(1, Math.min(365, Math.round(input.days)));
   const account = await ensureOrganizationBillingAccount(input.organizationId);
   const before = account.trialEndsAt;
 

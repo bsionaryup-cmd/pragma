@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   Building2,
   CreditCard,
@@ -31,6 +31,7 @@ import {
   PLAN_CATALOG,
 } from "@/modules/billing/domain/plan-catalog";
 import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { computeTrialDaysRemaining } from "@/lib/billing/trial-days-remaining";
 import { trialRetrialPolicyLabel } from "@/lib/billing/trial-retrial-policy";
 import type { TrialRetrialPolicy } from "@prisma/client";
 
@@ -64,7 +65,16 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     const meta = parseSalesBillingMetadata(tenant.billing?.metadata);
     return String(meta.propertySlots ?? tenant.propertyCount ?? 1);
   });
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState(() =>
+    String(computeTrialDaysRemaining(tenant.billing?.trialEndsAt)),
+  );
   const [extendTrialDays, setExtendTrialDays] = useState("7");
+
+  useEffect(() => {
+    setTrialDaysRemaining(
+      String(computeTrialDaysRemaining(tenant.billing?.trialEndsAt)),
+    );
+  }, [tenant.billing?.trialEndsAt]);
 
   function formatCop(amount: number) {
     return new Intl.NumberFormat("es-CO", {
@@ -236,6 +246,24 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
 
   function billingAction(path: string, body?: unknown) {
     runAction(`/api/owner/tenant/${tenant.id}/billing-actions/${path}`, () => router.refresh(), body);
+  }
+
+  function saveTrialDaysRemaining() {
+    const days = Number.parseInt(trialDaysRemaining, 10);
+    if (!Number.isFinite(days) || days < 0) {
+      setError("Indica días restantes válidos (0 o más)");
+      return;
+    }
+    billingAction("set-trial-days", { daysRemaining: days, reason: "owner_ops" });
+  }
+
+  function extendTrial() {
+    const days = Number.parseInt(extendTrialDays, 10);
+    if (!Number.isFinite(days) || days < 1) {
+      setError("Indica al menos 1 día para sumar al trial");
+      return;
+    }
+    billingAction("extend-trial", { days, reason: "owner_ops" });
   }
 
   async function saveTenantName() {
@@ -470,7 +498,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                     <input
                       className="h-10 w-full rounded-xl border border-input bg-background px-3"
                       value={propertySlots}
-                      onChange={(e) => setPropertySlots(e.target.value.replace(/\\D/g, "").slice(0, 4))}
+                      onChange={(e) => setPropertySlots(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     />
                     <Button type="button" variant="outline" disabled={pending} onClick={updatePropertySlots}>
                       Guardar
@@ -478,29 +506,32 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                   </div>
                 </label>
 
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <label className="grid gap-1.5 text-sm">
-                    <span className="text-muted-foreground">Extender trial (días)</span>
+                    <span className="text-muted-foreground">Días restantes de trial</span>
                     <input
+                      type="text"
+                      inputMode="numeric"
                       className="h-10 rounded-xl border border-input bg-background px-3"
-                      value={extendTrialDays}
-                      onChange={(e) => setExtendTrialDays(e.target.value.replace(/\\D/g, "").slice(0, 2))}
+                      value={trialDaysRemaining}
+                      onChange={(e) =>
+                        setTrialDaysRemaining(e.target.value.replace(/\D/g, "").slice(0, 3))
+                      }
                     />
+                    {tenant.billing.trialEndsAt ? (
+                      <span className="text-xs text-muted-foreground">
+                        Vence {formatDate(tenant.billing.trialEndsAt)}
+                      </span>
+                    ) : null}
                   </label>
-                  <div className="flex items-end gap-2">
+                  <div className="flex flex-col justify-end gap-2">
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
                       disabled={pending}
-                      onClick={() =>
-                        billingAction("extend-trial", {
-                          days: Number.parseInt(extendTrialDays || "7", 10),
-                          reason: "owner_ops",
-                        })
-                      }
+                      onClick={saveTrialDaysRemaining}
                     >
-                      Extender
+                      Guardar días restantes
                     </Button>
                     <Button
                       type="button"
@@ -510,6 +541,31 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                       onClick={() => billingAction("block-trial", { reason: "owner_ops" })}
                     >
                       Bloquear trial
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Sumar días al trial actual</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="h-10 rounded-xl border border-input bg-background px-3"
+                      value={extendTrialDays}
+                      onChange={(e) =>
+                        setExtendTrialDays(e.target.value.replace(/\D/g, "").slice(0, 3))
+                      }
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={extendTrial}
+                    >
+                      Sumar días
                     </Button>
                   </div>
                 </div>

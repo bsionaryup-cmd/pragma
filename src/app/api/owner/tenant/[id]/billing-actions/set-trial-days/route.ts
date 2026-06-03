@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePlatformOwnerUser, platformOwnerErrorResponse } from "@/lib/platform/require-platform-owner";
-import { extendTenantTrialByOwner } from "@/services/platform/owner-billing-actions.service";
+import { setTenantTrialRemainingDaysByOwner } from "@/services/platform/owner-billing-actions.service";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -8,14 +8,17 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const platformUser = await requirePlatformOwnerUser();
     const { id } = await context.params;
-    const body = (await request.json()) as { days?: number; reason?: string };
-    if (!Number.isFinite(body.days) || body.days! < 1) {
-      return NextResponse.json({ error: "days inválido (mínimo 1)" }, { status: 400 });
+    const body = (await request.json()) as {
+      daysRemaining?: number;
+      reason?: string;
+    };
+    if (!Number.isFinite(body.daysRemaining) || body.daysRemaining! < 0) {
+      return NextResponse.json({ error: "daysRemaining inválido" }, { status: 400 });
     }
-    await extendTenantTrialByOwner({
+    await setTenantTrialRemainingDaysByOwner({
       platformUser,
       organizationId: id,
-      days: body.days!,
+      daysRemaining: body.daysRemaining!,
       reason: body.reason,
     });
     return NextResponse.json({ ok: true });
@@ -23,4 +26,3 @@ export async function POST(request: Request, context: RouteContext) {
     return platformOwnerErrorResponse(error);
   }
 }
-
