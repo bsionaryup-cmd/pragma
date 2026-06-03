@@ -5,6 +5,7 @@ import {
   getEpaycoIntegrationForOrganization,
   resolveStoredEpaycoSecret,
 } from "@/modules/integrations/epayco/epayco-persistence";
+import { getPublicAppUrl } from "@/lib/app-url";
 import {
   resolvePlatformEpaycoOrganizationId,
 } from "@/modules/billing/services/epayco-platform.service";
@@ -39,15 +40,8 @@ function maskKey(value: string | null | undefined): string | null {
   return `${trimmed.slice(0, 4)}…${trimmed.slice(-4)}`;
 }
 
-function resolvePublicWebhookUrl(): string | null {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim();
-  if (!baseUrl) return null;
-
-  const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
-  return `${origin.replace(/\/$/, "")}/api/webhooks/epayco`;
+function resolvePublicWebhookUrl(): string {
+  return `${getPublicAppUrl()}/api/webhooks/epayco`;
 }
 
 /** Platform-wide ePayco credentials for SaaS subscription checkout. */

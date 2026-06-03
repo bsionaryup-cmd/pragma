@@ -16,6 +16,7 @@ import {
   activateBillingSubscription,
   getBillingOverview,
 } from "@/services/billing/billing.service";
+import { getPublicAppUrl } from "@/lib/app-url";
 import { createSubscriptionCheckout } from "@/services/billing/wompi.service";
 
 function revalidateBilling() {
@@ -47,11 +48,7 @@ export async function payOpenInvoiceAction(invoiceId: string) {
     return { ok: false, message: "Monto de factura inválido" };
   }
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim() ||
-    "http://localhost:3000";
-  const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
+  const origin = getPublicAppUrl();
 
   const result = await createSubscriptionCheckout({
     invoiceId,

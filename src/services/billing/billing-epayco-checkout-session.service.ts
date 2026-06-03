@@ -4,19 +4,11 @@ import { BillingInvoiceStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { buildBillingSubscriptionReference } from "@/lib/payments/guest-payment-reference";
 import type { GuestEpaycoCheckoutSession } from "@/services/payments/guest-epayco-checkout.service";
+import { getPublicAppUrl } from "@/lib/app-url";
 import {
   isPlatformEpaycoConfigured,
   resolvePlatformEpaycoConfig,
 } from "@/modules/integrations/epayco/epayco-credentials";
-
-function resolveAppOrigin(): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim();
-  if (!base) return "http://localhost:3000";
-  return base.startsWith("http") ? base.replace(/\/$/, "") : `https://${base}`;
-}
 
 export async function getBillingEpaycoCheckoutSession(
   invoiceId: string,
@@ -57,7 +49,7 @@ export async function getBillingEpaycoCheckoutSession(
     invoice.externalRef?.startsWith("pragma-")
       ? invoice.externalRef
       : buildBillingSubscriptionReference(invoice.id);
-  const origin = resolveAppOrigin();
+  const origin = getPublicAppUrl();
 
   const session: GuestEpaycoCheckoutSession = {
     publicKey: config.publicKey,

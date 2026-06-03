@@ -1,15 +1,7 @@
 import type { PaymentProviderCheckoutInput, PaymentProviderCheckoutResult } from "@/modules/billing/domain/types";
 import type { PaymentProviderAdapter } from "@/modules/billing/providers/payment-provider";
+import { getPublicAppUrl } from "@/lib/app-url";
 import { isPlatformEpaycoConfigured } from "@/modules/integrations/epayco/epayco-credentials";
-
-function resolveAppOrigin(): string {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim();
-  if (!base) return "http://localhost:3000";
-  return base.startsWith("http") ? base.replace(/\/$/, "") : `https://${base}`;
-}
 
 export class EpaycoPaymentAdapter implements PaymentProviderAdapter {
   readonly code = "EPAYCO" as const;
@@ -29,7 +21,7 @@ export class EpaycoPaymentAdapter implements PaymentProviderAdapter {
       };
     }
 
-    const checkoutUrl = `${resolveAppOrigin()}/pay/epayco/billing/${encodeURIComponent(input.invoiceId)}`;
+    const checkoutUrl = `${getPublicAppUrl()}/pay/epayco/billing/${encodeURIComponent(input.invoiceId)}`;
 
     return {
       ok: true,

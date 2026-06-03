@@ -8,6 +8,7 @@ import {
   hasWompiIntegrationDelegate,
   resolveStoredWompiSecret,
 } from "@/modules/billing/services/wompi-persistence";
+import { getPublicAppUrl } from "@/lib/app-url";
 import {
   resolvePlatformWompiOrganizationId,
 } from "@/modules/billing/services/wompi-platform.service";
@@ -122,18 +123,10 @@ function mergeLegacyWompiConfig(
   };
 }
 
-function resolvePublicWebhookUrl(): string | null {
+function resolvePublicWebhookUrl(): string {
   const envConfig = getWompiConfigFromEnv();
   if (envConfig.webhookUrl) return envConfig.webhookUrl;
-
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.APP_URL?.trim() ||
-    process.env.VERCEL_URL?.trim();
-  if (!baseUrl) return null;
-
-  const origin = baseUrl.startsWith("http") ? baseUrl : `https://${baseUrl}`;
-  return `${origin.replace(/\/$/, "")}/api/payments/wompi/webhook`;
+  return `${getPublicAppUrl()}/api/payments/wompi/webhook`;
 }
 
 /** Platform-wide Wompi credentials for SaaS subscription checkout (all tenants). */
