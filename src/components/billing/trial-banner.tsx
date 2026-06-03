@@ -23,7 +23,7 @@ export function TrialBanner({ trialEndsAt, isAdmin }: TrialBannerProps) {
         </p>
         {isAdmin ? (
           <Button size="sm" variant="outline" className="h-8" asChild>
-            <Link href="/settings/billing?checkout=1">Activar suscripción</Link>
+            <Link href="/settings/billing">Activar suscripción</Link>
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">
