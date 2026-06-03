@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   Building2,
   CreditCard,
@@ -65,16 +65,9 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     const meta = parseSalesBillingMetadata(tenant.billing?.metadata);
     return String(meta.propertySlots ?? tenant.propertyCount ?? 1);
   });
-  const [trialDaysRemaining, setTrialDaysRemaining] = useState(() =>
-    String(computeTrialDaysRemaining(tenant.billing?.trialEndsAt)),
-  );
+  const trialDaysInputRef = useRef<HTMLInputElement>(null);
+  const trialDaysInputKey = tenant.billing?.trialEndsAt ?? "no-trial-end";
   const [extendTrialDays, setExtendTrialDays] = useState("7");
-
-  useEffect(() => {
-    setTrialDaysRemaining(
-      String(computeTrialDaysRemaining(tenant.billing?.trialEndsAt)),
-    );
-  }, [tenant.billing?.trialEndsAt]);
 
   function formatCop(amount: number) {
     return new Intl.NumberFormat("es-CO", {
@@ -248,13 +241,34 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     runAction(`/api/owner/tenant/${tenant.id}/billing-actions/${path}`, () => router.refresh(), body);
   }
 
-  function saveTrialDaysRemaining() {
-    const days = Number.parseInt(trialDaysRemaining, 10);
+  async function saveTrialDaysRemaining() {
+    const raw = (trialDaysInputRef.current?.value ?? "").replace(/\D/g, "");
+    const days = Number.parseInt(raw, 10);
     if (!Number.isFinite(days) || days < 0) {
       setError("Indica días restantes válidos (0 o más)");
       return;
     }
-    billingAction("set-trial-days", { daysRemaining: days, reason: "owner_ops" });
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(
+          `/api/owner/tenant/${tenant.id}/billing-actions/set-trial-days`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ daysRemaining: days, reason: "owner_ops" }),
+          },
+        );
+        const data = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          setError(data.error ?? "No se pudo guardar los días de trial");
+          return;
+        }
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
   }
 
   function extendTrial() {
@@ -510,13 +524,14 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                   <label className="grid gap-1.5 text-sm">
                     <span className="text-muted-foreground">Días restantes de trial</span>
                     <input
-                      type="text"
-                      inputMode="numeric"
+                      ref={trialDaysInputRef}
+                      key={trialDaysInputKey}
+                      type="number"
+                      min={0}
+                      max={365}
+                      step={1}
                       className="h-10 rounded-xl border border-input bg-background px-3"
-                      value={trialDaysRemaining}
-                      onChange={(e) =>
-                        setTrialDaysRemaining(e.target.value.replace(/\D/g, "").slice(0, 3))
-                      }
+                      defaultValue={computeTrialDaysRemaining(tenant.billing.trialEndsAt)}
                     />
                     {tenant.billing.trialEndsAt ? (
                       <span className="text-xs text-muted-foreground">

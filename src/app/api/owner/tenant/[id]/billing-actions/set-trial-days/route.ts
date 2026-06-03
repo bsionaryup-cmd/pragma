@@ -12,13 +12,17 @@ export async function POST(request: Request, context: RouteContext) {
       daysRemaining?: number;
       reason?: string;
     };
-    if (!Number.isFinite(body.daysRemaining) || body.daysRemaining! < 0) {
+    const daysRemaining =
+      typeof body.daysRemaining === "number"
+        ? body.daysRemaining
+        : Number.parseInt(String(body.daysRemaining ?? ""), 10);
+    if (!Number.isFinite(daysRemaining) || daysRemaining < 0) {
       return NextResponse.json({ error: "daysRemaining inválido" }, { status: 400 });
     }
     await setTenantTrialRemainingDaysByOwner({
       platformUser,
       organizationId: id,
-      daysRemaining: body.daysRemaining!,
+      daysRemaining,
       reason: body.reason,
     });
     return NextResponse.json({ ok: true });
