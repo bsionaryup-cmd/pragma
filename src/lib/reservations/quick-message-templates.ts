@@ -122,6 +122,45 @@ function cleanupCopiedMessage(text: string): string {
     .trim();
 }
 
+const DEFAULT_ACCESS_INSTRUCTIONS_TEMPLATE = `Hola {guestName},
+
+Instrucciones de acceso — {propertyName}
+
+📍 Dirección: {address}
+🕒 Check-in: {checkInTime} ({checkIn})
+🕒 Check-out: {checkOutTime} ({checkOut})
+🔐 Acceso: {accessCode}
+📶 WiFi: {wifiName}
+🔑 Clave WiFi: {wifiPassword}
+
+WhatsApp recepción: {receptionWhatsapp}`;
+
+const DEFAULT_HOUSE_RULES_TEMPLATE = `Reglas de la casa — {propertyName}
+
+Estancia: {stayRange}
+
+Por favor respeta las normas del edificio, el horario de silencio y la convivencia con vecinos.
+
+Dudas o novedades: {receptionWhatsapp}`;
+
+export function buildAccessInstructionsCopyText(
+  messageData: QuickMessageData,
+  propertyInstructions?: string | null,
+): string {
+  const custom = propertyInstructions?.trim();
+  const template = custom || DEFAULT_ACCESS_INSTRUCTIONS_TEMPLATE;
+  return applyQuickMessageTemplate(template, messageData);
+}
+
+export function buildHouseRulesCopyText(
+  messageData: QuickMessageData,
+  propertyRules?: string | null,
+): string {
+  const custom = propertyRules?.trim();
+  const template = custom || DEFAULT_HOUSE_RULES_TEMPLATE;
+  return applyQuickMessageTemplate(template, messageData);
+}
+
 export function buildQuickMessageDataFromReservation(input: {
   guestName: string;
   checkIn: string;

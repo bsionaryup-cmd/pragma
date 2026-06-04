@@ -1,8 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { toast } from "sonner";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
-import { buildQuickMessageDataFromReservation } from "@/lib/reservations/quick-message-templates";
+import {
+  buildAccessInstructionsCopyText,
+  buildHouseRulesCopyText,
+  buildQuickMessageDataFromReservation,
+} from "@/lib/reservations/quick-message-templates";
 import {
   buildQuickMessage,
   type QuickMessageType,
@@ -22,9 +27,19 @@ const QUICK_BUTTONS: { type: QuickMessageType; label: string }[] = [
   { type: "CHECKOUT", label: "⭐ Salida" },
 ];
 
-async function copyPlainText(text: string, successLabel: string) {
+const PROPERTY_COPY_BUTTONS = [
+  { id: "accessInstructions" as const, label: "📋 Instrucciones de acceso" },
+  { id: "houseRules" as const, label: "📜 Reglas de la casa" },
+];
+
+async function copyText(text: string, successLabel: string) {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    toast.error("No hay información para copiar");
+    return;
+  }
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(trimmed);
     toast.success(successLabel);
   } catch {
     toast.error("No se pudo copiar el texto");
@@ -36,29 +51,48 @@ export function ReservationQuickMessages({
   registrationLink,
   accessCode,
 }: ReservationQuickMessagesProps) {
-  const accessInstructions = reservation.property.accessInstructions?.trim() ?? "";
-  const houseRules = reservation.property.houseRules?.trim() ?? "";
+  const messageData = useMemo(
+    () =>
+      buildQuickMessageDataFromReservation({
+        guestName: reservation.guestName,
+        checkIn: reservation.checkIn,
+        checkOut: reservation.checkOut,
+        property: {
+          ...reservation.property,
+          neighborhood: null,
+        },
+        registrationLink: registrationLink ?? null,
+        accessCode: accessCode ?? null,
+      }),
+    [reservation, registrationLink, accessCode],
+  );
 
   async function copyMessage(type: QuickMessageType) {
-    const messageData = buildQuickMessageDataFromReservation({
-      guestName: reservation.guestName,
-      checkIn: reservation.checkIn,
-      checkOut: reservation.checkOut,
-      property: {
-        ...reservation.property,
-        neighborhood: null,
-      },
-      registrationLink: registrationLink ?? null,
-      accessCode: accessCode ?? null,
-    });
     const text = buildQuickMessage(
       type,
       messageData,
       reservation.property.quickMessageTemplates,
     );
+    await copyText(text, "Mensaje copiado");
+  }
 
-    await navigator.clipboard.writeText(text);
-    toast.success("Mensaje copiado");
+  async function copyPropertyField(
+    field: (typeof PROPERTY_COPY_BUTTONS)[number]["id"],
+  ) {
+    const text =
+      field === "accessInstructions"
+        ? buildAccessInstructionsCopyText(
+            messageData,
+            reservation.property.accessInstructions,
+          )
+        : buildHouseRulesCopyText(messageData, reservation.property.houseRules);
+
+    await copyText(
+      text,
+      field === "accessInstructions"
+        ? "Instrucciones de acceso copiadas"
+        : "Reglas de la casa copiadas",
+    );
   }
 
   return (
@@ -77,35 +111,20 @@ export function ReservationQuickMessages({
           </button>
         ))}
       </div>
-      {accessInstructions || houseRules ? (
-        <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
-          {accessInstructions ? (
-            <button
-              type="button"
-              className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
-              onClick={() => {
-                void copyPlainText(
-                  accessInstructions,
-                  "Instrucciones de acceso copiadas",
-                );
-              }}
-            >
-              📋 Instrucciones de acceso
-            </button>
-          ) : null}
-          {houseRules ? (
-            <button
-              type="button"
-              className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
-              onClick={() => {
-                void copyPlainText(houseRules, "Reglas de la casa copiadas");
-              }}
-            >
-              📜 Reglas de la casa
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
+        {PROPERTY_COPY_BUTTONS.map((button) => (
+          <button
+            key={button.id}
+            type="button"
+            className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
+            onClick={() => {
+              void copyPropertyField(button.id);
+            }}
+          >
+            {button.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
