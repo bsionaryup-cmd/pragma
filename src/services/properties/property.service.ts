@@ -27,7 +27,13 @@ import {
   ReservationStatus,
 } from "@prisma/client";
 import { isOrphanAirbnbReservation } from "@/services/airbnb/airbnb-ical-orphan.service";
+import { Prisma } from "@prisma/client";
 import { sortPropertiesByUnitNumber } from "@/lib/property-display";
+import {
+  formFieldsToQuickMessageTemplates,
+  parsePropertyQuickMessageTemplates,
+  quickMessageTemplatesToFormFields,
+} from "@/lib/reservations/quick-message-templates";
 import { formatAccessCode } from "@/lib/access-code";
 import {
   hasActiveAirbnbIcalImport,
@@ -393,6 +399,10 @@ export async function getPropertyDetail(
     ),
     createdAt: property.createdAt.toISOString(),
     notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),
+    receptionWhatsapp: property.receptionWhatsapp ?? "",
+    ...quickMessageTemplatesToFormFields(
+      parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
+    ),
     smartAccess: {
       lock: property.propertyLock
         ? mapSmartLockSnapshot({
@@ -465,7 +475,17 @@ function normalizeFormData(data: PropertyFormValues) {
     coverImageUrl: data.coverImageUrl?.trim() || null,
     status: data.status,
     notificationEmails: notificationEmailsFormToJson(data.notificationEmails),
+    receptionWhatsapp: data.receptionWhatsapp?.trim() || null,
+    quickMessageTemplates: quickMessageTemplatesForPrisma(data),
   };
+}
+
+function quickMessageTemplatesForPrisma(
+  data: PropertyFormValues,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull {
+  const templates = formFieldsToQuickMessageTemplates(data);
+  if (templates === null) return Prisma.JsonNull;
+  return templates as Prisma.InputJsonValue;
 }
 
 export async function createProperty(ownerId: string, data: PropertyFormValues) {

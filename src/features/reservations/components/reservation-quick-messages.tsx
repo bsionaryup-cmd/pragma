@@ -44,8 +44,9 @@ export function ReservationQuickMessages({
         wifiPassword: reservation.property.wifiPassword ?? null,
         accessCode: accessCode ?? reservation.property.accessCode ?? null,
         registrationLink: registrationLink ?? null,
+        receptionWhatsapp: reservation.property.receptionWhatsapp ?? null,
       },
-      reservation.quickMessageTemplates,
+      reservation.property.quickMessageTemplates,
     );
 
     await navigator.clipboard.writeText(text);

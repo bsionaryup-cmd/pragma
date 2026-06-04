@@ -42,8 +42,8 @@ import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
-import type { QuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
-import { getOrganizationQuickMessageTemplates } from "@/services/settings/organization-quick-messages.service";
+import { parsePropertyQuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
+import { formatPropertyAddressForMessage } from "@/lib/reservations/quick-message-templates";
 import {
   resolveReservationGuestCounts,
   type GuestCountEnrichment,
@@ -123,7 +123,7 @@ type ReservationRow = {
   airbnbEnrichmentGuestCounts?: GuestCountEnrichment | null;
   activityUnreadCount?: number;
   activityUnreadHint?: string | null;
-  quickMessageTemplates?: QuickMessageTemplates | null;
+
 };
 
 function toInboxItem(r: ReservationRow): ReservationInboxItem {
@@ -194,7 +194,11 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       id: r.property.id,
       name: r.property.name,
       unitNumber: r.property.unitNumber ?? null,
-      address: r.property.address,
+      address: formatPropertyAddressForMessage({
+        address: r.property.address,
+        neighborhood: r.property.neighborhood ?? null,
+      }),
+      neighborhood: r.property.neighborhood ?? null,
       city: r.property.city,
       maxGuests: r.property.maxGuests,
       coverImageUrl:
@@ -215,8 +219,13 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
         "wifiName" in r.property ? r.property.wifiName : undefined,
       wifiPassword:
         "wifiPassword" in r.property ? r.property.wifiPassword : undefined,
+      receptionWhatsapp:
+        "receptionWhatsapp" in r.property ? r.property.receptionWhatsapp : undefined,
+      quickMessageTemplates:
+        "quickMessageTemplates" in r.property
+          ? parsePropertyQuickMessageTemplates(r.property.quickMessageTemplates)
+          : null,
     },
-    quickMessageTemplates: r.quickMessageTemplates ?? null,
     activityUnreadCount: r.activityUnreadCount ?? 0,
     activityUnreadHint: r.activityUnreadHint ?? null,
   };
@@ -324,6 +333,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
           name: true,
           unitNumber: true,
           address: true,
+          neighborhood: true,
           city: true,
           maxGuests: true,
           coverImageUrl: true,
@@ -333,13 +343,14 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
           accessInstructions: true,
           wifiName: true,
           wifiPassword: true,
+          receptionWhatsapp: true,
+          quickMessageTemplates: true,
         },
       },
     },
     orderBy: { createdAt: "desc" },
   });
 
-  const quickMessageTemplates = await getOrganizationQuickMessageTemplates();
   const ids = rows.map((row) => row.id);
   const [guestsByReservation, registrationsByReservation, airbnbGuestByReservation, airbnbGuestCountsByReservation, activityUnreadMap] =
     await Promise.all([
@@ -354,7 +365,13 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
     const unread = activityUnreadMap.get(row.id);
     return toInboxItem({
       ...row,
-      quickMessageTemplates,
+      property: {
+        ...row.property,
+        neighborhood: row.property.neighborhood,
+        quickMessageTemplates: parsePropertyQuickMessageTemplates(
+          row.property.quickMessageTemplates,
+        ),
+      },
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registrationsByReservation.get(row.id) ?? null,
       airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
@@ -415,6 +432,7 @@ export async function getReservationForInbox(
           name: true,
           unitNumber: true,
           address: true,
+          neighborhood: true,
           city: true,
           maxGuests: true,
           propertyType: true,
@@ -424,13 +442,13 @@ export async function getReservationForInbox(
           accessInstructions: true,
           wifiName: true,
           wifiPassword: true,
+          receptionWhatsapp: true,
+          quickMessageTemplates: true,
         },
       },
     },
   });
   if (!row) return null;
-
-  const quickMessageTemplates = await getOrganizationQuickMessageTemplates();
 
   const blockRows = await db.reservation.findMany({
     where: withVisibleReservationsFilter(
@@ -487,7 +505,13 @@ export async function getReservationForInbox(
   return toDetailItem(
     {
       ...row,
-      quickMessageTemplates,
+      property: {
+        ...row.property,
+        neighborhood: row.property.neighborhood,
+        quickMessageTemplates: parsePropertyQuickMessageTemplates(
+          row.property.quickMessageTemplates,
+        ),
+      },
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registration,
       accessCode,

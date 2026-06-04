@@ -26,11 +26,6 @@ export default async function SettingsPage() {
     "finance:write",
   );
 
-  const canManageQuickMessages = hasPermission(
-    user.role as AppUserRole,
-    "properties:write",
-  );
-
   return (
     <ModuleShellFlow className="bg-background">
       <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Cargando…</div>}>
@@ -45,7 +40,6 @@ export default async function SettingsPage() {
           initialTheme={user.theme}
           canManageBilling={canManageBilling}
           canManagePaymentMethods={canManagePaymentMethods}
-          canManageQuickMessages={canManageQuickMessages}
         />
       </Suspense>
     </ModuleShellFlow>

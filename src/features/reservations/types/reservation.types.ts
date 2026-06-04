@@ -13,6 +13,7 @@ export type ReservationPropertyDto = {
   name: string;
   unitNumber?: string | null;
   address: string;
+  neighborhood?: string | null;
   city: string;
   coverImageUrl?: string | null;
   propertyType?: PropertyType;
@@ -22,6 +23,8 @@ export type ReservationPropertyDto = {
   accessInstructions?: string | null;
   wifiName?: string | null;
   wifiPassword?: string | null;
+  receptionWhatsapp?: string | null;
+  quickMessageTemplates?: QuickMessageTemplates | null;
 };
 
 export type ReservationRelatedBlock = {
@@ -98,8 +101,6 @@ export type ReservationInboxItem = {
   property: ReservationPropertyDto & { maxGuests?: number };
   activityUnreadCount?: number;
   activityUnreadHint?: string | null;
-  /** Plantillas de mensajes rápidos (nivel organización). */
-  quickMessageTemplates?: QuickMessageTemplates | null;
 };
 
 /** Detalle ampliado (calendario / drawer) con metadatos y bloqueos relacionados. */

@@ -38,6 +38,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PropertyStatus, PropertyType } from "@prisma/client";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
+import {
+  QUICK_MESSAGE_TEMPLATE_HINT,
+  QUICK_MESSAGE_TYPES,
+  quickMessageFieldLabel,
+  quickMessageFormFieldName,
+} from "@/lib/reservations/quick-message-templates";
+
 function FormSection({
   title,
   children,
@@ -81,6 +88,12 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
     coverImageUrl: property.coverImageUrl ?? "",
     status: property.status,
     notificationEmails: property.notificationEmails ?? "",
+    receptionWhatsapp: property.receptionWhatsapp ?? "",
+    quickMessageWELCOME: property.quickMessageWELCOME ?? "",
+    quickMessageREGISTRATION: property.quickMessageREGISTRATION ?? "",
+    quickMessageACCESS: property.quickMessageACCESS ?? "",
+    quickMessageFOLLOW_UP: property.quickMessageFOLLOW_UP ?? "",
+    quickMessageCHECKOUT: property.quickMessageCHECKOUT ?? "",
   };
 }
 
@@ -109,6 +122,12 @@ const defaultCreateValues: PropertyFormValues = {
   coverImageUrl: "",
   status: PropertyStatus.ACTIVE,
   notificationEmails: "",
+  receptionWhatsapp: "",
+  quickMessageWELCOME: "",
+  quickMessageREGISTRATION: "",
+  quickMessageACCESS: "",
+  quickMessageFOLLOW_UP: "",
+  quickMessageCHECKOUT: "",
 };
 
 type PropertyFormDrawerProps = {
@@ -373,19 +392,6 @@ export function PropertyFormDrawer({
             </div>
             <FormField
               control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Dirección</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Calle 45 #12-30" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
               name="neighborhood"
               render={({ field }) => (
                 <FormItem>
@@ -399,7 +405,24 @@ export function PropertyFormDrawer({
             />
           </FormSection>
 
-          <FormSection title="Operación">
+          <FormSection title="Mensajes al huésped">
+            <p className="text-xs text-muted-foreground">
+              Datos y plantillas para los botones de copiar mensaje en reservas. Usa la
+              dirección con calle y número (no solo la ciudad).
+            </p>
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Dirección en mensajes</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Av 33 #80-25" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="grid grid-cols-2 gap-3">
               <FormField
                 control={form.control}
@@ -430,26 +453,17 @@ export function PropertyFormDrawer({
             </div>
             <FormField
               control={form.control}
-              name="accessInstructions"
+              name="receptionWhatsapp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Instrucciones de acceso</FormLabel>
+                  <FormLabel>WhatsApp recepción</FormLabel>
                   <FormControl>
-                    <Textarea rows={2} {...field} />
+                    <Input placeholder="+57 300 123 4567" {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="accessCode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Código de acceso</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <FormDescription>
+                    Número para que el huésped escriba a recepción (variable{" "}
+                    {"{receptionWhatsapp}"}).
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -482,6 +496,52 @@ export function PropertyFormDrawer({
                 )}
               />
             </div>
+            <FormField
+              control={form.control}
+              name="accessCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Código de acceso</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <p className="text-xs text-muted-foreground">{QUICK_MESSAGE_TEMPLATE_HINT}</p>
+            {QUICK_MESSAGE_TYPES.map((type) => (
+              <FormField
+                key={type}
+                control={form.control}
+                name={quickMessageFormFieldName(type)}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{quickMessageFieldLabel(type)}</FormLabel>
+                    <FormControl>
+                      <Textarea rows={4} placeholder="Mensaje predeterminado del sistema" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ))}
+          </FormSection>
+
+          <FormSection title="Operación">
+            <FormField
+              control={form.control}
+              name="accessInstructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Instrucciones de acceso</FormLabel>
+                  <FormControl>
+                    <Textarea rows={2} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="houseRules"

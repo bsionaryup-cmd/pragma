@@ -101,6 +101,7 @@ export function applyQuickMessageTemplate(
     accessCode: data.accessCode?.trim() ?? "",
     registrationLink: data.registrationLink?.trim() ?? "",
     hostName: data.hostName?.trim() ?? "",
+    receptionWhatsapp: data.receptionWhatsapp?.trim() ?? "",
   };
 
   let result = template;
@@ -121,4 +122,16 @@ export function quickMessageFieldLabel(type: QuickMessageType): string {
 }
 
 export const QUICK_MESSAGE_TEMPLATE_HINT =
-  "Variables: {guestName}, {guestFullName}, {propertyName}, {address}, {checkInTime}, {checkOutTime}, {wifiName}, {wifiPassword}, {accessCode}, {registrationLink}. Deja vacío para usar el mensaje predeterminado.";
+  "Variables: {guestName}, {guestFullName}, {propertyName}, {address}, {checkInTime}, {checkOutTime}, {wifiName}, {wifiPassword}, {accessCode}, {registrationLink}, {receptionWhatsapp}. Deja vacío para usar el mensaje predeterminado.";
+
+/** Dirección mostrada en mensajes (calle/número; no solo ciudad). */
+export function formatPropertyAddressForMessage(input: {
+  address: string;
+  neighborhood?: string | null;
+}): string {
+  const street = input.address.trim();
+  const neighborhood = input.neighborhood?.trim();
+  if (!street) return "";
+  if (!neighborhood) return street;
+  return `${street}, ${neighborhood}`;
+}

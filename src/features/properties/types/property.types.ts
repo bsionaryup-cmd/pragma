@@ -63,6 +63,12 @@ export type PropertyDetailDto = PropertyGridItem & {
   lastIcalSyncedAt: string | null;
   /** Multiline text for the property form (one email per line). */
   notificationEmails: string;
+  receptionWhatsapp: string;
+  quickMessageWELCOME: string;
+  quickMessageREGISTRATION: string;
+  quickMessageACCESS: string;
+  quickMessageFOLLOW_UP: string;
+  quickMessageCHECKOUT: string;
   smartAccess?: {
     lock: import("@/modules/integrations/ttlock/ttlock.types").SmartLockSnapshot | null;
     integrationConnected: boolean;

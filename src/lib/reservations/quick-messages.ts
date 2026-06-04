@@ -21,6 +21,7 @@ export type QuickMessageData = {
   accessCode?: string | null;
   registrationLink?: string | null;
   hostName?: string | null;
+  receptionWhatsapp?: string | null;
 };
 
 const quickMessageTitle: Record<QuickMessageType, string> = {

@@ -27,7 +27,10 @@ import type { OperationalFeedCard } from "@/services/novedades/operational-feed.
 import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
 import { buildQuickMessage } from "@/lib/reservations/quick-messages";
-import { getOrganizationQuickMessageTemplates } from "@/services/settings/organization-quick-messages.service";
+import {
+  formatPropertyAddressForMessage,
+  parsePropertyQuickMessageTemplates,
+} from "@/lib/reservations/quick-message-templates";
 import { parsePropertyNotificationEmails } from "@/lib/property-notification-emails";
 import { buildGuestRegistrationUrl } from "@/services/guests/guest-registration.service";
 
@@ -57,6 +60,9 @@ const reservationSelect = {
       accessCode: true,
       wifiName: true,
       wifiPassword: true,
+      neighborhood: true,
+      receptionWhatsapp: true,
+      quickMessageTemplates: true,
     },
   },
 } as const;
@@ -531,30 +537,35 @@ export async function listOperationalFeedForTenant(
       property: {
         name: string;
         address: string;
+        neighborhood: string | null;
         checkInTime: string | null;
         checkOutTime: string | null;
         accessCode: string | null;
         wifiName: string | null;
         wifiPassword: string | null;
+        receptionWhatsapp: string | null;
       };
       guestRegistrationToken: string | null;
     },
   ) => ({
     guestName: reservation.guestName,
     propertyName: reservation.property.name,
-    address: reservation.property.address,
+    address: formatPropertyAddressForMessage({
+      address: reservation.property.address,
+      neighborhood: reservation.property.neighborhood,
+    }),
     checkInTime: reservation.property.checkInTime,
     checkOutTime: reservation.property.checkOutTime,
     accessCode: reservation.property.accessCode,
     wifiName: reservation.property.wifiName,
     wifiPassword: reservation.property.wifiPassword,
+    receptionWhatsapp: reservation.property.receptionWhatsapp,
     registrationLink: reservation.guestRegistrationToken
       ? buildGuestRegistrationUrl(reservation.guestRegistrationToken)
       : null,
   });
 
   async function listQuickMessageReminders(): Promise<OperationalFeedCard[]> {
-    const quickMessageTemplates = await getOrganizationQuickMessageTemplates();
     const now = new Date();
     const today = dateKeyToPrismaDate(todayDateKeyInTimezone());
     const in48h = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000);
@@ -577,6 +588,9 @@ export async function listOperationalFeedForTenant(
 
     for (const row of rows) {
       const messageData = quickMessageDataFromReservation(row);
+      const propertyTemplates = parsePropertyQuickMessageTemplates(
+        row.property.quickMessageTemplates,
+      );
       const propertyLabel = formatPropertyLabel(row.property);
       const dateRangeLabel = formatReservationRange(row.checkIn, row.checkOut);
 
@@ -599,7 +613,7 @@ export async function listOperationalFeedForTenant(
               quickActionMessage: buildQuickMessage(
                 "WELCOME",
                 messageData,
-                quickMessageTemplates,
+                propertyTemplates,
               ),
             }),
           );
@@ -625,7 +639,7 @@ export async function listOperationalFeedForTenant(
               quickActionMessage: buildQuickMessage(
                 "REGISTRATION",
                 messageData,
-                quickMessageTemplates,
+                propertyTemplates,
               ),
             }),
           );
@@ -651,7 +665,7 @@ export async function listOperationalFeedForTenant(
               quickActionMessage: buildQuickMessage(
                 "ACCESS",
                 messageData,
-                quickMessageTemplates,
+                propertyTemplates,
               ),
             }),
           );
@@ -680,7 +694,7 @@ export async function listOperationalFeedForTenant(
               quickActionMessage: buildQuickMessage(
                 "FOLLOW_UP",
                 messageData,
-                quickMessageTemplates,
+                propertyTemplates,
               ),
             }),
           );
@@ -706,7 +720,7 @@ export async function listOperationalFeedForTenant(
               quickActionMessage: buildQuickMessage(
                 "CHECKOUT",
                 messageData,
-                quickMessageTemplates,
+                propertyTemplates,
               ),
             }),
           );

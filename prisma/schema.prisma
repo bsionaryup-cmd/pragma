@@ -45,7 +45,6 @@ model Organization {
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
-  quickMessageTemplates  Json?
 
   @@map("organizations")
 }
@@ -177,6 +176,8 @@ model Property {
   status             PropertyStatus @default(ACTIVE)
   currency           String         @default("COP")
   notificationEmails Json           @default("[]")
+  quickMessageTemplates Json?
+  receptionWhatsapp  String?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
