@@ -1,13 +1,17 @@
 import { BillingSubscriptionStatus } from "@prisma/client";
 
-/** Routes always reachable when billing is locked */
-export const BILLING_ALLOWED_PATH_PREFIXES = [
-  "/settings/billing",
-  "/settings/profile",
-  "/settings",
+/** Única pantalla del tenant cuando la cuenta está bloqueada por suscripción. */
+export const BILLING_PAYWALL_PATH = "/settings/billing";
+
+/** Rutas permitidas con cuenta bloqueada (solo pago / webhooks). */
+export const BILLING_LOCKED_ALLOWED_PATH_PREFIXES = [
+  BILLING_PAYWALL_PATH,
+  "/api/payments/",
   "/api/webhooks/wompi",
-  "/api/payments/wompi",
 ] as const;
+
+/** @deprecated Usar BILLING_LOCKED_ALLOWED_PATH_PREFIXES para cuentas bloqueadas. */
+export const BILLING_ALLOWED_PATH_PREFIXES = BILLING_LOCKED_ALLOWED_PATH_PREFIXES;
 
 /** Sensitive PMS actions blocked when locked */
 export const BILLING_LOCKED_BLOCKED_PREFIXES = [
@@ -25,10 +29,19 @@ export type BillingAccessSnapshot = {
   reason: string | null;
 };
 
+export function isBillingLockedAllowedPath(pathname: string): boolean {
+  return BILLING_LOCKED_ALLOWED_PATH_PREFIXES.some((prefix) => {
+    if (pathname === prefix) return true;
+    if (prefix.endsWith("/")) {
+      return pathname.startsWith(prefix);
+    }
+    return pathname.startsWith(`${prefix}/`);
+  });
+}
+
+/** @deprecated Usar isBillingLockedAllowedPath */
 export function isBillingPathAllowed(pathname: string): boolean {
-  return BILLING_ALLOWED_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  return isBillingLockedAllowedPath(pathname);
 }
 
 export function isBillingRestrictedPath(pathname: string): boolean {

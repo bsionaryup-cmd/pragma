@@ -11,6 +11,8 @@ type AppShellProps = {
   settingsItem: NavItem | null;
   user: SidebarUser;
   className?: string;
+  /** Sin menú lateral: solo pantalla de pago por suscripción vencida. */
+  paywallMode?: boolean;
 };
 
 export function AppShell({
@@ -19,7 +21,23 @@ export function AppShell({
   settingsItem,
   user,
   className,
+  paywallMode = false,
 }: AppShellProps) {
+  if (paywallMode) {
+    return (
+      <div
+        className={cn(
+          "flex h-dvh max-h-dvh flex-col overflow-hidden bg-background",
+          className,
+        )}
+      >
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ThemedMainContent>{children}</ThemedMainContent>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <NovedadesUnreadProvider>
       <div

@@ -16,7 +16,9 @@ import { hasPermission, requireDbUser } from "@/lib/auth";
 import { displayRoleLabel } from "@/lib/auth/role-labels";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { getServerLocale } from "@/i18n/locale.server";
+import { BillingPaywallNotice } from "@/components/billing/billing-paywall-notice";
 import { enforceBillingAccessForDashboard } from "@/lib/billing/require-billing-route";
+import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getOrganizationPlanContextForUser } from "@/lib/billing/organization-plan";
 import {
   getNavigationModulesForRole,
@@ -59,14 +61,23 @@ export default async function DashboardLayout({
     redirect("/onboarding");
   }
 
-  if (!isSuperAdminOwner(user)) {
+  const billingAccess = !isSuperAdminOwner(user)
+    ? await getBillingAccessSnapshot()
+    : null;
+  const billingPaywall = Boolean(billingAccess?.locked);
+
+  if (billingPaywall) {
     await enforceBillingAccessForDashboard(pathname);
   }
 
   const role = tenantContext.effectiveRole as AppUserRole;
-  const navModules = getNavigationModulesForRole(role, planContext?.plan);
-  const settingsItem = getSettingsNavItem(role);
+  const isBillingAdmin = hasPermission(role, "billing:manage");
+  const navModules = billingPaywall
+    ? []
+    : getNavigationModulesForRole(role, planContext?.plan);
+  const settingsItem = billingPaywall ? null : getSettingsNavItem(role);
   const canSyncAirbnb =
+    !billingPaywall &&
     hasPermission(role, "properties:write") &&
     AIRBNB_AUTO_SYNC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   const isPlatformOwnerSession =
@@ -97,6 +108,7 @@ export default async function DashboardLayout({
           className={
             isPlatformOwnerSession ? "min-h-0 flex-1 max-h-none" : undefined
           }
+          paywallMode={billingPaywall}
           navModules={navModules}
           settingsItem={settingsItem}
           user={{
@@ -108,16 +120,24 @@ export default async function DashboardLayout({
             roleLabel: displayRoleLabel(user, role),
           }}
         >
-          <Suspense fallback={null}>
-            <PlatformImpersonationBanner />
-          </Suspense>
-          <Suspense fallback={null}>
-            <DashboardBanners user={user} />
-          </Suspense>
+          {billingPaywall && billingAccess ? (
+            <BillingPaywallNotice access={billingAccess} isAdmin={isBillingAdmin} />
+          ) : (
+            <>
+              <Suspense fallback={null}>
+                <PlatformImpersonationBanner />
+              </Suspense>
+              <Suspense fallback={null}>
+                <DashboardBanners user={user} />
+              </Suspense>
+            </>
+          )}
           <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
-          <DashboardDataRefreshLazy />
+          {!billingPaywall ? <DashboardDataRefreshLazy /> : null}
           {children}
-          <SupportBubbleLazy routeContext={pathname || undefined} />
+          {!billingPaywall ? (
+            <SupportBubbleLazy routeContext={pathname || undefined} />
+          ) : null}
         </AppShell>
       </div>
     </I18nProvider>

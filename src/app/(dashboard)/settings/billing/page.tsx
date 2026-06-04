@@ -1,8 +1,11 @@
 import dynamic from "next/dynamic";
-import { requirePermission } from "@/lib/auth";
+import { hasPermission, requireDbUser, requirePermission } from "@/lib/auth";
+import { BillingPaywallContactAdmin } from "@/components/billing/billing-paywall-contact-admin";
 import { BillingCheckoutFeedback } from "@/features/billing/components/billing-checkout-feedback";
+import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
 import { getBillingDashboard } from "@/modules/billing/services/dashboard.service";
 import { PragmaLoader } from "@/components/brand/pragma-loader";
+import type { AppUserRole } from "@/types/auth";
 
 const BillingDashboard = dynamic(
   () =>
@@ -25,7 +28,18 @@ type BillingSettingsPageProps = {
 export default async function BillingSettingsPage({
   searchParams,
 }: BillingSettingsPageProps) {
-  await requirePermission("billing:manage");
+  const user = await requireDbUser();
+  const access = await getBillingAccessSnapshot();
+  const canManageBilling = hasPermission(user.role as AppUserRole, "billing:manage");
+
+  if (access.locked && !canManageBilling) {
+    return <BillingPaywallContactAdmin />;
+  }
+
+  if (!canManageBilling) {
+    await requirePermission("billing:manage");
+  }
+
   const params = await searchParams;
   const data = await getBillingDashboard();
 

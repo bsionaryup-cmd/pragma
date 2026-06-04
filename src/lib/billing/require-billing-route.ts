@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import {
-  isBillingPathAllowed,
+  BILLING_PAYWALL_PATH,
+  isBillingLockedAllowedPath,
   isBillingRestrictedPath,
 } from "@/lib/billing/billing-access";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
@@ -10,17 +11,19 @@ export async function redirectIfBillingLocked(pathname: string): Promise<void> {
   if (!isBillingRestrictedPath(pathname)) return;
   const access = await getBillingAccessSnapshot();
   if (access.locked) {
-    redirect("/settings/billing");
+    redirect(BILLING_PAYWALL_PATH);
   }
 }
 
-/** Blocks the whole dashboard (except billing self-service) when subscription is locked. */
+/** Cuenta bloqueada: solo Mi Suscripción (pago). Cualquier otra ruta redirige al cobro. */
 export async function enforceBillingAccessForDashboard(
   pathname: string,
 ): Promise<void> {
-  if (!pathname || isBillingPathAllowed(pathname)) return;
   const access = await getBillingAccessSnapshot();
-  if (access.locked) {
-    redirect("/settings/billing");
-  }
+  if (!access.locked) return;
+
+  const path = pathname?.trim() || "/panel";
+  if (isBillingLockedAllowedPath(path)) return;
+
+  redirect(BILLING_PAYWALL_PATH);
 }

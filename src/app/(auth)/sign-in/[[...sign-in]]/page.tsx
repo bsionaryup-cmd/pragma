@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
 import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
 import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
-import { resolvePostAuthHomePath } from "@/lib/auth/role-definitions.server";
+import { resolvePostAuthHomePathForUser } from "@/lib/billing/post-auth-redirect";
 import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
 import { getUserByClerkId } from "@/services/users/user.service";
 
@@ -38,7 +38,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     }
 
     if (dbUser?.isActive) {
-      redirect(resolvePostAuthHomePath(dbUser));
+      redirect(await resolvePostAuthHomePathForUser(dbUser));
     }
 
     redirect(postAuthPath);
