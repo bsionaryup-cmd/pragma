@@ -14,11 +14,16 @@ export type QuickMessageData = {
   guestName?: string | null;
   propertyName?: string | null;
   address?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  stayRange?: string | null;
   checkInTime?: string | null;
   checkOutTime?: string | null;
   wifiName?: string | null;
   wifiPassword?: string | null;
   accessCode?: string | null;
+  accessInstructions?: string | null;
+  houseRules?: string | null;
   registrationLink?: string | null;
   hostName?: string | null;
   receptionWhatsapp?: string | null;

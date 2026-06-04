@@ -1,3 +1,6 @@
+import { formatStayRange } from "@/features/reservations/lib/reservation-dates";
+import { formatAccessCode } from "@/lib/access-code";
+import { formatPropertyLabel } from "@/lib/property-display";
 import type { QuickMessageData, QuickMessageType } from "@/lib/reservations/quick-messages";
 import { quickMessageLabel } from "@/lib/reservations/quick-messages";
 
@@ -92,6 +95,80 @@ function firstName(value: string | null | undefined): string {
   return trimmed.split(/\s+/)[0] ?? "";
 }
 
+function formatMessageTime(value: string | null | undefined): string {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    return `${match[1].padStart(2, "0")}:${match[2]}`;
+  }
+  return trimmed;
+}
+
+/** Convierte {{variable}} al formato {variable} antes de sustituir. */
+function normalizeTemplatePlaceholders(template: string): string {
+  return template.replace(/\{\{(\w+)\}\}/g, "{$1}");
+}
+
+/** Elimina variables sin reemplazar para que no lleguen al portapapeles. */
+function stripUnresolvedPlaceholders(text: string): string {
+  return text.replace(/\{[a-zA-Z][a-zA-Z0-9]*\}/g, "");
+}
+
+function cleanupCopiedMessage(text: string): string {
+  return stripUnresolvedPlaceholders(text)
+    .replace(/[ \t]+(\r?\n)/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function buildQuickMessageDataFromReservation(input: {
+  guestName: string;
+  checkIn: string;
+  checkOut: string;
+  property: {
+    name: string;
+    unitNumber?: string | null;
+    address: string;
+    neighborhood?: string | null;
+    checkInTime?: string | null;
+    checkOutTime?: string | null;
+    accessCode?: string | null;
+    accessInstructions?: string | null;
+    houseRules?: string | null;
+    wifiName?: string | null;
+    wifiPassword?: string | null;
+    receptionWhatsapp?: string | null;
+  };
+  registrationLink?: string | null;
+  accessCode?: string | null;
+}): QuickMessageData {
+  const address =
+    formatPropertyAddressForMessage({
+      address: input.property.address,
+      neighborhood: input.property.neighborhood ?? null,
+    }) || input.property.address.trim();
+
+  return {
+    guestName: input.guestName,
+    propertyName: formatPropertyLabel(input.property),
+    address,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
+    stayRange: formatStayRange(input.checkIn, input.checkOut),
+    checkInTime: formatMessageTime(input.property.checkInTime),
+    checkOutTime: formatMessageTime(input.property.checkOutTime),
+    wifiName: input.property.wifiName?.trim() ?? "",
+    wifiPassword: input.property.wifiPassword?.trim() ?? "",
+    accessCode:
+      formatAccessCode(input.accessCode ?? input.property.accessCode ?? null) ?? "",
+    accessInstructions: input.property.accessInstructions?.trim() ?? "",
+    houseRules: input.property.houseRules?.trim() ?? "",
+    registrationLink: input.registrationLink?.trim() ?? "",
+    receptionWhatsapp: input.property.receptionWhatsapp?.trim() ?? "",
+  };
+}
+
 export function applyQuickMessageTemplate(
   template: string,
   data: QuickMessageData,
@@ -102,21 +179,26 @@ export function applyQuickMessageTemplate(
     guestFullName: guestFull || "huésped",
     propertyName: data.propertyName?.trim() ?? "",
     address: data.address?.trim() ?? "",
-    checkInTime: data.checkInTime?.trim() ?? "",
-    checkOutTime: data.checkOutTime?.trim() ?? "",
+    checkIn: data.checkIn?.trim() ?? "",
+    checkOut: data.checkOut?.trim() ?? "",
+    stayRange: data.stayRange?.trim() ?? "",
+    checkInTime: formatMessageTime(data.checkInTime),
+    checkOutTime: formatMessageTime(data.checkOutTime),
     wifiName: data.wifiName?.trim() ?? "",
     wifiPassword: data.wifiPassword?.trim() ?? "",
     accessCode: data.accessCode?.trim() ?? "",
+    accessInstructions: data.accessInstructions?.trim() ?? "",
+    houseRules: data.houseRules?.trim() ?? "",
     registrationLink: data.registrationLink?.trim() ?? "",
     hostName: data.hostName?.trim() ?? "",
     receptionWhatsapp: data.receptionWhatsapp?.trim() ?? "",
   };
 
-  let result = template;
+  let result = normalizeTemplatePlaceholders(template);
   for (const [key, value] of Object.entries(replacements)) {
     result = result.replaceAll(`{${key}}`, value);
   }
-  return result;
+  return cleanupCopiedMessage(result);
 }
 
 export function quickMessageFormFieldName(
@@ -130,7 +212,7 @@ export function quickMessageFieldLabel(type: QuickMessageType): string {
 }
 
 export const QUICK_MESSAGE_TEMPLATE_HINT =
-  "Variables: {guestName}, {guestFullName}, {propertyName}, {address}, {checkInTime}, {checkOutTime}, {wifiName}, {wifiPassword}, {accessCode}, {registrationLink}, {receptionWhatsapp}. Deja vacío para usar el mensaje predeterminado.";
+  "Variables: {guestName}, {guestFullName}, {propertyName}, {address}, {checkIn}, {checkOut}, {stayRange}, {checkInTime}, {checkOutTime}, {wifiName}, {wifiPassword}, {accessCode}, {accessInstructions}, {houseRules}, {registrationLink}, {receptionWhatsapp}. Al copiar se reemplazan por los datos de la reserva.";
 
 /** Dirección mostrada en mensajes (calle/número; no solo ciudad). */
 export function formatPropertyAddressForMessage(input: {

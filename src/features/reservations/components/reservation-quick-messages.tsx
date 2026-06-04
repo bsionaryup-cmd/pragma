@@ -2,6 +2,7 @@
 
 import { toast } from "sonner";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
+import { buildQuickMessageDataFromReservation } from "@/lib/reservations/quick-message-templates";
 import {
   buildQuickMessage,
   type QuickMessageType,
@@ -21,11 +22,6 @@ const QUICK_BUTTONS: { type: QuickMessageType; label: string }[] = [
   { type: "CHECKOUT", label: "⭐ Salida" },
 ];
 
-function formatTime(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
 async function copyPlainText(text: string, successLabel: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -44,20 +40,20 @@ export function ReservationQuickMessages({
   const houseRules = reservation.property.houseRules?.trim() ?? "";
 
   async function copyMessage(type: QuickMessageType) {
+    const messageData = buildQuickMessageDataFromReservation({
+      guestName: reservation.guestName,
+      checkIn: reservation.checkIn,
+      checkOut: reservation.checkOut,
+      property: {
+        ...reservation.property,
+        neighborhood: null,
+      },
+      registrationLink: registrationLink ?? null,
+      accessCode: accessCode ?? null,
+    });
     const text = buildQuickMessage(
       type,
-      {
-        guestName: reservation.guestName,
-        propertyName: reservation.property.name,
-        address: reservation.property.address,
-        checkInTime: formatTime(reservation.property.checkInTime),
-        checkOutTime: formatTime(reservation.property.checkOutTime),
-        wifiName: reservation.property.wifiName ?? null,
-        wifiPassword: reservation.property.wifiPassword ?? null,
-        accessCode: accessCode ?? reservation.property.accessCode ?? null,
-        registrationLink: registrationLink ?? null,
-        receptionWhatsapp: reservation.property.receptionWhatsapp ?? null,
-      },
+      messageData,
       reservation.property.quickMessageTemplates,
     );
 

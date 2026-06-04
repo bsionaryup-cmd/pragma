@@ -9,7 +9,11 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
-import { dateKeyToPrismaDate, todayDateKeyInTimezone } from "@/lib/dates";
+import {
+  dateKeyToPrismaDate,
+  prismaDateToKey,
+  todayDateKeyInTimezone,
+} from "@/lib/dates";
 import { formatPropertyLabel } from "@/lib/property-display";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
@@ -28,7 +32,7 @@ import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
 import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 import {
-  formatPropertyAddressForMessage,
+  buildQuickMessageDataFromReservation,
   parsePropertyQuickMessageTemplates,
 } from "@/lib/reservations/quick-message-templates";
 import { parsePropertyNotificationEmails } from "@/lib/property-notification-emails";
@@ -518,36 +522,34 @@ export async function listOperationalFeedForTenant(
   const quickMessageDataFromReservation = (
     reservation: {
       guestName: string;
+      checkIn: Date;
+      checkOut: Date;
       property: {
         name: string;
+        unitNumber: string | null;
         address: string;
         neighborhood: string | null;
         checkInTime: string | null;
         checkOutTime: string | null;
         accessCode: string | null;
+        accessInstructions: string | null;
+        houseRules: string | null;
         wifiName: string | null;
         wifiPassword: string | null;
         receptionWhatsapp: string | null;
       };
       guestRegistrationToken: string | null;
     },
-  ) => ({
-    guestName: reservation.guestName,
-    propertyName: reservation.property.name,
-    address: formatPropertyAddressForMessage({
-      address: reservation.property.address,
-      neighborhood: reservation.property.neighborhood,
-    }),
-    checkInTime: reservation.property.checkInTime,
-    checkOutTime: reservation.property.checkOutTime,
-    accessCode: reservation.property.accessCode,
-    wifiName: reservation.property.wifiName,
-    wifiPassword: reservation.property.wifiPassword,
-    receptionWhatsapp: reservation.property.receptionWhatsapp,
-    registrationLink: reservation.guestRegistrationToken
-      ? buildGuestRegistrationUrl(reservation.guestRegistrationToken)
-      : null,
-  });
+  ) =>
+    buildQuickMessageDataFromReservation({
+      guestName: reservation.guestName,
+      checkIn: prismaDateToKey(reservation.checkIn),
+      checkOut: prismaDateToKey(reservation.checkOut),
+      property: reservation.property,
+      registrationLink: reservation.guestRegistrationToken
+        ? buildGuestRegistrationUrl(reservation.guestRegistrationToken)
+        : null,
+    });
 
   async function listQuickMessageReminders(): Promise<OperationalFeedCard[]> {
     const now = new Date();
