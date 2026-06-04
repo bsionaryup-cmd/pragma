@@ -21,6 +21,7 @@ export type ReservationPropertyDto = {
   checkOutTime?: string | null;
   accessCode?: string | null;
   accessInstructions?: string | null;
+  houseRules?: string | null;
   wifiName?: string | null;
   wifiPassword?: string | null;
   receptionWhatsapp?: string | null;

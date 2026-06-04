@@ -103,11 +103,18 @@ export async function createReservationAction(data: ReservationWizardValues) {
 
 export async function getReservationInboxItemAction(id: string) {
   await requireAnyPermission("reservations:read", "calendar:read");
-  const reservation = await getReservationForInbox(id);
-  if (!reservation) {
-    return { success: false as const, error: "Reserva no encontrada" };
+  try {
+    const reservation = await getReservationForInbox(id);
+    if (!reservation) {
+      return { success: false as const, error: "Reserva no encontrada" };
+    }
+    return { success: true as const, reservation };
+  } catch (error) {
+    console.error("[getReservationInboxItemAction]", error);
+    const message =
+      error instanceof Error ? error.message : "No se pudo cargar la reserva";
+    return { success: false as const, error: message };
   }
-  return { success: true as const, reservation };
 }
 
 export async function updateReservationAction(

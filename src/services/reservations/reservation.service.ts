@@ -215,6 +215,8 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
         "accessInstructions" in r.property
           ? r.property.accessInstructions
           : undefined,
+      houseRules:
+        "houseRules" in r.property ? r.property.houseRules : undefined,
       wifiName:
         "wifiName" in r.property ? r.property.wifiName : undefined,
       wifiPassword:
@@ -327,26 +329,7 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       internalNotes: true,
       guestRegistrationToken: true,
       guestRegistrationCompletedAt: true,
-      property: {
-        select: {
-          id: true,
-          name: true,
-          unitNumber: true,
-          address: true,
-          neighborhood: true,
-          city: true,
-          maxGuests: true,
-          coverImageUrl: true,
-          checkInTime: true,
-          checkOutTime: true,
-          accessCode: true,
-          accessInstructions: true,
-          wifiName: true,
-          wifiPassword: true,
-          receptionWhatsapp: true,
-          quickMessageTemplates: true,
-        },
-      },
+      property: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -426,26 +409,7 @@ export async function getReservationForInbox(
       mergeReservationScope(scope, { id }),
     ),
     include: {
-      property: {
-        select: {
-          id: true,
-          name: true,
-          unitNumber: true,
-          address: true,
-          neighborhood: true,
-          city: true,
-          maxGuests: true,
-          propertyType: true,
-          checkInTime: true,
-          checkOutTime: true,
-          accessCode: true,
-          accessInstructions: true,
-          wifiName: true,
-          wifiPassword: true,
-          receptionWhatsapp: true,
-          quickMessageTemplates: true,
-        },
-      },
+      property: true,
     },
   });
   if (!row) return null;

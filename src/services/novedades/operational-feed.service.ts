@@ -48,23 +48,7 @@ const reservationSelect = {
   guestRegistrationToken: true,
   guestRegistrationCompletedAt: true,
   createdAt: true,
-  property: {
-    select: {
-      id: true,
-      name: true,
-      unitNumber: true,
-      city: true,
-      address: true,
-      checkInTime: true,
-      checkOutTime: true,
-      accessCode: true,
-      wifiName: true,
-      wifiPassword: true,
-      neighborhood: true,
-      receptionWhatsapp: true,
-      quickMessageTemplates: true,
-    },
-  },
+  property: true,
 } as const;
 
 function auditWhere(scope: TenantDataScope): Prisma.EmailIngestionAuditWhereInput {

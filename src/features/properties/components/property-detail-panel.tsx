@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Copy,
   Loader2,
   Pencil,
   Trash2,
@@ -83,6 +84,46 @@ function PropertyMetaRow({
           {value?.trim() || "—"}
         </span>
       )}
+    </div>
+  );
+}
+
+function PropertyCopyableTextRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(value.trim());
+      toast.success(`${label} copiadas`);
+    } catch {
+      toast.error("No se pudo copiar el texto");
+    }
+  }
+
+  return (
+    <div className="py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-base text-foreground/85">{label}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 shrink-0 rounded-full px-2.5 text-[11px]"
+          onClick={() => {
+            void handleCopy();
+          }}
+        >
+          <Copy className="mr-1 h-3 w-3" />
+          Copiar
+        </Button>
+      </div>
+      <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+        {value}
+      </p>
     </div>
   );
 }
@@ -200,13 +241,17 @@ export function PropertyDetailPanel({
 
   const scheduleLabel = `Check-in ${property.checkInTime ?? "15:00"} · Check-out ${property.checkOutTime ?? "13:00"}`;
 
+  const accessInstructions = property.accessInstructions?.trim() ?? "";
+  const houseRules = property.houseRules?.trim() ?? "";
   const accessFields = [
-    { label: "Instrucciones", value: property.accessInstructions },
     { label: "Código", value: property.accessCode },
     { label: "WiFi", value: property.wifiName },
     { label: "Clave WiFi", value: property.wifiPassword },
-    { label: "Reglas", value: property.houseRules },
   ].filter((field) => field.value?.trim());
+  const showAccessSection =
+    accessInstructions.length > 0 ||
+    houseRules.length > 0 ||
+    accessFields.length > 0;
 
   const showAirbnbSection =
     property.airbnbListingUrl || hasIcalImport || property.lastIcalSyncedAt;
@@ -313,8 +358,14 @@ export function PropertyDetailPanel({
           ) : null}
         </PropertyDetailSection>
 
-        {accessFields.length > 0 ? (
+        {showAccessSection ? (
           <PropertyDetailSection title="Acceso y WiFi">
+            {accessInstructions ? (
+              <PropertyCopyableTextRow
+                label="Instrucciones de acceso"
+                value={accessInstructions}
+              />
+            ) : null}
             {accessFields.map((field) => (
               <PropertyMetaRow
                 key={field.label}
@@ -323,6 +374,12 @@ export function PropertyDetailPanel({
                 emphasize={field.label === "Código" || field.label === "Clave WiFi"}
               />
             ))}
+            {houseRules ? (
+              <PropertyCopyableTextRow
+                label="Reglas de la casa"
+                value={houseRules}
+              />
+            ) : null}
           </PropertyDetailSection>
         ) : null}
 
