@@ -31,6 +31,7 @@ import { Prisma } from "@prisma/client";
 import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import {
   formFieldsToQuickMessageTemplates,
+  hasCustomQuickMessageTemplates,
   parsePropertyQuickMessageTemplates,
   quickMessageTemplatesToFormFields,
 } from "@/lib/reservations/quick-message-templates";
@@ -400,6 +401,9 @@ export async function getPropertyDetail(
     createdAt: property.createdAt.toISOString(),
     notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),
     receptionWhatsapp: property.receptionWhatsapp ?? "",
+    useDefaultQuickMessages: !hasCustomQuickMessageTemplates(
+      parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
+    ),
     ...quickMessageTemplatesToFormFields(
       parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
     ),
