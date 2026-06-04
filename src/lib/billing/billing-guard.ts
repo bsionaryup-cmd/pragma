@@ -14,7 +14,7 @@ export function isBillingLockedError(error: unknown): error is BillingLockedErro
 }
 
 const DEFAULT_MESSAGE =
-  "Tu cuenta está en modo restringido. Actualiza el pago en el centro de facturación para continuar.";
+  "Tu cuenta está bloqueada. Realiza el pago de la suscripción en Mi Suscripción para continuar.";
 
 /** Throws when subscription is locked (server actions / pipelines). */
 export async function assertBillingUnlocked(): Promise<void> {

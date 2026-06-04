@@ -16,6 +16,7 @@ import { hasPermission, requireDbUser } from "@/lib/auth";
 import { displayRoleLabel } from "@/lib/auth/role-labels";
 import { getDictionary } from "@/i18n/get-dictionary";
 import { getServerLocale } from "@/i18n/locale.server";
+import { enforceBillingAccessForDashboard } from "@/lib/billing/require-billing-route";
 import { getOrganizationPlanContextForUser } from "@/lib/billing/organization-plan";
 import {
   getNavigationModulesForRole,
@@ -56,6 +57,10 @@ export default async function DashboardLayout({
 
   if (!isSuperAdminOwner(user) && userNeedsOnboarding(user)) {
     redirect("/onboarding");
+  }
+
+  if (!isSuperAdminOwner(user)) {
+    await enforceBillingAccessForDashboard(pathname);
   }
 
   const role = tenantContext.effectiveRole as AppUserRole;

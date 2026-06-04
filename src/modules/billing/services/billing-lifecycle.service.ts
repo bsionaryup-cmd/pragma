@@ -74,13 +74,12 @@ export async function reconcileBillingLifecycle(
     account.trialEndsAt &&
     account.trialEndsAt.getTime() < now
   ) {
-    const graceEnds = new Date(now + SUBSCRIPTION_GRACE_DAYS * 24 * 60 * 60 * 1000);
     const updated = await db.billingAccount.update({
       where: { id: billingAccountId },
       data: {
-        status: BillingSubscriptionStatus.PAST_DUE,
-        gracePeriodEndsAt: graceEnds,
-        billingLockedAt: null,
+        status: BillingSubscriptionStatus.LOCKED,
+        gracePeriodEndsAt: null,
+        billingLockedAt: new Date(),
       },
     });
 

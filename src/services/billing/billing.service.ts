@@ -7,6 +7,7 @@ import {
 import { cache } from "react";
 import { db } from "@/lib/db";
 import {
+  resolveBillingLockReason,
   resolveBillingLocked,
   type BillingAccessSnapshot,
 } from "@/lib/billing/billing-access";
@@ -235,8 +236,14 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
 
   const locked = resolveBillingLocked({
     status: account.status,
+    trialEndsAt: account.trialEndsAt,
     gracePeriodEndsAt: account.gracePeriodEndsAt,
     billingLockedAt: account.billingLockedAt,
+  });
+  const lockReason = resolveBillingLockReason({
+    locked,
+    status: account.status,
+    trialEndsAt: account.trialEndsAt,
   });
 
   const invoices = await listBillingInvoices();
@@ -248,9 +255,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
       status: account.status,
       trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
       gracePeriodEndsAt: account.gracePeriodEndsAt?.toISOString() ?? null,
-      reason: locked
-        ? "Suscripción vencida o pago pendiente. Actualiza tu método de pago para continuar."
-        : null,
+      reason: lockReason,
     },
     account: {
       status: account.status,
@@ -313,8 +318,14 @@ export const getBillingAccessSnapshot = cache(
 
       const locked = resolveBillingLocked({
         status: account.status,
+        trialEndsAt: account.trialEndsAt,
         gracePeriodEndsAt: account.gracePeriodEndsAt,
         billingLockedAt: account.billingLockedAt,
+      });
+      const lockReason = resolveBillingLockReason({
+        locked,
+        status: account.status,
+        trialEndsAt: account.trialEndsAt,
       });
 
       return {
@@ -322,9 +333,7 @@ export const getBillingAccessSnapshot = cache(
         status: account.status,
         trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
         gracePeriodEndsAt: account.gracePeriodEndsAt?.toISOString() ?? null,
-        reason: locked
-          ? "Suscripción vencida o pago pendiente. Actualiza tu método de pago para continuar."
-          : null,
+        reason: lockReason,
       };
     } catch (error) {
       if (isBillingSchemaMissing(error)) {
