@@ -64,6 +64,7 @@ export type PropertyDetailDto = PropertyGridItem & {
   /** Multiline text for the property form (one email per line). */
   notificationEmails: string;
   receptionWhatsapp: string;
+  useDefaultQuickMessages: boolean;
   quickMessageWELCOME: string;
   quickMessageREGISTRATION: string;
   quickMessageACCESS: string;

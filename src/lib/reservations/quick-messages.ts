@@ -24,108 +24,60 @@ export type QuickMessageData = {
   receptionWhatsapp?: string | null;
 };
 
-const quickMessageTitle: Record<QuickMessageType, string> = {
-  WELCOME: "Bienvenida",
-  REGISTRATION: "Registro",
-  ACCESS: "Acceso",
-  FOLLOW_UP: "Seguimiento",
-  CHECKOUT: "Check-out",
+/** Plantillas predeterminadas de PRAGMA (con variables). */
+export const SYSTEM_QUICK_MESSAGE_TEMPLATES: Record<QuickMessageType, string> = {
+  WELCOME: `Hola {guestName},
+
+Tu reserva en {propertyName} está confirmada.
+
+Check-in: {checkInTime}
+
+Si necesitas algo antes de tu llegada, escríbenos por WhatsApp: {receptionWhatsapp}`,
+
+  REGISTRATION: `Hola {guestName},
+
+Para tu estadía en {propertyName}, completa el registro de huéspedes aquí:
+{registrationLink}
+
+Cualquier duda, WhatsApp recepción: {receptionWhatsapp}`,
+
+  ACCESS: `Hola {guestName},
+
+Datos para tu llegada a {propertyName}:
+
+📍 Dirección: {address}
+🕒 Check-in: {checkInTime}
+🔐 Acceso: {accessCode}
+
+WhatsApp recepción: {receptionWhatsapp}`,
+
+  FOLLOW_UP: `Hola {guestName},
+
+Esperamos que disfrutes tu estadía en {propertyName}.
+
+📶 WiFi: {wifiName}
+🔑 Clave: {wifiPassword}
+
+¿Necesitas algo? WhatsApp: {receptionWhatsapp}`,
+
+  CHECKOUT: `Hola {guestName},
+
+Gracias por hospedarte en {propertyName}.
+
+Check-out: {checkOutTime}
+
+Si todo estuvo bien, una reseña de 5 estrellas nos ayuda mucho.
+
+WhatsApp: {receptionWhatsapp}`,
 };
 
-function clean(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-function firstName(value: string | null | undefined): string | null {
-  const normalized = clean(value);
-  if (!normalized) return null;
-  return normalized.split(/\s+/)[0] ?? null;
-}
-
-function line(label: string, value: string | null | undefined): string | null {
-  const normalized = clean(value);
-  if (!normalized) return null;
-  return `${label} ${normalized}`;
-}
-
-function buildWelcome(data: QuickMessageData): string {
-  const guest = firstName(data.guestName);
-  const property = clean(data.propertyName);
-  return [
-    guest ? `Hola ${guest}, ¿cómo estás?` : "Hola, ¿cómo estás?",
-    "",
-    "Nos alegra mucho que nos hayas elegido para tu estadía.",
-    "",
-    property
-      ? `En ${property} te esperamos con mucho cariño para que te sientas como en casa.`
-      : "Te esperamos con mucho cariño para que te sientas como en casa.",
-    "",
-    "Si necesitas cualquier cosa antes de tu llegada, aquí estamos para ayudarte.",
-  ].join("\n");
-}
-
-function buildRegistration(data: QuickMessageData): string {
-  const guest = firstName(data.guestName);
-  const registrationLink = clean(data.registrationLink);
-  return [
-    guest ? `Hola ${guest}.` : "Hola.",
-    "",
-    "Para dejar todo listo para tu llegada, te agradecemos completar el registro de las personas que se hospedarán:",
-    ...(registrationLink ? ["", registrationLink] : []),
-    "",
-    "Es súper rápido y nos ayuda a que tu ingreso sea más cómodo.",
-  ].join("\n");
-}
-
-function buildAccess(data: QuickMessageData): string {
-  const guest = firstName(data.guestName);
-  const lines = [
-    guest ? `Hola ${guest}.` : "Hola.",
-    "",
-    "Gracias por completar el registro, te compartimos los datos para tu llegada:",
-    "",
-    line("📍 Dirección:", data.address),
-    line("🕒 Check-in:", data.checkInTime),
-    line("🔐 Código de acceso:", data.accessCode),
-    line("📶 WiFi:", data.wifiName),
-    line("🔑 Contraseña:", data.wifiPassword),
-    "",
-    "Te deseamos una estadía hermosa.",
-    "",
-    "Cualquier cosa que necesites, escríbenos con confianza.",
-  ].filter((row) => row != null) as string[];
-  return lines.join("\n");
-}
-
-function buildFollowUp(data: QuickMessageData): string {
-  const guest = firstName(data.guestName);
-  return [
-    guest ? `Hola ${guest}.` : "Hola.",
-    "",
-    "Esperamos que estés disfrutando tu estadía.",
-    "",
-    "Pasamos a saludarte y recordarte que estamos pendientes de ti para lo que necesites: ayuda, recomendaciones o cualquier inquietud.",
-    "",
-    "Será un gusto ayudarte.",
-  ].join("\n");
-}
-
-function buildCheckout(data: QuickMessageData): string {
-  const guest = firstName(data.guestName);
-  return [
-    guest ? `Hola ${guest}.` : "Hola.",
-    "",
-    "Esperamos que hayas disfrutado tu estadía con nosotros.",
-    "",
-    line("Te recordamos que la hora de salida es a las", data.checkOutTime)
-      ?? "Te recordamos la hora de salida de tu reserva.",
-    "",
-    "Si todo estuvo bien durante tu visita, una reseña de 5 estrellas nos ayudaría muchísimo.",
-    "",
-    "Gracias por hospedarte con nosotros y esperamos recibirte nuevamente.",
-  ].join("\n");
-}
+const quickMessageTitle: Record<QuickMessageType, string> = {
+  WELCOME: "Reserva confirmada",
+  REGISTRATION: "Registro de huéspedes",
+  ACCESS: "Información de llegada",
+  FOLLOW_UP: "Información durante la estadía",
+  CHECKOUT: "Recordatorio de salida",
+};
 
 export function buildQuickMessage(
   type: QuickMessageType,
@@ -137,27 +89,14 @@ export function buildQuickMessage(
     return applyQuickMessageTemplate(custom, data);
   }
 
-  switch (type) {
-    case "WELCOME":
-      return buildWelcome(data);
-    case "REGISTRATION":
-      return buildRegistration(data);
-    case "ACCESS":
-      return buildAccess(data);
-    case "FOLLOW_UP":
-      return buildFollowUp(data);
-    case "CHECKOUT":
-      return buildCheckout(data);
-    default:
-      return buildWelcome(data);
-  }
+  return applyQuickMessageTemplate(SYSTEM_QUICK_MESSAGE_TEMPLATES[type], data);
 }
 
 export function quickMessageLabel(type: QuickMessageType): string {
   return quickMessageTitle[type];
 }
 
-/** Texto predeterminado del sistema (sin datos de reserva). */
+/** Texto plantilla del sistema (con variables) para vista previa o edición avanzada. */
 export function getDefaultQuickMessageTemplate(type: QuickMessageType): string {
-  return buildQuickMessage(type, {});
+  return SYSTEM_QUICK_MESSAGE_TEMPLATES[type];
 }

@@ -50,13 +50,21 @@ export function quickMessageTemplatesToFormFields(
   };
 }
 
+export function hasCustomQuickMessageTemplates(
+  templates: QuickMessageTemplates,
+): boolean {
+  return QUICK_MESSAGE_TYPES.some((type) => Boolean(templates[type]?.trim()));
+}
+
 export function formFieldsToQuickMessageTemplates(input: {
+  useDefaultQuickMessages?: boolean;
   quickMessageWELCOME?: string;
   quickMessageREGISTRATION?: string;
   quickMessageACCESS?: string;
   quickMessageFOLLOW_UP?: string;
   quickMessageCHECKOUT?: string;
 }): QuickMessageTemplates | null {
+  if (input.useDefaultQuickMessages) return null;
   const templates: QuickMessageTemplates = {};
 
   if (input.quickMessageWELCOME?.trim()) {

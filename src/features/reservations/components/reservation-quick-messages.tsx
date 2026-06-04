@@ -14,11 +14,11 @@ type ReservationQuickMessagesProps = {
 };
 
 const QUICK_BUTTONS: { type: QuickMessageType; label: string }[] = [
-  { type: "WELCOME", label: "👋 Bienvenida" },
-  { type: "REGISTRATION", label: "📋 Registro" },
-  { type: "ACCESS", label: "🔑 Acceso" },
-  { type: "FOLLOW_UP", label: "💬 Seguimiento" },
-  { type: "CHECKOUT", label: "⭐ Check-out" },
+  { type: "WELCOME", label: "✅ Reserva confirmada" },
+  { type: "REGISTRATION", label: "📋 Registro huéspedes" },
+  { type: "ACCESS", label: "🔑 Llegada" },
+  { type: "FOLLOW_UP", label: "💬 Durante estadía" },
+  { type: "CHECKOUT", label: "⭐ Salida" },
 ];
 
 function formatTime(value: string | null | undefined): string | null {

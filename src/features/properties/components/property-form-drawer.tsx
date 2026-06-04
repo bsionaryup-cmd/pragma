@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import {
@@ -38,6 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { PropertyStatus, PropertyType } from "@prisma/client";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
+import { getDefaultQuickMessageTemplate } from "@/lib/reservations/quick-messages";
 import {
   QUICK_MESSAGE_TEMPLATE_HINT,
   QUICK_MESSAGE_TYPES,
@@ -89,6 +90,7 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
     status: property.status,
     notificationEmails: property.notificationEmails ?? "",
     receptionWhatsapp: property.receptionWhatsapp ?? "",
+    useDefaultQuickMessages: property.useDefaultQuickMessages ?? true,
     quickMessageWELCOME: property.quickMessageWELCOME ?? "",
     quickMessageREGISTRATION: property.quickMessageREGISTRATION ?? "",
     quickMessageACCESS: property.quickMessageACCESS ?? "",
@@ -123,6 +125,7 @@ const defaultCreateValues: PropertyFormValues = {
   status: PropertyStatus.ACTIVE,
   notificationEmails: "",
   receptionWhatsapp: "",
+  useDefaultQuickMessages: true,
   quickMessageWELCOME: "",
   quickMessageREGISTRATION: "",
   quickMessageACCESS: "",
@@ -145,16 +148,24 @@ export function PropertyFormDrawer({
 }: PropertyFormDrawerProps) {
   const isEditing = mode === "edit" && Boolean(property);
 
+  const [showCustomizeMessages, setShowCustomizeMessages] = useState(
+    () => (property ? !property.useDefaultQuickMessages : false),
+  );
+
   const form = useForm<PropertyFormValues>({
     resolver: zodResolver(propertyFormSchema),
     defaultValues: defaultCreateValues,
   });
 
+  const useDefaultQuickMessages = form.watch("useDefaultQuickMessages");
+
   useEffect(() => {
     if (isEditing && property) {
       form.reset(detailToFormValues(property));
+      setShowCustomizeMessages(!property.useDefaultQuickMessages);
     } else if (mode === "create") {
       form.reset(defaultCreateValues);
+      setShowCustomizeMessages(false);
     }
   }, [form, isEditing, mode, property]);
 
@@ -407,8 +418,8 @@ export function PropertyFormDrawer({
 
           <FormSection title="Mensajes al huésped">
             <p className="text-xs text-muted-foreground">
-              Datos y plantillas para los botones de copiar mensaje en reservas. Usa la
-              dirección con calle y número (no solo la ciudad).
+              Configura la propiedad una vez y PRAGMA arma los mensajes para copiar en
+              reservas. Usa la dirección con calle y número (no solo la ciudad).
             </p>
             <FormField
               control={form.control}
@@ -509,23 +520,78 @@ export function PropertyFormDrawer({
                 </FormItem>
               )}
             />
-            <p className="text-xs text-muted-foreground">{QUICK_MESSAGE_TEMPLATE_HINT}</p>
-            {QUICK_MESSAGE_TYPES.map((type) => (
-              <FormField
-                key={type}
-                control={form.control}
-                name={quickMessageFormFieldName(type)}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{quickMessageFieldLabel(type)}</FormLabel>
-                    <FormControl>
-                      <Textarea rows={4} placeholder="Mensaje predeterminado del sistema" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            ))}
+            <FormField
+              control={form.control}
+              name="useDefaultQuickMessages"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start gap-3 space-y-0 rounded-xl border border-border/80 bg-muted/20 p-3">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-input"
+                      checked={field.value ?? true}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        field.onChange(checked);
+                        if (checked) {
+                          setShowCustomizeMessages(false);
+                          for (const type of QUICK_MESSAGE_TYPES) {
+                            form.setValue(quickMessageFormFieldName(type), "");
+                          }
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="font-medium">
+                      Usar mensajes predeterminados de PRAGMA (recomendado)
+                    </FormLabel>
+                    <FormDescription>
+                      Los mensajes utilizarán automáticamente los datos configurados en
+                      esta propiedad.
+                    </FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            {useDefaultQuickMessages || !showCustomizeMessages ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  form.setValue("useDefaultQuickMessages", false);
+                  setShowCustomizeMessages(true);
+                }}
+              >
+                Personalizar mensajes
+              </Button>
+            ) : null}
+            {showCustomizeMessages && !useDefaultQuickMessages ? (
+              <div className="space-y-3 rounded-xl border border-dashed border-border p-3">
+                <p className="text-xs text-muted-foreground">{QUICK_MESSAGE_TEMPLATE_HINT}</p>
+                {QUICK_MESSAGE_TYPES.map((type) => (
+                  <FormField
+                    key={type}
+                    control={form.control}
+                    name={quickMessageFormFieldName(type)}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{quickMessageFieldLabel(type)}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            rows={4}
+                            placeholder={getDefaultQuickMessageTemplate(type)}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            ) : null}
           </FormSection>
 
           <FormSection title="Operación">

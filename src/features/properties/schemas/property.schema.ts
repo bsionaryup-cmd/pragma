@@ -32,6 +32,7 @@ export const propertyFormSchema = z.object({
   /** One email per line in the form; stored as JSON array on the property. */
   notificationEmails: z.string().optional(),
   receptionWhatsapp: z.string().optional(),
+  useDefaultQuickMessages: z.boolean().optional(),
   quickMessageWELCOME: z.string().optional(),
   quickMessageREGISTRATION: z.string().optional(),
   quickMessageACCESS: z.string().optional(),
