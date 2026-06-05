@@ -19,7 +19,10 @@ export default async function PricingPage() {
         <LandingPricing />
         <LandingSocialProof />
         <section className="border-t border-pragma-border py-16 text-center">
-          <CommercialContactButton label="Solicitar demo" size="lg" />
+          <p className="mx-auto mb-6 max-w-lg text-sm text-pragma-mid-gray">
+            Habla con nuestro equipo comercial por WhatsApp. Te orientamos sin compromiso.
+          </p>
+          <CommercialContactButton label="Hablar con un asesor" size="lg" />
         </section>
       </main>
       <LandingFooter />

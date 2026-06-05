@@ -1,4 +1,5 @@
 import { CreditCard } from "lucide-react";
+import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
 import type { BillingAccessSnapshot } from "@/lib/billing/billing-access";
 
 type BillingPaywallNoticeProps = {
@@ -28,6 +29,9 @@ export function BillingPaywallNotice({ access, isAdmin }: BillingPaywallNoticePr
             </p>
           )}
         </div>
+        <ClerkSignOutButton variant="outline" className="shrink-0 border-red-300/80 bg-white text-red-950 hover:bg-red-100/80 dark:border-red-800 dark:bg-red-950 dark:text-red-50 dark:hover:bg-red-900/60">
+          Cerrar sesión
+        </ClerkSignOutButton>
       </div>
     </div>
   );

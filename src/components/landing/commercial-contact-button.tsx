@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { PRAGMA_COMMERCIAL_WHATSAPP_URL } from "@/lib/landing-commercial";
 import { cn } from "@/lib/utils";
-import { landingHomeSectionHref } from "@/lib/landing-public-nav";
 
 type CommercialContactButtonProps = {
   label?: string;
@@ -20,14 +18,11 @@ const sizeStyles = {
 } as const;
 
 export function CommercialContactButton({
-  label = "Contactar asesor",
+  label = "Hablar con un asesor",
   size = "md",
   className,
   variant = "primary",
 }: CommercialContactButtonProps) {
-  const pathname = usePathname();
-  const href = landingHomeSectionHref(pathname, "contact");
-
   const classNames = cn(
     "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200",
     sizeStyles[size],
@@ -37,19 +32,15 @@ export function CommercialContactButton({
     className,
   );
 
-  if (href.startsWith("#") || href.startsWith("/#")) {
-    return (
-      <a href={href} className={classNames}>
-        {label}
-        <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
-      </a>
-    );
-  }
-
   return (
-    <Link href={href} className={classNames}>
+    <a
+      href={PRAGMA_COMMERCIAL_WHATSAPP_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={classNames}
+    >
       {label}
       <ArrowRight className="h-4 w-4" strokeWidth={2.25} />
-    </Link>
+    </a>
   );
 }
