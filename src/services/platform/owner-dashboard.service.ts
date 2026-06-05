@@ -193,13 +193,26 @@ export async function listOwnerClients(
       orderBy: buildOrderBy(sortBy, sortDir),
       skip,
       take: pageSize,
-      include: {
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        createdAt: true,
         billingAccount: {
-          include: {
+          select: {
+            plan: true,
+            status: true,
+            trialEndsAt: true,
+            currentPeriodEnd: true,
+            metadata: true,
             invoices: {
               where: { status: "OPEN" },
               take: 1,
               orderBy: { dueAt: "desc" },
+              select: {
+                amount: true,
+                currency: true,
+              },
             },
           },
         },
@@ -209,7 +222,6 @@ export async function listOwnerClients(
             id: true,
             email: true,
             isAccountOwner: true,
-            createdAt: true,
             propertyCount: true,
           },
         },
