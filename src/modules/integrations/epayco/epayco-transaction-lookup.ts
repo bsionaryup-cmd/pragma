@@ -20,18 +20,73 @@ export type EpaycoTransactionLookup = {
 
 type EpaycoValidationPayload = {
   success?: boolean;
-  data?: {
-    x_cod_response?: string;
-    x_cod_respuesta?: string;
-    x_id_invoice?: string;
-    x_transaction_id?: string;
-    x_ref_payco?: string;
-    ref_payco?: string;
-  };
+  status?: boolean;
+  data?: Record<string, unknown>;
 };
+
+const EPAYCO_VALIDATION_URL = "https://secure.epayco.co/validation/v1/reference";
 
 function isEpaycoApproved(code: ReturnType<typeof mapEpaycoResponseCode>): boolean {
   return code === "APPROVED";
+}
+
+function readResponseCode(data: Record<string, unknown>): string | undefined {
+  const raw =
+    data.x_cod_response ??
+    data.x_cod_respuesta ??
+    data.cod_respuesta ??
+    data.cod_response;
+  return raw == null ? undefined : String(raw);
+}
+
+function readInvoiceReference(data: Record<string, unknown>): string | undefined {
+  const raw = data.x_id_invoice ?? data.factura ?? data.id_invoice;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+}
+
+function readTransactionId(data: Record<string, unknown>): string | undefined {
+  const raw = data.x_transaction_id ?? data.transactionID ?? data.transaction_id;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : undefined;
+}
+
+function parseValidationPayload(payload: EpaycoValidationPayload): EpaycoTransactionLookup {
+  const data = payload.data;
+  if (!data || typeof data !== "object") {
+    return {
+      ok: false,
+      approved: false,
+      message: "No se pudo validar la transacción en ePayco",
+    };
+  }
+
+  if (data.status === "error") {
+    return {
+      ok: false,
+      approved: false,
+      message:
+        typeof data.description === "string"
+          ? data.description
+          : "No se pudo validar la transacción en ePayco",
+    };
+  }
+
+  const responseCode = readResponseCode(data);
+  const approved = isEpaycoApproved(mapEpaycoResponseCode(responseCode));
+
+  return {
+    ok: true,
+    approved,
+    invoiceReference: readInvoiceReference(data),
+    transactionId: readTransactionId(data),
+    refPayco:
+      typeof data.x_ref_payco === "string"
+        ? data.x_ref_payco
+        : typeof data.ref_payco === "string"
+          ? data.ref_payco
+          : undefined,
+    responseCode,
+    message: approved ? "Pago aprobado en ePayco" : "Pago no aprobado en ePayco",
+  };
 }
 
 export async function fetchEpaycoTransactionByRefPayco(
@@ -44,12 +99,12 @@ export async function fetchEpaycoTransactionByRefPayco(
 
   try {
     const response = await fetch(
-      `https://api.secure.payco.co/validation/v1/reference/${encodeURIComponent(trimmed)}`,
+      `${EPAYCO_VALIDATION_URL}/${encodeURIComponent(trimmed)}`,
       { cache: "no-store" },
     );
     const payload = (await response.json()) as EpaycoValidationPayload;
 
-    if (!response.ok || payload.success === false || !payload.data) {
+    if (!response.ok) {
       return {
         ok: false,
         approved: false,
@@ -57,19 +112,15 @@ export async function fetchEpaycoTransactionByRefPayco(
       };
     }
 
-    const responseCode =
-      payload.data.x_cod_response ?? payload.data.x_cod_respuesta ?? undefined;
-    const approved = isEpaycoApproved(mapEpaycoResponseCode(responseCode));
+    if (payload.success === false || payload.status === false) {
+      return {
+        ok: false,
+        approved: false,
+        message: "No se pudo validar la transacción en ePayco",
+      };
+    }
 
-    return {
-      ok: true,
-      approved,
-      invoiceReference: payload.data.x_id_invoice,
-      transactionId: payload.data.x_transaction_id,
-      refPayco: payload.data.x_ref_payco ?? payload.data.ref_payco ?? trimmed,
-      responseCode,
-      message: approved ? "Pago aprobado en ePayco" : "Pago no aprobado en ePayco",
-    };
+    return parseValidationPayload(payload);
   } catch (error) {
     return {
       ok: false,
@@ -125,29 +176,14 @@ export async function fetchEpaycoTransactionViaApify(input: {
         ? (data.transaction as Record<string, unknown>)
         : data;
 
-    const responseCode = String(
-      transaction.x_cod_response ??
-        transaction.x_cod_respuesta ??
-        transaction.cod_respuesta ??
-        "",
-    );
+    const responseCode = readResponseCode(transaction);
     const approved = isEpaycoApproved(mapEpaycoResponseCode(responseCode));
 
     return {
       ok: true,
       approved,
-      invoiceReference:
-        typeof transaction.x_id_invoice === "string"
-          ? transaction.x_id_invoice
-          : typeof transaction.factura === "string"
-            ? transaction.factura
-            : undefined,
-      transactionId:
-        typeof transaction.x_transaction_id === "string"
-          ? transaction.x_transaction_id
-          : typeof transaction.transactionID === "string"
-            ? transaction.transactionID
-            : undefined,
+      invoiceReference: readInvoiceReference(transaction),
+      transactionId: readTransactionId(transaction),
       refPayco: input.refPayco.trim(),
       responseCode,
       message: approved ? "Pago aprobado en ePayco" : "Pago no aprobado en ePayco",

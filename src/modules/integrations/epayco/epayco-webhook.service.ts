@@ -1,6 +1,10 @@
 import "server-only";
 
-import { PaymentMethodType, PaymentTransactionStatus } from "@prisma/client";
+import {
+  PaymentMethodType,
+  PaymentProviderCode,
+  PaymentTransactionStatus,
+} from "@prisma/client";
 import { db } from "@/lib/db";
 import {
   parseBillingSubscriptionReference,
@@ -20,6 +24,11 @@ import {
 } from "@/modules/billing/services/payment.service";
 import { reconcileGuestPaymentFromProvider } from "@/services/payments/guest-payment-reconcile.service";
 import type { EpaycoRuntimeConfig } from "@/modules/integrations/epayco/epayco-credentials";
+import {
+  createWebhookLog,
+  markWebhookProcessed,
+} from "@/modules/billing/repositories/webhook-log.repository";
+import { persistEpaycoRefOnOpenInvoice } from "@/modules/billing/services/billing-subscription-reconcile.service";
 
 export type EpaycoConfirmationPayload = Record<string, string>;
 
@@ -175,34 +184,77 @@ async function processBillingEpaycoConfirmation(
   const transactionId = readField(payload, ["x_transaction_id", "x_id_factura"]);
   const txStatus = readTransactionStatus(payload);
   const signatureValid = verifyPayloadSignature(payload, config);
+  const eventId = refPayco || transactionId || invoice || "unknown";
+
+  const webhookLog = await createWebhookLog({
+    provider: PaymentProviderCode.EPAYCO,
+    eventType: "confirmation",
+    eventId,
+    signatureValid,
+    payload,
+    processed: false,
+  });
+
+  const billingInvoiceId = parseBillingSubscriptionReference(invoice);
+  if (billingInvoiceId && refPayco) {
+    const billingInvoice = await db.billingInvoice.findUnique({
+      where: { id: billingInvoiceId },
+      select: { billingAccountId: true },
+    });
+    if (billingInvoice) {
+      await persistEpaycoRefOnOpenInvoice({
+        billingAccountId: billingInvoice.billingAccountId,
+        refPayco,
+        paymentReference: invoice,
+      });
+    }
+  }
+
+  let result: { ok: boolean; message: string; status: number };
 
   if (!signatureValid) {
     if (refPayco && txStatus === PaymentTransactionStatus.APPROVED) {
       const reconciled = await reconcileEpaycoBillingByRefPayco(refPayco, invoice);
       if (reconciled) {
-        return { ok: true, message: "Pago reconciliado vía validación ePayco", status: 200 };
+        result = {
+          ok: true,
+          message: "Pago reconciliado vía validación ePayco",
+          status: 200,
+        };
+      } else {
+        result = { ok: false, message: "Firma ePayco inválida", status: 401 };
       }
+    } else {
+      result = { ok: false, message: "Firma ePayco inválida", status: 401 };
     }
-    return { ok: false, message: "Firma ePayco inválida", status: 401 };
+  } else {
+    const reconcile = await reconcileTransactionFromWebhook({
+      reference: invoice,
+      provider: "EPAYCO",
+      providerTransactionId: transactionId || refPayco || undefined,
+      status: txStatus,
+      paymentMethod: mapEpaycoPaymentMethod(
+        readField(payload, ["x_franchise", "x_bank_name"]),
+      ),
+      failureReason:
+        txStatus === PaymentTransactionStatus.FAILED
+          ? readField(payload, ["x_response", "x_response_reason_text"])
+          : undefined,
+    });
+
+    result = {
+      ok: reconcile.ok,
+      message: reconcile.message,
+      status: reconcile.ok ? 200 : 500,
+    };
   }
 
-  const reconcile = await reconcileTransactionFromWebhook({
-    reference: invoice,
-    provider: "EPAYCO",
-    providerTransactionId: transactionId || refPayco || undefined,
-    status: txStatus,
-    paymentMethod: mapEpaycoPaymentMethod(
-      readField(payload, ["x_franchise", "x_bank_name"]),
-    ),
-    failureReason:
-      txStatus === PaymentTransactionStatus.FAILED
-        ? readField(payload, ["x_response", "x_response_reason_text"])
-        : undefined,
-  });
+  if (webhookLog?.id) {
+    await markWebhookProcessed(
+      webhookLog.id,
+      result.ok ? undefined : result.message,
+    );
+  }
 
-  return {
-    ok: reconcile.ok,
-    message: reconcile.message,
-    status: reconcile.ok ? 200 : 500,
-  };
+  return result;
 }

@@ -9,6 +9,7 @@ import {
 import { getTenantTrialRetrialPolicy } from "@/lib/billing/trial-eligibility";
 
 import { PLATFORM_EPAYCO_ORG_NAME } from "@/modules/billing/services/epayco-platform.service";
+import { reconcileOutstandingSubscriptionPayments } from "@/modules/billing/services/billing-subscription-reconcile.service";
 
 const PLATFORM_WOMPI_ORG_NAME = "PRAGMA Platform (Wompi)";
 const PLATFORM_INTERNAL_ORG_NAMES = [PLATFORM_WOMPI_ORG_NAME, PLATFORM_EPAYCO_ORG_NAME];
@@ -349,6 +350,14 @@ export async function listOwnerClients(
 }
 
 export async function getOwnerClientDetail(organizationId: string) {
+  const billingAccount = await db.billingAccount.findUnique({
+    where: { organizationId },
+    select: { id: true },
+  });
+  if (billingAccount) {
+    await reconcileOutstandingSubscriptionPayments(billingAccount.id);
+  }
+
   const org = await db.organization.findUnique({
     where: { id: organizationId },
     select: {

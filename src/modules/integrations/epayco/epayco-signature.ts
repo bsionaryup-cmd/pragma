@@ -10,13 +10,14 @@ export function verifyEpaycoConfirmationSignature(input: {
   pKey: string;
   signature: string;
 }): boolean {
+  // Orden oficial ePayco (confirmación): custId ^ pKey ^ refPayco ^ transactionId ^ amount ^ currency
   const payload = [
     input.custIdCliente.trim(),
+    input.pKey.trim(),
     input.refPayco.trim(),
     input.transactionId.trim(),
     input.amount.trim(),
     input.currencyCode.trim(),
-    input.pKey.trim(),
   ].join("^");
 
   const expected = createHash("sha256").update(payload).digest("hex");

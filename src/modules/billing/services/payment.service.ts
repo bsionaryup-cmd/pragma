@@ -50,6 +50,10 @@ import {
   activateSubscriptionFromPaidInvoice,
   findBillingInvoiceByPaymentReference,
 } from "@/modules/billing/services/billing-payment-activation.service";
+import {
+  persistEpaycoRefOnOpenInvoice,
+  reconcileOutstandingSubscriptionPayments,
+} from "@/modules/billing/services/billing-subscription-reconcile.service";
 
 async function resolvePaymentTenantId(
   billingInvoiceId: string,
@@ -456,6 +460,14 @@ export async function reconcileBillingPaymentOnReturn(input: {
   const epaycoRefPayco = input.epaycoRefPayco?.trim() || null;
   const gateway = await resolveSubscriptionPaymentGateway();
 
+  if (epaycoRefPayco) {
+    await persistEpaycoRefOnOpenInvoice({
+      billingAccountId,
+      refPayco: epaycoRefPayco,
+      paymentReference: reference,
+    });
+  }
+
   if (gateway === "EPAYCO" && epaycoRefPayco) {
     await tryReconcileEpaycoReturn({
       reference,
@@ -508,7 +520,14 @@ export async function reconcileBillingPaymentOnReturn(input: {
   });
   if (!account) return { ok: false, unlocked: false };
 
-  const synced = await syncBillingAccountAccessAfterPayment(account);
+  await reconcileOutstandingSubscriptionPayments(billingAccountId);
+
+  const refreshed = await db.billingAccount.findUnique({
+    where: { id: billingAccountId },
+  });
+  if (!refreshed) return { ok: false, unlocked: false };
+
+  const synced = await syncBillingAccountAccessAfterPayment(refreshed);
   const unlocked =
     synced.status === BillingSubscriptionStatus.ACTIVE && !synced.billingLockedAt;
 

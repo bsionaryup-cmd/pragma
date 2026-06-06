@@ -15,7 +15,7 @@ describe("ePayco confirmation signature", () => {
     const currencyCode = "COP";
     const pKey = "test-p-key";
 
-    const payload = [custIdCliente, refPayco, transactionId, amount, currencyCode, pKey].join(
+    const payload = [custIdCliente, pKey, refPayco, transactionId, amount, currencyCode].join(
       "^",
     );
     const signature = createHash("sha256").update(payload).digest("hex");

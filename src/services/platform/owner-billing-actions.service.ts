@@ -172,16 +172,29 @@ export async function activateTenantSubscriptionByOwner(input: {
   const periodEnd = new Date();
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  await db.billingAccount.update({
-    where: { id: account.id },
-    data: {
-      status: BillingSubscriptionStatus.ACTIVE,
-      trialEndsAt: null,
-      gracePeriodEndsAt: null,
-      billingLockedAt: null,
-      currentPeriodEnd: periodEnd,
-    },
-  });
+  await db.$transaction([
+    db.billingAccount.update({
+      where: { id: account.id },
+      data: {
+        status: BillingSubscriptionStatus.ACTIVE,
+        trialEndsAt: null,
+        gracePeriodEndsAt: null,
+        billingLockedAt: null,
+        currentPeriodEnd: periodEnd,
+      },
+    }),
+    db.billingInvoice.updateMany({
+      where: {
+        billingAccountId: account.id,
+        status: BillingInvoiceStatus.OPEN,
+      },
+      data: {
+        status: BillingInvoiceStatus.PAID,
+        paidAt: new Date(),
+        failureReason: null,
+      },
+    }),
+  ]);
 
   await writePlatformAuditLog({
     platformUserId: input.platformUser.id,

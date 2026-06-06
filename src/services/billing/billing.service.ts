@@ -37,6 +37,7 @@ import {
   ensureOpenSubscriptionInvoice,
   syncBillingAccountAccessAfterPayment,
 } from "@/modules/billing/services/billing-lifecycle.service";
+import { reconcileOutstandingSubscriptionPayments } from "@/modules/billing/services/billing-subscription-reconcile.service";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
 import { requireDbUser } from "@/lib/auth";
 
@@ -218,6 +219,9 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
     };
   }
 
+  await reconcileOutstandingSubscriptionPayments(account.id);
+  account =
+    (await db.billingAccount.findUnique({ where: { id: account.id } })) ?? account;
   account = await reconcileBillingLifecycle(account);
   account = await syncBillingAccountAccessAfterPayment(account);
   await syncOpenInvoiceAmountForAccount(account.id);
@@ -313,6 +317,11 @@ export const getBillingAccessSnapshot = cache(
           reason: null,
         };
       }
+
+      await reconcileOutstandingSubscriptionPayments(account.id);
+      account =
+        (await db.billingAccount.findUnique({ where: { id: account.id } })) ??
+        account;
 
       if (accountNeedsLifecycleReconciliation(account)) {
         account = await reconcileBillingLifecycle(account);
