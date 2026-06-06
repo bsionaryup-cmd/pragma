@@ -30,6 +30,16 @@ import { resolveSubscriptionPaymentGateway } from "@/modules/billing/services/su
 import { resolveOrganizationIdForBillingInvoice } from "@/modules/billing/services/wompi-org";
 import { isGuestPaymentReference } from "@/lib/payments/guest-payment-reference";
 import { reconcileGuestPaymentFromWebhook } from "@/services/payments/guest-payment-reconcile.service";
+import { parseBillingSubscriptionReference } from "@/lib/payments/guest-payment-reference";
+import { mapEpaycoResponseCode } from "@/modules/integrations/epayco/epayco-signature";
+import {
+  mapWompiPaymentMethod,
+  mapWompiTransactionStatus,
+} from "@/services/payments/wompi-transaction-lookup.service";
+import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-credentials";
+import { resolvePlatformWompiOrganizationId } from "@/modules/billing/services/wompi-platform.service";
+import { syncBillingAccountAccessAfterPayment } from "@/modules/billing/services/billing-lifecycle.service";
+import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
 
 async function resolvePaymentTenantId(
   billingInvoiceId: string,
@@ -250,15 +260,29 @@ export async function reconcileTransactionFromWebhook(input: {
       return { ok: true, message: "Factura ya pagada (idempotente)" };
     }
 
-    await db.billingInvoice.update({
-      where: { id: billingInvoice.id },
-      data: {
-        status: BillingInvoiceStatus.PAID,
-        paidAt: new Date(),
-        wompiTransactionId: input.providerTransactionId ?? null,
-        failureReason: null,
-      },
-    });
+    const periodEnd = new Date();
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    await db.$transaction([
+      db.billingInvoice.update({
+        where: { id: billingInvoice.id },
+        data: {
+          status: BillingInvoiceStatus.PAID,
+          paidAt: new Date(),
+          wompiTransactionId: input.providerTransactionId ?? null,
+          failureReason: null,
+        },
+      }),
+      db.billingAccount.update({
+        where: { id: billingInvoice.billingAccountId },
+        data: {
+          status: BillingSubscriptionStatus.ACTIVE,
+          billingLockedAt: null,
+          gracePeriodEndsAt: null,
+          currentPeriodEnd: periodEnd,
+        },
+      }),
+    ]);
 
     if (paymentInvoiceId) {
       try {
@@ -267,18 +291,6 @@ export async function reconcileTransactionFromWebhook(input: {
         if (!isPaymentSchemaMissing(error)) throw error;
       }
     }
-
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-    await db.billingAccount.update({
-      where: { id: billingInvoice.billingAccountId },
-      data: {
-        status: BillingSubscriptionStatus.ACTIVE,
-        billingLockedAt: null,
-        gracePeriodEndsAt: null,
-        currentPeriodEnd: periodEnd,
-      },
-    });
 
     await writePaymentAuditLog({
       entityType: "billing_invoice",
@@ -321,6 +333,114 @@ export async function reconcileTransactionFromWebhook(input: {
   }
 
   return { ok: true, message: "Evento registrado" };
+}
+
+async function fetchPlatformSubscriptionWompiByReference(reference: string): Promise<{
+  ok: boolean;
+  transactionId?: string;
+  status?: PaymentTransactionStatus;
+  paymentMethod?: PaymentMethodType;
+}> {
+  const organizationId = await resolvePlatformWompiOrganizationId();
+  if (!organizationId) return { ok: false };
+
+  const config = await resolvePlatformWompiConfig();
+  if (!config.privateKey || !config.configured) return { ok: false };
+
+  try {
+    const url = new URL(`${config.baseUrl}/transactions`);
+    url.searchParams.set("reference", reference);
+    url.searchParams.set("page_size", "5");
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${config.privateKey}` },
+      cache: "no-store",
+    });
+
+    const payload = (await response.json()) as {
+      data?: Array<{
+        id?: string;
+        status?: string;
+        reference?: string;
+        payment_method_type?: string;
+      }>;
+    };
+
+    if (!response.ok) return { ok: false };
+
+    const match =
+      payload.data?.find((row) => row?.reference === reference) ?? payload.data?.[0];
+
+    if (!match?.id) return { ok: false };
+
+    return {
+      ok: true,
+      transactionId: match.id,
+      status: mapWompiTransactionStatus(match.status),
+      paymentMethod: mapWompiPaymentMethod(match.payment_method_type),
+    };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Reconcilia pago al volver del checkout si el webhook aún no actualizó la cuenta. */
+export async function reconcileBillingPaymentOnReturn(input: {
+  reference?: string | null;
+  epaycoResponseCode?: string | null;
+}): Promise<{ ok: boolean; unlocked: boolean }> {
+  const billingAccountId = await requireBillingAccountId();
+  const reference = input.reference?.trim() || null;
+
+  if (reference) {
+    const invoiceId = parseBillingSubscriptionReference(reference);
+    const invoice = await db.billingInvoice.findFirst({
+      where: invoiceId
+        ? {
+            billingAccountId,
+            OR: [{ externalRef: reference }, { id: invoiceId }],
+          }
+        : { billingAccountId, externalRef: reference },
+      select: { id: true, status: true, externalRef: true },
+    });
+
+    if (invoice && invoice.status !== BillingInvoiceStatus.PAID) {
+      const epaycoApproved =
+        mapEpaycoResponseCode(input.epaycoResponseCode) === "APPROVED";
+
+      if (epaycoApproved) {
+        await reconcileTransactionFromWebhook({
+          reference: invoice.externalRef ?? reference,
+          provider: PaymentProviderCode.EPAYCO,
+          status: PaymentTransactionStatus.APPROVED,
+        });
+      } else {
+        const wompi = await fetchPlatformSubscriptionWompiByReference(
+          invoice.externalRef ?? reference,
+        );
+        if (wompi.ok && wompi.status === PaymentTransactionStatus.APPROVED) {
+          await reconcileTransactionFromWebhook({
+            reference: invoice.externalRef ?? reference,
+            provider: PaymentProviderCode.WOMPI,
+            providerTransactionId: wompi.transactionId,
+            status: PaymentTransactionStatus.APPROVED,
+            paymentMethod: wompi.paymentMethod,
+          });
+        }
+      }
+    }
+  }
+
+  const account = await db.billingAccount.findUnique({
+    where: { id: billingAccountId },
+  });
+  if (!account) return { ok: false, unlocked: false };
+
+  const synced = await syncBillingAccountAccessAfterPayment(account);
+  const unlocked =
+    synced.status === BillingSubscriptionStatus.ACTIVE && !synced.billingLockedAt;
+
+  return { ok: true, unlocked };
 }
 
 export { getPaymentMethodsAvailability } from "@/modules/billing/services/payment-methods.service";

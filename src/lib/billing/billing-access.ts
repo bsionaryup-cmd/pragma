@@ -69,6 +69,10 @@ export function resolveBillingLocked(input: {
   gracePeriodEndsAt: Date | null;
   billingLockedAt: Date | null;
 }): boolean {
+  if (input.status === BillingSubscriptionStatus.ACTIVE) {
+    return false;
+  }
+
   if (input.status === BillingSubscriptionStatus.LOCKED) return true;
   if (input.billingLockedAt) return true;
 

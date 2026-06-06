@@ -163,3 +163,42 @@ export function accountNeedsLifecycleReconciliation(account: BillingAccount): bo
 
   return false;
 }
+
+/** Si la factura más reciente está pagada, activa la suscripción y quita el bloqueo. */
+export async function syncBillingAccountAccessAfterPayment(
+  account: BillingAccount,
+): Promise<BillingAccount> {
+  if (account.status === BillingSubscriptionStatus.ACTIVE && !account.billingLockedAt) {
+    return account;
+  }
+
+  const latestInvoice = await db.billingInvoice.findFirst({
+    where: { billingAccountId: account.id },
+    orderBy: [{ dueAt: "desc" }, { createdAt: "desc" }],
+    select: { status: true, paidAt: true },
+  });
+
+  if (latestInvoice?.status !== BillingInvoiceStatus.PAID) {
+    return account;
+  }
+
+  const periodEnd = new Date();
+  periodEnd.setMonth(periodEnd.getMonth() + 1);
+  if (latestInvoice.paidAt) {
+    const fromPaid = new Date(latestInvoice.paidAt);
+    fromPaid.setMonth(fromPaid.getMonth() + 1);
+    if (fromPaid.getTime() > periodEnd.getTime()) {
+      periodEnd.setTime(fromPaid.getTime());
+    }
+  }
+
+  return db.billingAccount.update({
+    where: { id: account.id },
+    data: {
+      status: BillingSubscriptionStatus.ACTIVE,
+      billingLockedAt: null,
+      gracePeriodEndsAt: null,
+      currentPeriodEnd: periodEnd,
+    },
+  });
+}

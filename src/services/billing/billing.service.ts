@@ -35,6 +35,7 @@ import {
   reconcileBillingLifecycle,
   accountNeedsLifecycleReconciliation,
   ensureOpenSubscriptionInvoice,
+  syncBillingAccountAccessAfterPayment,
 } from "@/modules/billing/services/billing-lifecycle.service";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
 import { requireDbUser } from "@/lib/auth";
@@ -218,6 +219,7 @@ export async function getBillingOverview(): Promise<BillingOverviewDto> {
   }
 
   account = await reconcileBillingLifecycle(account);
+  account = await syncBillingAccountAccessAfterPayment(account);
   await syncOpenInvoiceAmountForAccount(account.id);
 
   if (account.status !== BillingSubscriptionStatus.ACTIVE) {
@@ -315,6 +317,8 @@ export const getBillingAccessSnapshot = cache(
       if (accountNeedsLifecycleReconciliation(account)) {
         account = await reconcileBillingLifecycle(account);
       }
+
+      account = await syncBillingAccountAccessAfterPayment(account);
 
       const locked = resolveBillingLocked({
         status: account.status,

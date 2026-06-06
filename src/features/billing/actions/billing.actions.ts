@@ -18,6 +18,7 @@ import {
 } from "@/services/billing/billing.service";
 import { getPublicAppUrl } from "@/lib/app-url";
 import { createSubscriptionCheckout } from "@/services/billing/wompi.service";
+import { reconcileBillingPaymentOnReturn } from "@/modules/billing/services/payment.service";
 
 function revalidateBilling() {
   revalidatePath("/settings/billing");
@@ -105,6 +106,26 @@ export async function getSubscriptionStatusAction() {
     status: overview.account.status,
     locked: overview.access.locked,
   };
+}
+
+export async function reconcileBillingPaymentReturnAction(input?: {
+  reference?: string | null;
+  epaycoResponseCode?: string | null;
+}) {
+  await requirePermission("billing:manage");
+  try {
+    const result = await reconcileBillingPaymentOnReturn({
+      reference: input?.reference,
+      epaycoResponseCode: input?.epaycoResponseCode,
+    });
+    revalidateBilling();
+    revalidatePath("/panel");
+    revalidatePath("/calendar");
+    revalidatePath("/reservations");
+    return result;
+  } catch {
+    return { ok: false as const, unlocked: false };
+  }
 }
 
 export async function cancelSubscriptionAction() {
