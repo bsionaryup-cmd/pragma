@@ -23,15 +23,21 @@ import {
   updateTransactionStatus,
 } from "@/modules/billing/repositories/transaction.repository";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
-import { queueBillingReceiptEmail } from "@/modules/billing/services/billing-receipt-email.service";
 import { buildBillingSubscriptionReference } from "@/lib/payments/guest-payment-reference";
 import { getPaymentProvider } from "@/modules/billing/providers/provider-registry";
 import { resolveSubscriptionPaymentGateway } from "@/modules/billing/services/subscription-payment-gateway.service";
 import { resolveOrganizationIdForBillingInvoice } from "@/modules/billing/services/wompi-org";
-import { isGuestPaymentReference } from "@/lib/payments/guest-payment-reference";
+import {
+  isGuestPaymentReference,
+  parseBillingSubscriptionReference,
+} from "@/lib/payments/guest-payment-reference";
 import { reconcileGuestPaymentFromWebhook } from "@/services/payments/guest-payment-reconcile.service";
-import { parseBillingSubscriptionReference } from "@/lib/payments/guest-payment-reference";
 import { mapEpaycoResponseCode } from "@/modules/integrations/epayco/epayco-signature";
+import {
+  fetchEpaycoTransactionByRefPayco,
+  fetchEpaycoTransactionViaApify,
+} from "@/modules/integrations/epayco/epayco-transaction-lookup";
+import { resolvePlatformEpaycoConfig } from "@/modules/integrations/epayco/epayco-credentials";
 import {
   mapWompiPaymentMethod,
   mapWompiTransactionStatus,
@@ -40,6 +46,10 @@ import { resolvePlatformWompiConfig } from "@/modules/billing/services/wompi-cre
 import { resolvePlatformWompiOrganizationId } from "@/modules/billing/services/wompi-platform.service";
 import { syncBillingAccountAccessAfterPayment } from "@/modules/billing/services/billing-lifecycle.service";
 import { requireBillingAccountId } from "@/lib/billing/resolve-billing-account";
+import {
+  activateSubscriptionFromPaidInvoice,
+  findBillingInvoiceByPaymentReference,
+} from "@/modules/billing/services/billing-payment-activation.service";
 
 async function resolvePaymentTenantId(
   billingInvoiceId: string,
@@ -186,9 +196,7 @@ export async function reconcileTransactionFromWebhook(input: {
 
   const provider = input.provider ?? PaymentProviderCode.WOMPI;
 
-  const billingInvoice = await db.billingInvoice.findFirst({
-    where: { externalRef: input.reference },
-  });
+  const billingInvoice = await findBillingInvoiceByPaymentReference(input.reference);
 
   let transaction = hasPaymentLedgerDelegates()
     ? await findTransactionByProviderReference(provider, input.reference)
@@ -229,8 +237,15 @@ export async function reconcileTransactionFromWebhook(input: {
   if (
     transaction &&
     transaction.status === PaymentTransactionStatus.APPROVED &&
-    input.status === PaymentTransactionStatus.APPROVED
+    input.status === PaymentTransactionStatus.APPROVED &&
+    billingInvoice?.status === BillingInvoiceStatus.PAID
   ) {
+    await activateSubscriptionFromPaidInvoice({
+      billingInvoiceId: billingInvoice.id,
+      providerTransactionId: input.providerTransactionId,
+      paymentReference: input.reference,
+      provider: input.provider,
+    });
     return { ok: true, message: "Transacción ya aprobada (idempotente)" };
   }
 
@@ -256,33 +271,12 @@ export async function reconcileTransactionFromWebhook(input: {
   const paymentInvoiceId = transaction?.invoiceId;
 
   if (input.status === PaymentTransactionStatus.APPROVED) {
-    if (billingInvoice.status === BillingInvoiceStatus.PAID) {
-      return { ok: true, message: "Factura ya pagada (idempotente)" };
-    }
-
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-    await db.$transaction([
-      db.billingInvoice.update({
-        where: { id: billingInvoice.id },
-        data: {
-          status: BillingInvoiceStatus.PAID,
-          paidAt: new Date(),
-          wompiTransactionId: input.providerTransactionId ?? null,
-          failureReason: null,
-        },
-      }),
-      db.billingAccount.update({
-        where: { id: billingInvoice.billingAccountId },
-        data: {
-          status: BillingSubscriptionStatus.ACTIVE,
-          billingLockedAt: null,
-          gracePeriodEndsAt: null,
-          currentPeriodEnd: periodEnd,
-        },
-      }),
-    ]);
+    await activateSubscriptionFromPaidInvoice({
+      billingInvoiceId: billingInvoice.id,
+      providerTransactionId: input.providerTransactionId,
+      paymentReference: input.reference,
+      provider: input.provider,
+    });
 
     if (paymentInvoiceId) {
       try {
@@ -291,19 +285,6 @@ export async function reconcileTransactionFromWebhook(input: {
         if (!isPaymentSchemaMissing(error)) throw error;
       }
     }
-
-    await writePaymentAuditLog({
-      entityType: "billing_invoice",
-      entityId: billingInvoice.id,
-      action: "payment_approved",
-      after: { reference: input.reference },
-    });
-
-    queueBillingReceiptEmail({
-      invoiceId: billingInvoice.id,
-      paymentMethod: "online",
-      paymentReference: input.providerTransactionId ?? input.reference,
-    });
 
     return { ok: true, message: "Pago reconciliado" };
   }
@@ -384,49 +365,140 @@ async function fetchPlatformSubscriptionWompiByReference(reference: string): Pro
   }
 }
 
+async function lookupEpaycoTransaction(refPayco: string) {
+  let lookup = await fetchEpaycoTransactionByRefPayco(refPayco);
+  if (!lookup.ok) {
+    const config = await resolvePlatformEpaycoConfig();
+    if (config.publicKey && config.privateKey) {
+      lookup = await fetchEpaycoTransactionViaApify({
+        publicKey: config.publicKey,
+        privateKey: config.privateKey,
+        env: config.env ?? "test",
+        refPayco,
+      });
+    }
+  }
+  return lookup;
+}
+
+async function reconcileApprovedEpaycoPayment(input: {
+  reference: string;
+  providerTransactionId?: string;
+}): Promise<void> {
+  await reconcileTransactionFromWebhook({
+    reference: input.reference,
+    provider: PaymentProviderCode.EPAYCO,
+    providerTransactionId: input.providerTransactionId,
+    status: PaymentTransactionStatus.APPROVED,
+  });
+}
+
+export async function reconcileEpaycoBillingByRefPayco(
+  refPayco: string,
+  fallbackReference?: string | null,
+): Promise<boolean> {
+  const lookup = await lookupEpaycoTransaction(refPayco);
+  if (!lookup.ok || !lookup.approved) {
+    return false;
+  }
+
+  const reconcileRef = lookup.invoiceReference ?? fallbackReference ?? null;
+  if (!reconcileRef) {
+    return false;
+  }
+
+  await reconcileApprovedEpaycoPayment({
+    reference: reconcileRef,
+    providerTransactionId: lookup.transactionId ?? refPayco,
+  });
+  return true;
+}
+
+async function tryReconcileEpaycoReturn(input: {
+  reference?: string | null;
+  epaycoResponseCode?: string | null;
+  epaycoRefPayco?: string | null;
+}): Promise<boolean> {
+  const refPayco = input.epaycoRefPayco?.trim();
+  if (refPayco) {
+    const reconciled = await reconcileEpaycoBillingByRefPayco(refPayco, input.reference);
+    if (reconciled) return true;
+  }
+
+  const reference = input.reference?.trim();
+  if (!reference) return false;
+
+  const invoice = await findBillingInvoiceByPaymentReference(reference);
+  if (!invoice || invoice.status === BillingInvoiceStatus.PAID) {
+    return false;
+  }
+
+  const paymentRef = invoice.externalRef ?? reference;
+  if (mapEpaycoResponseCode(input.epaycoResponseCode) === "APPROVED") {
+    await reconcileApprovedEpaycoPayment({
+      reference: paymentRef,
+      providerTransactionId: refPayco,
+    });
+    return true;
+  }
+
+  return false;
+}
+
 /** Reconcilia pago al volver del checkout si el webhook aún no actualizó la cuenta. */
 export async function reconcileBillingPaymentOnReturn(input: {
   reference?: string | null;
   epaycoResponseCode?: string | null;
+  epaycoRefPayco?: string | null;
 }): Promise<{ ok: boolean; unlocked: boolean }> {
   const billingAccountId = await requireBillingAccountId();
   const reference = input.reference?.trim() || null;
+  const epaycoRefPayco = input.epaycoRefPayco?.trim() || null;
+  const gateway = await resolveSubscriptionPaymentGateway();
 
-  if (reference) {
-    const invoiceId = parseBillingSubscriptionReference(reference);
-    const invoice = await db.billingInvoice.findFirst({
-      where: invoiceId
-        ? {
-            billingAccountId,
-            OR: [{ externalRef: reference }, { id: invoiceId }],
-          }
-        : { billingAccountId, externalRef: reference },
-      select: { id: true, status: true, externalRef: true },
+  if (gateway === "EPAYCO" && epaycoRefPayco) {
+    await tryReconcileEpaycoReturn({
+      reference,
+      epaycoResponseCode: input.epaycoResponseCode,
+      epaycoRefPayco,
     });
+  }
 
-    if (invoice && invoice.status !== BillingInvoiceStatus.PAID) {
-      const epaycoApproved =
-        mapEpaycoResponseCode(input.epaycoResponseCode) === "APPROVED";
+  const openInvoice = await db.billingInvoice.findFirst({
+    where: {
+      billingAccountId,
+      status: BillingInvoiceStatus.OPEN,
+    },
+    orderBy: [{ dueAt: "desc" }, { createdAt: "desc" }],
+    select: { id: true, status: true, externalRef: true },
+  });
 
-      if (epaycoApproved) {
+  const paymentRef =
+    openInvoice?.externalRef ??
+    (openInvoice ? buildBillingSubscriptionReference(openInvoice.id) : null) ??
+    reference;
+
+  if (openInvoice && paymentRef) {
+    let reconciled = false;
+
+    if (gateway === "EPAYCO") {
+      reconciled = await tryReconcileEpaycoReturn({
+        reference: paymentRef,
+        epaycoResponseCode: input.epaycoResponseCode,
+        epaycoRefPayco,
+      });
+    }
+
+    if (!reconciled) {
+      const wompi = await fetchPlatformSubscriptionWompiByReference(paymentRef);
+      if (wompi.ok && wompi.status === PaymentTransactionStatus.APPROVED) {
         await reconcileTransactionFromWebhook({
-          reference: invoice.externalRef ?? reference,
-          provider: PaymentProviderCode.EPAYCO,
+          reference: paymentRef,
+          provider: PaymentProviderCode.WOMPI,
+          providerTransactionId: wompi.transactionId,
           status: PaymentTransactionStatus.APPROVED,
+          paymentMethod: wompi.paymentMethod,
         });
-      } else {
-        const wompi = await fetchPlatformSubscriptionWompiByReference(
-          invoice.externalRef ?? reference,
-        );
-        if (wompi.ok && wompi.status === PaymentTransactionStatus.APPROVED) {
-          await reconcileTransactionFromWebhook({
-            reference: invoice.externalRef ?? reference,
-            provider: PaymentProviderCode.WOMPI,
-            providerTransactionId: wompi.transactionId,
-            status: PaymentTransactionStatus.APPROVED,
-            paymentMethod: wompi.paymentMethod,
-          });
-        }
       }
     }
   }

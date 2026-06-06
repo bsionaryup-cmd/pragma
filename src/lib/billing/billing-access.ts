@@ -8,6 +8,7 @@ export const BILLING_LOCKED_ALLOWED_PATH_PREFIXES = [
   BILLING_PAYWALL_PATH,
   "/api/payments/",
   "/api/webhooks/wompi",
+  "/api/webhooks/epayco",
 ] as const;
 
 /** @deprecated Usar BILLING_LOCKED_ALLOWED_PATH_PREFIXES para cuentas bloqueadas. */

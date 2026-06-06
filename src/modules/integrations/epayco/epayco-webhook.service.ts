@@ -14,7 +14,10 @@ import {
   resolveEpaycoConfig,
   resolvePlatformEpaycoConfig,
 } from "@/modules/integrations/epayco/epayco-credentials";
-import { reconcileTransactionFromWebhook } from "@/modules/billing/services/payment.service";
+import {
+  reconcileEpaycoBillingByRefPayco,
+  reconcileTransactionFromWebhook,
+} from "@/modules/billing/services/payment.service";
 import { reconcileGuestPaymentFromProvider } from "@/services/payments/guest-payment-reconcile.service";
 import type { EpaycoRuntimeConfig } from "@/modules/integrations/epayco/epayco-credentials";
 
@@ -168,13 +171,20 @@ async function processBillingEpaycoConfirmation(
     return { ok: false, message: "ePayco no configurado para suscripciones", status: 500 };
   }
 
-  if (!verifyPayloadSignature(payload, config)) {
-    return { ok: false, message: "Firma ePayco inválida", status: 401 };
-  }
-
   const refPayco = readField(payload, ["x_ref_payco", "ref_payco"]);
   const transactionId = readField(payload, ["x_transaction_id", "x_id_factura"]);
   const txStatus = readTransactionStatus(payload);
+  const signatureValid = verifyPayloadSignature(payload, config);
+
+  if (!signatureValid) {
+    if (refPayco && txStatus === PaymentTransactionStatus.APPROVED) {
+      const reconciled = await reconcileEpaycoBillingByRefPayco(refPayco, invoice);
+      if (reconciled) {
+        return { ok: true, message: "Pago reconciliado vía validación ePayco", status: 200 };
+      }
+    }
+    return { ok: false, message: "Firma ePayco inválida", status: 401 };
+  }
 
   const reconcile = await reconcileTransactionFromWebhook({
     reference: invoice,

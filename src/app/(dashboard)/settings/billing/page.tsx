@@ -28,6 +28,9 @@ type BillingSettingsPageProps = {
     upgrade?: string;
     checkout?: string;
     ref?: string;
+    ref_payco?: string;
+    x_ref_payco?: string;
+    x_id_invoice?: string;
     x_cod_response?: string;
     x_cod_respuesta?: string;
   }>;
@@ -40,10 +43,17 @@ export default async function BillingSettingsPage({
   const params = await searchParams;
   const canManageBilling = hasPermission(user.role as AppUserRole, "billing:manage");
 
-  if (params.paid === "1" && canManageBilling) {
+  const epaycoRefPayco = params.ref_payco ?? params.x_ref_payco;
+  const paymentReference = params.ref ?? params.x_id_invoice;
+  const shouldReconcileReturn =
+    canManageBilling &&
+    (params.paid === "1" || Boolean(epaycoRefPayco) || Boolean(paymentReference));
+
+  if (shouldReconcileReturn) {
     await reconcileBillingPaymentReturnAction({
-      reference: params.ref,
+      reference: paymentReference,
       epaycoResponseCode: params.x_cod_response ?? params.x_cod_respuesta,
+      epaycoRefPayco,
     });
   }
 
@@ -62,9 +72,10 @@ export default async function BillingSettingsPage({
   return (
     <>
       <BillingCheckoutFeedback
-        paid={params.paid === "1"}
-        paymentReference={params.ref}
+        paid={params.paid === "1" || Boolean(epaycoRefPayco)}
+        paymentReference={paymentReference}
         epaycoResponseCode={params.x_cod_response ?? params.x_cod_respuesta}
+        epaycoRefPayco={epaycoRefPayco}
       />
       <BillingDashboard
         data={data}

@@ -111,17 +111,20 @@ export async function getSubscriptionStatusAction() {
 export async function reconcileBillingPaymentReturnAction(input?: {
   reference?: string | null;
   epaycoResponseCode?: string | null;
+  epaycoRefPayco?: string | null;
 }) {
   await requirePermission("billing:manage");
   try {
     const result = await reconcileBillingPaymentOnReturn({
       reference: input?.reference,
       epaycoResponseCode: input?.epaycoResponseCode,
+      epaycoRefPayco: input?.epaycoRefPayco,
     });
     revalidateBilling();
     revalidatePath("/panel");
     revalidatePath("/calendar");
     revalidatePath("/reservations");
+    revalidatePath("/owner-dashboard");
     return result;
   } catch {
     return { ok: false as const, unlocked: false };

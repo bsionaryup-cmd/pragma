@@ -351,10 +351,32 @@ export async function listOwnerClients(
 export async function getOwnerClientDetail(organizationId: string) {
   const org = await db.organization.findUnique({
     where: { id: organizationId },
-    include: {
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      suspendedAt: true,
+      createdAt: true,
       billingAccount: {
-        include: {
-          invoices: { orderBy: { dueAt: "desc" }, take: 10 },
+        select: {
+          plan: true,
+          status: true,
+          trialEndsAt: true,
+          currentPeriodEnd: true,
+          metadata: true,
+          invoices: {
+            orderBy: { dueAt: "desc" },
+            take: 10,
+            select: {
+              id: true,
+              amount: true,
+              currency: true,
+              status: true,
+              dueAt: true,
+              paidAt: true,
+              description: true,
+            },
+          },
         },
       },
       users: {
