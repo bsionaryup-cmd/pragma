@@ -202,7 +202,13 @@ function PropertyWorkstationRow({
           <RateInput value={baseRate} onChange={setBaseRate} canEdit={canEdit} pending={pending} />
         </td>
         <td className={cellClass}>
-          <RateInput value={maxRate} onChange={setMaxRate} canEdit={canEdit} pending={pending} />
+          <RateInput
+            value={maxRate}
+            onChange={setMaxRate}
+            canEdit={canEdit}
+            pending={pending}
+            optional
+          />
         </td>
         <td className={cellClass}>
           <p className="text-base font-semibold tabular-nums text-success">
@@ -389,21 +395,27 @@ function RateInput({
   onChange,
   canEdit,
   pending,
+  optional = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   canEdit: boolean;
   pending: boolean;
+  optional?: boolean;
 }) {
   if (!canEdit) {
-    return <p className="text-base font-semibold tabular-nums">{formatPriceLabsMoney(value || null)}</p>;
+    return (
+      <p className="text-base font-semibold tabular-nums">
+        {value ? formatPriceLabsMoney(value) : "—"}
+      </p>
+    );
   }
   return (
     <Input
       inputMode="numeric"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="0"
+      placeholder={optional ? "Opcional" : "0"}
       className="h-10 w-full min-w-[5.5rem] max-w-[7rem] px-3 text-center text-base font-semibold tabular-nums"
       disabled={pending}
     />
@@ -463,7 +475,9 @@ export function SmartpriceRevenueWorkstation({
                   <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.unit")}</th>
                   <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.min")}</th>
                   <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.base")}</th>
-                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.max")}</th>
+                  <th className="border-b border-border px-3 py-3">
+                    {t("smartprice.pricing.max")} <span className="font-normal normal-case text-muted-foreground">(opc.)</span>
+                  </th>
                   <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.recommended")}</th>
                   <th className="border-b border-border px-3 py-3">Δ</th>
                   {canEdit ? <th className="border-b border-border px-3 py-3" /> : null}

@@ -37,7 +37,6 @@ import {
   listPriceLabsSyncLogs,
 } from "@/services/integrations/pricelabs/pricelabs-audit";
 import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
-import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
 import type { PriceLabsCredentialStatus } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import {
   getPropertyForPriceLabs,
@@ -81,8 +80,10 @@ function readListingInsights(meta: unknown): {
     };
   }
 
-  const formatAmount = (value: number | undefined) =>
-    value != null && Number.isFinite(value) ? String(Math.round(value)) : null;
+  const formatAmount = (value: number | undefined, positiveOnly = false) =>
+    value != null && Number.isFinite(value) && (!positiveOnly || value > 0)
+      ? String(Math.round(value))
+      : null;
 
   const occupancy =
     listing.occupancy != null && Number.isFinite(listing.occupancy)
@@ -91,7 +92,7 @@ function readListingInsights(meta: unknown): {
 
   return {
     minRate: formatAmount(listing.min),
-    maxRate: formatAmount(listing.max),
+    maxRate: formatAmount(listing.max, true),
     listingBase: formatAmount(listing.base),
     revenue: formatAmount(listing.revenue),
     occupancy,
@@ -105,6 +106,18 @@ function parseOptionalRate(value: string | undefined): number | null {
     throw new Error("Precio inválido");
   }
   return Math.round(parsed);
+}
+
+/** Máximo opcional: vacío o ≤0 significa sin tope en PriceLabs. */
+function parseOptionalMaxRate(value: string | undefined): number | null {
+  if (value == null || value.trim() === "") return null;
+  const parsed = Number.parseFloat(value.replace(/,/g, "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed);
+}
+
+function isMeaningfulMaxRate(value: number | null | undefined): value is number {
+  return value != null && value > 0;
 }
 
 function pickSummaryFromDays(days: PriceLabsDailyPrice[]) {
@@ -921,6 +934,109 @@ export async function fetchDynamicPrices(): Promise<
   };
 }
 
+async function refreshPropertyPriceLabsPrices(input: {
+  propertyId: string;
+  scope: TenantDataScope;
+}): Promise<{ ok: boolean; message?: string }> {
+  const property = await getPropertyForPriceLabs(input.propertyId, input.scope);
+  const listingId = property?.priceLabs?.listingId;
+  if (!property || !listingId || !isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Propiedad sin listing vinculado" };
+  }
+
+  if (!isPriceLabsLiveApiEnabled()) {
+    return { ok: true };
+  }
+
+  if (!(await isPriceLabsConfiguredAsync())) {
+    return { ok: false, message: "API key no configurada" };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof PriceLabsConfigError
+          ? error.message
+          : "API deshabilitada",
+    };
+  }
+
+  const listingsApi = await fetchPriceLabsListings();
+  const pmsByListingId = new Map<string, string>();
+  if (listingsApi.ok) {
+    for (const listing of listingsApi.data) {
+      if (listing.pms?.trim()) {
+        pmsByListingId.set(listing.id, listing.pms.trim());
+      }
+    }
+  }
+
+  const { dateFrom, dateTo } = buildPricingDateRange();
+  const pms = resolveListingPms(listingId, property, pmsByListingId);
+
+  resetPriceLabsCircuitBreaker();
+  const api = await fetchPriceLabsListingPrices({
+    listings: [{ id: listingId, dateFrom, dateTo, pms }],
+  });
+
+  if (!api.ok) {
+    await markPropertyPriceLabsError(property.id, api.message);
+    return { ok: false, message: api.message };
+  }
+
+  const row = api.data.find((r) => (r.listing_id ?? r.id) === listingId);
+  if (!row) {
+    return { ok: false, message: "Sin respuesta de precios para el listing" };
+  }
+
+  if (isSkippedListingPriceRow(row)) {
+    return {
+      ok: true,
+      message: row.error ?? "Listing sin datos de precios",
+    };
+  }
+
+  const days = row.data ?? row.prices ?? row.days ?? [];
+  const summary = pickSummaryFromDays(days);
+  const weekendUpliftPct = computeWeekendUpliftPct(days);
+
+  const ov = await fetchPriceLabsOverrides(listingId);
+  const overrides = ov.ok ? ov.data : undefined;
+
+  const priorMeta =
+    property.priceLabs?.meta &&
+    typeof property.priceLabs.meta === "object" &&
+    !Array.isArray(property.priceLabs.meta)
+      ? (property.priceLabs.meta as StoredPriceLabsMeta)
+      : {};
+
+  await upsertPropertyPriceLabsSync({
+    propertyId: property.id,
+    listingId,
+    recommendedRate: summary.recommended,
+    baseRateAtSync:
+      summary.base ??
+      (property.baseRate
+        ? Number.parseFloat(property.baseRate.toString())
+        : null),
+    priceDelta: summary.delta,
+    weekendUpliftPct,
+    syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+    lastError: null,
+    meta: {
+      ...priorMeta,
+      dailyPrices: summary.days,
+      overrides: overrides ?? priorMeta.overrides,
+      lastPricesSync: new Date().toISOString(),
+    },
+  });
+
+  return { ok: true };
+}
+
 export async function savePropertyPriceBoundsFromPanel(input: {
   propertyId: string;
   baseRate?: string;
@@ -941,7 +1057,7 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   try {
     baseRate = parseOptionalRate(input.baseRate);
     minRate = parseOptionalRate(input.minRate);
-    maxRate = parseOptionalRate(input.maxRate);
+    maxRate = parseOptionalMaxRate(input.maxRate);
   } catch (error) {
     return {
       ok: false,
@@ -956,12 +1072,15 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   if (baseRate != null && minRate != null && baseRate < minRate) {
     return { ok: false, message: "La tarifa base no puede ser menor al mínimo" };
   }
-  if (baseRate != null && maxRate != null && baseRate > maxRate) {
+  if (baseRate != null && isMeaningfulMaxRate(maxRate) && baseRate > maxRate) {
     return { ok: false, message: "La tarifa base no puede ser mayor al máximo" };
   }
-  if (minRate != null && maxRate != null && minRate > maxRate) {
+  if (minRate != null && isMeaningfulMaxRate(maxRate) && minRate > maxRate) {
     return { ok: false, message: "El mínimo no puede ser mayor al máximo" };
   }
+
+  const maxCleared =
+    input.maxRate != null && input.maxRate.trim() === "";
 
   const listingId = property.priceLabs?.listingId;
   if (!listingId) {
@@ -1007,7 +1126,7 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     } = { id: listingId, pms };
     if (minRate != null) payload.min = minRate;
     if (baseRate != null) payload.base = baseRate;
-    if (maxRate != null) payload.max = maxRate;
+    if (isMeaningfulMaxRate(maxRate)) payload.max = maxRate;
 
     resetPriceLabsCircuitBreaker();
     const api = await updatePriceLabsListingBounds([payload]);
@@ -1047,10 +1166,18 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   };
 
   if (minRate != null) listing.min = minRate;
-  if (maxRate != null) listing.max = maxRate;
+  if (isMeaningfulMaxRate(maxRate)) {
+    listing.max = maxRate;
+  } else if (maxCleared) {
+    delete listing.max;
+  }
   if (baseRate != null) listing.base = baseRate;
   if (remoteListing?.min != null) listing.min = remoteListing.min;
-  if (remoteListing?.max != null) listing.max = remoteListing.max;
+  if (isMeaningfulMaxRate(remoteListing?.max)) {
+    listing.max = remoteListing.max;
+  } else if (maxCleared) {
+    delete listing.max;
+  }
   if (remoteListing?.base != null) listing.base = remoteListing.base;
 
   const persisted = await upsertPropertyPriceLabsSync({
@@ -1106,7 +1233,19 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   });
 
   if (liveApi) {
-    schedulePriceLabsRefresh("system");
+    const refreshed = await refreshPropertyPriceLabsPrices({
+      propertyId: input.propertyId,
+      scope,
+    });
+    if (!refreshed.ok && refreshed.message) {
+      await appendPriceLabsSyncLog({
+        action: "refresh_property_prices",
+        result: "failure",
+        message: refreshed.message,
+        source: "manual",
+        meta: { propertyId: property.id, listingId },
+      });
+    }
   }
 
   return {
