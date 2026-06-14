@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
+import { assertBillingUnlocked, isBillingLockedError } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { runPriceLabsSyncPipeline } from "@/services/integrations/pricelabs/pricelabs-orchestrator";
@@ -191,8 +191,15 @@ export async function savePropertyPriceBoundsAction(input: {
   minRate?: string;
   maxRate?: string;
 }) {
-  await requireIntegrationsManageUnlocked();
-  const result = await withPriceLabsOrg(() => savePropertyPriceBoundsFromPanel(input));
-  revalidatePriceLabs();
-  return result;
+  try {
+    await requireIntegrationsManageUnlocked();
+    const result = await withPriceLabsOrg(() => savePropertyPriceBoundsFromPanel(input));
+    revalidatePriceLabs();
+    return result;
+  } catch (error) {
+    if (isBillingLockedError(error)) {
+      return { ok: false, message: error.message };
+    }
+    throw error;
+  }
 }

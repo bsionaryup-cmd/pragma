@@ -24,11 +24,11 @@ function Kpi({
   className?: string;
 }) {
   return (
-    <div className="min-w-[5.5rem] shrink-0 rounded-md border border-border/70 bg-muted/20 px-2.5 py-2">
-      <p className="text-[11px] font-medium text-foreground/70">{label}</p>
+    <div className="min-w-[6.5rem] shrink-0 rounded-lg border border-border/70 bg-muted/20 px-3 py-2.5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={cn(
-          "mt-0.5 text-sm font-semibold tabular-nums",
+          "mt-1 text-base font-bold tabular-nums",
           warn && "text-warning",
           className,
         )}
@@ -43,8 +43,8 @@ export function PriceLabsInsightsSection({ overview }: PriceLabsInsightsSectionP
   const { insights, integration, metrics, revenue } = overview;
 
   return (
-    <div className="space-y-2">
-      <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="space-y-3">
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
         <Kpi
           label="Salud pricing"
           value={insights.pricingHealthLabel}
@@ -66,10 +66,7 @@ export function PriceLabsInsightsSection({ overview }: PriceLabsInsightsSectionP
           warn={insights.syncIssues > 0}
         />
         <Kpi label="DSO activos" value={String(insights.activeOverridesTotal)} />
-        <Kpi
-          label="Δ promedio"
-          value={formatPriceLabsMoney(revenue.avgDelta)}
-        />
+        <Kpi label="Δ promedio" value={formatPriceLabsMoney(revenue.avgDelta)} />
         <Kpi
           label="Última sync"
           value={formatPriceLabsDate(integration.lastPricesSyncAt).split(",")[0] ?? "—"}
@@ -79,19 +76,19 @@ export function PriceLabsInsightsSection({ overview }: PriceLabsInsightsSectionP
       {(insights.propertiesWithErrors.length > 0 ||
         insights.stayRuleWarnings > 0 ||
         insights.unmappedListings > 0) && (
-        <div className="space-y-1.5 text-xs">
+        <div className="space-y-2 text-sm">
           {insights.unmappedListings > 0 ? (
-            <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5 text-warning">
+            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
               {insights.unmappedListings} propiedad(es) sin listing mapeado en PriceLabs.
             </p>
           ) : null}
           {insights.propertiesWithErrors.length > 0 ? (
-            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">
               Errores: {insights.propertiesWithErrors.join(" · ")}
             </p>
           ) : null}
           {insights.stayRuleWarnings > 0 ? (
-            <p className="rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-muted-foreground">
+            <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-muted-foreground">
               {insights.stayRuleWarnings} propiedad(es) con reglas de estancia mínima elevadas.
             </p>
           ) : null}

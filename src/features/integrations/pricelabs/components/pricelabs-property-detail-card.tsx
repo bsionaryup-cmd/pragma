@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   Loader2,
@@ -14,7 +15,7 @@ import {
   savePriceLabsOverrideAction,
   savePropertyPriceBoundsAction,
   syncSinglePriceLabsListingAction,
-} from "@/features/integrations/pricelabs/actions/pricelabs.actions";
+} from "@/features/revenue/actions/smartprice.actions";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ export function PriceLabsPropertyDetailCard({
   canManage,
   defaultOpen = false,
 }: PriceLabsPropertyDetailCardProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
   const [pending, startTransition] = useTransition();
   const { insights } = property;
@@ -93,8 +95,12 @@ export function PriceLabsPropertyDetailCard({
     startTransition(async () => {
       try {
         const result = await fn();
-        if (result.ok) toast.success(result.message);
-        else toast.error(result.message);
+        if (result.ok) {
+          toast.success(result.message);
+          router.refresh();
+        } else {
+          toast.error(result.message);
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Error inesperado");
       }
@@ -115,81 +121,81 @@ export function PriceLabsPropertyDetailCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-lg border border-border bg-card transition-colors",
-        open && "ring-1 ring-pragma-electric/20",
+        "overflow-hidden rounded-xl border border-border bg-card shadow-pragma-soft transition-colors",
+        open && "ring-2 ring-pragma-electric/25",
+        property.syncStatus === "ERROR" && "border-destructive/40",
       )}
     >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-muted/20"
+        className="flex w-full items-start gap-4 px-4 py-3.5 text-left hover:bg-muted/20"
       >
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <PropertyIdentity
               name={property.name}
               unitNumber={property.unitNumber}
               listingName={insights.listingName}
               size="sm"
             />
-            <Badge variant="outline" className={syncBadge(property.syncStatus)}>
+            <Badge variant="outline" className={cn("text-xs", syncBadge(property.syncStatus))}>
               {syncStatusLabel(property.syncStatus)}
             </Badge>
             {!property.listingId ? (
-              <Badge variant="outline" className={getSemanticBadgeClass("warning")}>
+              <Badge variant="outline" className={cn("text-xs", getSemanticBadgeClass("warning"))}>
                 Sin mapeo
               </Badge>
             ) : null}
             {insights.overrideCount > 0 ? (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-xs">
                 {insights.overrideCount} DSO
               </Badge>
             ) : null}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-foreground/70">
-            <span>
-              Rec.{" "}
-              <span className="font-semibold tabular-nums text-success">
-                {formatPriceLabsMoney(property.recommendedRate)}
-              </span>
-            </span>
-            <span className={cn("tabular-nums", deltaTone)}>
-              Δ {formatPriceDelta(property.priceDelta)}
-            </span>
-            {property.occupancy ? <span>Occ. {property.occupancy}</span> : null}
-            {property.weekendUpliftPct ? (
-              <span>Wknd +{property.weekendUpliftPct}%</span>
-            ) : null}
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-5">
+            <BoundStat label="Mín" value={formatPriceLabsMoney(property.minRate)} />
+            <BoundStat label="Base" value={formatPriceLabsMoney(property.baseRate)} />
+            <BoundStat label="Máx" value={formatPriceLabsMoney(property.maxRate)} />
+            <BoundStat
+              label="Recomendado"
+              value={formatPriceLabsMoney(property.recommendedRate)}
+              highlight
+            />
+            <BoundStat
+              label="Δ vs base"
+              value={formatPriceDelta(property.priceDelta)}
+              tone={deltaTone}
+            />
           </div>
         </div>
         <ChevronDown
           className={cn(
-            "mt-1 h-4 w-4 shrink-0 text-foreground/70 transition",
+            "mt-2 h-5 w-5 shrink-0 text-foreground/70 transition",
             open && "rotate-180",
           )}
         />
       </button>
 
       {open ? (
-        <div className="space-y-4 border-t border-border/60 px-3 py-3">
+        <div className="space-y-5 border-t border-border/60 px-4 py-4">
           {property.lastError ? (
-            <p className="rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-2 text-xs text-destructive">
+            <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
               {property.lastError}
             </p>
           ) : null}
 
-          <section className="space-y-2">
+          <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-foreground/70">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">
                 Límites de precio
               </h4>
               {canManage ? (
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="h-7 gap-1 px-2 text-xs"
-                  disabled={pending}
+                  className="h-9 gap-1.5 px-3 text-sm font-semibold"
+                  disabled={pending || !property.listingId}
                   onClick={() =>
                     run(() =>
                       savePropertyPriceBoundsAction({
@@ -201,31 +207,33 @@ export function PriceLabsPropertyDetailCard({
                     )
                   }
                 >
-                  <Save className="h-3 w-3" />
-                  Guardar
+                  <Save className="h-4 w-4" />
+                  Guardar y sincronizar
                 </Button>
               ) : null}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-3">
               {(
                 [
-                  ["Mín", minRate, setMinRate],
+                  ["Mínimo", minRate, setMinRate],
                   ["Base", baseRate, setBaseRate],
-                  ["Máx", maxRate, setMaxRate],
+                  ["Máximo", maxRate, setMaxRate],
                 ] as const
               ).map(([label, value, onChange]) => (
                 <div key={label}>
-                  <p className="mb-1 text-[10px] text-foreground/70">{label}</p>
+                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                  </p>
                   {canManage ? (
                     <Input
                       inputMode="numeric"
                       value={value}
                       onChange={(e) => onChange(e.target.value)}
-                      className="h-8 px-2 text-center text-xs tabular-nums"
+                      className="h-10 px-3 text-center text-base font-semibold tabular-nums"
                       disabled={pending}
                     />
                   ) : (
-                    <p className="text-sm font-medium tabular-nums">
+                    <p className="text-base font-semibold tabular-nums">
                       {formatPriceLabsMoney(value || null)}
                     </p>
                   )}
@@ -437,6 +445,35 @@ export function PriceLabsPropertyDetailCard({
           </section>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function BoundStat({
+  label,
+  value,
+  highlight,
+  tone,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  tone?: string;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p
+        className={cn(
+          "text-sm font-semibold tabular-nums sm:text-base",
+          highlight && "text-success",
+          tone,
+        )}
+      >
+        {value}
+      </p>
     </div>
   );
 }

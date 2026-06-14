@@ -1,19 +1,28 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Save } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { savePropertyPriceBoundsAction } from "@/features/revenue/actions/smartprice.actions";
 import {
   formatCalendarUnitDisplay,
   resolveCalendarUnitLabel,
 } from "@/features/calendar/lib/property-unit";
+import {
+  formatPriceDelta,
+  formatPriceLabsMoney,
+  syncStatusLabel,
+} from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { sortPropertiesByUnitNumber } from "@/lib/property-display";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getSemanticBadgeClass } from "@/lib/ui/status-badge-styles";
 import { useI18n } from "@/components/providers/i18n-provider";
+import { cn } from "@/lib/utils";
 
 type PropertyRow = PriceLabsOverviewDto["properties"][number];
 
@@ -23,15 +32,15 @@ type SmartpricePropertyPricingSectionProps = {
   billingLocked: boolean;
 };
 
-function formatMoney(value: string | null, currency = "COP") {
-  if (!value) return "—";
-  const amount = Number.parseFloat(value);
-  if (!Number.isFinite(amount)) return "—";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
+function syncBadgeClass(status: PropertyRow["syncStatus"]) {
+  switch (status) {
+    case "SYNCED":
+      return getSemanticBadgeClass("success");
+    case "ERROR":
+      return getSemanticBadgeClass("warning");
+    default:
+      return getSemanticBadgeClass("neutral");
+  }
 }
 
 function resolveUnitNumber(property: PropertyRow): string {
@@ -40,7 +49,7 @@ function resolveUnitNumber(property: PropertyRow): string {
     unitNumber: property.unitNumber,
     listingName: property.insights.listingName,
   });
-  return unitLabel ? formatCalendarUnitDisplay(unitLabel) : "—";
+  return unitLabel ? formatCalendarUnitDisplay(unitLabel) : property.name;
 }
 
 function PropertyPricingRow({
@@ -51,14 +60,28 @@ function PropertyPricingRow({
   canEdit: boolean;
 }) {
   const { t } = useI18n();
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
   const [minRate, setMinRate] = useState(property.minRate ?? "");
   const [baseRate, setBaseRate] = useState(property.baseRate ?? "");
   const [maxRate, setMaxRate] = useState(property.maxRate ?? "");
   const unitNumber = resolveUnitNumber(property);
 
+  const deltaNum =
+    property.priceDelta != null ? Number.parseFloat(property.priceDelta) : null;
+  const deltaTone =
+    deltaNum != null && Number.isFinite(deltaNum)
+      ? deltaNum > 1
+        ? "text-warning"
+        : deltaNum < -1
+          ? "text-sky-700"
+          : "text-foreground/80"
+      : "text-foreground/70";
+
   const onSave = () => {
     startTransition(async () => {
+      setSaved(false);
       try {
         const result = await savePropertyPriceBoundsAction({
           propertyId: property.id,
@@ -66,71 +89,103 @@ function PropertyPricingRow({
           baseRate,
           maxRate,
         });
-        if (result.ok) toast.success(result.message);
-        else toast.error(result.message);
+        if (result.ok) {
+          toast.success(result.message);
+          setSaved(true);
+          router.refresh();
+        } else {
+          toast.error(result.message);
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Error inesperado");
       }
     });
   };
 
-const cellClass = "px-1.5 py-1 text-center";
+  const cellClass = "px-3 py-3 align-middle";
 
   return (
-    <tr className="border-b border-border/50 last:border-0">
+    <tr
+      className={cn(
+        "border-b border-border/60 transition-colors last:border-0",
+        property.syncStatus === "ERROR" && "bg-destructive/5",
+        !property.listingId && "bg-warning/5",
+      )}
+    >
       <td className={cellClass}>
-        <div className="mx-auto max-w-[7rem] text-center">
-          <p className="text-sm font-bold tabular-nums text-foreground">
-            {unitNumber}
-          </p>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-            {property.name}
-          </p>
+        <div className="min-w-[7rem]">
+          <p className="text-base font-bold tabular-nums text-foreground">{unitNumber}</p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{property.name}</p>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            <Badge variant="outline" className={cn("text-[11px]", syncBadgeClass(property.syncStatus))}>
+              {syncStatusLabel(property.syncStatus)}
+            </Badge>
+            {!property.listingId ? (
+              <Badge variant="outline" className={cn("text-[11px]", getSemanticBadgeClass("warning"))}>
+                Sin mapeo
+              </Badge>
+            ) : null}
+          </div>
         </div>
       </td>
       <td className={cellClass}>
         <RateCell
           value={minRate}
-          display={formatMoney(property.minRate)}
+          display={formatPriceLabsMoney(property.minRate)}
           onChange={setMinRate}
           canEdit={canEdit}
           pending={pending}
+          label={t("smartprice.pricing.min")}
         />
       </td>
       <td className={cellClass}>
         <RateCell
           value={baseRate}
-          display={formatMoney(property.baseRate)}
+          display={formatPriceLabsMoney(property.baseRate)}
           onChange={setBaseRate}
           canEdit={canEdit}
           pending={pending}
+          label={t("smartprice.pricing.base")}
         />
       </td>
       <td className={cellClass}>
         <RateCell
           value={maxRate}
-          display={formatMoney(property.maxRate)}
+          display={formatPriceLabsMoney(property.maxRate)}
           onChange={setMaxRate}
           canEdit={canEdit}
           pending={pending}
+          label={t("smartprice.pricing.max")}
         />
       </td>
       <td className={cellClass}>
-        <p className="text-sm tabular-nums text-success">
-          {formatMoney(property.recommendedRate)}
+        <p className="text-base font-semibold tabular-nums text-success">
+          {formatPriceLabsMoney(property.recommendedRate)}
         </p>
+        <p className="text-[11px] text-muted-foreground">{t("smartprice.pricing.recommended")}</p>
+      </td>
+      <td className={cellClass}>
+        <p className={cn("text-base font-semibold tabular-nums", deltaTone)}>
+          {formatPriceDelta(property.priceDelta)}
+        </p>
+        <p className="text-[11px] text-muted-foreground">vs base</p>
       </td>
       {canEdit ? (
         <td className={cellClass}>
           <Button
             type="button"
             size="sm"
-            variant="outline"
-            disabled={pending}
+            disabled={pending || !property.listingId}
             onClick={onSave}
-            className="h-7 gap-1 px-2 text-xs"
+            className="h-9 min-w-[5.5rem] gap-1.5 px-3 text-sm font-semibold"
           >
-            <Save className="h-3 w-3" />
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : saved ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
             {t("common.save")}
           </Button>
         </td>
@@ -145,27 +200,42 @@ function RateCell({
   onChange,
   canEdit,
   pending,
+  label,
 }: {
   value: string;
   display: string;
   onChange: (value: string) => void;
   canEdit: boolean;
   pending: boolean;
+  label: string;
 }) {
   if (canEdit) {
     return (
-      <Input
-        inputMode="numeric"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="0"
-        className="mx-auto h-7 w-full max-w-[5rem] px-1.5 text-center text-sm tabular-nums"
-        disabled={pending}
-      />
+      <div>
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {label}
+        </p>
+        <Input
+          inputMode="numeric"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="0"
+          aria-label={label}
+          className="h-10 w-full min-w-[5.5rem] max-w-[7rem] border-border/80 bg-background px-3 text-center text-base font-semibold tabular-nums shadow-sm"
+          disabled={pending}
+        />
+      </div>
     );
   }
 
-  return <p className="text-sm tabular-nums">{display}</p>;
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="text-base font-semibold tabular-nums">{display}</p>
+    </div>
+  );
 }
 
 export function SmartpricePropertyPricingSection({
@@ -190,31 +260,28 @@ export function SmartpricePropertyPricingSection({
   );
 
   return (
-    <Card>
-      <CardHeader className="pb-2 text-center">
-        <CardTitle className="text-base">{t("smartprice.pricing.title")}</CardTitle>
-        <p className="text-xs text-muted-foreground">
-          {t("smartprice.pricing.description")}
-        </p>
+    <Card className="border-border/80 shadow-pragma-soft">
+      <CardHeader className="border-b border-border/60 bg-muted/15 pb-4">
+        <CardTitle className="text-lg font-semibold">{t("smartprice.pricing.title")}</CardTitle>
+        <p className="text-sm text-muted-foreground">{t("smartprice.pricing.description")}</p>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="p-0">
         {sortedProperties.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
             {t("smartprice.pricing.empty")}
           </p>
         ) : (
-          <div className="mx-auto overflow-x-auto rounded-xl border border-border/70">
-            <table className="mx-auto w-full min-w-[440px] max-w-2xl border-separate border-spacing-0 text-center text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-separate border-spacing-0 text-left text-sm">
               <thead>
-                <tr className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="border-b border-border px-1.5 py-1 font-medium text-black">
-                    {t("smartprice.pricing.unit")}
-                  </th>
-                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.min")}</th>
-                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.base")}</th>
-                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.max")}</th>
-                  <th className="border-b border-border px-1.5 py-1 font-medium">{t("smartprice.pricing.recommended")}</th>
-                  {canEdit ? <th className="border-b border-border px-1.5 py-1 font-medium" /> : null}
+                <tr className="bg-muted/25 text-xs font-semibold uppercase tracking-wide text-foreground">
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.unit")}</th>
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.min")}</th>
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.base")}</th>
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.max")}</th>
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.recommended")}</th>
+                  <th className="border-b border-border px-3 py-3">Δ</th>
+                  {canEdit ? <th className="border-b border-border px-3 py-3" /> : null}
                 </tr>
               </thead>
               <tbody>

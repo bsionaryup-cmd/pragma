@@ -1,6 +1,6 @@
 import { OrganizationIntegrationStatus, PropertyPriceLabsSyncStatus } from "@prisma/client";
 import { assertPriceLabsLiveOrThrow, PriceLabsConfigError } from "@/integrations/pricelabs/auth";
-import { fetchPriceLabsListings } from "@/integrations/pricelabs/listings";
+import { fetchPriceLabsListings, updatePriceLabsListingBounds } from "@/integrations/pricelabs/listings";
 import { fetchPriceLabsNeighborhoodData } from "@/integrations/pricelabs/neighborhood";
 import { fetchPriceLabsOverrides, upsertPriceLabsOverrides, deletePriceLabsOverrides } from "@/integrations/pricelabs/overrides";
 import {
@@ -37,6 +37,7 @@ import {
   listPriceLabsSyncLogs,
 } from "@/services/integrations/pricelabs/pricelabs-audit";
 import { getPriceLabsSchemaSetupHint } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
+import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
 import type { PriceLabsCredentialStatus } from "@/services/integrations/pricelabs/pricelabs-credentials";
 import {
   getPropertyForPriceLabs,
@@ -934,9 +935,23 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     return { ok: false, message: "Propiedad no encontrada" };
   }
 
-  const baseRate = parseOptionalRate(input.baseRate);
-  const minRate = parseOptionalRate(input.minRate);
-  const maxRate = parseOptionalRate(input.maxRate);
+  let baseRate: number | null;
+  let minRate: number | null;
+  let maxRate: number | null;
+  try {
+    baseRate = parseOptionalRate(input.baseRate);
+    minRate = parseOptionalRate(input.minRate);
+    maxRate = parseOptionalRate(input.maxRate);
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Precio inválido",
+    };
+  }
+
+  if (baseRate == null && minRate == null && maxRate == null) {
+    return { ok: false, message: "Indica al menos un límite de precio" };
+  }
 
   if (baseRate != null && minRate != null && baseRate < minRate) {
     return { ok: false, message: "La tarifa base no puede ser menor al mínimo" };
@@ -948,6 +963,76 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     return { ok: false, message: "El mínimo no puede ser mayor al máximo" };
   }
 
+  const listingId = property.priceLabs?.listingId;
+  if (!listingId) {
+    return { ok: false, message: "Propiedad sin listing de PriceLabs vinculado" };
+  }
+  if (!isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Listing ID inválido. Ejecuta sync listings." };
+  }
+
+  const liveApi = isPriceLabsLiveApiEnabled();
+  let remoteListing:
+    | {
+        min?: number;
+        base?: number;
+        max?: number;
+      }
+    | null = null;
+
+  if (liveApi) {
+    if (!(await isPriceLabsConfiguredAsync())) {
+      return { ok: false, message: "Configura la API key de PriceLabs" };
+    }
+
+    try {
+      assertPriceLabsLiveOrThrow();
+    } catch (error) {
+      return {
+        ok: false,
+        message:
+          error instanceof PriceLabsConfigError
+            ? error.message
+            : "API de PriceLabs deshabilitada",
+      };
+    }
+
+    const pms = resolveListingPms(listingId, property, new Map());
+    const payload: {
+      id: string;
+      pms: string;
+      min?: number;
+      base?: number;
+      max?: number;
+    } = { id: listingId, pms };
+    if (minRate != null) payload.min = minRate;
+    if (baseRate != null) payload.base = baseRate;
+    if (maxRate != null) payload.max = maxRate;
+
+    resetPriceLabsCircuitBreaker();
+    const api = await updatePriceLabsListingBounds([payload]);
+    if (!api.ok) {
+      await markPropertyPriceLabsError(property.id, api.message);
+      await appendPriceLabsSyncLog({
+        action: "update_listing_bounds",
+        result: "failure",
+        message: api.message,
+        source: "manual",
+        meta: {
+          propertyId: property.id,
+          listingId,
+          endpoint: "POST /v1/listings",
+          payload,
+          httpStatus: api.status,
+          code: api.code,
+        },
+      });
+      return { ok: false, message: api.message };
+    }
+
+    remoteListing = api.data.find((row) => row.id === listingId) ?? api.data[0] ?? null;
+  }
+
   if (baseRate != null) {
     await db.property.updateMany({
       where: { id: input.propertyId, ...propertyWhere(scope) },
@@ -956,7 +1041,6 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   }
 
   const existingMeta = (property.priceLabs?.meta as StoredPriceLabsMeta | null) ?? {};
-  const listingId = property.priceLabs?.listingId ?? input.propertyId;
   const listing = {
     ...(existingMeta.listing ?? { id: listingId }),
     id: listingId,
@@ -965,8 +1049,11 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   if (minRate != null) listing.min = minRate;
   if (maxRate != null) listing.max = maxRate;
   if (baseRate != null) listing.base = baseRate;
+  if (remoteListing?.min != null) listing.min = remoteListing.min;
+  if (remoteListing?.max != null) listing.max = remoteListing.max;
+  if (remoteListing?.base != null) listing.base = remoteListing.base;
 
-  await upsertPropertyPriceLabsSync({
+  const persisted = await upsertPropertyPriceLabsSync({
     propertyId: input.propertyId,
     listingId,
     recommendedRate: property.priceLabs?.recommendedRate
@@ -981,16 +1068,53 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     weekendUpliftPct: property.priceLabs?.weekendUpliftPct
       ? Number.parseFloat(property.priceLabs.weekendUpliftPct.toString())
       : null,
-    syncStatus:
-      property.priceLabs?.syncStatus ?? PropertyPriceLabsSyncStatus.PENDING,
-    lastError: property.priceLabs?.lastError ?? null,
+    syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+    lastError: null,
     meta: {
       ...existingMeta,
       listing,
+      lastListingRefresh: new Date().toISOString(),
+      lastBoundsUpdate: new Date().toISOString(),
     },
   });
 
-  return { ok: true, message: "Límites de precio guardados" };
+  if (persisted === null) {
+    return {
+      ok: false,
+      message:
+        "No se pudo persistir en base de datos. Verifica el esquema PriceLabs.",
+    };
+  }
+
+  await appendPriceLabsSyncLog({
+    action: "update_listing_bounds",
+    result: "success",
+    message: liveApi
+      ? `Límites sincronizados para ${property.name}`
+      : `Límites guardados localmente (simulación) para ${property.name}`,
+    source: "manual",
+    meta: {
+      propertyId: property.id,
+      listingId,
+      min: minRate,
+      base: baseRate,
+      max: maxRate,
+      mode: liveApi ? "live" : "dry-run",
+      endpoint: liveApi ? "POST /v1/listings" : null,
+      remote: remoteListing,
+    },
+  });
+
+  if (liveApi) {
+    schedulePriceLabsRefresh("system");
+  }
+
+  return {
+    ok: true,
+    message: liveApi
+      ? "Límites guardados y sincronizados con PriceLabs"
+      : "Límites guardados localmente (modo simulación — no enviado a PriceLabs)",
+  };
 }
 
 function normalizeOverrideDate(value: string): string {
