@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { isPriceLabsSchemaDriftError } from "@/services/integrations/pricelabs/pricelabs-prisma-guard";
 import { getPriceLabsOrganizationId } from "@/services/integrations/pricelabs/pricelabs-org-context";
 
-export type PriceLabsAuditResult = "success" | "failure" | "skipped";
+export type PriceLabsAuditResult = "success" | "failure" | "skipped" | "warning";
 
 export type PriceLabsAuditSource =
   | "manual"

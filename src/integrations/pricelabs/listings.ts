@@ -10,7 +10,8 @@ export type PriceLabsListingBoundsUpdate = {
   pms: string;
   min?: number;
   base?: number;
-  max?: number;
+  /** `null` solicita eliminar el tope en PriceLabs. */
+  max?: number | null;
 };
 
 /** GET /v1/listings — pull account listings from PriceLabs. */

@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useMemo, useState, useTransition } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Check,
   ChevronDown,
@@ -29,6 +30,16 @@ import {
   syncStatusLabel,
 } from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
+import {
+  isRevenuePropertyAnomaly,
+  parsePropertyDelta,
+  propertyMatchesSearch,
+} from "@/features/revenue/lib/revenue-property-anomaly";
+import {
+  formatMinStayLabel,
+  resolveRevenueDisplayPrice,
+  type CalendarDayPreview,
+} from "@/features/revenue/lib/revenue-display-pricing";
 import { sortPropertiesByUnitNumber } from "@/lib/property-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +56,7 @@ type SmartpriceRevenueWorkstationProps = {
   canEditPrices: boolean;
   billingLocked: boolean;
   reviewPropertyIds: string[];
+  searchQuery?: string;
 };
 
 function syncBadgeClass(status: PropertyRow["syncStatus"]) {
@@ -70,17 +82,15 @@ function resolveUnitNumber(property: PropertyRow): string {
 function PropertyWorkstationRow({
   property,
   canEdit,
-  defaultExpanded,
 }: {
   property: PropertyRow;
   canEdit: boolean;
-  defaultExpanded: boolean;
 }) {
   const { t } = useI18n();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(false);
   const [minRate, setMinRate] = useState(property.minRate ?? "");
   const [baseRate, setBaseRate] = useState(property.baseRate ?? "");
   const [maxRate, setMaxRate] = useState(property.maxRate ?? "");
@@ -89,11 +99,33 @@ function PropertyWorkstationRow({
   const [overrideMinStay, setOverrideMinStay] = useState("");
   const [overrideMinPrice, setOverrideMinPrice] = useState("");
   const [overrideMaxPrice, setOverrideMaxPrice] = useState("");
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const { insights } = property;
   const unitNumber = resolveUnitNumber(property);
+  const displayPrice = useMemo(
+    () => resolveRevenueDisplayPrice(property),
+    [property],
+  );
 
-  const deltaNum =
-    property.priceDelta != null ? Number.parseFloat(property.priceDelta) : null;
+  const applyDayToAdjustment = (day: CalendarDayPreview) => {
+    setSelectedDay(day.date);
+    setOverrideDate(day.date);
+    if (day.recommended != null) {
+      setOverridePrice(String(Math.round(day.recommended)));
+    }
+    if (day.minStay != null && day.minStay > 0) {
+      setOverrideMinStay(String(day.minStay));
+    }
+  };
+
+  useEffect(() => {
+    setMinRate(property.minRate ?? "");
+    setBaseRate(property.baseRate ?? "");
+    setMaxRate(property.maxRate ?? "");
+    setSaved(false);
+  }, [property.id, property.minRate, property.baseRate, property.maxRate]);
+
+  const deltaNum = displayPrice.delta;
   const deltaTone =
     deltaNum != null && Number.isFinite(deltaNum)
       ? deltaNum > 1
@@ -102,6 +134,16 @@ function PropertyWorkstationRow({
           ? "text-sky-700"
           : "text-foreground/80"
       : "text-foreground/70";
+
+  const displayDelta =
+    deltaNum != null && Number.isFinite(deltaNum)
+      ? formatPriceDelta(String(deltaNum))
+      : formatPriceDelta(property.priceDelta);
+
+  const displayRecommended =
+    displayPrice.recommended != null
+      ? formatPriceLabsMoney(String(displayPrice.recommended))
+      : formatPriceLabsMoney(property.recommendedRate);
 
   const run = (fn: () => Promise<{ ok: boolean; message: string }>) => {
     startTransition(async () => {
@@ -159,7 +201,7 @@ function PropertyWorkstationRow({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             className="rounded-md p-1 hover:bg-muted/40"
-            aria-label={expanded ? "Ocultar detalle" : "Ver calendario y overrides"}
+            aria-label={expanded ? "Ocultar detalle" : "Ver calendario y ajustes por fecha"}
           >
             <ChevronDown
               className={cn("h-4 w-4 transition", expanded && "rotate-180")}
@@ -171,9 +213,11 @@ function PropertyWorkstationRow({
             <p className="text-base font-bold tabular-nums">{unitNumber}</p>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{property.name}</p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              <Badge variant="outline" className={cn("text-[11px]", syncBadgeClass(property.syncStatus))}>
-                {syncStatusLabel(property.syncStatus)}
-              </Badge>
+              {property.syncStatus !== "SYNCED" ? (
+                <Badge variant="outline" className={cn("text-[11px]", syncBadgeClass(property.syncStatus))}>
+                  {syncStatusLabel(property.syncStatus)}
+                </Badge>
+              ) : null}
               {!property.listingId ? (
                 <Badge variant="outline" className={cn("text-[11px]", getSemanticBadgeClass("warning"))}>
                   Sin mapeo
@@ -181,12 +225,26 @@ function PropertyWorkstationRow({
               ) : null}
               {insights.overrideCount > 0 ? (
                 <Badge variant="outline" className="text-[11px]">
-                  {insights.overrideCount} DSO
+                  {t("smartprice.pricing.badgeAdjustments", {
+                    count: insights.overrideCount,
+                  })}
+                </Badge>
+              ) : null}
+              {insights.minStayToday != null && insights.minStayToday > 1 ? (
+                <Badge
+                  variant="outline"
+                  className="border-pragma-electric/40 bg-pragma-soft-cyan/25 text-[11px] font-semibold text-pragma-electric"
+                >
+                  {t("smartprice.pricing.badgeMinStayToday", {
+                    count: insights.minStayToday,
+                  })}
                 </Badge>
               ) : null}
               {insights.maxMinStayNext14 != null && insights.maxMinStayNext14 >= 3 ? (
                 <Badge variant="outline" className="text-[11px] text-warning">
-                  Min {insights.maxMinStayNext14}n
+                  {t("smartprice.pricing.badgeMinStay", {
+                    count: insights.maxMinStayNext14,
+                  })}
                 </Badge>
               ) : null}
             </div>
@@ -211,14 +269,26 @@ function PropertyWorkstationRow({
           />
         </td>
         <td className={cellClass}>
-          <p className="text-base font-semibold tabular-nums text-success">
-            {formatPriceLabsMoney(property.recommendedRate)}
-          </p>
+          <div>
+            <p className="text-base font-semibold tabular-nums text-success">
+              {displayRecommended}
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {displayPrice.dateLabel
+                ? `${displayPrice.dateLabel} · ${t("smartprice.pricing.recommendedHint")}`
+                : t("smartprice.pricing.recommendedHint")}
+            </p>
+          </div>
         </td>
         <td className={cellClass}>
-          <p className={cn("text-base font-semibold tabular-nums", deltaTone)}>
-            {formatPriceDelta(property.priceDelta)}
-          </p>
+          <div>
+            <p className={cn("text-base font-semibold tabular-nums", deltaTone)}>
+              {displayDelta}
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {t("smartprice.pricing.differenceHint")}
+            </p>
+          </div>
         </td>
         {canEdit ? (
           <td className={cellClass}>
@@ -247,32 +317,87 @@ function PropertyWorkstationRow({
           <td colSpan={canEdit ? 8 : 7} className="px-4 py-4">
             <div className="grid gap-4 lg:grid-cols-2">
               <section className="space-y-2">
-                <h4 className="text-sm font-semibold text-foreground">Calendario · 14 días</h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {t("smartprice.pricing.calendarTitle")}
+                  </h4>
+                  <Link
+                    href="/calendar"
+                    className="text-xs font-semibold text-pragma-electric hover:underline"
+                  >
+                    {t("smartprice.pricing.calendarFullLink")}
+                  </Link>
+                </div>
+                {canEdit && property.listingId ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("smartprice.pricing.calendarDayHint")}
+                  </p>
+                ) : null}
                 {insights.hasDailyPrices ? (
                   <div className="grid grid-cols-7 gap-1.5">
-                    {insights.next14Days.map((day) => (
-                      <div
-                        key={day.date}
-                        className={cn(
-                          "rounded-md border px-1.5 py-2 text-center text-xs",
-                          day.hasOverride && "border-pragma-cyan/40 bg-pragma-soft-cyan/20",
-                          !day.hasOverride && demandLevelClass(day.demandLevel),
-                        )}
-                        title={day.pricingReason ?? day.demandLevel ?? undefined}
-                      >
-                        <p className="font-medium">{formatShortDate(day.date)}</p>
-                        <p className="mt-0.5 tabular-nums font-semibold text-success">
-                          {formatPriceLabsMoney(day.recommended)}
-                        </p>
-                        {day.minStay != null && day.minStay > 1 ? (
-                          <p className="text-[10px] text-muted-foreground">{day.minStay}n</p>
-                        ) : null}
-                      </div>
-                    ))}
+                    {insights.next14Days.slice(0, 7).map((day) => {
+                      const minLabel = formatMinStayLabel(day.minStay);
+                      const elevatedMin = day.minStay != null && day.minStay > 1;
+                      const isSelected = selectedDay === day.date;
+                      const cellClassName = cn(
+                        "rounded-lg border px-1.5 py-2 text-center text-xs transition-colors",
+                        day.hasOverride &&
+                          "border-pragma-cyan/50 bg-pragma-soft-cyan/30 ring-1 ring-pragma-cyan/20",
+                        !day.hasOverride && demandLevelClass(day.demandLevel),
+                        elevatedMin &&
+                          !day.hasOverride &&
+                          "border-pragma-electric/35 bg-pragma-soft-cyan/15",
+                        isSelected && "ring-2 ring-pragma-electric",
+                        canEdit &&
+                          property.listingId &&
+                          "cursor-pointer hover:border-pragma-electric/60 hover:bg-pragma-soft-cyan/25",
+                      );
+                      const inner = (
+                        <>
+                          <p className="font-medium">{formatShortDate(day.date)}</p>
+                          <p className="mt-0.5 tabular-nums font-semibold text-success">
+                            {formatPriceLabsMoney(
+                              day.recommended != null ? String(day.recommended) : null,
+                            )}
+                          </p>
+                          {minLabel ? (
+                            <p
+                              className={cn(
+                                "mt-1 rounded-full px-1 py-0.5 text-[10px] font-semibold leading-tight",
+                                elevatedMin
+                                  ? "bg-pragma-electric/10 text-pragma-electric"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {minLabel}
+                            </p>
+                          ) : null}
+                        </>
+                      );
+                      return canEdit && property.listingId ? (
+                        <button
+                          key={day.date}
+                          type="button"
+                          className={cellClassName}
+                          title={day.pricingReason ?? day.demandLevel ?? undefined}
+                          onClick={() => applyDayToAdjustment(day)}
+                        >
+                          {inner}
+                        </button>
+                      ) : (
+                        <div
+                          key={day.date}
+                          className={cellClassName}
+                          title={day.pricingReason ?? day.demandLevel ?? undefined}
+                        >
+                          {inner}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Sin precios diarios sincronizados. Usa Integraciones → Sync precios.
+                    {t("smartprice.pricing.calendarEmpty")}
                   </p>
                 )}
               </section>
@@ -280,7 +405,9 @@ function PropertyWorkstationRow({
               {property.listingId && canEdit ? (
                 <section className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <h4 className="text-sm font-semibold text-foreground">Override / DSO</h4>
+                    <h4 className="text-sm font-semibold text-foreground">
+                      {t("smartprice.pricing.adjustmentsTitle")}
+                    </h4>
                     <Button
                       type="button"
                       size="sm"
@@ -290,41 +417,77 @@ function PropertyWorkstationRow({
                       onClick={() => run(() => syncSinglePriceLabsListingAction(property.id))}
                     >
                       <RefreshCw className="h-3 w-3" />
-                      Re-sync
+                      {t("smartprice.pricing.refreshListing")}
                     </Button>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-5">
-                    <Input
-                      type="date"
-                      value={overrideDate}
-                      onChange={(e) => setOverrideDate(e.target.value)}
-                      className="h-9 text-sm sm:col-span-2"
-                      disabled={pending}
-                    />
-                    <Input
-                      inputMode="numeric"
-                      placeholder="Precio"
-                      value={overridePrice}
-                      onChange={(e) => setOverridePrice(e.target.value)}
-                      className="h-9 text-sm"
-                      disabled={pending}
-                    />
-                    <Input
-                      inputMode="numeric"
-                      placeholder="Min noches"
-                      value={overrideMinStay}
-                      onChange={(e) => setOverrideMinStay(e.target.value)}
-                      className="h-9 text-sm"
-                      disabled={pending}
-                    />
-                    <Input
-                      inputMode="numeric"
-                      placeholder="Min $"
-                      value={overrideMinPrice}
-                      onChange={(e) => setOverrideMinPrice(e.target.value)}
-                      className="h-9 text-sm"
-                      disabled={pending}
-                    />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t("smartprice.pricing.fields.date")}
+                      </label>
+                      <Input
+                        type="date"
+                        value={overrideDate}
+                        onChange={(e) => {
+                          setOverrideDate(e.target.value);
+                          setSelectedDay(e.target.value || null);
+                        }}
+                        className="h-9 text-sm"
+                        disabled={pending}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t("smartprice.pricing.fields.price")}
+                      </label>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={overridePrice}
+                        onChange={(e) => setOverridePrice(e.target.value)}
+                        className="h-9 text-sm"
+                        disabled={pending}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t("smartprice.pricing.fields.minNights")}
+                      </label>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="1"
+                        value={overrideMinStay}
+                        onChange={(e) => setOverrideMinStay(e.target.value)}
+                        className="h-9 text-sm"
+                        disabled={pending}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t("smartprice.pricing.fields.minPrice")}
+                      </label>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={overrideMinPrice}
+                        onChange={(e) => setOverrideMinPrice(e.target.value)}
+                        className="h-9 text-sm"
+                        disabled={pending}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        {t("smartprice.pricing.fields.maxPrice")}
+                      </label>
+                      <Input
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={overrideMaxPrice}
+                        onChange={(e) => setOverrideMaxPrice(e.target.value)}
+                        className="h-9 text-sm"
+                        disabled={pending}
+                      />
+                    </div>
                   </div>
                   <Button
                     type="button"
@@ -343,7 +506,7 @@ function PropertyWorkstationRow({
                       )
                     }
                   >
-                    Guardar override
+                    {t("smartprice.pricing.saveAdjustment")}
                   </Button>
                   {insights.upcomingOverrides.length > 0 ? (
                     <ul className="divide-y divide-border/60 overflow-hidden rounded-lg border">
@@ -354,8 +517,10 @@ function PropertyWorkstationRow({
                         >
                           <span className="font-medium">{formatShortDate(row.date)}</span>
                           <span className="text-muted-foreground">
-                            {row.price != null ? formatPriceLabsMoney(row.price) : "—"}
-                            {row.minStay != null ? ` · ${row.minStay}n` : ""}
+                            {row.price != null ? formatPriceLabsMoney(String(row.price)) : "—"}
+                            {row.minStay != null
+                              ? ` · ${formatMinStayLabel(row.minStay) ?? ""}`
+                              : ""}
                           </span>
                           <Button
                             type="button"
@@ -378,7 +543,9 @@ function PropertyWorkstationRow({
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-muted-foreground">Sin overrides próximos.</p>
+                    <p className="text-sm text-muted-foreground">
+                      {t("smartprice.pricing.adjustmentsEmpty")}
+                    </p>
                   )}
                 </section>
               ) : null}
@@ -426,45 +593,71 @@ export function SmartpriceRevenueWorkstation({
   properties,
   canEditPrices,
   billingLocked,
-  reviewPropertyIds,
+  searchQuery = "",
 }: SmartpriceRevenueWorkstationProps) {
   const { t } = useI18n();
   const canEdit = canEditPrices && !billingLocked;
-  const review = useMemo(() => new Set(reviewPropertyIds), [reviewPropertyIds]);
+  const [anomaliesOnly, setAnomaliesOnly] = useState(true);
 
-  const sortedProperties = useMemo(
-    () =>
-      sortPropertiesByUnitNumber(properties, (property) => ({
+  const visibleProperties = useMemo(() => {
+    let list = properties;
+    if (anomaliesOnly) {
+      list = list.filter(isRevenuePropertyAnomaly);
+    }
+    const q = searchQuery.trim();
+    if (q) {
+      list = list.filter((property) => propertyMatchesSearch(property, q));
+    }
+    return [...list].sort((a, b) => {
+      const aDelta = Math.abs(parsePropertyDelta(a) ?? 0);
+      const bDelta = Math.abs(parsePropertyDelta(b) ?? 0);
+      if (bDelta !== aDelta) return bDelta - aDelta;
+      const sorted = sortPropertiesByUnitNumber([a, b], (property) => ({
         name: property.name,
         unitNumber: resolveCalendarUnitLabel({
           name: property.name,
           unitNumber: property.unitNumber,
           listingName: property.insights.listingName,
         }),
-      })).sort((a, b) => {
-        const aReview = review.has(a.id) ? 0 : 1;
-        const bReview = review.has(b.id) ? 0 : 1;
-        if (aReview !== bReview) return aReview - bReview;
-        return 0;
-      }),
-    [properties, review],
-  );
-
-  const defaultExpandedId =
-    reviewPropertyIds[0] ?? properties.find((p) => !p.listingId)?.id ?? null;
+      }));
+      return sorted[0].id === a.id ? -1 : 1;
+    });
+  }, [properties, anomaliesOnly, searchQuery]);
 
   return (
     <Card className="border-border/80 shadow-pragma-soft">
-      <CardHeader className="border-b border-border/60 bg-muted/15 pb-4">
+      <CardHeader className="flex flex-col gap-3 border-b border-border/60 bg-muted/15 pb-4 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle className="text-lg font-semibold">{t("smartprice.pricing.title")}</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Edita límites, guarda y sincroniza con PriceLabs. Expande una fila para calendario y overrides.
-        </p>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {t("smartprice.pricing.anomaliesOnly")}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={anomaliesOnly}
+            aria-label={t("smartprice.pricing.anomaliesOnly")}
+            onClick={() => setAnomaliesOnly((v) => !v)}
+            className={cn(
+              "relative inline-flex h-[26px] w-[46px] shrink-0 rounded-full transition-colors",
+              anomaliesOnly ? "bg-pragma-electric" : "bg-muted",
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none absolute top-[3px] size-5 rounded-full bg-white shadow-sm transition-transform",
+                anomaliesOnly ? "translate-x-[22px]" : "translate-x-[3px]",
+              )}
+            />
+          </button>
+        </div>
       </CardHeader>
       <CardContent className="p-0">
-        {sortedProperties.length === 0 ? (
+        {visibleProperties.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            {t("smartprice.pricing.empty")}
+            {anomaliesOnly && !searchQuery.trim()
+              ? t("smartprice.pricing.anomaliesEmpty")
+              : t("smartprice.pricing.empty")}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -479,17 +672,16 @@ export function SmartpriceRevenueWorkstation({
                     {t("smartprice.pricing.max")} <span className="font-normal normal-case text-muted-foreground">(opc.)</span>
                   </th>
                   <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.recommended")}</th>
-                  <th className="border-b border-border px-3 py-3">Δ</th>
+                  <th className="border-b border-border px-3 py-3">{t("smartprice.pricing.difference")}</th>
                   {canEdit ? <th className="border-b border-border px-3 py-3" /> : null}
                 </tr>
               </thead>
               <tbody>
-                {sortedProperties.map((property) => (
+                {visibleProperties.map((property) => (
                   <PropertyWorkstationRow
                     key={property.id}
                     property={property}
                     canEdit={canEdit}
-                    defaultExpanded={property.id === defaultExpandedId}
                   />
                 ))}
               </tbody>

@@ -40,7 +40,8 @@
     "verify:release": "node scripts/verify-release.mjs"
   },
   "dependencies": {
-    "@clerk/nextjs": "^7.3.5",
+    "@clerk/nextjs": "^7.5.2",
+    "@clerk/shared": "^4.17.1",
     "@hookform/resolvers": "^5.2.2",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -69,6 +70,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.1.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.6",
@@ -78,6 +80,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "playwright": "^1.60.0",
     "prisma": "^7.8.0",
     "sharp": "^0.33.5",
     "tailwindcss": "^4",

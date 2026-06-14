@@ -1,69 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode } from "react";
-import { Settings2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { PriceLabsInsightsSection } from "@/features/integrations/pricelabs/components/pricelabs-insights-section";
 import { SmartpriceRevenueWorkstation } from "@/features/revenue/components/smartprice-revenue-workstation";
 import { useI18n } from "@/components/providers/i18n-provider";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
 import { formatPriceLabsDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
-import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/page-header";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 
 type SmartpriceDashboardProps = {
   overview: PriceLabsOverviewDto;
-  finance: {
-    occupancyRate: string | null;
-    adr: string | null;
-  } | null;
   billingLocked: boolean;
   canEditPrices: boolean;
 };
 
-function formatMoney(value: string | null, currency = "COP") {
-  if (!value) return "—";
-  const amount = Number.parseFloat(value);
-  if (!Number.isFinite(amount)) return "—";
-  return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 export function SmartpriceDashboard({
   overview,
-  finance,
   billingLocked,
   canEditPrices,
 }: SmartpriceDashboardProps) {
   const { t } = useI18n();
-  const { metrics, integration, properties, insights } = overview;
+  const [searchQuery, setSearchQuery] = useState("");
+  const { integration, properties, insights } = overview;
+  const reviewCount = insights.listingsNeedingReview;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-5 px-4 py-5 pb-12 sm:px-6">
-      <PageHeader
-        eyebrow={t("smartprice.eyebrow")}
-        title={t("smartprice.title")}
-        description={t("smartprice.description")}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-pragma-cyan/40 bg-pragma-soft-cyan/30 px-3 py-1.5 text-sm font-semibold tabular-nums text-foreground">
-              {metrics.syncedCount}/{metrics.propertyCount} sync
+    <div className="mx-auto max-w-7xl space-y-4 px-4 py-4 pb-12 sm:px-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-pragma-electric">
+            {t("smartprice.eyebrow")}
+          </p>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            {t("smartprice.title")}
+          </h1>
+        </div>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+            <span className="rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 font-semibold tabular-nums text-foreground">
+              {reviewCount} por revisar
             </span>
-            <Button asChild variant="outline" size="sm" className="h-9 gap-1.5 text-sm">
-              <Link href="/integrations/pricelabs">
-                <Settings2 className="h-4 w-4" />
-                Conexión API
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-9 text-sm">
-              <Link href="/calendar">{t("smartprice.actions.calendar")}</Link>
-            </Button>
+            <span className="rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 tabular-nums text-muted-foreground">
+              {t("smartprice.insight.lastSync")}{" "}
+              <span className="font-semibold text-foreground">
+                {formatPriceLabsDate(integration.lastPricesSyncAt)}
+              </span>
+            </span>
           </div>
-        }
-      />
+          <div className="relative w-full sm:w-64">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar APTO, nombre o ciudad…"
+              className="h-9 pl-9 text-sm"
+              aria-label="Buscar propiedad"
+            />
+          </div>
+        </div>
+      </header>
 
       {billingLocked ? (
         <div className="rounded-xl border border-warning/40 bg-warning/15 px-4 py-3 text-sm font-medium text-warning">
@@ -83,35 +81,15 @@ export function SmartpriceDashboard({
         </div>
       ) : null}
 
-      <PriceLabsInsightsSection overview={overview} />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <ContextStat label={t("smartprice.context.occupancy")} value={finance?.occupancyRate ?? "—"} />
-        <ContextStat
-          label={t("smartprice.context.adr")}
-          value={finance?.adr ? formatMoney(finance.adr) : "—"}
-        />
-        <ContextStat
-          label="Última sync precios"
-          value={formatPriceLabsDate(integration.lastPricesSyncAt)}
-        />
-      </div>
+      <PriceLabsInsightsSection overview={overview} compact />
 
       <SmartpriceRevenueWorkstation
         properties={properties}
         canEditPrices={canEditPrices}
         billingLocked={billingLocked}
         reviewPropertyIds={insights.reviewPropertyIds}
+        searchQuery={searchQuery}
       />
-    </div>
-  );
-}
-
-function ContextStat({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-card px-3 py-3 shadow-pragma-soft">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{value}</p>
     </div>
   );
 }

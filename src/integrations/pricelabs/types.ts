@@ -19,6 +19,8 @@ export type PriceLabsListingRecord = {
   revenue?: number;
   sync_status?: string;
   last_refreshed?: string;
+  /** Último push de límites a canales (PriceLabs API). */
+  last_pushed?: string;
   raw?: Record<string, unknown>;
 };
 
@@ -141,13 +143,24 @@ export type PriceLabsPricesSummary = {
   }>;
 };
 
+export type StoredPriceLabsBounds = {
+  min?: number | null;
+  base?: number | null;
+  /** `null` = sin tope explícito (eliminado por el usuario). */
+  max?: number | null;
+  updatedAt?: string;
+};
+
 export type StoredPriceLabsMeta = {
+  /** Fuente canónica de límites editados desde PRAGMA. */
+  bounds?: StoredPriceLabsBounds;
   listing?: PriceLabsListingRecord;
   dailyPrices?: PriceLabsDailyPrice[];
   overrides?: PriceLabsOverrideRecord[];
   neighborhood?: PriceLabsNeighborhoodResponse;
   lastListingRefresh?: string;
   lastPricesSync?: string;
+  lastBoundsUpdate?: string;
   lastOverridesSync?: string;
   matchReason?: string;
   mode?: string;

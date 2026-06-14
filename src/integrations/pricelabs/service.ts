@@ -22,10 +22,13 @@ import {
 } from "@/integrations/pricelabs/insights";
 import type {
   PriceLabsDailyPrice,
+  PriceLabsListingRecord,
   PriceLabsOverrideRecord,
   PriceLabsPricesSummary,
   PriceLabsSyncSummary,
+  StoredPriceLabsBounds,
   StoredPriceLabsMeta,
+  PropertyListingMatch,
 } from "@/integrations/pricelabs/types";
 import { isPriceLabsLiveApiEnabled, getPriceLabsPmsName } from "@/lib/integrations/pricelabs-config";
 import {
@@ -61,42 +64,221 @@ import {
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import { propertyWhere } from "@/lib/platform/tenant-data-scope";
 
-function readListingInsights(meta: unknown): {
+function formatBoundAmount(
+  value: number | null | undefined,
+  positiveOnly = false,
+): string | null {
+  return value != null && Number.isFinite(value) && (!positiveOnly || value > 0)
+    ? String(Math.round(value))
+    : null;
+}
+
+import {
+  detectBoundsDrift,
+  hasCanonicalBounds,
+  isMeaningfulMaxRate,
+  mergeListingWithCanonicalBounds,
+  parseListingRemoteTimestamp,
+  resolveListingBoundsForSync,
+  type ListingBoundsSyncResolution,
+} from "@/integrations/pricelabs/bounds-sync-resolution";
+
+/** Fuente canónica de min/base/max para todo el módulo Revenue. */
+function resolveCanonicalBounds(
+  meta: StoredPriceLabsMeta | null | undefined,
+  propertyBaseRate?: string | number | null,
+): {
   minRate: string | null;
   maxRate: string | null;
   listingBase: string | null;
   revenue: string | null;
   occupancy: string | null;
 } {
-  const stored = meta as StoredPriceLabsMeta | null;
-  const listing = stored?.listing;
-  if (!listing) {
+  const listing = meta?.listing;
+  const bounds = meta?.bounds;
+  const canonical = hasCanonicalBounds(meta);
+
+  const propertyBase =
+    propertyBaseRate != null
+      ? Number.parseFloat(String(propertyBaseRate))
+      : null;
+  const propertyBaseFormatted =
+    propertyBase != null && Number.isFinite(propertyBase)
+      ? String(Math.round(propertyBase))
+      : null;
+
+  if (!canonical && !listing) {
     return {
       minRate: null,
       maxRate: null,
-      listingBase: null,
+      listingBase: propertyBaseFormatted,
       revenue: null,
       occupancy: null,
     };
   }
 
-  const formatAmount = (value: number | undefined, positiveOnly = false) =>
-    value != null && Number.isFinite(value) && (!positiveOnly || value > 0)
-      ? String(Math.round(value))
-      : null;
+  const minValue = canonical
+    ? (bounds?.min ?? listing?.min)
+    : listing?.min;
+  const baseValue = canonical
+    ? (bounds?.base ?? listing?.base ?? propertyBase)
+    : (listing?.base ?? propertyBase);
+  const maxValue = canonical
+    ? bounds?.max === null
+      ? null
+      : (bounds?.max ?? listing?.max)
+    : listing?.max;
 
   const occupancy =
-    listing.occupancy != null && Number.isFinite(listing.occupancy)
+    listing?.occupancy != null && Number.isFinite(listing.occupancy)
       ? `${Math.round(listing.occupancy)}%`
       : null;
 
   return {
-    minRate: formatAmount(listing.min),
-    maxRate: formatAmount(listing.max, true),
-    listingBase: formatAmount(listing.base),
-    revenue: formatAmount(listing.revenue),
+    minRate: formatBoundAmount(minValue),
+    maxRate:
+      maxValue === null ? null : formatBoundAmount(maxValue, true),
+    listingBase:
+      formatBoundAmount(baseValue) ?? propertyBaseFormatted,
+    revenue: formatBoundAmount(listing?.revenue),
     occupancy,
   };
+}
+
+async function persistResolvedListingBounds(
+  scope: TenantDataScope,
+  propertyId: string,
+  priorMeta: StoredPriceLabsMeta,
+  match: PropertyListingMatch,
+  resolution: ListingBoundsSyncResolution,
+): Promise<void> {
+  if (
+    resolution.adoptedFromRemote &&
+    resolution.baseRateToPersist != null
+  ) {
+    await db.property.updateMany({
+      where: { id: propertyId, ...propertyWhere(scope) },
+      data: { baseRate: resolution.baseRateToPersist },
+    });
+  }
+
+  const refreshAt = new Date().toISOString();
+  const meta: StoredPriceLabsMeta = {
+    ...priorMeta,
+    listing: resolution.listing,
+    matchReason: match.matchReason,
+    lastListingRefresh: refreshAt,
+    ...(resolution.bounds
+      ? {
+          bounds: resolution.bounds,
+          lastBoundsUpdate: resolution.bounds.updatedAt ?? refreshAt,
+        }
+      : {}),
+  };
+
+  const base =
+    resolution.listing.base ??
+    resolution.listing.recommended_base_price ??
+    null;
+
+  await upsertPropertyPriceLabsSync({
+    propertyId,
+    listingId: match.listingId,
+    syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+    recommendedRate:
+      resolution.listing.recommended_base_price ??
+      resolution.listing.base ??
+      null,
+    baseRateAtSync: base,
+    priceDelta:
+      resolution.listing.recommended_base_price != null && base != null
+        ? resolution.listing.recommended_base_price - base
+        : null,
+    lastError: null,
+    meta,
+  });
+
+  if (resolution.adoptedFromRemote) {
+    await appendPriceLabsSyncLog({
+      action: "adopt_remote_bounds",
+      result: "success",
+      message: `Límites adoptados desde PriceLabs (${match.listingId})`,
+      source: "system",
+      meta: {
+        propertyId,
+        listingId: match.listingId,
+        remoteTs: parseListingRemoteTimestamp(match.listing),
+        bounds: resolution.bounds,
+      },
+    });
+  } else {
+    const drift = detectBoundsDrift(priorMeta, match.listing, resolution);
+    if (drift.drifted) {
+      await appendPriceLabsSyncLog({
+        action: "bounds_drift_detected",
+        result: "warning",
+        message: `Desalineación min/base/max con PriceLabs (${match.listingId}) — se mantuvo canónico local`,
+        source: "system",
+        meta: {
+          propertyId,
+          listingId: match.listingId,
+          reason: drift.reason,
+          remote: drift.remote,
+          canonical: drift.canonical,
+          remoteTs: parseListingRemoteTimestamp(match.listing),
+          localTs: priorMeta.bounds?.updatedAt ?? null,
+        },
+      });
+    }
+  }
+}
+
+function resolvePortfolioLastPricesSyncAt(
+  properties: Array<{ priceLabs?: { meta?: unknown } | null }>,
+  orgLastPricesSyncAt: Date | string | null | undefined,
+): string | null {
+  let latest: number | null = null;
+
+  const consider = (iso: string | undefined | null) => {
+    if (!iso) return;
+    const t = new Date(iso).getTime();
+    if (Number.isFinite(t) && (latest == null || t > latest)) {
+      latest = t;
+    }
+  };
+
+  for (const property of properties) {
+    const meta = property.priceLabs?.meta as StoredPriceLabsMeta | null;
+    consider(meta?.lastPricesSync);
+    consider(meta?.lastBoundsUpdate);
+    consider(meta?.bounds?.updatedAt);
+  }
+
+  if (orgLastPricesSyncAt) {
+    consider(
+      typeof orgLastPricesSyncAt === "string"
+        ? orgLastPricesSyncAt
+        : orgLastPricesSyncAt.toISOString(),
+    );
+  }
+
+  return latest != null ? new Date(latest).toISOString() : null;
+}
+
+function readListingInsights(
+  meta: unknown,
+  propertyBaseRate?: string | null,
+): {
+  minRate: string | null;
+  maxRate: string | null;
+  listingBase: string | null;
+  revenue: string | null;
+  occupancy: string | null;
+} {
+  return resolveCanonicalBounds(
+    meta as StoredPriceLabsMeta | null,
+    propertyBaseRate,
+  );
 }
 
 function parseOptionalRate(value: string | undefined): number | null {
@@ -114,10 +296,6 @@ function parseOptionalMaxRate(value: string | undefined): number | null {
   const parsed = Number.parseFloat(value.replace(/,/g, "."));
   if (!Number.isFinite(parsed) || parsed <= 0) return null;
   return Math.round(parsed);
-}
-
-function isMeaningfulMaxRate(value: number | null | undefined): value is number {
-  return value != null && value > 0;
 }
 
 function pickSummaryFromDays(days: PriceLabsDailyPrice[]) {
@@ -586,13 +764,6 @@ export async function syncListings(): Promise<
 
   for (const match of matches) {
     const property = properties.find((p) => p.id === match.propertyId);
-    const base =
-      match.listing.base ??
-      match.listing.recommended_base_price ??
-      (property?.baseRate
-        ? Number.parseFloat(property.baseRate.toString())
-        : null);
-
     const priorMeta =
       property?.priceLabs?.meta &&
       typeof property.priceLabs.meta === "object" &&
@@ -600,30 +771,14 @@ export async function syncListings(): Promise<
         ? (property.priceLabs.meta as StoredPriceLabsMeta)
         : {};
 
-    await upsertPropertyPriceLabsSync({
-      propertyId: match.propertyId,
-      listingId: match.listingId,
-      syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
-      recommendedRate:
-        match.listing.recommended_base_price ??
-        match.listing.base ??
-        null,
-      baseRateAtSync: base,
-      priceDelta:
-        match.listing.recommended_base_price != null && base != null
-          ? match.listing.recommended_base_price - base
-          : match.listing.base != null && property?.baseRate
-            ? match.listing.base -
-              Number.parseFloat(property.baseRate.toString())
-            : null,
-      lastError: null,
-      meta: {
-        ...priorMeta,
-        listing: match.listing,
-        matchReason: match.matchReason,
-        lastListingRefresh: new Date().toISOString(),
-      } satisfies StoredPriceLabsMeta,
-    });
+    const resolution = resolveListingBoundsForSync(priorMeta, match.listing);
+    await persistResolvedListingBounds(
+      scope,
+      match.propertyId,
+      priorMeta,
+      match,
+      resolution,
+    );
 
     summary.synced += 1;
     summary.results.push({
@@ -679,6 +834,93 @@ export async function syncListings(): Promise<
         ? `Listings vinculados (${summary.synced})`
         : `Sync parcial: ${summary.synced} ok, ${summary.failed} sin match`,
     ...summary,
+  };
+}
+
+/** Pull remoto de min/base/max (cron / tras cambios en PriceLabs). */
+export async function refreshListingBoundsFromRemote(): Promise<{
+  ok: boolean;
+  message: string;
+  updated: number;
+  adopted: number;
+}> {
+  const scope = await resolvePriceLabsTenantScope();
+  const properties = await listActivePropertiesForPriceLabs(scope);
+  const linked = properties.filter((p) =>
+    isValidPriceLabsListingId(p.priceLabs?.listingId),
+  );
+
+  if (linked.length === 0) {
+    return { ok: true, message: "Sin listings vinculados", updated: 0, adopted: 0 };
+  }
+
+  if (!isPriceLabsLiveApiEnabled()) {
+    return {
+      ok: true,
+      message: "Modo simulación — sin pull remoto de límites",
+      updated: 0,
+      adopted: 0,
+    };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "API de PriceLabs no disponible";
+    return { ok: false, message, updated: 0, adopted: 0 };
+  }
+
+  resetPriceLabsCircuitBreaker();
+  const api = await fetchPriceLabsListings();
+  if (!api.ok) {
+    return { ok: false, message: api.message, updated: 0, adopted: 0 };
+  }
+
+  const existingMap = new Map(
+    linked
+      .filter((p) => p.priceLabs?.listingId)
+      .map((p) => [p.id, p.priceLabs!.listingId!] as const),
+  );
+
+  const matches = matchListingsToProperties({
+    listings: api.data,
+    properties: linked,
+    existingListingByPropertyId: existingMap,
+  });
+
+  let updated = 0;
+  let adopted = 0;
+
+  for (const match of matches) {
+    const property = linked.find((p) => p.id === match.propertyId);
+    const priorMeta =
+      property?.priceLabs?.meta &&
+      typeof property.priceLabs.meta === "object" &&
+      !Array.isArray(property.priceLabs.meta)
+        ? (property.priceLabs.meta as StoredPriceLabsMeta)
+        : {};
+
+    const resolution = resolveListingBoundsForSync(priorMeta, match.listing);
+    await persistResolvedListingBounds(
+      scope,
+      match.propertyId,
+      priorMeta,
+      match,
+      resolution,
+    );
+    updated += 1;
+    if (resolution.adoptedFromRemote) adopted += 1;
+  }
+
+  return {
+    ok: true,
+    message:
+      adopted > 0
+        ? `Límites revisados: ${adopted} adoptados desde PriceLabs`
+        : `Límites revisados (${updated}) — sin cambios remotos más recientes`,
+    updated,
+    adopted,
   };
 }
 
@@ -1034,6 +1276,14 @@ async function refreshPropertyPriceLabsPrices(input: {
     },
   });
 
+  if (input.scope.organizationId) {
+    await updatePriceLabsIntegrationState({
+      organizationId: input.scope.organizationId,
+      lastPricesSyncAt: new Date(),
+      lastSyncAt: new Date(),
+    });
+  }
+
   return { ok: true };
 }
 
@@ -1122,11 +1372,15 @@ export async function savePropertyPriceBoundsFromPanel(input: {
       pms: string;
       min?: number;
       base?: number;
-      max?: number;
+      max?: number | null;
     } = { id: listingId, pms };
     if (minRate != null) payload.min = minRate;
     if (baseRate != null) payload.base = baseRate;
-    if (isMeaningfulMaxRate(maxRate)) payload.max = maxRate;
+    if (maxCleared) {
+      payload.max = null;
+    } else if (isMeaningfulMaxRate(maxRate)) {
+      payload.max = maxRate;
+    }
 
     resetPriceLabsCircuitBreaker();
     const api = await updatePriceLabsListingBounds([payload]);
@@ -1160,25 +1414,61 @@ export async function savePropertyPriceBoundsFromPanel(input: {
   }
 
   const existingMeta = (property.priceLabs?.meta as StoredPriceLabsMeta | null) ?? {};
-  const listing = {
+  const boundsUpdatedAt = new Date().toISOString();
+  const propertyBaseNumeric = property.baseRate
+    ? Number.parseFloat(property.baseRate.toString())
+    : null;
+
+  const canonicalBounds: StoredPriceLabsBounds = {
+    updatedAt: boundsUpdatedAt,
+    min: minRate,
+    base: baseRate ?? propertyBaseNumeric ?? existingMeta.bounds?.base ?? existingMeta.listing?.base ?? null,
+    max: maxCleared
+      ? null
+      : isMeaningfulMaxRate(maxRate)
+        ? maxRate
+        : existingMeta.bounds?.max === null
+          ? null
+          : (existingMeta.bounds?.max ?? existingMeta.listing?.max ?? null),
+  };
+
+  const listing: PriceLabsListingRecord = {
     ...(existingMeta.listing ?? { id: listingId }),
     id: listingId,
   };
 
-  if (minRate != null) listing.min = minRate;
-  if (isMeaningfulMaxRate(maxRate)) {
-    listing.max = maxRate;
-  } else if (maxCleared) {
-    delete listing.max;
+  if (canonicalBounds.min != null) {
+    listing.min = canonicalBounds.min;
+  } else {
+    delete listing.min;
   }
-  if (baseRate != null) listing.base = baseRate;
-  if (remoteListing?.min != null) listing.min = remoteListing.min;
-  if (isMeaningfulMaxRate(remoteListing?.max)) {
-    listing.max = remoteListing.max;
-  } else if (maxCleared) {
-    delete listing.max;
+  if (canonicalBounds.base != null) {
+    listing.base = canonicalBounds.base;
   }
-  if (remoteListing?.base != null) listing.base = remoteListing.base;
+  if (canonicalBounds.max === null) {
+    delete listing.max;
+  } else if (isMeaningfulMaxRate(canonicalBounds.max)) {
+    listing.max = canonicalBounds.max;
+  }
+
+  if (remoteListing) {
+    if (minRate == null && remoteListing.min != null) {
+      listing.min = remoteListing.min;
+      canonicalBounds.min = remoteListing.min;
+    }
+    if (
+      !maxCleared &&
+      !isMeaningfulMaxRate(maxRate) &&
+      isMeaningfulMaxRate(remoteListing.max)
+    ) {
+      listing.max = remoteListing.max;
+      canonicalBounds.max = remoteListing.max;
+    }
+    if (baseRate == null && remoteListing.base != null) {
+      listing.base = remoteListing.base;
+      canonicalBounds.base = remoteListing.base;
+    }
+  }
 
   const persisted = await upsertPropertyPriceLabsSync({
     propertyId: input.propertyId,
@@ -1186,9 +1476,7 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     recommendedRate: property.priceLabs?.recommendedRate
       ? Number.parseFloat(property.priceLabs.recommendedRate.toString())
       : null,
-    baseRateAtSync: baseRate ?? (property.baseRate
-      ? Number.parseFloat(property.baseRate.toString())
-      : null),
+    baseRateAtSync: baseRate ?? propertyBaseNumeric,
     priceDelta: property.priceLabs?.priceDelta
       ? Number.parseFloat(property.priceLabs.priceDelta.toString())
       : null,
@@ -1199,9 +1487,10 @@ export async function savePropertyPriceBoundsFromPanel(input: {
     lastError: null,
     meta: {
       ...existingMeta,
+      bounds: canonicalBounds,
       listing,
-      lastListingRefresh: new Date().toISOString(),
-      lastBoundsUpdate: new Date().toISOString(),
+      lastListingRefresh: boundsUpdatedAt,
+      lastBoundsUpdate: boundsUpdatedAt,
     },
   });
 
@@ -1516,7 +1805,10 @@ export async function getPriceLabsOverview(
     : null;
 
   const propertyRows = properties.map((p) => {
-    const insights = readListingInsights(p.priceLabs?.meta ?? null);
+    const insights = readListingInsights(
+      p.priceLabs?.meta ?? null,
+      p.baseRate?.toString() ?? null,
+    );
     const propertyInsights = buildPropertyInsights(p.priceLabs?.meta ?? null);
     return {
       id: p.id,
@@ -1545,6 +1837,11 @@ export async function getPriceLabsOverview(
     };
   });
 
+  const effectiveLastPricesSyncAt = resolvePortfolioLastPricesSyncAt(
+    properties,
+    row?.lastPricesSyncAt,
+  );
+
   const operationalInsights = buildOperationalInsights({
     properties: propertyRows.map((row) => ({
       id: row.id,
@@ -1555,7 +1852,7 @@ export async function getPriceLabsOverview(
       lastError: row.lastError,
       meta: row.meta,
     })),
-    lastPricesSyncAt: row?.lastPricesSyncAt?.toISOString() ?? null,
+    lastPricesSyncAt: effectiveLastPricesSyncAt,
     integrationStatus,
     lastError: row?.lastError ?? decryptErrorMessage,
   });
@@ -1566,7 +1863,7 @@ export async function getPriceLabsOverview(
       lastError: row?.lastError ?? decryptErrorMessage,
       lastHealthCheckAt: row?.lastHealthCheckAt?.toISOString() ?? null,
       lastListingsSyncAt: row?.lastListingsSyncAt?.toISOString() ?? null,
-      lastPricesSyncAt: row?.lastPricesSyncAt?.toISOString() ?? null,
+      lastPricesSyncAt: effectiveLastPricesSyncAt,
     },
     database: {
       ready: schemaReady,

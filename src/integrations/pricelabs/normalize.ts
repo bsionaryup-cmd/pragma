@@ -67,6 +67,7 @@ export function normalizeListingRecord(raw: unknown): PriceLabsListingRecord | n
       "last_refreshed_at",
       "last_sync",
     ]),
+    last_pushed: pickString(record, ["last_date_pushed", "lastDatePushed"]),
     raw: record,
   };
 }

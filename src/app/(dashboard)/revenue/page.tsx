@@ -4,7 +4,6 @@ import { hasPermission, requirePermission } from "@/lib/auth";
 import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import type { AppUserRole } from "@/types/auth";
 import { getBillingAccessSnapshot } from "@/services/billing/billing.service";
-import { getFinanceOverview } from "@/services/finance/finance.service";
 import { getPriceLabsOverview } from "@/services/integrations/pricelabs.service";
 
 const SmartpriceDashboard = dynamic(
@@ -17,11 +16,10 @@ const SmartpriceDashboard = dynamic(
 export default async function SmartpricePage() {
   await redirectIfMissingPlanFeature("revenue", "/revenue");
   const userPromise = requirePermission("finance:revenue:read");
-  const [user, billing, overview, finance] = await Promise.all([
+  const [user, billing, overview] = await Promise.all([
     userPromise,
     getBillingAccessSnapshot(),
     getPriceLabsOverview(false),
-    getFinanceOverview("es").catch(() => null),
   ]);
   const canEditPrices = hasPermission(user.role as AppUserRole, "finance:write");
 
@@ -31,16 +29,6 @@ export default async function SmartpricePage() {
         overview={overview}
         billingLocked={billing.locked}
         canEditPrices={canEditPrices}
-        finance={
-          finance
-            ? {
-                occupancyRate: `${finance.comparison.occupancy.current}%`,
-                adr: finance.profitability.avgPerReservation
-                  ? String(Math.round(finance.profitability.avgPerReservation))
-                  : null,
-              }
-            : null
-        }
       />
     </ModuleShellFlow>
   );

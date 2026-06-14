@@ -7,9 +7,12 @@ import {
   formatPriceLabsMoney,
   pricingHealthClass,
 } from "@/features/integrations/pricelabs/lib/pricelabs-format";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 type PriceLabsInsightsSectionProps = {
   overview: PriceLabsOverviewDto;
+  /** Vista reducida para estación de trabajo /revenue */
+  compact?: boolean;
 };
 
 function Kpi({
@@ -39,8 +42,56 @@ function Kpi({
   );
 }
 
-export function PriceLabsInsightsSection({ overview }: PriceLabsInsightsSectionProps) {
-  const { insights, integration, metrics, revenue } = overview;
+export function PriceLabsInsightsSection({
+  overview,
+  compact = false,
+}: PriceLabsInsightsSectionProps) {
+  const { t } = useI18n();
+  const { insights, revenue } = overview;
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <Kpi
+            label={t("smartprice.insights.health")}
+            value={insights.pricingHealthLabel}
+            className={pricingHealthClass(insights.pricingHealth)}
+          />
+          <Kpi
+            label={t("smartprice.insights.alerts")}
+            value={String(insights.priceAlerts)}
+            warn={insights.priceAlerts > 0}
+          />
+          {insights.syncIssues > 0 ? (
+            <Kpi
+              label={t("smartprice.insights.syncIssues")}
+              value={String(insights.syncIssues)}
+              warn
+            />
+          ) : null}
+        </div>
+
+        {(insights.propertiesWithErrors.length > 0 ||
+          insights.unmappedListings > 0) && (
+          <div className="space-y-2 text-sm">
+            {insights.unmappedListings > 0 ? (
+              <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning">
+                {insights.unmappedListings} propiedad(es) sin listing mapeado en PriceLabs.
+              </p>
+            ) : null}
+            {insights.propertiesWithErrors.length > 0 ? (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-destructive">
+                Errores de sincronización en {insights.propertiesWithErrors.length} propiedad(es).
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const { integration, metrics } = overview;
 
   return (
     <div className="space-y-3">

@@ -2,6 +2,7 @@ import { OrganizationIntegrationStatus } from "@prisma/client";
 import {
   checkConnection,
   fetchDynamicPrices,
+  refreshListingBoundsFromRemote,
   syncListings,
 } from "@/integrations/pricelabs/service";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
@@ -98,6 +99,20 @@ export async function runPriceLabsSyncPipeline(input?: {
         if (!listings.ok) return { ok: false, message: listings.message };
         listingsSynced = listings.synced;
       }
+
+      const boundsPull = await refreshListingBoundsFromRemote();
+      await appendPriceLabsSyncLog({
+        action: "refresh_listing_bounds",
+        result: boundsPull.ok ? "success" : "failure",
+        message: boundsPull.message,
+        source,
+        organizationId,
+        meta: {
+          updated: boundsPull.updated,
+          adopted: boundsPull.adopted,
+          mode,
+        },
+      });
 
       const prices = await fetchDynamicPrices();
       await appendPriceLabsSyncLog({
