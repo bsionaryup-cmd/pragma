@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/cron/airbnb-email-inbound-reconcile",
-      "schedule": "*/30 * * * *"
+      "schedule": "35 6 * * *"
     },
     {
       "path": "/api/cron/guest-payment-reconcile",
