@@ -3,7 +3,7 @@ import { AirbnbEmailEventKind } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
-import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { applySafeReservationEnrichment, mergeEnrichedFieldsForEmailEvent } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
 import {
   isReservationEventKind,
@@ -58,10 +58,11 @@ export async function reapplyReservationEnrichmentFromAudit(
     mode: "reservation",
   });
   const metadataFields = buildStructuredMetadataFields(input.signals);
-  const enrichedFields = {
-    ...reservationEnrichedFields,
-    ...metadataFields,
-  };
+  const enrichedFields = mergeEnrichedFieldsForEmailEvent({
+    reservationEnrichedFields,
+    metadataFields,
+    signals: input.signals,
+  });
   const enrichedFieldKeys = Object.keys(enrichedFields);
   if (enrichedFieldKeys.length === 0) {
     return {
@@ -172,10 +173,11 @@ export async function persistReservationMatchLinkage(
           mode: "reservation",
         });
         const metadataFields = buildStructuredMetadataFields(input.signals);
-        const enrichedFields = {
-          ...reservationEnrichedFields,
-          ...metadataFields,
-        };
+        const enrichedFields = mergeEnrichedFieldsForEmailEvent({
+          reservationEnrichedFields,
+          metadataFields,
+          signals: input.signals,
+        });
         enrichedFieldKeys = Object.keys(enrichedFields);
 
         const event = await tx.reservationEmailEvent.create({

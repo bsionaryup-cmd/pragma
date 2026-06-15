@@ -64,7 +64,7 @@ export async function retryUnlinkedAuditsForProperty(input: {
   lookbackHours?: number;
 }): Promise<UnlinkedEmailEnrichmentRetryResult> {
   const limit = input.limit ?? 12;
-  const lookbackHours = input.lookbackHours ?? 72;
+  const lookbackHours = input.lookbackHours ?? 24 * 14;
 
   const audits = await loadRetryableAuditIds({
     propertyId: input.propertyId,
@@ -121,7 +121,7 @@ export async function runUnlinkedEmailEnrichmentRetryJob(input?: {
   lookbackHours?: number;
 }): Promise<UnlinkedEmailEnrichmentRetryResult> {
   const limit = input?.limit ?? 40;
-  const lookbackHours = input?.lookbackHours ?? 72;
+  const lookbackHours = input?.lookbackHours ?? 24 * 14;
 
   const audits = await loadRetryableAuditIds({ limit, lookbackHours });
 

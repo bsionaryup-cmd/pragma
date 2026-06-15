@@ -33,6 +33,20 @@ describe("classifyAirbnbEmail", () => {
     assert.equal(result.eventKind, AirbnbEmailEventKind.CANCELED);
   });
 
+  it("Fwd Reserva confirmada no se clasifica como CANCELED por footer legal", () => {
+    const result = classifyAirbnbEmail({
+      from: "owner@gmail.com",
+      subject: "Fwd: Reserva confirmada: Karla Durán llega el 19 jun.",
+      body: `
+        Reserva confirmada
+        Check-in: 2026-06-19
+        If the reservation is cancelled please contact support
+        cancelled policy terms
+      `,
+    });
+    assert.equal(result.eventKind, AirbnbEmailEventKind.CONFIRMED);
+  });
+
   it("clasifica mensaje desde express@airbnb.com", () => {
     const result = classifyAirbnbEmail({
       from: "express@airbnb.com",

@@ -23,6 +23,7 @@ import {
 } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
 import { retryUnlinkedAuditsForProperty } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
+import { normalizeIcalGuestNameFromSummary } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import {
@@ -117,12 +118,7 @@ export type AirbnbSyncSummary = {
 };
 
 function parseGuestName(summary: string, blocked: boolean): string {
-  if (blocked) return "Bloqueo Airbnb";
-  const cleaned = summary
-    .replace(/^reserved\s*[-–:]?\s*/i, "")
-    .replace(/^reservado\s*[-–:]?\s*/i, "")
-    .trim();
-  return cleaned || "Huésped Airbnb";
+  return normalizeIcalGuestNameFromSummary(summary, blocked);
 }
 
 function cacheBustIcalUrl(url: string): string {
@@ -500,14 +496,40 @@ export async function syncPropertyIcalCalendarInner(
         const emailRetry = await retryUnlinkedAuditsForProperty({
           propertyId: property.id,
           organizationId: property.organizationId,
-          limit: 12,
-          lookbackHours: 72,
+          limit: created > 0 ? 24 : 12,
+          lookbackHours: created > 0 ? 24 * 30 : 24 * 7,
         });
         if (emailRetry.scanned > 0) {
           icalSyncLog.info("property_sync_email_retry_done", {
             propertyId: property.id,
             ...emailRetry,
           });
+        } else if (created > 0) {
+          const integration = await db.tenantAirbnbEmailIntegration.findUnique({
+            where: { organizationId: property.organizationId },
+            select: {
+              enabled: true,
+              inboundEmailAddress: true,
+              lastEmailReceivedAt: true,
+            },
+          });
+          const staleMs = integration?.lastEmailReceivedAt
+            ? Date.now() - integration.lastEmailReceivedAt.getTime()
+            : null;
+          if (
+            integration?.enabled &&
+            (staleMs == null || staleMs > 7 * 24 * 60 * 60 * 1000)
+          ) {
+            icalSyncLog.warn("property_sync_inbound_email_stale", {
+              propertyId: property.id,
+              organizationId: property.organizationId,
+              created,
+              inboundEmailAddress: integration.inboundEmailAddress,
+              lastEmailReceivedAt:
+                integration.lastEmailReceivedAt?.toISOString() ?? null,
+              hint: "Sin correos CONFIRMED recientes: verificar reenvío desde Airbnb al inbound del tenant",
+            });
+          }
         }
       } catch (retryError) {
         icalSyncLog.warn("property_sync_email_retry_failed", {

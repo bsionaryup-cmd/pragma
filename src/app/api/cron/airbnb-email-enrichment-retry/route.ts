@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 
   const result = await runUnlinkedEmailEnrichmentRetryJob({
     limit: 40,
-    lookbackHours: 72,
+    lookbackHours: 24 * 14,
   });
 
   airbnbEmailLog.info("cron_email_enrichment_retry_done", {

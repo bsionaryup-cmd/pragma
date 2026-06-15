@@ -6,6 +6,7 @@ import { extractReservationSignals } from "../../src/modules/airbnb-email/parsin
 import {
   isPlaceholderGuestName,
   isZeroReservationAmount,
+  normalizeIcalGuestNameFromSummary,
   splitGuestName,
 } from "../../src/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { FIXTURE_CONFIRMED_ES } from "./fixtures/templates";
@@ -13,7 +14,18 @@ import { FIXTURE_CONFIRMED_ES } from "./fixtures/templates";
 describe("safe reservation enrichment helpers", () => {
   it("detecta nombre placeholder de iCal", () => {
     assert.equal(isPlaceholderGuestName("Huésped Airbnb"), true);
+    assert.equal(isPlaceholderGuestName("Airbnb"), true);
+    assert.equal(isPlaceholderGuestName("Airbnb te envió un mensaje"), true);
     assert.equal(isPlaceholderGuestName("Ana García"), false);
+  });
+
+  it("normaliza SUMMARY iCal sin nombre real", () => {
+    assert.equal(normalizeIcalGuestNameFromSummary("Airbnb", false), "Huésped Airbnb");
+    assert.equal(normalizeIcalGuestNameFromSummary("Reserved", false), "Huésped Airbnb");
+    assert.equal(
+      normalizeIcalGuestNameFromSummary("Reserved - Milena Barrero", false),
+      "Milena Barrero",
+    );
   });
 
   it("detecta totalAmount en cero", () => {

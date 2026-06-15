@@ -55,6 +55,63 @@ export function verifyResendInboundWebhook(
   }) as ResendInboundWebhookEvent;
 }
 
+export type ResendReceivedEmailListItem = {
+  id: string;
+  from: string;
+  to: string[];
+  subject: string;
+  message_id?: string | null;
+  created_at?: string;
+};
+
+export type ResendReceivedEmailListResponse = {
+  object?: string;
+  has_more?: boolean;
+  data?: ResendReceivedEmailListItem[];
+};
+
+export async function listResendReceivedEmails(input?: {
+  limit?: number;
+  after?: string;
+}): Promise<ResendReceivedEmailListResponse> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY no configurado");
+  }
+
+  const params = new URLSearchParams();
+  if (input?.limit) params.set("limit", String(input.limit));
+  if (input?.after) params.set("after", input.after);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), RESEND_FETCH_TIMEOUT_MS);
+
+  try {
+    const url = `https://api.resend.com/emails/receiving${params.size ? `?${params}` : ""}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: controller.signal,
+    });
+
+    const payload = (await response.json()) as ResendReceivedEmailListResponse & {
+      message?: string;
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.message ?? "No se pudo listar correos recibidos");
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Timeout listando correos de Resend");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function fetchResendReceivedEmail(
   emailId: string,
 ): Promise<ResendReceivedEmail> {

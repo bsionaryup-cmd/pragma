@@ -15,6 +15,34 @@ type ClassificationRule = {
   priority?: number;
 };
 
+const CONFIRMED_SUBJECT_MARKERS = [
+  "reserva confirmada",
+  "booking confirmed",
+  "is confirmed",
+  "confirmed reservation",
+];
+
+const CANCELED_SUBJECT_MARKERS = [
+  "reserva cancelada",
+  "booking canceled",
+  "booking cancelled",
+  "reservation canceled",
+  "reservation cancelled",
+];
+
+/** Frases fuertes de cancelación — no el "cancelled" suelto del footer legal. */
+const CANCELED_BODY_STRONG_MARKERS = [
+  "reserva cancelada",
+  "reservation canceled",
+  "reservation cancelled",
+  "booking canceled",
+  "booking cancelled",
+  "tu reserva fue cancelada",
+  "your reservation was canceled",
+  "your reservation was cancelled",
+  "we're sorry to inform you that your reservation has been canceled",
+];
+
 /** Higher priority wins when multiple rules could match. */
 const RULES: ClassificationRule[] = [
   {
@@ -34,8 +62,8 @@ const RULES: ClassificationRule[] = [
     kind: AirbnbEmailEventKind.CANCELED,
     senderChannel: AirbnbEmailSenderChannel.AUTOMATED,
     priority: 85,
-    subjectIncludes: ["cancelad", "canceled", "cancelled"],
-    bodyIncludes: ["cancelad", "canceled", "cancelled"],
+    subjectIncludes: CANCELED_SUBJECT_MARKERS,
+    bodyIncludes: CANCELED_BODY_STRONG_MARKERS,
   },
   {
     kind: AirbnbEmailEventKind.EXTENDED,
@@ -140,6 +168,18 @@ const RULES: ClassificationRule[] = [
   },
 ].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 
+function subjectIndicatesConfirmed(subject: string): boolean {
+  return CONFIRMED_SUBJECT_MARKERS.some((needle) => subject.includes(needle));
+}
+
+function subjectIndicatesCanceled(subject: string): boolean {
+  return CANCELED_SUBJECT_MARKERS.some((needle) => subject.includes(needle));
+}
+
+function bodyIndicatesCanceled(body: string): boolean {
+  return CANCELED_BODY_STRONG_MARKERS.some((needle) => body.includes(needle));
+}
+
 function resolveSenderChannel(from: string): AirbnbEmailSenderChannel {
   const normalized = from.toLowerCase();
   if (normalized.includes(AUTOMATED_SENDER)) {
@@ -187,6 +227,25 @@ export function classifyAirbnbEmail(input: {
   const body = input.body.toLowerCase();
   const senderChannel = resolveSenderChannel(input.from);
   const anchors: string[] = [];
+
+  // Confirmaciones reenviadas (Fwd:) deben ganar sobre "cancelled" en footer legal.
+  if (subjectIndicatesConfirmed(subject) && !subjectIndicatesCanceled(subject)) {
+    anchors.push(AirbnbEmailEventKind.CONFIRMED);
+    return {
+      eventKind: AirbnbEmailEventKind.CONFIRMED,
+      senderChannel,
+      anchors,
+    };
+  }
+
+  if (subjectIndicatesCanceled(subject) || bodyIndicatesCanceled(body)) {
+    anchors.push(AirbnbEmailEventKind.CANCELED);
+    return {
+      eventKind: AirbnbEmailEventKind.CANCELED,
+      senderChannel,
+      anchors,
+    };
+  }
 
   for (const rule of RULES) {
     if (matchesRule(rule, subject, body, senderChannel)) {

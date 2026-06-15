@@ -2,6 +2,7 @@ import { AirbnbEmailMatchMethod } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { isReservationEventKind } from "@/modules/airbnb-email/domains/reservation-event.domain";
+import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import {
   persistReservationMatchLinkage,
@@ -21,8 +22,10 @@ function hasMeaningfulEnrichedFields(enrichedFields: unknown): boolean {
     return false;
   }
   const fields = enrichedFields as Record<string, unknown>;
+  const guestName =
+    typeof fields.guestName === "string" ? fields.guestName.trim() : "";
   return Boolean(
-    (typeof fields.guestName === "string" && fields.guestName.trim()) ||
+    (guestName && !isPlaceholderGuestName(guestName)) ||
       fields.guestCountTotal != null ||
       fields.guestTotalPaid != null ||
       fields.hostPayoutAmount != null ||

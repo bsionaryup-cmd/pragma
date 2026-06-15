@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -10,8 +11,11 @@ import type {
 const ICAL_PLACEHOLDER_GUEST_NAMES = new Set([
   "huésped airbnb",
   "airbnb guest",
+  "airbnb",
   "reserved",
   "reservado",
+  "not available",
+  "no disponible",
 ]);
 
 const ENRICHABLE_EVENT_KINDS = new Set<AirbnbEmailEventKind>([
@@ -26,7 +30,46 @@ export type SafeEnrichmentMode = "reservation" | "financial";
 export function isPlaceholderGuestName(name: string | null | undefined): boolean {
   const trimmed = name?.trim();
   if (!trimmed) return true;
-  return ICAL_PLACEHOLDER_GUEST_NAMES.has(trimmed.toLowerCase());
+  const normalized = trimmed.toLowerCase();
+  if (ICAL_PLACEHOLDER_GUEST_NAMES.has(normalized)) return true;
+  if (/^airbnb\b/i.test(trimmed) && trimmed.length <= 40) return true;
+  return false;
+}
+
+/** Normaliza SUMMARY de iCal Airbnb a nombre de huésped o placeholder canónico. */
+export function normalizeIcalGuestNameFromSummary(
+  summary: string,
+  blocked: boolean,
+): string {
+  if (blocked) return "Bloqueo Airbnb";
+  const cleaned = summary
+    .replace(/^reserved\s*[-–:]?\s*/i, "")
+    .replace(/^reservado\s*[-–:]?\s*/i, "")
+    .trim();
+  const candidate = cleaned || "Huésped Airbnb";
+  return isPlaceholderGuestName(candidate) ? "Huésped Airbnb" : candidate;
+}
+
+/** Campos enriquecidos para evento de correo (persistencia + display). */
+export function mergeEnrichedFieldsForEmailEvent(input: {
+  reservationEnrichedFields: Record<string, string | number>;
+  metadataFields: Record<string, string | number>;
+  signals: ExtractedReservationSignals;
+}): Record<string, string | number> {
+  const merged = {
+    ...input.reservationEnrichedFields,
+    ...input.metadataFields,
+  };
+  const existing =
+    typeof merged.guestName === "string" ? merged.guestName.trim() : "";
+  if (existing && !isPlaceholderGuestName(existing)) {
+    return merged;
+  }
+  const fromSignals = input.signals.guestName?.trim();
+  if (fromSignals && isPlausibleGuestName(fromSignals)) {
+    merged.guestName = fromSignals;
+  }
+  return merged;
 }
 
 export function isZeroReservationAmount(value: unknown): boolean {
