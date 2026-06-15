@@ -23,14 +23,20 @@ El incidente principal de enriquecimiento Airbnb se considera **resuelto**. El p
 | Webhook Resend | OK | `/api/webhooks/resend/inbound` procesa y persiste audits |
 | Clasificación CONFIRMED | OK | Fix `e047ed2` desplegado; router 5/5 + suite 92/92 |
 | Enrichment | OK | Miguel Castro enriquecido (nombre, HM, monto) |
-| Cron inbound reconcile | OK* | Ruta activa; `CRON_SECRET` configurado en Vercel prod |
+| Cron inbound reconcile | OK | Ruta activa; `CRON_SECRET` en Vercel prod; prueba manual 200 OK |
 | Filtro Gmail | Sin cambios | `from:(airbnb.com)` — no optimizado a propósito |
 
-\* Cron programado diario `35 6 * * *` (plan Hobby). Requiere redeploy tras añadir `CRON_SECRET`.
+\* Cron programado diario `35 6 * * *` (plan Hobby).
 
 ---
 
-## Deploy y commits
+## Git y deploy
+
+| Paso | Estado |
+|------|--------|
+| Rama `cursor/airbnb-enrichment-e2e-cron-deploy` | Pusheada |
+| Merge a `main` | `813d8ed` (fast-forward) |
+| Deploy producción | `https://www.pragmapms.com` — Ready |
 
 | Item | Detalle |
 |------|---------|
@@ -47,21 +53,14 @@ El incidente principal de enriquecimiento Airbnb se considera **resuelto**. El p
 
 **Autorización:** `Authorization: Bearer <CRON_SECRET>` o `?secret=<CRON_SECRET>`.
 
-**Prueba manual:**
+**Prueba manual (2026-06-15, post-redeploy `dpl_FPCEshRN7pB9jwoZvAiUMQZX8EQp`):**
 
-```bash
-curl -s -H "Authorization: Bearer $CRON_SECRET" \
-  "https://www.pragmapms.com/api/cron/airbnb-email-inbound-reconcile"
-```
+| Escenario | HTTP | Resultado |
+|-----------|------|-----------|
+| Sin `Authorization` | 401 | `{"ok":false,"message":"Unauthorized"}` |
+| Con `Bearer <CRON_SECRET>` | 200 | `ok: true`, `durationMs: ~15000`, `resendListed: 64`, `resendIngested: 10` |
 
-**Respuestas esperadas:**
-
-| Condición | HTTP | Body |
-|-----------|------|------|
-| Sin secret / secret incorrecto | 401 | `{"ok":false,"message":"Unauthorized"}` |
-| Secret válido | 200 | `{"ok":true,"durationMs":...,"resend":...,"retry":...}` |
-
-**Nota:** Sin `CRON_SECRET` en runtime, la ruta responde 401 incluso con header correcto (`isAuthorized` retorna false si env vacío).
+El cron inbound reconcile **funciona correctamente** en producción.
 
 ---
 
