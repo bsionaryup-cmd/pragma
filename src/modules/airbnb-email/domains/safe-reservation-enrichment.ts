@@ -92,10 +92,15 @@ export function splitGuestName(fullName: string): {
   return { guestName, guestFirstName, guestLastName };
 }
 
-function pickReservationAmount(
+/** Prefer net payout; fall back to host payout then gross booking amount. */
+export function pickReservationAmount(
   signals: ExtractedReservationSignals,
 ): number | null {
-  const candidates = [signals.netPayout, signals.grossAmount];
+  const candidates = [
+    signals.netPayout,
+    signals.hostPayoutAmount,
+    signals.grossAmount,
+  ];
   for (const value of candidates) {
     if (value != null && value > 0) return value;
   }

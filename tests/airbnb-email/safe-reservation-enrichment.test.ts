@@ -7,6 +7,7 @@ import {
   isPlaceholderGuestName,
   isZeroReservationAmount,
   normalizeIcalGuestNameFromSummary,
+  pickReservationAmount,
   splitGuestName,
 } from "../../src/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { FIXTURE_CONFIRMED_ES } from "./fixtures/templates";
@@ -32,6 +33,41 @@ describe("safe reservation enrichment helpers", () => {
     assert.equal(isZeroReservationAmount(0), true);
     assert.equal(isZeroReservationAmount("0.00"), true);
     assert.equal(isZeroReservationAmount(1200), false);
+  });
+
+  it("pickReservationAmount prioriza netPayout, luego hostPayoutAmount, luego grossAmount", () => {
+    assert.equal(
+      pickReservationAmount({
+        netPayout: 100,
+        hostPayoutAmount: 200,
+        grossAmount: 300,
+      }),
+      100,
+    );
+    assert.equal(
+      pickReservationAmount({
+        netPayout: 0,
+        hostPayoutAmount: 333422.12,
+        grossAmount: 400000,
+      }),
+      333422.12,
+    );
+    assert.equal(
+      pickReservationAmount({
+        netPayout: null,
+        hostPayoutAmount: null,
+        grossAmount: 250000,
+      }),
+      250000,
+    );
+    assert.equal(
+      pickReservationAmount({
+        netPayout: 0,
+        hostPayoutAmount: 0,
+        grossAmount: 0,
+      }),
+      null,
+    );
   });
 
   it("divide nombre de huésped", () => {
