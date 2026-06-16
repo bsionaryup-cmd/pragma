@@ -32,7 +32,7 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl border border-[#E9ECEF] bg-white p-2.5 transition-colors dark:border-sidebar-border dark:bg-sidebar-accent/50",
+        "flex items-center gap-3 rounded-xl border border-sidebar-border bg-card p-2.5 transition-colors",
         collapsed && "justify-center border-0 bg-transparent p-0",
       )}
     >
@@ -55,10 +55,10 @@ export function SidebarUserProfile({ user, collapsed }: SidebarUserProfileProps)
 
       {!collapsed ? (
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight text-[#111111] dark:text-foreground">
+          <p className="truncate text-sm font-semibold leading-tight text-foreground">
             {displayName}
           </p>
-          <p className="truncate text-xs leading-tight text-[#6B7280]">
+          <p className="truncate text-xs leading-tight text-muted-foreground">
             {user.roleLabel ?? user.email}
           </p>
         </div>

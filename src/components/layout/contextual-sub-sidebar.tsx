@@ -32,14 +32,14 @@ export function ContextualSubSidebar({
     >
       <div className="flex h-full w-[212px] flex-col">
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3 py-3">
-            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
+            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               {t(module.labelKey)}
             </p>
             <button
               type="button"
               onClick={onClose}
               aria-label="Cerrar submenú"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-pragma-mid-gray transition-colors hover:bg-pragma-soft-gray hover:text-pragma-black"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
             >
               <ChevronsLeft className="h-4 w-4" strokeWidth={2} />
             </button>
@@ -62,8 +62,8 @@ export function ContextualSubSidebar({
                   className={cn(
                     "block rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
                     active
-                      ? "bg-pragma-soft-cyan/45 text-pragma-electric dark:bg-primary/10"
-                      : "text-pragma-mid-gray hover:bg-white/80 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
+                      ? "bg-pragma-soft-cyan/45 text-primary"
+                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
                   )}
                 >
                   {t(child.labelKey)}

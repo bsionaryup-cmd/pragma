@@ -58,8 +58,8 @@ function SidebarNavLink({
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
         isActive
-          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft dark:bg-primary/15"
-          : "text-pragma-mid-gray hover:bg-white/80 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
+          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
       )}
     >
       <NavIcon
@@ -68,8 +68,8 @@ function SidebarNavLink({
           "relative shrink-0 transition-colors",
           collapsed ? "h-[18px] w-[18px]" : "h-4 w-4",
           isActive
-            ? "text-pragma-electric"
-            : "text-pragma-mid-gray group-hover:text-pragma-electric",
+            ? "text-primary"
+            : "text-muted-foreground group-hover:text-primary",
         )}
       />
       {collapsed && showUnreadDot ? (
@@ -90,7 +90,7 @@ function SidebarNavLink({
             ) : null}
           </span>
           {item.badge ? (
-            <span className="shrink-0 rounded-md bg-pragma-light-blue px-1.5 py-0.5 text-[10px] font-semibold leading-none text-pragma-electric">
+            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold leading-none text-primary">
               {item.badge}
             </span>
           ) : null}
@@ -124,8 +124,8 @@ function SidebarNavGroupButton({
           ? "mx-auto h-10 w-10 justify-center"
           : "gap-3 px-3 py-2",
         isStrongActive
-          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft dark:bg-primary/15"
-          : "text-pragma-mid-gray hover:bg-white/80 hover:text-pragma-black dark:text-muted-foreground dark:hover:bg-sidebar-accent dark:hover:text-foreground",
+          ? "bg-pragma-soft-cyan text-pragma-electric ring-1 ring-pragma-cyan/20 shadow-pragma-soft"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
       )}
     >
       <NavIcon
@@ -134,8 +134,8 @@ function SidebarNavGroupButton({
           "shrink-0 transition-colors",
           collapsed ? "h-[18px] w-[18px]" : "h-4 w-4",
           isStrongActive
-            ? "text-pragma-electric"
-            : "text-pragma-mid-gray group-hover:text-pragma-electric",
+            ? "text-primary"
+            : "text-muted-foreground group-hover:text-primary",
         )}
       />
       {!collapsed ? <span className="min-w-0 flex-1 truncate text-left">{title}</span> : null}
@@ -162,7 +162,7 @@ function BrandMark({ collapsed }: { collapsed: boolean }) {
         fullClassName="h-16 w-full max-w-full"
         priority
       />
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-pragma-mid-gray dark:text-muted-foreground">
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
         {t("nav.hostCommandCenter")}
       </p>
     </div>
@@ -190,7 +190,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
+        "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
         collapsed ? "w-[72px]" : "w-[248px]",
         className,
       )}
@@ -210,7 +210,7 @@ export function Sidebar({
             type="button"
             onClick={toggle}
             aria-label="Contraer barra lateral"
-            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-pragma-mid-gray transition-colors hover:bg-pragma-soft-gray hover:text-pragma-black"
+            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <ChevronsLeft className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -223,7 +223,7 @@ export function Sidebar({
             type="button"
             onClick={toggle}
             aria-label="Expandir barra lateral"
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-pragma-mid-gray transition-colors hover:bg-pragma-soft-gray"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           >
             <ChevronsRight className="h-4 w-4" strokeWidth={2} />
           </button>

@@ -45,8 +45,8 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
         <button
           type="button"
           className={cn(
-            "flex w-full items-center gap-3 rounded-xl border border-[#E9ECEF] bg-white p-2.5 text-left transition-colors hover:bg-pragma-light-blue/40 dark:border-sidebar-border dark:bg-sidebar-accent/50 dark:hover:bg-sidebar-accent",
-            collapsed && "justify-center border-0 bg-transparent p-0 hover:bg-pragma-light-blue/30",
+            "flex w-full items-center gap-3 rounded-xl border border-sidebar-border bg-card p-2.5 text-left transition-colors hover:bg-sidebar-accent",
+            collapsed && "justify-center border-0 bg-transparent p-0 hover:bg-sidebar-accent/60",
           )}
           aria-label="Menú de usuario"
         >
@@ -57,7 +57,7 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
                 alt={displayName}
                 width={40}
                 height={40}
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-border"
               />
             ) : (
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pragma-soft-cyan text-sm font-semibold text-pragma-electric">
@@ -68,10 +68,10 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
           </div>
           {!collapsed ? (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold leading-tight text-[#111111] dark:text-foreground">
+              <p className="truncate text-sm font-semibold leading-tight text-foreground">
                 {displayName}
               </p>
-              <p className="truncate text-xs leading-tight text-[#6B7280]">
+              <p className="truncate text-xs leading-tight text-muted-foreground">
                 {user.email}
               </p>
             </div>
