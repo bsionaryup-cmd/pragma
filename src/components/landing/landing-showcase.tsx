@@ -1,7 +1,11 @@
 "use client";
 
 import { FadeIn } from "@/components/landing/motion";
-import { LandingCalendarMockup } from "@/components/landing/landing-calendar-mockup";
+import {
+  LANDING_MARKETING_SCREENSHOTS,
+  LANDING_SHOWCASE_SCREENSHOT_SIZES,
+  LandingProductScreenshot,
+} from "@/components/landing/landing-product-screenshot";
 import { SectionHeading } from "@/components/landing/section-heading";
 
 export function LandingShowcase() {
@@ -31,7 +35,10 @@ export function LandingShowcase() {
               aria-hidden
               className="pointer-events-none absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-pragma-cyan/30 opacity-40 blur-3xl"
             />
-            <LandingCalendarMockup />
+            <LandingProductScreenshot
+              {...LANDING_MARKETING_SCREENSHOTS.showcase}
+              sizes={LANDING_SHOWCASE_SCREENSHOT_SIZES}
+            />
           </div>
         </FadeIn>
 

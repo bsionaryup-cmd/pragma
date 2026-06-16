@@ -1,0 +1,37 @@
+{
+  "phase": "0F-complete",
+  "updatedAt": "2026-06-16T07:55:37.521Z",
+  "landingAssets": {
+    "hero": {
+      "file": "panel-command-center-main.webp",
+      "slot": "landing-hero",
+      "component": "LandingProductScreenshot",
+      "priority": true,
+      "bytes": 91976
+    },
+    "showcase": {
+      "file": "calendar-june-mid-main.webp",
+      "slot": "landing-showcase",
+      "component": "LandingProductScreenshot",
+      "priority": false,
+      "bytes": 59658
+    }
+  },
+  "removed": {
+    "mockups": [
+      "landing-dashboard-mockup.tsx",
+      "landing-calendar-mockup.tsx"
+    ],
+    "draftWithPii": "0f-1-draft/"
+  },
+  "lighthouseDevServer": {
+    "note": "Measured against localhost:3000 dev — production scores differ",
+    "performance": 26,
+    "accessibility": 97,
+    "bestPractices": 77,
+    "seo": 92,
+    "lcp": "41.0 s",
+    "cls": "0",
+    "fcp": "5.1 s"
+  }
+}

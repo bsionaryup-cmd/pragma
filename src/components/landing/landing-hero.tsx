@@ -2,7 +2,10 @@
 
 import { motion } from "framer-motion";
 import { CalendarDays, Receipt, TrendingUp, Wallet } from "lucide-react";
-import { LandingDashboardMockup } from "@/components/landing/landing-dashboard-mockup";
+import {
+  LANDING_MARKETING_SCREENSHOTS,
+  LandingProductScreenshot,
+} from "@/components/landing/landing-product-screenshot";
 import { CommercialContactButton } from "@/components/landing/commercial-contact-button";
 import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
 import type { LandingSession } from "@/lib/landing-session";
@@ -104,7 +107,10 @@ export function LandingHero({ session: _session }: LandingHeroProps) {
             aria-hidden
             className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-pragma-gradient opacity-[0.1] blur-3xl md:-inset-8"
           />
-          <LandingDashboardMockup />
+          <LandingProductScreenshot
+            {...LANDING_MARKETING_SCREENSHOTS.hero}
+            priority
+          />
         </motion.div>
       </div>
     </section>
