@@ -30,8 +30,8 @@ export function NovedadesPageView({
         <PageHeader
           eyebrow="Operación"
           title="Novedades"
-          description="Notificaciones de Airbnb: reservas, pagos, mensajes y cambios."
-          className="mb-3"
+          description="Actividad de Airbnb y tareas sugeridas: mensajes, reservas, pagos y accesos."
+          className="mb-6"
         />
         <OperationalFeed cards={cards} />
       </div>

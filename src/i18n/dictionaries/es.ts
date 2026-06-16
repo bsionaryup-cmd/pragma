@@ -63,7 +63,7 @@ export const es = {
     eyebrow: "Panel de Control",
     greeting: "Hola, {{name}}. Tu operación Airbnb en un vistazo.",
     alertsButton: "Alertas",
-    novedadesButton: "Novedades",
+    novedadesButton: "Avisos PRAGMA",
     novedades: {
       title: "Novedades",
       description: "Avisos del sistema sobre mantenimiento, actualizaciones y más.",

@@ -64,7 +64,7 @@ export const en = {
     eyebrow: "Control Panel",
     greeting: "Hi, {{name}}. Your Airbnb operation at a glance.",
     alertsButton: "Alerts",
-    novedadesButton: "Updates",
+    novedadesButton: "PRAGMA notices",
     novedades: {
       title: "Updates",
       description: "System notices about maintenance, product updates, and more.",
