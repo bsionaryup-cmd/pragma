@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NavIcon } from "@/components/layout/nav-icon";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
@@ -289,6 +290,15 @@ export function Sidebar({
             onNavigate={onNavigate}
           />
         ) : null}
+
+        <div
+          className={cn(
+            "flex items-center",
+            collapsed ? "justify-center" : "justify-start px-1",
+          )}
+        >
+          <ThemeToggle size="sm" align={collapsed ? "start" : "end"} />
+        </div>
 
         <SidebarUserMenu user={user} collapsed={collapsed} />
       </div>

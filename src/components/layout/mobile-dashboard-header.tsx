@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import {
   Sheet,
@@ -48,6 +49,8 @@ export function MobileDashboardHeader({
         <div className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
           PRAGMA
         </div>
+
+        <ThemeToggle size="sm" align="end" />
       </header>
 
       <Sheet open={open} onOpenChange={setOpen}>

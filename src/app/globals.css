@@ -296,10 +296,17 @@
 
   html {
     @apply bg-background text-foreground antialiased;
+    transition:
+      color-scheme 0.2s ease,
+      background-color 0.2s ease,
+      color 0.2s ease;
   }
 
   body {
     @apply min-h-full bg-background font-sans text-foreground;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
   }
 
   h1,
