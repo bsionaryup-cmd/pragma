@@ -26,7 +26,7 @@ type LandingHeroProps = {
 export function LandingHero({ session: _session }: LandingHeroProps) {
   return (
     <section className="relative mx-auto max-w-7xl px-4 pt-10 pb-14 sm:px-6 md:pt-16 md:pb-24">
-      <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+      <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-12">
         <div className="max-w-xl lg:max-w-none">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
@@ -101,15 +101,17 @@ export function LandingHero({ session: _session }: LandingHeroProps) {
           initial={{ opacity: 0, x: 24 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.7, delay: 0.22, ease }}
-          className="relative lg:pl-2"
+          className="relative w-full lg:-mr-2 xl:-mr-6"
         >
           <div
             aria-hidden
-            className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-pragma-gradient opacity-[0.1] blur-3xl md:-inset-8"
+            className="pointer-events-none absolute -inset-8 rounded-[2rem] bg-pragma-gradient opacity-[0.14] blur-3xl md:-inset-10"
           />
           <LandingProductScreenshot
             {...LANDING_MARKETING_SCREENSHOTS.hero}
             priority
+            emphasis="hero"
+            className="w-full rounded-2xl lg:rounded-3xl"
           />
         </motion.div>
       </div>

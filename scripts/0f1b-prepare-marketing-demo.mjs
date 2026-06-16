@@ -185,25 +185,22 @@ async function main() {
       propertyId: properties[0].id,
       key: "active-booking",
       data: {
-        ...guestPatch(SYNTHETIC.camila),
-        checkIn: june(10),
-        checkOut: june(15),
+        ...guestPatch(SYNTHETIC.maria),
+        checkIn: june(16),
+        checkOut: june(19),
         status: ReservationStatus.CHECKED_IN,
         paymentStatus: "PAID",
-        platform: "BOOKING",
+        platform: "AIRBNB",
       },
     },
     {
       propertyId: properties[0].id,
       key: "checkout-today",
       data: {
-        ...guestPatch(SYNTHETIC.ana),
-        checkIn: june(12),
-        checkOut: june(16),
-        status:
-          today.getTime() === june(16).getTime()
-            ? ReservationStatus.CHECKOUT_TODAY
-            : ReservationStatus.CHECKED_IN,
+        ...guestPatch(SYNTHETIC.pedro),
+        checkIn: june(8),
+        checkOut: june(10),
+        status: ReservationStatus.CHECKED_OUT,
         paymentStatus: "PAID",
         platform: "BOOKING",
       },
@@ -237,8 +234,8 @@ async function main() {
       key: "active-booking",
       data: {
         ...guestPatch(SYNTHETIC.juan),
-        checkIn: june(12),
-        checkOut: june(17),
+        checkIn: june(17),
+        checkOut: june(20),
         status: ReservationStatus.CHECKED_IN,
         paymentStatus: "PAID",
         platform: "BOOKING",
@@ -249,11 +246,11 @@ async function main() {
       key: "checkout-today",
       data: {
         ...guestPatch(SYNTHETIC.laura),
-        checkIn: june(13),
-        checkOut: june(16),
-        status: ReservationStatus.CONFIRMED,
+        checkIn: june(6),
+        checkOut: june(8),
+        status: ReservationStatus.CHECKED_OUT,
         paymentStatus: "PAID",
-        platform: "BOOKING",
+        platform: "DIRECT",
       },
     },
     {
@@ -284,12 +281,12 @@ async function main() {
       propertyId: properties[2].id,
       key: "active-booking",
       data: {
-        ...guestPatch(SYNTHETIC.andres),
-        checkIn: june(11),
-        checkOut: june(16),
+        ...guestPatch(SYNTHETIC.laura),
+        checkIn: june(15),
+        checkOut: june(18),
         status: ReservationStatus.CHECKED_IN,
         paymentStatus: "PAID",
-        platform: "BOOKING",
+        platform: "AIRBNB",
       },
     },
     {
@@ -297,9 +294,9 @@ async function main() {
       key: "checkout-today",
       data: {
         ...guestPatch(SYNTHETIC.camila),
-        checkIn: june(14),
-        checkOut: june(17),
-        status: ReservationStatus.CONFIRMED,
+        checkIn: june(7),
+        checkOut: june(9),
+        status: ReservationStatus.CHECKED_OUT,
         paymentStatus: "PAID",
         platform: "BOOKING",
       },
@@ -332,12 +329,12 @@ async function main() {
       propertyId: properties[3].id,
       key: "active-booking",
       data: {
-        ...guestPatch(SYNTHETIC.maria),
-        checkIn: june(14),
-        checkOut: june(19),
-        status: ReservationStatus.CHECKED_IN,
+        ...guestPatch(SYNTHETIC.andres),
+        checkIn: june(19),
+        checkOut: june(22),
+        status: ReservationStatus.CONFIRMED,
         paymentStatus: "PAID",
-        platform: "BOOKING",
+        platform: "DIRECT",
       },
     },
     {
@@ -345,9 +342,9 @@ async function main() {
       key: "checkout-today",
       data: {
         ...guestPatch(SYNTHETIC.juan),
-        checkIn: june(15),
-        checkOut: june(18),
-        status: ReservationStatus.CONFIRMED,
+        checkIn: june(8),
+        checkOut: june(10),
+        status: ReservationStatus.CHECKED_OUT,
         paymentStatus: "PAID",
         platform: "BOOKING",
       },
@@ -419,12 +416,13 @@ async function main() {
 
   for (const property of properties) {
     const roundedBase = roundAmount(property.baseRate);
-    if (roundedBase !== String(property.baseRate)) {
-      await db.property.update({
-        where: { id: property.id },
-        data: { baseRate: roundedBase },
-      });
-    }
+    await db.property.update({
+      where: { id: property.id },
+      data: {
+        ...(roundedBase !== String(property.baseRate) ? { baseRate: roundedBase } : {}),
+        icalUrl: "https://demo.pragmapms.com/marketing.ics",
+      },
+    });
   }
 
   await assertPilotUntouched({ pilotReservations });

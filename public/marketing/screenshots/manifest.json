@@ -1,27 +1,44 @@
 {
-  "phase": "0F-complete",
-  "updatedAt": "2026-06-16T08:00:00.000Z",
-  "productionPath": "public/marketing/screenshots/",
-  "landingIntegration": {
-    "hero": {
-      "file": "panel-command-center-main.webp",
-      "component": "LandingProductScreenshot",
-      "route": "/panel",
-      "priority": true,
-      "webpBytes": 91976,
-      "width": 2384,
-      "height": 1800
-    },
-    "showcase": {
-      "file": "calendar-june-mid-main.webp",
-      "component": "LandingProductScreenshot",
-      "route": "/calendar?anchor=2026-06-15",
-      "priority": false,
-      "webpBytes": 59658,
-      "width": 2704,
-      "height": 1800
-    }
+  "phase": "0F-1b",
+  "capturedAt": "2026-06-16T08:37:04.049Z",
+  "baseUrl": "http://localhost:3000",
+  "tenant": "PRAGMA Demo · Urbano Loft",
+  "organizationId": "cmqgdwu0d000070ty7dlni159",
+  "outputDir": "public/marketing/screenshots/",
+  "format": {
+    "webpQuality": 82,
+    "deviceScaleFactor": 2,
+    "panelViewport": "1440x900",
+    "calendarViewport": "1600x900",
+    "crop": "panel: Actividad diaria section; calendar: .calendar-workspace",
+    "note": "Retina PNG kept for review; WebP for landing."
   },
   "piiStatus": "PASSED — synthetic demo tenant only",
-  "landingReadyForPublicUsage": true
+  "landingReadyForPublicUsage": true,
+  "assets": [
+    {
+      "id": "panel-command-center",
+      "slot": "hero",
+      "route": "/panel",
+      "recommended": "panel-command-center-main.webp",
+      "tenant": "PRAGMA Demo · Urbano Loft",
+      "width": 2236,
+      "height": 1120,
+      "bytes": 77120,
+      "webpBytes": 77120,
+      "aspectRatio": "2236:1120"
+    },
+    {
+      "id": "calendar-june-mid",
+      "slot": "showcase",
+      "route": "/calendar?anchor=2026-06-16",
+      "recommended": "calendar-june-mid-main.webp",
+      "tenant": "PRAGMA Demo · Urbano Loft",
+      "width": 2620,
+      "height": 1516,
+      "bytes": 30168,
+      "webpBytes": 30168,
+      "aspectRatio": "2620:1516"
+    }
+  ]
 }

@@ -11,8 +11,8 @@
 | Phone numbers visible | No |
 | Email addresses visible | No |
 | Reservation / confirmation codes visible | No |
-| Internal DB IDs visible | No — property ref codes hidden in calendar capture |
-| Admin / trial banners | No — removed during capture |
+| Internal property ref codes (e.g. `1y22dm`) | Hidden via calendar view settings during capture |
+| Admin impersonation / trial banners | Hidden during capture (not in final crop) |
 | Blur applied | No — clean synthetic data at source |
 
 ## Panel (`panel-command-center-main.webp`)

@@ -49,7 +49,10 @@ async function exportWebp(pngPath, webpPath, quality = 82) {
 }
 
 async function impersonateDemoOrg(page, organizationId) {
-  const res = await page.request.post(`${BASE}/api/owner/tenant/${organizationId}/impersonate`);
+  const res = await page.request.post(
+    `${BASE}/api/owner/tenant/${organizationId}/impersonate`,
+    { timeout: 120000 },
+  );
   if (!res.ok()) {
     throw new Error(`Impersonation failed: ${res.status()} ${await res.text()}`);
   }
@@ -63,7 +66,11 @@ async function hideMarketingChrome(page) {
       div.border-amber-300\\/60,
       div.bg-amber-50[role="status"],
       div.border-pragma-cyan\\/20.bg-pragma-light-blue\\/50,
-      div.fixed.bottom-6.right-6 { display: none !important; }
+      div.fixed.bottom-6.right-6,
+      nextjs-portal,
+      [data-nextjs-toast],
+      [data-nextjs-dev-tools-button],
+      #devtools-indicator { display: none !important; visibility: hidden !important; }
     `,
   });
 
@@ -80,6 +87,19 @@ async function hideMarketingChrome(page) {
         text.includes("Activar suscripción")
       ) {
         el.remove();
+      }
+    }
+
+    for (const el of document.querySelectorAll("body *")) {
+      const text = (el.textContent ?? "").trim();
+      if (
+        text === "Rendering…" ||
+        text === "Rendering..." ||
+        /^\d+\s+Issues?$/i.test(text)
+      ) {
+        const host = el.closest("nextjs-portal") ?? el.parentElement;
+        if (host) host.remove();
+        else el.remove();
       }
     }
   });
@@ -146,13 +166,16 @@ try {
   );
   await panelPage.getByRole("tab", { name: /Próximas llegadas/ }).click();
   await hideMarketingChrome(panelPage);
-  await panelPage.waitForTimeout(500);
+  await panelPage.waitForTimeout(800);
 
-  const panelMain = panelPage.locator("#pragma-main-content");
-  await panelMain.waitFor({ state: "visible", timeout: 30000 });
+  const panelCropTarget = panelPage
+    .locator("#pragma-main-content")
+    .getByRole("heading", { name: "Actividad diaria" })
+    .locator("xpath=ancestor::section[1]");
+  await panelCropTarget.waitFor({ state: "visible", timeout: 30000 });
 
   const panelCropPng = join(OUT, "panel-command-center-main-2x.png");
-  await panelMain.screenshot({ path: panelCropPng });
+  await panelCropTarget.screenshot({ path: panelCropPng });
 
   const panelWebp = join(OUT, "panel-command-center-main.webp");
   const panelMeta = await exportWebp(panelCropPng, panelWebp);
@@ -187,7 +210,7 @@ try {
   await calPage.waitForURL(/\/(panel|calendar|onboarding|owner)/, { timeout: 120000 }).catch(() => {});
 
   await impersonateDemoOrg(calPage, demoOrg.id);
-  await calPage.goto(`${BASE}/calendar?anchor=2026-06-15`, {
+  await calPage.goto(`${BASE}/calendar?anchor=2026-06-16`, {
     waitUntil: "networkidle",
     timeout: 120000,
   });
@@ -196,20 +219,20 @@ try {
     { timeout: 30000 },
   );
   await hideMarketingChrome(calPage);
-  await calPage.waitForTimeout(500);
+  await calPage.waitForTimeout(800);
 
-  const calMain = calPage.locator("#pragma-main-content");
-  await calMain.waitFor({ state: "visible", timeout: 30000 });
+  const calCropTarget = calPage.locator(".calendar-workspace");
+  await calCropTarget.waitFor({ state: "visible", timeout: 30000 });
 
   const calCropPng = join(OUT, "calendar-june-mid-main-2x.png");
-  await calMain.screenshot({ path: calCropPng });
+  await calCropTarget.screenshot({ path: calCropPng });
 
   const calWebp = join(OUT, "calendar-june-mid-main.webp");
   const calMeta = await exportWebp(calCropPng, calWebp);
   manifest.push({
     id: "calendar-june-mid",
     slot: "showcase",
-    route: "/calendar?anchor=2026-06-15",
+    route: "/calendar?anchor=2026-06-16",
     recommended: "calendar-june-mid-main.webp",
     tenant: DEMO_ORG_NAME,
     ...calMeta,
@@ -235,7 +258,7 @@ const report = {
     deviceScaleFactor: 2,
     panelViewport: "1440x900",
     calendarViewport: "1600x900",
-    crop: "#pragma-main-content",
+    crop: "panel: Actividad diaria section; calendar: .calendar-workspace",
     note: "Retina PNG kept for review; WebP for landing.",
   },
   piiStatus: "PASSED — synthetic demo tenant only",

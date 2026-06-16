@@ -6,44 +6,49 @@ import { cn } from "@/lib/utils";
 
 /** Responsive `sizes` for hero column (~50vw desktop). */
 export const LANDING_PRODUCT_SCREENSHOT_DEFAULT_SIZES =
-  "(max-width: 768px) 100vw, 50vw";
+  "(max-width: 768px) 100vw, (max-width: 1280px) 55vw, 640px";
 
 /** Responsive `sizes` for full-width showcase container. */
 export const LANDING_SHOWCASE_SCREENSHOT_SIZES =
-  "(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1152px";
+  "(max-width: 768px) 100vw, (max-width: 1280px) 94vw, 1200px";
 
-/** Approved 0F-1b marketing assets — for 0F-3 / 0F-4 integration. */
+/** Approved marketing assets — synthetic demo tenant only. */
 export const LANDING_MARKETING_SCREENSHOTS = {
   hero: {
     src: "/marketing/screenshots/panel-command-center-main.webp",
-    width: 2384,
-    height: 1800,
+    width: 2236,
+    height: 1120,
     alt: "Panel de control PRAGMA con próximas llegadas y actividad diaria",
   },
   showcase: {
     src: "/marketing/screenshots/calendar-june-mid-main.webp",
-    width: 2704,
-    height: 1800,
+    width: 2620,
+    height: 1516,
     alt: "Calendario PRAGMA con reservas por propiedad en junio",
   },
 } as const;
 
+export type LandingScreenshotEmphasis = "hero" | "showcase";
+
 export type LandingProductScreenshotProps = {
   src: string;
   alt: string;
-  /** Intrinsic width of the WebP asset (retina source). */
   width: number;
-  /** Intrinsic height of the WebP asset (retina source). */
   height: number;
-  /** LCP hero — eager load + high fetch priority. */
   priority?: boolean;
   className?: string;
   sizes?: string;
+  emphasis?: LandingScreenshotEmphasis;
+};
+
+const EMPHASIS_STYLES: Record<LandingScreenshotEmphasis, string> = {
+  hero: "shadow-[0_28px_80px_-16px_rgba(11,107,255,0.28)] ring-1 ring-black/[0.06]",
+  showcase:
+    "shadow-[0_32px_96px_-20px_rgba(0,0,0,0.55)] ring-1 ring-white/10",
 };
 
 /**
  * Framed product screenshot for the marketing landing (Linear / Vercel–style).
- * Centralizes next/image, border, shadow, aspect ratio, and loading behavior.
  */
 export function LandingProductScreenshot({
   src,
@@ -53,12 +58,13 @@ export function LandingProductScreenshot({
   priority = false,
   className,
   sizes = LANDING_PRODUCT_SCREENSHOT_DEFAULT_SIZES,
+  emphasis,
 }: LandingProductScreenshotProps) {
   return (
     <figure
       className={cn(
         "relative m-0 w-full overflow-hidden rounded-2xl border border-pragma-border/90 bg-white",
-        "shadow-pragma-glow ring-1 ring-black/[0.04]",
+        emphasis ? EMPHASIS_STYLES[emphasis] : "shadow-pragma-glow ring-1 ring-black/[0.04]",
         className,
       )}
       style={{ aspectRatio: `${width} / ${height}` }}

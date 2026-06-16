@@ -26,7 +26,7 @@ export function LandingShowcase() {
         </FadeIn>
 
         <FadeIn delay={0.1}>
-          <div className="relative mt-14 overflow-hidden rounded-3xl border border-white/20 bg-white/[0.07] p-4 shadow-pragma-card backdrop-blur-sm md:p-8">
+          <div className="relative mt-12 overflow-hidden rounded-3xl border border-white/20 bg-white/[0.06] p-1.5 shadow-pragma-card backdrop-blur-sm md:mt-14 md:p-2">
             <div
               aria-hidden
               className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-pragma-gradient opacity-25 blur-3xl"
@@ -38,6 +38,8 @@ export function LandingShowcase() {
             <LandingProductScreenshot
               {...LANDING_MARKETING_SCREENSHOTS.showcase}
               sizes={LANDING_SHOWCASE_SCREENSHOT_SIZES}
+              emphasis="showcase"
+              className="rounded-2xl md:rounded-[1.35rem]"
             />
           </div>
         </FadeIn>
