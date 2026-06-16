@@ -1884,3 +1884,81 @@ model AirbnbListingEmailMap {
   @@index([organizationId, airbnbRoomId])
   @@map("airbnb_listing_email_maps")
 }
+
+// ─── Airbnb email linkage repair (Deploy 2) ─────────────────
+
+enum AirbnbEmailLinkageRelocationStatus {
+  PENDING
+  APPLIED
+  SKIPPED
+  REVERTED
+}
+
+enum AirbnbEmailLinkageRepairReason {
+  CONFIRMATION_CODE_TARGET_MISMATCH
+}
+
+enum AirbnbFinancialBackfillStatus {
+  APPLIED
+  SKIPPED
+}
+
+model AirbnbEmailLinkageRelocation {
+  id                 String                            @id @default(cuid())
+  runId              String
+  eventId            String
+  auditId            String
+  confirmationCode   String?
+  fromReservationId  String
+  toReservationId    String
+  reason             AirbnbEmailLinkageRepairReason
+  previousState      Json
+  status             AirbnbEmailLinkageRelocationStatus @default(PENDING)
+  skipReason         String?
+  createdAt          DateTime                          @default(now())
+  appliedAt          DateTime?
+  revertedAt         DateTime?
+  revertedByRunId    String?
+
+  @@index([runId])
+  @@index([eventId])
+  @@index([auditId])
+  @@index([confirmationCode])
+  @@index([status])
+  @@map("airbnb_email_linkage_relocations")
+}
+
+model AirbnbReservationCodeAssignment {
+  id             String   @id @default(cuid())
+  runId          String
+  reservationId  String
+  assignedCode   String
+  sourceAuditId  String
+  previousCode   String?
+  createdAt      DateTime @default(now())
+
+  @@index([runId])
+  @@index([reservationId])
+  @@index([assignedCode])
+  @@map("airbnb_reservation_code_assignments")
+}
+
+model AirbnbFinancialBackfillLog {
+  id                  String                        @id @default(cuid())
+  runId               String
+  reservationId       String
+  sourceEventId       String?
+  sourceAuditId       String?
+  previousTotalAmount Decimal                       @db.Decimal(12, 2)
+  appliedTotalAmount  Decimal                       @db.Decimal(12, 2)
+  currency            String?
+  pickSource          String?
+  status              AirbnbFinancialBackfillStatus
+  skipReason          String?
+  createdAt           DateTime                      @default(now())
+
+  @@index([runId])
+  @@index([reservationId])
+  @@index([status])
+  @@map("airbnb_financial_backfill_logs")
+}

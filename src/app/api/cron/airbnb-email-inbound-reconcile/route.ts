@@ -4,6 +4,7 @@ import { reconcileMissedResendInboundEmails } from "@/modules/airbnb-email/inges
 import { isResendInboundConfigured } from "@/modules/airbnb-email/integrations/resend-inbound.client";
 import { logAirbnbEnrichmentHealthSnapshot } from "@/modules/airbnb-email/observability/enrichment-health-snapshot";
 import { runUnlinkedEmailEnrichmentRetryJob } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
+import { runAirbnbEmailLinkageRepairJob } from "@/modules/airbnb-email/repair/run-linkage-repair-job";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
     lookbackHours: 24 * 30,
   });
 
+  const linkageRepair = await runAirbnbEmailLinkageRepairJob();
+
   const health = await logAirbnbEnrichmentHealthSnapshot();
 
   airbnbEmailLog.info("cron_airbnb_inbound_reconcile_done", {
@@ -57,6 +60,9 @@ export async function GET(request: Request) {
     resendIngested: resend?.ingested ?? 0,
     retryScanned: retry.scanned,
     retryLinked: retry.linked,
+    linkageRepairScanned: linkageRepair.scanned,
+    linkageRepairRelocated: linkageRepair.relocated,
+    linkageRepairFinancialBackfilled: linkageRepair.financialBackfilled,
     healthUnlinkedStale24h: health.unlinkedAuditsOlderThan24h,
     healthPlaceholderZeroAmount: health.placeholderZeroAmountActive,
     healthActiveWithoutEmailEvent: health.activeAirbnbWithoutEmailEvent,
@@ -68,6 +74,7 @@ export async function GET(request: Request) {
     durationMs: Date.now() - startedAt,
     resend,
     retry,
+    linkageRepair,
     health,
   });
 }

@@ -29,7 +29,7 @@ export type PersistReservationMatchResult = {
   enrichedFieldKeys: string[];
 };
 
-function buildStructuredMetadataFields(
+export function buildStructuredMetadataFields(
   signals: ExtractedReservationSignals,
 ): Record<string, string | number> {
   const metadata: Record<string, string | number> = {};
