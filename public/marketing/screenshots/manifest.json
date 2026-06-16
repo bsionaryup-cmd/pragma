@@ -1,0 +1,27 @@
+{
+  "phase": "0F-complete",
+  "updatedAt": "2026-06-16T08:00:00.000Z",
+  "productionPath": "public/marketing/screenshots/",
+  "landingIntegration": {
+    "hero": {
+      "file": "panel-command-center-main.webp",
+      "component": "LandingProductScreenshot",
+      "route": "/panel",
+      "priority": true,
+      "webpBytes": 91976,
+      "width": 2384,
+      "height": 1800
+    },
+    "showcase": {
+      "file": "calendar-june-mid-main.webp",
+      "component": "LandingProductScreenshot",
+      "route": "/calendar?anchor=2026-06-15",
+      "priority": false,
+      "webpBytes": 59658,
+      "width": 2704,
+      "height": 1800
+    }
+  },
+  "piiStatus": "PASSED — synthetic demo tenant only",
+  "landingReadyForPublicUsage": true
+}
