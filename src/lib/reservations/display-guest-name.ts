@@ -1,5 +1,6 @@
 import { BookingPlatform } from "@prisma/client";
 import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 
 export type ReservationDisplayGuestNameInput = {
   platform: BookingPlatform;
@@ -20,7 +21,8 @@ export function resolveReservationDisplayGuestName(
   if (
     input.platform === BookingPlatform.AIRBNB &&
     airbnbEnrichment &&
-    !isPlaceholderGuestName(airbnbEnrichment)
+    !isPlaceholderGuestName(airbnbEnrichment) &&
+    isPlausibleGuestName(airbnbEnrichment)
   ) {
     return airbnbEnrichment;
   }
@@ -28,7 +30,8 @@ export function resolveReservationDisplayGuestName(
   const reservationGuest = input.guestName?.trim();
   if (
     reservationGuest &&
-    !(input.platform === BookingPlatform.AIRBNB && isPlaceholderGuestName(reservationGuest))
+    !(input.platform === BookingPlatform.AIRBNB && isPlaceholderGuestName(reservationGuest)) &&
+    (input.platform !== BookingPlatform.AIRBNB || isPlausibleGuestName(reservationGuest))
   ) {
     return reservationGuest;
   }

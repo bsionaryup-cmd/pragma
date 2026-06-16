@@ -200,6 +200,7 @@ async function main() {
       reservationEnrichedFields: enrichedFieldsRaw,
       metadataFields: metadata,
       signals,
+      eventKind: AirbnbEmailEventKind.CONFIRMED,
     });
 
     await db.$transaction(async (tx) => {

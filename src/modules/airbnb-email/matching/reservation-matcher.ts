@@ -9,6 +9,7 @@ import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
+import { confirmationCodesConflict } from "@/modules/airbnb-email/matching/confirmation-code-guard";
 import { matchByListingContextual } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
 import { matchReservationByPropertyContext } from "@/modules/airbnb-email/matching/property-reservation-matcher";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
@@ -217,6 +218,60 @@ function canAttemptIcalContextualMatch(input: {
   return Boolean(input.organizationId && isPlausibleGuestName(input.guestName));
 }
 
+async function rejectMatchOnConfirmationCodeConflict(input: {
+  reservationId: string;
+  emailConfirmationCode: string | null | undefined;
+}): Promise<boolean> {
+  const reservation = await db.reservation.findUnique({
+    where: { id: input.reservationId },
+    select: { reservationCode: true },
+  });
+  return confirmationCodesConflict(
+    input.emailConfirmationCode,
+    reservation?.reservationCode,
+  );
+}
+
+type MatchCandidate = Omit<
+  ReservationMatchResult,
+  "tier" | "allowReservationEnrichment" | "requiresManualReview"
+>;
+
+async function finalizeEmailMatch(
+  match: MatchCandidate | null,
+  signals: ExtractedReservationSignals,
+  hasConfirmationCode: boolean,
+  emptyBase: MatchCandidate,
+): Promise<ReservationMatchResult> {
+  if (match?.reservationId && signals.confirmationCode?.trim()) {
+    const conflict = await rejectMatchOnConfirmationCodeConflict({
+      reservationId: match.reservationId,
+      emailConfirmationCode: signals.confirmationCode,
+    });
+    if (conflict) {
+      airbnbEmailLog.warn("match_rejected_confirmation_code_mismatch", {
+        reservationId: match.reservationId,
+        emailConfirmationCode: signals.confirmationCode,
+        method: match.method,
+      });
+      return applyMatchPolicy(
+        { ...emptyBase, confidence: 0 },
+        { hasConfirmationCodeInEmail: hasConfirmationCode },
+      );
+    }
+  }
+
+  if (!match) {
+    return applyMatchPolicy(emptyBase, {
+      hasConfirmationCodeInEmail: hasConfirmationCode,
+    });
+  }
+
+  return applyMatchPolicy(match, {
+    hasConfirmationCodeInEmail: hasConfirmationCode,
+  });
+}
+
 export async function matchReservationFromEmailSignals(
   signals: ExtractedReservationSignals,
   options?: MatchReservationOptions,
@@ -350,9 +405,7 @@ export async function matchReservationFromEmailSignals(
           guestNameFromEmail: signals.guestName ?? undefined,
         });
       }
-      return applyMatchPolicy(propertyScoped, {
-        hasConfirmationCodeInEmail: hasConfirmationCode,
-      });
+      return finalizeEmailMatch(propertyScoped, signals, hasConfirmationCode, emptyBase);
     }
   } else {
     const missingFields: string[] = [];
@@ -406,9 +459,7 @@ export async function matchReservationFromEmailSignals(
         reservationId: dateMatch.match.reservationId,
         decisiveSignal: dateMatch.decisiveSignal,
       });
-      return applyMatchPolicy(dateMatch.match, {
-        hasConfirmationCodeInEmail: hasConfirmationCode,
-      });
+      return finalizeEmailMatch(dateMatch.match, signals, hasConfirmationCode, emptyBase);
     }
 
     if (signals.guestName?.trim()) {
@@ -430,9 +481,7 @@ export async function matchReservationFromEmailSignals(
           branch: "LISTING_GUEST_DATES",
           reservationId: byGuest.reservationId,
         });
-        return applyMatchPolicy(byGuest, {
-          hasConfirmationCodeInEmail: hasConfirmationCode,
-        });
+        return finalizeEmailMatch(byGuest, signals, hasConfirmationCode, emptyBase);
       }
     }
   }
@@ -452,9 +501,7 @@ export async function matchReservationFromEmailSignals(
         propertyIdHint: propertyId,
         decisiveSignal: "property+ical_context",
       });
-      return applyMatchPolicy(contextualWithProperty, {
-        hasConfirmationCodeInEmail: hasConfirmationCode,
-      });
+      return finalizeEmailMatch(contextualWithProperty, signals, hasConfirmationCode, emptyBase);
     }
   }
 
@@ -474,9 +521,7 @@ export async function matchReservationFromEmailSignals(
         decisiveSignal: "guestName+ical_context",
         confidence: contextual.confidence,
       });
-      return applyMatchPolicy(contextual, {
-        hasConfirmationCodeInEmail: hasConfirmationCode,
-      });
+      return finalizeEmailMatch(contextual, signals, hasConfirmationCode, emptyBase);
     }
     airbnbEmailLog.info("match_branch_skipped", {
       branch: "ICAL_CONTEXTUAL_MATCH",
@@ -508,12 +553,9 @@ export async function matchReservationFromEmailSignals(
         byCode.organizationId &&
         byCode.organizationId !== organizationId
       ) {
-        return applyMatchPolicy(
-          { ...emptyBase, confidence: 0 },
-          { hasConfirmationCodeInEmail: hasConfirmationCode },
-        );
+        return finalizeEmailMatch(null, signals, hasConfirmationCode, emptyBase);
       }
-      return applyMatchPolicy(byCode, { hasConfirmationCodeInEmail: true });
+      return finalizeEmailMatch(byCode, signals, true, emptyBase);
     }
     airbnbEmailLog.info("match_branch_skipped", {
       branch: "CONFIRMATION_CODE",
@@ -538,7 +580,5 @@ export async function matchReservationFromEmailSignals(
     propertyResolutionAmbiguous,
   });
 
-  return applyMatchPolicy(emptyBase, {
-    hasConfirmationCodeInEmail: hasConfirmationCode,
-  });
+  return finalizeEmailMatch(null, signals, hasConfirmationCode, emptyBase);
 }

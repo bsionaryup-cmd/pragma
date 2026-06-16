@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { AirbnbEmailMatchMethod } from "@prisma/client";
+import { AirbnbEmailEventKind, AirbnbEmailMatchMethod } from "@prisma/client";
 import { applyMatchPolicy } from "../../src/modules/airbnb-email/lib/match-policy";
 import { extractReservationSignals } from "../../src/modules/airbnb-email/parsing/extractors";
 import {
   isPlaceholderGuestName,
   isZeroReservationAmount,
+  mergeEnrichedFieldsForEmailEvent,
   normalizeIcalGuestNameFromSummary,
   pickReservationAmount,
   splitGuestName,
@@ -75,6 +76,34 @@ describe("safe reservation enrichment helpers", () => {
     assert.equal(split.guestName, "Ana García López");
     assert.equal(split.guestFirstName, "Ana");
     assert.equal(split.guestLastName, "García López");
+  });
+
+  it("no sobrescribe guestName desde UPDATED ni recordatorios", () => {
+    const merged = mergeEnrichedFieldsForEmailEvent({
+      reservationEnrichedFields: {},
+      metadataFields: {},
+      signals: { guestName: "sabe cómo llegar al alojamiento." },
+      eventKind: AirbnbEmailEventKind.UPDATED,
+    });
+    assert.equal(merged.guestName, undefined);
+
+    const reminder = mergeEnrichedFieldsForEmailEvent({
+      reservationEnrichedFields: {},
+      metadataFields: {},
+      signals: { guestName: "Jairo Tapia" },
+      eventKind: AirbnbEmailEventKind.CHECKIN_REMINDER,
+    });
+    assert.equal(reminder.guestName, undefined);
+  });
+
+  it("permite guestName solo en CONFIRMED", () => {
+    const merged = mergeEnrichedFieldsForEmailEvent({
+      reservationEnrichedFields: {},
+      metadataFields: {},
+      signals: { guestName: "Karla Durán" },
+      eventKind: AirbnbEmailEventKind.CONFIRMED,
+    });
+    assert.equal(merged.guestName, "Karla Durán");
   });
 });
 

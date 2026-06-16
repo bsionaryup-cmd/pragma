@@ -25,6 +25,11 @@ const ENRICHABLE_EVENT_KINDS = new Set<AirbnbEmailEventKind>([
   AirbnbEmailEventKind.EXTENDED,
 ]);
 
+/** Only confirmation emails may set or replace guestName from parsed signals. */
+const GUEST_NAME_SOURCE_EVENT_KINDS = new Set<AirbnbEmailEventKind>([
+  AirbnbEmailEventKind.CONFIRMED,
+]);
+
 export type SafeEnrichmentMode = "reservation" | "financial";
 
 export function isPlaceholderGuestName(name: string | null | undefined): boolean {
@@ -55,6 +60,7 @@ export function mergeEnrichedFieldsForEmailEvent(input: {
   reservationEnrichedFields: Record<string, string | number>;
   metadataFields: Record<string, string | number>;
   signals: ExtractedReservationSignals;
+  eventKind?: AirbnbEmailEventKind;
 }): Record<string, string | number> {
   const merged = {
     ...input.reservationEnrichedFields,
@@ -65,6 +71,13 @@ export function mergeEnrichedFieldsForEmailEvent(input: {
   if (existing && !isPlaceholderGuestName(existing)) {
     return merged;
   }
+
+  const canSetGuestNameFromSignals =
+    !input.eventKind || GUEST_NAME_SOURCE_EVENT_KINDS.has(input.eventKind);
+  if (!canSetGuestNameFromSignals) {
+    return merged;
+  }
+
   const fromSignals = input.signals.guestName?.trim();
   if (fromSignals && isPlausibleGuestName(fromSignals)) {
     merged.guestName = fromSignals;
@@ -188,8 +201,12 @@ export async function applySafeReservationEnrichment(input: {
     }
 
     if (!guestFieldsLocked) {
+      const canApplyGuestName =
+        !input.eventKind || GUEST_NAME_SOURCE_EVENT_KINDS.has(input.eventKind);
       const guestNameRaw = input.signals.guestName?.trim();
-      if (guestNameRaw && isPlaceholderGuestName(reservation.guestName)) {
+      if (!canApplyGuestName && guestNameRaw) {
+        skipped.push("guestName");
+      } else if (guestNameRaw && isPlaceholderGuestName(reservation.guestName)) {
         const split = splitGuestName(guestNameRaw);
         updates.guestName = split.guestName;
         updates.guestFirstName = split.guestFirstName;

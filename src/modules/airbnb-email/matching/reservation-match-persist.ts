@@ -62,6 +62,7 @@ export async function reapplyReservationEnrichmentFromAudit(
     reservationEnrichedFields,
     metadataFields,
     signals: input.signals,
+    eventKind: input.eventKind,
   });
   const enrichedFieldKeys = Object.keys(enrichedFields);
   if (enrichedFieldKeys.length === 0) {
@@ -177,6 +178,7 @@ export async function persistReservationMatchLinkage(
           reservationEnrichedFields,
           metadataFields,
           signals: input.signals,
+          eventKind: input.eventKind,
         });
         enrichedFieldKeys = Object.keys(enrichedFields);
 

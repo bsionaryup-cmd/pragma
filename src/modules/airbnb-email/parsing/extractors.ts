@@ -10,6 +10,7 @@ import {
 import { extractAirbnbListingRefs } from "@/modules/airbnb-email/parsing/airbnb-url-extract";
 import {
   buildEmailMatchBlob,
+  isPlausibleGuestName,
   resolveGuestNameFromSignals,
 } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import {
@@ -260,7 +261,9 @@ export function extractReservationSignals(input: {
   let bodyGuestMatch: string | null = null;
   for (const match of extractionText.matchAll(GUEST_NAME_RE)) {
     const candidate = match[1]?.trim();
-    if (candidate) bodyGuestMatch = candidate;
+    if (candidate && isPlausibleGuestName(candidate)) {
+      bodyGuestMatch = candidate;
+    }
   }
   const guestName = resolveGuestNameFromSignals({
     subject: input.subject,

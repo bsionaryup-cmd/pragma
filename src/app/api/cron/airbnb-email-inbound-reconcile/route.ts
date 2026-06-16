@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { reconcileMissedResendInboundEmails } from "@/modules/airbnb-email/ingestion/reconcile-resend-inbound";
 import { isResendInboundConfigured } from "@/modules/airbnb-email/integrations/resend-inbound.client";
+import { logAirbnbEnrichmentHealthSnapshot } from "@/modules/airbnb-email/observability/enrichment-health-snapshot";
 import { runUnlinkedEmailEnrichmentRetryJob } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
 
 export const dynamic = "force-dynamic";
@@ -48,12 +49,18 @@ export async function GET(request: Request) {
     lookbackHours: 24 * 30,
   });
 
+  const health = await logAirbnbEnrichmentHealthSnapshot();
+
   airbnbEmailLog.info("cron_airbnb_inbound_reconcile_done", {
     durationMs: Date.now() - startedAt,
     resendListed: resend?.listed ?? 0,
     resendIngested: resend?.ingested ?? 0,
     retryScanned: retry.scanned,
     retryLinked: retry.linked,
+    healthUnlinkedStale24h: health.unlinkedAuditsOlderThan24h,
+    healthPlaceholderZeroAmount: health.placeholderZeroAmountActive,
+    healthActiveWithoutEmailEvent: health.activeAirbnbWithoutEmailEvent,
+    healthMisclassifiedCanceled: health.misclassifiedCanceledConfirmSubject,
   });
 
   return NextResponse.json({
@@ -61,5 +68,6 @@ export async function GET(request: Request) {
     durationMs: Date.now() - startedAt,
     resend,
     retry,
+    health,
   });
 }

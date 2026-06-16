@@ -6,6 +6,7 @@ import {
   guestNameMatches,
   narrowContextualCandidates,
 } from "@/modules/airbnb-email/matching/contextual-reservation-matcher";
+import { confirmationCodesConflict } from "@/modules/airbnb-email/matching/confirmation-code-guard";
 import {
   guestNameMatchStrength,
   normalizeGuestName,
@@ -244,9 +245,19 @@ function scorePropertyReservationCandidate(input: {
 function collectRejectedBecause(input: {
   row: ScoredPropertyCandidate;
   hasGuestSignal: boolean;
+  emailConfirmationCode?: string | null;
 }): string[] {
   const reasons: string[] = [];
   const { row, hasGuestSignal } = input;
+
+  if (
+    confirmationCodesConflict(
+      input.emailConfirmationCode,
+      row.candidate.reservationCode,
+    )
+  ) {
+    reasons.push("confirmation_code_mismatch");
+  }
 
   if (row.confidence < MIN_AUTO_LINK_CONFIDENCE) {
     reasons.push("confidence_below_threshold");
@@ -267,16 +278,25 @@ function collectRejectedBecause(input: {
 function isSafeAutoLinkCandidate(
   row: ScoredPropertyCandidate,
   hasGuestSignal: boolean,
+  emailConfirmationCode?: string | null,
 ): boolean {
-  return collectRejectedBecause({ row, hasGuestSignal }).length === 0;
+  return (
+    collectRejectedBecause({ row, hasGuestSignal, emailConfirmationCode }).length ===
+    0
+  );
 }
 
 function filterSafeAutoLinkCandidates(input: {
   scored: ScoredPropertyCandidate[];
   hasGuestSignal: boolean;
+  emailConfirmationCode?: string | null;
 }): ScoredPropertyCandidate[] {
   return input.scored.filter((row) =>
-    isSafeAutoLinkCandidate(row, input.hasGuestSignal),
+    isSafeAutoLinkCandidate(
+      row,
+      input.hasGuestSignal,
+      input.emailConfirmationCode,
+    ),
   );
 }
 
@@ -335,10 +355,15 @@ function logAllFailedCandidates(
   selectedId: string | null,
   extraReasonById?: Map<string, string>,
   emailGuestName?: string | null,
+  emailConfirmationCode?: string | null,
 ): void {
   for (const row of scored) {
     if (row.candidate.id === selectedId) continue;
-    const rejectedBecause = collectRejectedBecause({ row, hasGuestSignal });
+    const rejectedBecause = collectRejectedBecause({
+      row,
+      hasGuestSignal,
+      emailConfirmationCode,
+    });
     logCandidateEvaluationFailed(
       propertyId,
       row,
@@ -611,6 +636,7 @@ export async function matchReservationByPropertyContext(input: {
   const safeCandidates = filterSafeAutoLinkCandidates({
     scored,
     hasGuestSignal: hasGuestName,
+    emailConfirmationCode: input.signals.confirmationCode,
   });
 
   if (hasMultiplePlaceholders) {
@@ -626,6 +652,7 @@ export async function matchReservationByPropertyContext(input: {
       null,
       undefined,
       input.signals.guestName,
+      input.signals.confirmationCode,
     );
     logSuccessfulVsFailedMatchComparison({
       propertyId: input.propertyId,
@@ -662,6 +689,7 @@ export async function matchReservationByPropertyContext(input: {
       winner.candidate.id,
       undefined,
       input.signals.guestName,
+      input.signals.confirmationCode,
     );
     return buildPropertyScopedMatch(winner.candidate, winner, {
       propertyId: input.propertyId,
@@ -684,11 +712,15 @@ export async function matchReservationByPropertyContext(input: {
         emailConfirmationCode: input.signals.confirmationCode,
       });
 
-    if (isSafeAutoLinkCandidate(row, hasGuestName)) {
+    if (isSafeAutoLinkCandidate(row, hasGuestName, input.signals.confirmationCode)) {
       return tryAutoLink(row, "property_narrow:unique_safe_candidate");
     }
 
-    const rejectedBecause = collectRejectedBecause({ row, hasGuestSignal: hasGuestName });
+    const rejectedBecause = collectRejectedBecause({
+      row,
+      hasGuestSignal: hasGuestName,
+      emailConfirmationCode: input.signals.confirmationCode,
+    });
     logCandidateEvaluationFailed(
       input.propertyId,
       row,
@@ -756,11 +788,13 @@ export async function matchReservationByPropertyContext(input: {
     null,
     undefined,
     input.signals.guestName,
+    input.signals.confirmationCode,
   );
   for (const row of scored) {
     const filteredBecause = collectRejectedBecause({
       row,
       hasGuestSignal: hasGuestName,
+      emailConfirmationCode: input.signals.confirmationCode,
     });
     if (filteredBecause.length === 0) continue;
     airbnbEmailLog.info("reservation_candidate_filtered", {

@@ -1,6 +1,11 @@
-import { BookingPlatform } from "@prisma/client";
+import { AirbnbEmailEventKind, BookingPlatform } from "@prisma/client";
 import { db } from "@/lib/db";
 import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
+
+const CONFIRMED_GUEST_NAME_EVENT_KINDS = new Set<AirbnbEmailEventKind>([
+  AirbnbEmailEventKind.CONFIRMED,
+]);
 
 function readJsonFieldAsString(
   value: unknown,
@@ -18,18 +23,18 @@ function readGuestNameFromSignals(signals: unknown): string | null {
   return typeof guestName === "string" && guestName.trim() ? guestName.trim() : null;
 }
 
+function isDisplayableGuestName(name: string | null | undefined): boolean {
+  if (!name?.trim()) return false;
+  return !isPlaceholderGuestName(name) && isPlausibleGuestName(name);
+}
+
 export function extractGuestNameFromReservationEmailEvent(input: {
   enrichedFields: unknown;
-  payload: unknown;
+  /** @deprecated Display reads guestName from enrichedFields only; payload is ignored. */
+  payload?: unknown;
 }): string | null {
   const fromEnriched = readJsonFieldAsString(input.enrichedFields, "guestName");
-  if (fromEnriched && !isPlaceholderGuestName(fromEnriched)) return fromEnriched;
-  if (!input.payload || typeof input.payload !== "object" || Array.isArray(input.payload)) {
-    return null;
-  }
-  const payload = input.payload as Record<string, unknown>;
-  const fromSignals = readGuestNameFromSignals(payload.signals);
-  if (fromSignals && !isPlaceholderGuestName(fromSignals)) return fromSignals;
+  if (isDisplayableGuestName(fromEnriched)) return fromEnriched;
   return null;
 }
 
@@ -39,13 +44,26 @@ export function extractGuestNameFromAuditPayload(parsedPayload: unknown): string
   }
   const payload = parsedPayload as Record<string, unknown>;
   const fromSignals = readGuestNameFromSignals(payload.signals);
-  if (fromSignals && !isPlaceholderGuestName(fromSignals)) return fromSignals;
+  if (isDisplayableGuestName(fromSignals)) return fromSignals;
   return null;
+}
+
+function orderEventsForDisplayGuestName<
+  T extends { eventKind: AirbnbEmailEventKind; createdAt: Date },
+>(events: T[]): T[] {
+  const confirmed = events.filter((event) =>
+    CONFIRMED_GUEST_NAME_EVENT_KINDS.has(event.eventKind),
+  );
+  const other = events.filter(
+    (event) => !CONFIRMED_GUEST_NAME_EVENT_KINDS.has(event.eventKind),
+  );
+  const byNewest = (a: T, b: T) => b.createdAt.getTime() - a.createdAt.getTime();
+  return [...confirmed.sort(byNewest), ...other.sort(byNewest)];
 }
 
 /**
  * Best-effort guest name from Airbnb email enrichment for display across PMS views.
- * Priority: reservation email event → linked ingestion audit → non-placeholder reservation row.
+ * Priority: CONFIRMED email events → other events → linked ingestion audit → reservation row.
  */
 export async function getAirbnbEnrichedGuestNameByReservationIds(
   reservationIds: string[],
@@ -60,6 +78,7 @@ export async function getAirbnbEnrichedGuestNameByReservationIds(
     },
     select: {
       reservationId: true,
+      eventKind: true,
       enrichedFields: true,
       payload: true,
       createdAt: true,
@@ -67,13 +86,25 @@ export async function getAirbnbEnrichedGuestNameByReservationIds(
     orderBy: { createdAt: "desc" },
   });
 
+  const eventsByReservation = new Map<string, typeof events>();
   for (const event of events) {
-    if (!event.reservationId || byReservation.has(event.reservationId)) continue;
-    const name = extractGuestNameFromReservationEmailEvent({
-      enrichedFields: event.enrichedFields,
-      payload: event.payload,
-    });
-    if (name) byReservation.set(event.reservationId, name);
+    if (!event.reservationId) continue;
+    const bucket = eventsByReservation.get(event.reservationId) ?? [];
+    bucket.push(event);
+    eventsByReservation.set(event.reservationId, bucket);
+  }
+
+  for (const [reservationId, reservationEvents] of eventsByReservation) {
+    for (const event of orderEventsForDisplayGuestName(reservationEvents)) {
+      const name = extractGuestNameFromReservationEmailEvent({
+        enrichedFields: event.enrichedFields,
+        payload: event.payload,
+      });
+      if (name) {
+        byReservation.set(reservationId, name);
+        break;
+      }
+    }
   }
 
   const missingAfterEvents = reservationIds.filter((id) => !byReservation.has(id));
@@ -107,8 +138,8 @@ export async function getAirbnbEnrichedGuestNameByReservationIds(
 
     for (const row of rows) {
       const name = row.guestName?.trim();
-      if (name && !isPlaceholderGuestName(name)) {
-        byReservation.set(row.id, name);
+      if (isDisplayableGuestName(name)) {
+        byReservation.set(row.id, name!);
       }
     }
   }
