@@ -79,11 +79,20 @@ export function DashboardNavigation({
       ? explicitGroupId
       : routeGroupId;
 
-  const openModule =
-    modules.find(
-      (module): module is NavGroupModule =>
-        isNavGroupModule(module) && module.id === openModuleId,
-    ) ?? null;
+  const openModule = useMemo(() => {
+    const found =
+      modules.find(
+        (module): module is NavGroupModule =>
+          isNavGroupModule(module) && module.id === openModuleId,
+      ) ?? null;
+    return found?.children.length ? found : null;
+  }, [modules, openModuleId]);
+
+  useEffect(() => {
+    if (openModuleId && !openModule) {
+      setExplicitGroupId(null);
+    }
+  }, [openModuleId, openModule]);
 
   const isModuleStrongActive = useCallback(
     (module: NavModule) => {

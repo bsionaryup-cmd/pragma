@@ -20,7 +20,7 @@ export function ContextualSubSidebar({
 }: ContextualSubSidebarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
-  if (!module) return null;
+  if (!module?.children?.length) return null;
 
   const activeChild = getActiveNavChild(pathname, module.children);
 
