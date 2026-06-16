@@ -33,11 +33,11 @@ export function MobileDashboardHeader({
 
   return (
     <>
-      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 shadow-pragma-soft dark:shadow-none">
+      <header className="flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border bg-sidebar px-4 text-sidebar-foreground shadow-pragma-soft dark:shadow-none">
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-pragma-mid-gray transition-colors hover:bg-pragma-light-blue/60 hover:text-pragma-black"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
           aria-label="Abrir menú de navegación"
         >
           <Menu className="h-5 w-5" strokeWidth={2} />

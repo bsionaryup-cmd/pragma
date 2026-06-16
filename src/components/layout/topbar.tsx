@@ -14,13 +14,13 @@ export function Topbar({ title = "Dashboard", description }: TopbarProps) {
   const mounted = useMounted();
 
   return (
-    <header className="flex h-[3.75rem] shrink-0 items-center gap-4 border-b border-[#E9ECEF] bg-white px-6 shadow-pragma-soft dark:border-border dark:bg-card dark:shadow-none">
+    <header className="flex h-[3.75rem] shrink-0 items-center gap-4 border-b border-border bg-card px-6 text-foreground shadow-pragma-soft dark:shadow-none">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-base font-semibold tracking-tight text-[#111111] dark:text-foreground">
+        <h1 className="truncate text-base font-semibold tracking-tight text-foreground">
           {title}
         </h1>
         {description ? (
-          <p className="truncate text-sm text-[#6B7280] dark:text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             {description}
           </p>
         ) : null}
@@ -32,7 +32,7 @@ export function Topbar({ title = "Dashboard", description }: TopbarProps) {
         {mounted ? (
           <UserButton
             appearance={{
-              elements: { avatarBox: "h-9 w-9 ring-2 ring-[#E9ECEF]" },
+              elements: { avatarBox: "h-9 w-9 ring-2 ring-border" },
             }}
           />
         ) : (
