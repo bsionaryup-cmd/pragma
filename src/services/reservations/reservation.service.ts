@@ -135,6 +135,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     airbnbEnrichmentGuestName: r.airbnbEnrichmentGuestName,
     guestName: r.guestName,
     primaryGuestName: ownerGuest?.fullName,
+    guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
   });
   const progress = computeGuestRegistrationProgress({
     guests: r.guests,

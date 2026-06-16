@@ -413,6 +413,7 @@ export async function generateAccessCodeForReservation(
     airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
     guestName: reservation.guestName,
     primaryGuestName: ownerGuest?.fullName ?? null,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
   });
 
   const { validFrom, validTo } = resolveAccessWindow({

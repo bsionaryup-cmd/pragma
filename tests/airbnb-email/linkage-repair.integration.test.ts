@@ -150,6 +150,7 @@ function displayName(reservation: SimulatedReservation): string {
         platform: "AIRBNB",
         airbnbEnrichmentGuestName: name,
         guestName: reservation.guestName,
+        guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
       });
     }
   }
@@ -158,6 +159,7 @@ function displayName(reservation: SimulatedReservation): string {
     platform: "AIRBNB",
     airbnbEnrichmentGuestName: null,
     guestName: reservation.guestName,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
   });
 }
 
@@ -220,7 +222,7 @@ describe("linkage repair integration scenario", () => {
     assert.equal(yuly.reservationCode, "HMCNCARK3K");
     assert.equal(yuly.events.length, 1);
     assert.equal(yuly.guestName, "Yuly Escarley Correa cordero");
-    assert.equal(displayName(yuly), "Yuly Correa");
+    assert.equal(displayName(yuly), "Yuly Escarley Correa cordero");
 
     assert.equal(karla.totalAmount, 247421);
     assert.equal(karla.events.length, 0);

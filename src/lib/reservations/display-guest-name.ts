@@ -9,11 +9,31 @@ export type ReservationDisplayGuestNameInput = {
   airbnbEnrichmentGuestName?: string | null;
   guestName?: string | null;
   primaryGuestName?: string | null;
+  guestRegistrationCompletedAt?: Date | string | null;
 };
+
+function hasRegisteredGuestDisplayName(input: {
+  platform: BookingPlatform;
+  guestName?: string | null;
+  guestRegistrationCompletedAt?: Date | string | null;
+}): boolean {
+  if (input.platform !== BookingPlatform.AIRBNB) return false;
+  if (!input.guestRegistrationCompletedAt) return false;
+  const reservationGuest = input.guestName?.trim();
+  if (!reservationGuest) return false;
+  return (
+    !isPlaceholderGuestName(reservationGuest) &&
+    isPlausibleGuestName(reservationGuest)
+  );
+}
 
 export function resolveReservationDisplayGuestName(
   input: ReservationDisplayGuestNameInput,
 ): string {
+  if (hasRegisteredGuestDisplayName(input)) {
+    return input.guestName!.trim();
+  }
+
   const airbnbEnrichment =
     input.airbnbEnrichment?.guestName?.trim() ||
     input.airbnbGuestName?.trim() ||

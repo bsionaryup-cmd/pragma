@@ -200,6 +200,7 @@ export function toPanelReservationRow(
       airbnbEnrichmentGuestName: reservation.airbnbEnrichmentGuestName,
       guestName: reservation.guestName,
       primaryGuestName: reservation.primaryGuestName,
+      guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
     }),
     guestTotal: reservation.airbnbEnrichmentGuestCount ?? fallbackGuestTotal,
     adults: reservation.adults,

@@ -203,6 +203,7 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
         id: true,
         propertyId: true,
         guestName: true,
+        guestRegistrationCompletedAt: true,
         checkIn: true,
         checkOut: true,
         status: true,
@@ -248,6 +249,7 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
       airbnbEnrichmentGuestName: airbnbGuestByReservation.get(r.id) ?? null,
       guestName: r.guestName,
       primaryGuestName: primaryGuestByReservation.get(r.id) ?? null,
+      guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
     });
     if (process.env.NODE_ENV !== "production" && r.platform === "AIRBNB") {
       airbnbEmailLog.info("reservation_display_guest_name_resolved", {

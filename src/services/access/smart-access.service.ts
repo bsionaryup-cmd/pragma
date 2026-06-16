@@ -259,6 +259,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
           airbnbGuestByReservation.get(reservation.id) ?? null,
         guestName: reservation.guestName,
         primaryGuestName: ownerGuest?.fullName ?? null,
+        guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
       }),
       propertyName: reservation.property.name,
       propertyUnitNumber: resolvePropertyUnit({
