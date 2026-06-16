@@ -42,7 +42,7 @@ export function AppShell({
     <NovedadesUnreadProvider>
       <div
         className={cn(
-          "flex h-dvh max-h-dvh overflow-hidden bg-pragma-soft-gray",
+          "flex h-dvh max-h-dvh overflow-hidden bg-surface-alt",
           className,
         )}
       >
