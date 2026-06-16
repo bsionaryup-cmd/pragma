@@ -7,7 +7,6 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
@@ -32,7 +31,6 @@ type ThemeContextValue = {
   resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
   themes: Theme[];
-  registerContentRoot: (element: HTMLElement | null) => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -84,17 +82,17 @@ function persistTheme(theme: Theme, resolved: ResolvedTheme) {
   }
 }
 
-function applyThemeToContentRoot(
-  element: HTMLElement | null,
-  resolved: ResolvedTheme,
-) {
-  if (!element) return;
-  element.classList.remove("dark");
+/** Apply resolved theme at document root so shell chrome inherits tokens. */
+function applyThemeToDocument(resolved: ResolvedTheme) {
+  if (typeof document === "undefined") return;
+
+  const root = document.documentElement;
+  root.classList.remove("dark");
   if (resolved === "dark") {
-    element.classList.add("dark");
+    root.classList.add("dark");
   }
-  element.dataset.theme = resolved;
-  element.style.colorScheme = resolved;
+  root.dataset.theme = resolved;
+  root.style.colorScheme = resolved;
 }
 
 export function ThemeProvider({
@@ -102,7 +100,6 @@ export function ThemeProvider({
   defaultTheme = "light",
   defaultResolved = "light",
 }: ThemeProviderProps) {
-  const contentRootRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState<ThemeState>(() => ({
     theme: defaultTheme,
     resolved: defaultResolved,
@@ -122,16 +119,8 @@ export function ThemeProvider({
     });
   }, [defaultTheme, defaultResolved]);
 
-  const registerContentRoot = useCallback(
-    (element: HTMLElement | null) => {
-      contentRootRef.current = element;
-      applyThemeToContentRoot(element, state.resolved);
-    },
-    [state.resolved],
-  );
-
   useLayoutEffect(() => {
-    applyThemeToContentRoot(contentRootRef.current, state.resolved);
+    applyThemeToDocument(state.resolved);
   }, [state.resolved]);
 
   useLayoutEffect(() => {
@@ -161,9 +150,8 @@ export function ThemeProvider({
       resolvedTheme: state.resolved,
       setTheme,
       themes: ["light", "dark", "system"],
-      registerContentRoot,
     }),
-    [state.theme, state.resolved, setTheme, registerContentRoot],
+    [state.theme, state.resolved, setTheme],
   );
 
   return (

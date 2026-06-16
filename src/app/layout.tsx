@@ -6,6 +6,7 @@ import { ClerkRootProvider } from "@/components/providers/clerk-root-provider";
 import { THEME_STORAGE_KEY } from "@/lib/constants";
 import { defaultMetadata, defaultViewport } from "@/lib/seo";
 import { resolveThemeFromCookies } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,7 +46,11 @@ export default async function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${inter.variable} ${sora.variable} ${manrope.variable} h-full`}
+      className={cn(
+        `${inter.variable} ${sora.variable} ${manrope.variable} h-full`,
+        defaultResolved === "dark" && "dark",
+      )}
+      data-theme={defaultResolved}
     >
       <body className="min-h-full font-sans antialiased">
         <ClerkRootProvider>
