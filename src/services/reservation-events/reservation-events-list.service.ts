@@ -7,6 +7,8 @@ import type { OperationalFeedCard } from "@/services/novedades/operational-feed.
 export type {
   OperationalFeedCard,
   OperationalFeedKind,
+  OperationalFeedReservationGroup,
+  OperationalFeedView,
 } from "@/services/novedades/operational-feed.types";
 
 /** @deprecated Usar listOperationalFeedForTenant */

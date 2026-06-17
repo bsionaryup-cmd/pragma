@@ -15,7 +15,7 @@ import {
   reservationOverlapsMonth,
 } from "@/lib/finance/finance-month-attribution";
 import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
-import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
+import { resolveFinanceReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
 import {
   isReservationIncomeConfirmed,
   isReservationIncomePending,
@@ -26,6 +26,7 @@ import {
   listManualExpensesInRange,
   listOtherIncomesInRange,
 } from "@/services/finance/finance-prisma-guard";
+import { partitionOtherIncomes } from "@/lib/finance/other-income-policy";
 
 export const FINANCE_YEAR_MONTH_LABELS = [
   "Ene",
@@ -95,6 +96,9 @@ export async function buildFinanceYearlySeries(
           paymentStatus: true,
           checkIn: true,
           checkOut: true,
+          platform: true,
+          icalUid: true,
+          reservationCode: true,
           property: { select: { cleaningFee: true } },
         },
       }),
@@ -125,6 +129,9 @@ export async function buildFinanceYearlySeries(
         .map((row) => row.id),
     );
 
+  const { operational: manualIncomesOperational } =
+    partitionOtherIncomes(manualIncomes);
+
   const buckets = Array.from({ length: 12 }, (_, monthIndex) => {
     const { startKey, endKey, daysInMonth } = financeMonthBounds(year, monthIndex);
     const isFuture = startKey > toReservationDateKey(today);
@@ -143,13 +150,10 @@ export async function buildFinanceYearlySeries(
 
       if (!checkInFallsInMonth(r.checkIn, startKey, endKey)) continue;
 
-      const amount = resolveReservationRevenueAmount({
-        totalAmount: r.totalAmount,
-        enrichedFields: revenueSourcesByReservationId.get(r.id)?.enrichedFields,
-        payloadSignals: revenueSourcesByReservationId.get(r.id)?.payloadSignals,
-        emailMatchBlob: revenueSourcesByReservationId.get(r.id)?.emailMatchBlob,
-        payoutNet: revenueSourcesByReservationId.get(r.id)?.payoutNet,
-      });
+      const amount = resolveFinanceReservationRevenueAmount(
+        r,
+        revenueSourcesByReservationId.get(r.id),
+      );
 
       if (isReservationIncomePending(r.checkIn, r.paymentStatus, today)) {
         pendingRevenue += amount;
@@ -169,7 +173,7 @@ export async function buildFinanceYearlySeries(
           expenses += Number(row.amount);
         }
       }
-      for (const row of manualIncomes) {
+      for (const row of manualIncomesOperational) {
         if (calendarDateFallsInMonth(row.incomeDate, startKey, endKey)) {
           revenue += Number(row.amount);
         }

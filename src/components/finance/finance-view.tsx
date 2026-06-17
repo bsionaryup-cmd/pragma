@@ -365,12 +365,28 @@ export function FinanceView({
                   reservationFlow.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell>
-                        <p className="truncate font-medium">
-                          {row.guestName ?? row.source}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {row.propertyName}
-                        </p>
+                        {row.reservationId ? (
+                          <Link
+                            href={`/reservations?reservation=${row.reservationId}`}
+                            className="block min-w-0 hover:underline"
+                          >
+                            <p className="truncate font-medium">
+                              {row.guestName ?? row.source}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {row.propertyName}
+                            </p>
+                          </Link>
+                        ) : (
+                          <>
+                            <p className="truncate font-medium">
+                              {row.guestName ?? row.source}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {row.propertyName}
+                            </p>
+                          </>
+                        )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         {formatPanelDate(row.date)}

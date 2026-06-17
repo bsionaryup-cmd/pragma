@@ -6,6 +6,7 @@ import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
 import { requirePermission } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { dateKeyToPrismaDate } from "@/lib/dates";
+import { isGuestPaymentLinkedOtherIncome } from "@/lib/finance/other-income-policy";
 import { resolveFinanceAttachmentUrl } from "@/lib/finance/attachment";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
@@ -211,10 +212,16 @@ export async function updateOtherIncomeAction(input: {
 
   const existing = await db.otherIncome.findFirst({
     where: { id: input.id, ...otherIncomeWhere(scope) },
-    select: { id: true },
+    select: { id: true, description: true },
   });
   if (!existing) {
     return { ok: false, message: "Ingreso no encontrado" };
+  }
+  if (isGuestPaymentLinkedOtherIncome(existing.description)) {
+    return {
+      ok: false,
+      message: "Este ingreso proviene de un link de pago y no se puede editar aquí",
+    };
   }
 
   try {
@@ -248,10 +255,16 @@ export async function softDeleteOtherIncomeAction(id: string) {
 
   const existing = await db.otherIncome.findFirst({
     where: { id, ...otherIncomeWhere(scope) },
-    select: { id: true },
+    select: { id: true, description: true },
   });
   if (!existing) {
     return { ok: false, message: "Ingreso no encontrado" };
+  }
+  if (isGuestPaymentLinkedOtherIncome(existing.description)) {
+    return {
+      ok: false,
+      message: "Este ingreso proviene de un link de pago y no se puede eliminar aquí",
+    };
   }
 
   try {

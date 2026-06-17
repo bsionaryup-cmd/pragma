@@ -1,4 +1,10 @@
 import { extractReservationFinancialSignals } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
+import type { FinanceRevenueEmailEventRow } from "@/lib/finance/reservation-finance-trace";
+import {
+  isReservationFinanceTraceable,
+  pickFinanceRevenueEmailEvents,
+} from "@/lib/finance/reservation-finance-trace";
+import type { BookingPlatform } from "@prisma/client";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -82,7 +88,7 @@ function readFromJson(source: unknown): number | null {
   );
 }
 
-/** Monto contable de una reserva: totalAmount persistido o señales Airbnb enriquecidas. */
+/** Monto contable: ingreso del anfitrión (email Airbnb) prevalece sobre totalAmount persistido desactualizado. */
 export function resolveReservationRevenueAmount(input: {
   totalAmount: unknown;
   enrichedFields?: unknown;
@@ -90,18 +96,49 @@ export function resolveReservationRevenueAmount(input: {
   emailMatchBlob?: string | null;
   payoutNet?: unknown;
 }): number {
-  const stored = readNumber(input.totalAmount);
-  if (stored != null) return stored;
-
-  const fromSources = readFromMergedSources({
+  const sources: ReservationRevenueSources = {
     enrichedFields: input.enrichedFields,
     payloadSignals: input.payloadSignals,
     emailMatchBlob: input.emailMatchBlob,
     payoutNet: input.payoutNet,
-  });
-  if (fromSources != null) return fromSources;
+  };
+  const merged = mergeReservationRevenueSources(sources);
+  const fromHostPayout =
+    readNumber(merged.hostPayoutAmount) ?? readNumber(merged.netPayout);
+  if (fromHostPayout != null) return fromHostPayout;
 
-  return 0;
+  const stored = readNumber(input.totalAmount);
+  if (stored != null) return stored;
+
+  return readFromJson(merged) ?? 0;
+}
+
+export function resolveFinanceReservationRevenueAmount(
+  reservation: {
+    totalAmount: unknown;
+    platform: BookingPlatform;
+    icalUid?: string | null;
+    reservationCode?: string | null;
+  },
+  sources?: ReservationRevenueSources | null,
+): number {
+  const amount = resolveReservationRevenueAmount({
+    totalAmount: reservation.totalAmount,
+    enrichedFields: sources?.enrichedFields,
+    payloadSignals: sources?.payloadSignals,
+    emailMatchBlob: sources?.emailMatchBlob,
+    payoutNet: sources?.payoutNet,
+  });
+  if (amount <= 0) return 0;
+
+  const stored = readNumber(reservation.totalAmount);
+  if (stored != null) return amount;
+
+  if (!sources || !isReservationFinanceTraceable(reservation)) {
+    return 0;
+  }
+
+  return amount;
 }
 
 export function pickLatestEnrichmentByReservation<
@@ -131,13 +168,27 @@ export function buildReservationRevenueSourcesFromEmailEvent(input: {
 }
 
 export function buildReservationRevenueSourcesMapFromEmailEvents<
-  T extends {
-    reservationId: string | null;
-    enrichedFields: unknown;
-    payload: unknown;
-  },
->(rows: T[]): Map<string, ReservationRevenueSources> {
+  T extends FinanceRevenueEmailEventRow,
+>(
+  rows: T[],
+  reservationStatusById?: Map<string, import("@prisma/client").ReservationStatus>,
+): Map<string, ReservationRevenueSources> {
   const map = new Map<string, ReservationRevenueSources>();
+  const statusById = reservationStatusById ?? new Map();
+  const picked = reservationStatusById
+    ? pickFinanceRevenueEmailEvents(rows, statusById)
+    : null;
+
+  if (picked) {
+    for (const [reservationId, row] of picked) {
+      map.set(
+        reservationId,
+        buildReservationRevenueSourcesFromEmailEvent(row),
+      );
+    }
+    return map;
+  }
+
   for (const row of rows) {
     if (!row.reservationId || map.has(row.reservationId)) continue;
     map.set(

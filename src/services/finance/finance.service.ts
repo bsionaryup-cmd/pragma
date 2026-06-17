@@ -13,7 +13,8 @@ import {
 } from "@/lib/platform/tenant-data-scope";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
-import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
+import { resolveFinanceReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
+import { resolveFinanceGuestDisplayName } from "@/lib/finance/finance-guest-display";
 import {
   isReservationIncomeConfirmed,
   isReservationIncomePending,
@@ -60,6 +61,7 @@ export type MonthComparison = {
 
 export type RevenueFlowRow = {
   id: string;
+  reservationId?: string;
   source: string;
   guestName?: string;
   amount: number;
@@ -168,19 +170,21 @@ async function loadEnrichmentByReservationId(
 }
 
 function revenueForReservation(
-  reservation: { id: string; totalAmount: unknown },
+  reservation: {
+    id: string;
+    totalAmount: unknown;
+    platform: import("@prisma/client").BookingPlatform;
+    icalUid: string | null;
+    reservationCode: string | null;
+  },
   revenueSourcesByReservationId: Awaited<
     ReturnType<typeof loadReservationRevenueSourcesByReservationId>
   >,
 ): number {
-  const sources = revenueSourcesByReservationId.get(reservation.id);
-  return resolveReservationRevenueAmount({
-    totalAmount: reservation.totalAmount,
-    enrichedFields: sources?.enrichedFields,
-    payloadSignals: sources?.payloadSignals,
-    emailMatchBlob: sources?.emailMatchBlob,
-    payoutNet: sources?.payoutNet,
-  });
+  return resolveFinanceReservationRevenueAmount(
+    reservation,
+    revenueSourcesByReservationId.get(reservation.id),
+  );
 }
 
 export async function getFinanceOverview(
@@ -216,10 +220,13 @@ export async function getFinanceOverview(
       select: {
         id: true,
         guestName: true,
+        guestRegistrationCompletedAt: true,
         totalAmount: true,
         paymentStatus: true,
         checkIn: true,
         platform: true,
+        icalUid: true,
+        reservationCode: true,
         property: {
           select: {
             id: true,
@@ -242,6 +249,9 @@ export async function getFinanceOverview(
         totalAmount: true,
         paymentStatus: true,
         checkIn: true,
+        platform: true,
+        icalUid: true,
+        reservationCode: true,
         property: { select: { cleaningFee: true } },
       },
     }),
@@ -301,8 +311,16 @@ export async function getFinanceOverview(
       const amount = revenueForReservation(r, enrichmentByReservationId);
       return {
         id: r.id,
+        reservationId: r.id,
         source: r.platform,
-        guestName: r.guestName,
+        guestName: resolveFinanceGuestDisplayName(
+          {
+            platform: r.platform,
+            guestName: r.guestName,
+            guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
+          },
+          enrichmentByReservationId.get(r.id),
+        ),
         amount,
         amountFormatted: formatMoney(amount, undefined, locale),
         date: prismaDateToKey(r.checkIn),

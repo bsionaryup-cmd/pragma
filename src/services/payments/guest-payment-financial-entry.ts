@@ -8,7 +8,8 @@ import {
   isFinanceSchemaDriftError,
 } from "@/services/finance/finance-prisma-guard";
 
-/** Registra ingreso operativo en finanzas (OtherIncome) — idempotente por link. */
+/** Registra ingreso operativo en finanzas (OtherIncome) — idempotente por link.
+ *  Excluido de totales agregados vía {@link isGuestPaymentLinkedOtherIncome}. */
 export async function ensureFinancialEntryForGuestPayment(
   link: Pick<
     GuestPaymentLink,

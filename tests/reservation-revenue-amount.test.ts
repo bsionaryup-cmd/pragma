@@ -3,10 +3,18 @@ import { describe, it } from "node:test";
 import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
 
 describe("resolveReservationRevenueAmount", () => {
-  it("prefers stored totalAmount when present", () => {
+  it("prefers host payout from email over stale stored totalAmount", () => {
+    const amount = resolveReservationRevenueAmount({
+      totalAmount: 247421,
+      enrichedFields: { hostPayoutAmount: 1023779.89 },
+    });
+    assert.equal(amount, 1023779.89);
+  });
+
+  it("uses stored totalAmount when no host payout in enrichment", () => {
     const amount = resolveReservationRevenueAmount({
       totalAmount: 250000,
-      enrichedFields: { hostPayoutAmount: 999 },
+      enrichedFields: { guestTotalPaid: 999 },
     });
     assert.equal(amount, 250000);
   });

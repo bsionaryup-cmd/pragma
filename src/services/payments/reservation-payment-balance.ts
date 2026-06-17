@@ -2,9 +2,11 @@ import "server-only";
 
 import type { GuestPaymentLinkStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { resolveFinanceGuestDisplayName } from "@/lib/finance/finance-guest-display";
 import { computeReservationPaymentBalance } from "@/lib/payments/reservation-payment-balance-calc";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
+import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
 
 const COMMITTED_STATUSES: GuestPaymentLinkStatus[] = [
   "SENT",
@@ -43,6 +45,8 @@ export async function getReservationPaymentBalance(
       totalAmount: true,
       currency: true,
       guestName: true,
+      guestRegistrationCompletedAt: true,
+      platform: true,
       propertyId: true,
     },
   });
@@ -51,7 +55,7 @@ export async function getReservationPaymentBalance(
     throw new Error("Reserva no encontrada");
   }
 
-  const [links, manualPayments] = await Promise.all([
+  const [links, manualPayments, revenueSourcesByReservationId] = await Promise.all([
     db.guestPaymentLink.findMany({
       where: {
         reservationId,
@@ -63,6 +67,7 @@ export async function getReservationPaymentBalance(
       where: { reservationId },
       select: { amount: true },
     }),
+    loadReservationRevenueSourcesByReservationId([reservationId]),
   ]);
 
   const totalAmount = Number(row.totalAmount);
@@ -82,7 +87,14 @@ export async function getReservationPaymentBalance(
     totalAmount,
     ...computed,
     currency: row.currency,
-    guestName: row.guestName,
+    guestName: resolveFinanceGuestDisplayName(
+      {
+        platform: row.platform,
+        guestName: row.guestName,
+        guestRegistrationCompletedAt: row.guestRegistrationCompletedAt,
+      },
+      revenueSourcesByReservationId.get(reservationId),
+    ),
     propertyId: row.propertyId,
   };
 }

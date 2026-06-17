@@ -33,29 +33,33 @@ export type SerializedGuestPaymentLinkForHub = SerializedGuestPaymentLink & {
   property: { id: string; name: string; unitNumber: string | null } | null;
 };
 
-export function serializeGuestPaymentLinkForHub(link: {
-  amount: GuestPaymentLink["amount"];
-  expiresAt: GuestPaymentLink["expiresAt"];
-  createdAt: GuestPaymentLink["createdAt"];
-  updatedAt: GuestPaymentLink["updatedAt"];
-  reservation: {
-    id: string;
-    guestName: string;
-    checkIn: Date;
-    checkOut: Date;
-  } | null;
-  property: { id: string; name: string; unitNumber: string | null } | null;
-} & Omit<
-  GuestPaymentLink,
-  "amount" | "expiresAt" | "createdAt" | "updatedAt" | "reservation" | "property"
->): SerializedGuestPaymentLinkForHub {
+export function serializeGuestPaymentLinkForHub(
+  link: {
+    amount: GuestPaymentLink["amount"];
+    expiresAt: GuestPaymentLink["expiresAt"];
+    createdAt: GuestPaymentLink["createdAt"];
+    updatedAt: GuestPaymentLink["updatedAt"];
+    reservation: {
+      id: string;
+      guestName: string;
+      checkIn: Date;
+      checkOut: Date;
+    } | null;
+    property: { id: string; name: string; unitNumber: string | null } | null;
+  } & Omit<
+    GuestPaymentLink,
+    "amount" | "expiresAt" | "createdAt" | "updatedAt" | "reservation" | "property"
+  >,
+  options?: { displayGuestName?: string | null },
+): SerializedGuestPaymentLinkForHub {
   const base = serializeGuestPaymentLink(link as GuestPaymentLink);
   return {
     ...base,
     reservation: link.reservation
       ? {
           id: link.reservation.id,
-          guestName: link.reservation.guestName,
+          guestName:
+            options?.displayGuestName?.trim() || link.reservation.guestName,
           checkIn: link.reservation.checkIn.toISOString(),
           checkOut: link.reservation.checkOut.toISOString(),
         }

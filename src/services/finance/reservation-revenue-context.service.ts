@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { ReservationStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import {
   buildReservationRevenueSourcesMapFromEmailEvents,
@@ -13,11 +14,12 @@ export async function loadReservationRevenueSourcesByReservationId(
 
   const uniqueIds = [...new Set(reservationIds)];
 
-  const [events, payouts] = await Promise.all([
+  const [events, payouts, reservations] = await Promise.all([
     db.reservationEmailEvent.findMany({
       where: { reservationId: { in: uniqueIds } },
       select: {
         reservationId: true,
+        eventKind: true,
         enrichedFields: true,
         payload: true,
       },
@@ -31,9 +33,20 @@ export async function loadReservationRevenueSourcesByReservationId(
       },
       orderBy: { createdAt: "desc" },
     }),
+    db.reservation.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, status: true },
+    }),
   ]);
 
-  const map = buildReservationRevenueSourcesMapFromEmailEvents(events);
+  const reservationStatusById = new Map<string, ReservationStatus>(
+    reservations.map((row) => [row.id, row.status]),
+  );
+
+  const map = buildReservationRevenueSourcesMapFromEmailEvents(
+    events,
+    reservationStatusById,
+  );
 
   for (const payout of payouts) {
     if (!payout.reservationId) continue;
