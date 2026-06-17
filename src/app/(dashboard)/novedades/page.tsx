@@ -7,14 +7,14 @@ export default async function NovedadesPage() {
   await requirePermission("reservations:read");
   const scope = await requireTenantDataScope();
   const scopeKey = scope.organizationId ?? scope.userId;
-  const [cards, latest] = await Promise.all([
+  const [feed, latest] = await Promise.all([
     listNovedadesFeedForTenant(scope),
     getLatestOperationalFeedTimestamp(scope),
   ]);
 
   return (
     <NovedadesPageView
-      cards={cards}
+      feed={feed}
       scopeKey={scopeKey}
       latestAt={latest.latestAt}
     />

@@ -5,24 +5,26 @@ import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { OperationalFeed } from "@/features/novedades/components/operational-feed";
 import { useNovedadesUnread } from "@/features/novedades/components/novedades-unread-provider";
-import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
+import type { OperationalFeedView } from "@/services/novedades/operational-feed.types";
 
 type NovedadesPageViewProps = {
-  cards: OperationalFeedCard[];
+  feed: OperationalFeedView;
   scopeKey: string;
   latestAt: string | null;
 };
 
 export function NovedadesPageView({
-  cards,
+  feed,
   scopeKey,
   latestAt,
 }: NovedadesPageViewProps) {
   const { markSeen } = useNovedadesUnread();
+  const firstEventAt =
+    feed.groups[0]?.latestAt ?? feed.unlinked[0]?.createdAt ?? null;
 
   useEffect(() => {
-    markSeen(latestAt ?? cards[0]?.createdAt ?? null, scopeKey);
-  }, [cards, latestAt, markSeen, scopeKey]);
+    markSeen(latestAt ?? firstEventAt, scopeKey);
+  }, [feed, firstEventAt, latestAt, markSeen, scopeKey]);
 
   return (
     <ModuleShellFlow className="bg-background">
@@ -30,10 +32,10 @@ export function NovedadesPageView({
         <PageHeader
           eyebrow="Operación"
           title="Novedades"
-          description="Actividad de Airbnb y tareas sugeridas: mensajes, reservas, pagos y accesos."
+          description="Bandeja de reservas: historial claro de confirmaciones, cambios, pagos, mensajes importantes y alertas operativas."
           className="mb-6"
         />
-        <OperationalFeed cards={cards} />
+        <OperationalFeed feed={feed} />
       </div>
     </ModuleShellFlow>
   );

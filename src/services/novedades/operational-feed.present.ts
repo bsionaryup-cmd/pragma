@@ -1,31 +1,32 @@
 import { formatDate, formatDateRange } from "@/lib/helpers/date";
 import { formatMoney } from "@/lib/format-currency";
 import type { OperationalFeedCard, OperationalFeedKind } from "@/services/novedades/operational-feed.types";
+import { operationalFeedPriority } from "@/services/novedades/operational-feed.policy";
 
 const HEADLINES: Record<OperationalFeedKind, string> = {
-  GUEST_MESSAGE: "Mensaje",
-  MODIFICATION_REQUEST: "Modificación",
-  MODIFICATION_APPROVED: "Actualizada",
-  PAYOUT_SENT: "Pago",
+  GUEST_MESSAGE: "Mensaje del huésped",
+  MODIFICATION_REQUEST: "Solicitud de cambio",
+  MODIFICATION_APPROVED: "Reserva actualizada",
+  RESERVATION_UPDATED: "Cambio en la reserva",
+  STAY_EXTENDED: "Estancia extendida",
+  PAYOUT_SENT: "Pago de Airbnb",
   NEW_RESERVATION: "Nueva reserva",
-  UPCOMING_CHECKIN: "Check-in",
-  UPCOMING_CHECKOUT: "Check-out",
-  RESERVATION_CANCELLED: "Cancelada",
-  GUEST_REGISTRATION_ADMIN_SENT: "Registro",
-  GUEST_REGISTRATION_ADMIN_FAILED: "Registro",
+  RESERVATION_CANCELLED: "Cancelación",
+  PAYMENT_CONFIRMED: "Pago confirmado",
+  ALERT: "Requiere atención",
 };
 
 const EMOJIS: Record<OperationalFeedKind, string> = {
   GUEST_MESSAGE: "💬",
   MODIFICATION_REQUEST: "⚠️",
   MODIFICATION_APPROVED: "🔄",
+  RESERVATION_UPDATED: "📅",
+  STAY_EXTENDED: "➕",
   PAYOUT_SENT: "💰",
   NEW_RESERVATION: "✅",
-  UPCOMING_CHECKIN: "🛬",
-  UPCOMING_CHECKOUT: "🛫",
   RESERVATION_CANCELLED: "❌",
-  GUEST_REGISTRATION_ADMIN_SENT: "📧",
-  GUEST_REGISTRATION_ADMIN_FAILED: "⚠️",
+  PAYMENT_CONFIRMED: "💳",
+  ALERT: "🔔",
 };
 
 export function formatOperationalRelativeTime(date: Date | string): string {
@@ -81,12 +82,11 @@ export function buildOperationalCard(input: {
   amountLabel?: string | null;
   dateRangeLabel?: string | null;
   detailLines?: string[];
-  quickActionLabel?: string | null;
-  quickActionMessage?: string | null;
 }): OperationalFeedCard {
   return {
     id: input.id,
     kind: input.kind,
+    priority: operationalFeedPriority(input.kind),
     emoji: EMOJIS[input.kind],
     headline: HEADLINES[input.kind],
     guestName: input.guestName?.trim() || null,
@@ -98,8 +98,6 @@ export function buildOperationalCard(input: {
     amountLabel: input.amountLabel ?? null,
     dateRangeLabel: input.dateRangeLabel ?? null,
     detailLines: input.detailLines ?? [],
-    quickActionLabel: input.quickActionLabel ?? null,
-    quickActionMessage: input.quickActionMessage ?? null,
     relativeTime: formatOperationalRelativeTime(input.createdAt),
     createdAt: input.createdAt.toISOString(),
   };

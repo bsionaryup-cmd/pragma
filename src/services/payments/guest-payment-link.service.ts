@@ -6,6 +6,8 @@ import {
   type GuestPaymentLinkStatus,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { resolveFinanceGuestDisplayName } from "@/lib/finance/finance-guest-display";
+import { serializeGuestPaymentLinkForHub } from "@/lib/payments/guest-payment-link-serializer";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { mergePropertyScope } from "@/lib/platform/tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
@@ -21,6 +23,7 @@ import {
   getReservationPaymentBalance,
 } from "@/services/payments/reservation-payment-balance";
 import { writePaymentAuditLog } from "@/modules/billing/repositories/audit-log.repository";
+import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
 
 const ACTIVE_DUPLICATE_STATUSES: GuestPaymentLinkStatus[] = [
   "DRAFT",
@@ -56,10 +59,46 @@ export async function listGuestPaymentLinksForOrg() {
     take: 100,
     include: {
       reservation: {
-        select: { id: true, guestName: true, checkIn: true, checkOut: true },
+        select: {
+          id: true,
+          guestName: true,
+          platform: true,
+          guestRegistrationCompletedAt: true,
+          checkIn: true,
+          checkOut: true,
+        },
       },
       property: { select: { id: true, name: true, unitNumber: true } },
     },
+  });
+}
+
+export async function loadGuestPaymentLinksForHub() {
+  const links = await listGuestPaymentLinksForOrg();
+  const reservationIds = [
+    ...new Set(
+      links
+        .map((link) => link.reservationId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const revenueSourcesByReservationId =
+    await loadReservationRevenueSourcesByReservationId(reservationIds);
+
+  return links.map((link) => {
+    const displayGuestName = link.reservation
+      ? resolveFinanceGuestDisplayName(
+          {
+            platform: link.reservation.platform,
+            guestName: link.reservation.guestName,
+            guestRegistrationCompletedAt:
+              link.reservation.guestRegistrationCompletedAt,
+          },
+          revenueSourcesByReservationId.get(link.reservation.id),
+        )
+      : link.guestName;
+
+    return serializeGuestPaymentLinkForHub(link, { displayGuestName });
   });
 }
 

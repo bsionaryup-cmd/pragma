@@ -120,6 +120,85 @@ export function pickReservationAmount(
   return null;
 }
 
+const FINANCIAL_AMOUNT_CORRECTION_KINDS = new Set<AirbnbEmailEventKind>([
+  AirbnbEmailEventKind.UPDATED,
+  AirbnbEmailEventKind.EXTENDED,
+]);
+
+function readStoredAmount(value: unknown): number | null {
+  if (value == null) return null;
+  const n =
+    typeof value === "object" && value !== null && "toNumber" in value
+      ? Number((value as { toNumber: () => number }).toNumber())
+      : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** UPDATED/EXTENDED con payout del anfitrión pueden corregir montos parciales de CONFIRMED. */
+export function shouldCorrectStoredReservationAmount(input: {
+  eventKind?: AirbnbEmailEventKind;
+  storedAmount: unknown;
+  incomingAmount: number;
+  signals: ExtractedReservationSignals;
+}): boolean {
+  if (
+    !input.eventKind ||
+    !FINANCIAL_AMOUNT_CORRECTION_KINDS.has(input.eventKind)
+  ) {
+    return false;
+  }
+  const hasAuthoritativeHostPayout =
+    (input.signals.hostPayoutAmount ?? 0) > 0 ||
+    (input.signals.netPayout ?? 0) > 0;
+  if (!hasAuthoritativeHostPayout) return false;
+
+  const stored = readStoredAmount(input.storedAmount);
+  if (stored == null) return true;
+  if (Math.abs(stored - input.incomingAmount) < 1) return false;
+  return input.incomingAmount > stored * 1.05 || stored < input.incomingAmount * 0.5;
+}
+
+function applyReservationAmountUpdate(input: {
+  eventKind?: AirbnbEmailEventKind;
+  reservationTotalAmount: unknown;
+  signals: ExtractedReservationSignals;
+  updates: Prisma.ReservationUpdateInput;
+  applied: Record<string, string | number>;
+  skipped: string[];
+}) {
+  const amount = pickReservationAmount(input.signals);
+  if (amount == null) return;
+
+  if (isZeroReservationAmount(input.reservationTotalAmount)) {
+    input.updates.totalAmount = amount;
+    input.applied.totalAmount = amount;
+    if (input.signals.currency?.trim()) {
+      input.updates.currency = input.signals.currency.trim();
+      input.applied.currency = input.signals.currency.trim();
+    }
+    return;
+  }
+
+  if (
+    shouldCorrectStoredReservationAmount({
+      eventKind: input.eventKind,
+      storedAmount: input.reservationTotalAmount,
+      incomingAmount: amount,
+      signals: input.signals,
+    })
+  ) {
+    input.updates.totalAmount = amount;
+    input.applied.totalAmount = amount;
+    if (input.signals.currency?.trim()) {
+      input.updates.currency = input.signals.currency.trim();
+      input.applied.currency = input.signals.currency.trim();
+    }
+    return;
+  }
+
+  input.skipped.push("totalAmount");
+}
+
 export async function applySafeReservationEnrichment(input: {
   match: ReservationMatchResult;
   signals: ExtractedReservationSignals;
@@ -180,17 +259,14 @@ export async function applySafeReservationEnrichment(input: {
   const skipped: string[] = [];
 
   if (mode === "financial") {
-    const amount = pickReservationAmount(input.signals);
-    if (amount != null && isZeroReservationAmount(reservation.totalAmount)) {
-      updates.totalAmount = amount;
-      applied.totalAmount = amount;
-      if (input.signals.currency?.trim() && !reservation.currency?.trim()) {
-        updates.currency = input.signals.currency.trim();
-        applied.currency = input.signals.currency.trim();
-      }
-    } else {
-      skipped.push("totalAmount");
-    }
+    applyReservationAmountUpdate({
+      eventKind: input.eventKind,
+      reservationTotalAmount: reservation.totalAmount,
+      signals: input.signals,
+      updates,
+      applied,
+      skipped,
+    });
   } else {
     const code = input.signals.confirmationCode?.trim();
     if (code && !reservation.reservationCode?.trim()) {
@@ -272,17 +348,14 @@ export async function applySafeReservationEnrichment(input: {
       skipped.push("guestFieldsLocked");
     }
 
-    const amount = pickReservationAmount(input.signals);
-    if (amount != null && isZeroReservationAmount(reservation.totalAmount)) {
-      updates.totalAmount = amount;
-      applied.totalAmount = amount;
-      if (input.signals.currency?.trim()) {
-        updates.currency = input.signals.currency.trim();
-        applied.currency = input.signals.currency.trim();
-      }
-    } else if (amount != null) {
-      skipped.push("totalAmount");
-    }
+    applyReservationAmountUpdate({
+      eventKind: input.eventKind,
+      reservationTotalAmount: reservation.totalAmount,
+      signals: input.signals,
+      updates,
+      applied,
+      skipped,
+    });
   }
 
   if (Object.keys(updates).length === 0) {

@@ -2,10 +2,12 @@ import {
   listManualExpensesInRange,
   listOtherIncomesInRange,
 } from "@/services/finance/finance-prisma-guard";
+import { partitionOtherIncomes } from "@/lib/finance/other-income-policy";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 
 export type ManualFinanceInRange = {
   expenses: Awaited<ReturnType<typeof listManualExpensesInRange>>;
+  /** Ingresos operativos (sin espejo de links de pago ya contabilizados en reservas). */
   incomes: Awaited<ReturnType<typeof listOtherIncomesInRange>>;
   expenseTotal: number;
   incomeTotal: number;
@@ -16,10 +18,12 @@ export async function getManualFinanceInRange(
   end: Date,
   scope: TenantDataScope,
 ): Promise<ManualFinanceInRange> {
-  const [expenses, incomes] = await Promise.all([
+  const [expenses, allIncomes] = await Promise.all([
     listManualExpensesInRange(start, end, scope),
     listOtherIncomesInRange(start, end, scope),
   ]);
+
+  const { operational: incomes } = partitionOtherIncomes(allIncomes);
 
   return {
     expenses,
