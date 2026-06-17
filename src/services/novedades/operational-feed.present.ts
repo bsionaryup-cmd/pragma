@@ -2,6 +2,8 @@ import { formatDate, formatDateRange } from "@/lib/helpers/date";
 import { formatMoney } from "@/lib/format-currency";
 import type { OperationalFeedCard, OperationalFeedKind } from "@/services/novedades/operational-feed.types";
 import { operationalFeedPriority } from "@/services/novedades/operational-feed.policy";
+import { buildFeedNarrative } from "@/services/novedades/operational-feed.copy";
+import type { ReservationStatus } from "@prisma/client";
 
 const HEADLINES: Record<OperationalFeedKind, string> = {
   GUEST_MESSAGE: "Mensaje del huésped",
@@ -78,12 +80,13 @@ export function buildOperationalCard(input: {
   propertyLabel?: string | null;
   propertyId?: string | null;
   reservationId?: string | null;
+  reservationStatus?: ReservationStatus | null;
   confirmationCode?: string | null;
   amountLabel?: string | null;
   dateRangeLabel?: string | null;
   detailLines?: string[];
 }): OperationalFeedCard {
-  return {
+  const cardWithoutNarrative = {
     id: input.id,
     kind: input.kind,
     priority: operationalFeedPriority(input.kind),
@@ -94,12 +97,19 @@ export function buildOperationalCard(input: {
     propertyLabel: input.propertyLabel?.trim() || null,
     propertyId: input.propertyId ?? null,
     reservationId: input.reservationId ?? null,
+    reservationStatus: input.reservationStatus ?? null,
     confirmationCode: input.confirmationCode?.trim() || null,
     amountLabel: input.amountLabel ?? null,
     dateRangeLabel: input.dateRangeLabel ?? null,
     detailLines: input.detailLines ?? [],
     relativeTime: formatOperationalRelativeTime(input.createdAt),
     createdAt: input.createdAt.toISOString(),
+    narrative: "",
+  } satisfies OperationalFeedCard;
+
+  return {
+    ...cardWithoutNarrative,
+    narrative: buildFeedNarrative(cardWithoutNarrative),
   };
 }
 

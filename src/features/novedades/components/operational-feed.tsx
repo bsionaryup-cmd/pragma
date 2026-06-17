@@ -1,13 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type {
   OperationalFeedCard,
-  OperationalFeedKind,
   OperationalFeedReservationGroup,
   OperationalFeedView,
 } from "@/services/novedades/operational-feed.types";
-import { OperationalFeedCardView } from "@/features/novedades/components/operational-feed-card";
+import { OperationalFeedTimelineEvent } from "@/features/novedades/components/operational-feed-timeline-event";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
@@ -15,58 +15,118 @@ type OperationalFeedProps = {
   feed: OperationalFeedView;
 };
 
-function buildGroupMeta(group: OperationalFeedReservationGroup): string | null {
-  const parts: string[] = [];
-  if (group.propertyLabel) parts.push(group.propertyLabel);
-  if (group.dateRangeLabel) parts.push(group.dateRangeLabel);
-  if (group.confirmationCode) parts.push(group.confirmationCode);
-  return parts.length > 0 ? parts.join(" · ") : null;
+const VISIBLE_EVENTS = 4;
+
+function GroupStatusBadge({ label }: { label: string | null }) {
+  if (!label) return null;
+  return (
+    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+      {label}
+    </span>
+  );
 }
 
-function ReservationFeedGroup({ group }: { group: OperationalFeedReservationGroup }) {
-  const meta = buildGroupMeta(group);
+function ReservationActivityGroup({
+  group,
+}: {
+  group: OperationalFeedReservationGroup;
+}) {
+  const [expanded, setExpanded] = useState(false);
   const href = `/reservations?reservation=${group.reservationId}`;
+  const visibleEvents = expanded
+    ? group.events
+    : group.events.slice(0, VISIBLE_EVENTS);
+  const hiddenCount = group.events.length - visibleEvents.length;
 
   return (
     <section
       className={cn(
-        "rounded-xl border border-border bg-card shadow-pragma-soft",
-        group.attentionCount > 0 && "ring-1 ring-amber-500/20",
+        "overflow-hidden rounded-2xl border border-border bg-card shadow-pragma-soft",
+        group.attentionCount > 0 && "ring-1 ring-amber-500/25",
       )}
     >
-      <Link
-        href={href}
-        className="block border-b border-border px-4 py-3 no-underline transition-colors hover:bg-muted/30"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold text-foreground">
-              {group.guestName ?? "Reserva sin huésped"}
-            </h3>
-            {meta ? (
-              <p className="mt-1 truncate text-xs text-muted-foreground">{meta}</p>
-            ) : null}
-          </div>
-          <div className="flex shrink-0 flex-col items-end gap-1">
+      <div className="flex items-start gap-3 border-b border-border px-4 py-4">
+        <div
+          className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+            group.attentionCount > 0
+              ? "bg-amber-500/15 text-amber-900 dark:text-amber-200"
+              : "bg-primary/10 text-primary",
+          )}
+          aria-hidden
+        >
+          {group.guestInitials}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={href}
+              className="truncate text-base font-semibold text-foreground no-underline hover:text-primary"
+            >
+              {group.guestName ?? "Huésped sin nombre"}
+            </Link>
+            <GroupStatusBadge label={group.statusLabel} />
             {group.attentionCount > 0 ? (
               <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
                 {group.attentionCount} pendiente{group.attentionCount === 1 ? "" : "s"}
               </span>
             ) : null}
-            <span className="text-xs text-muted-foreground">
-              {group.events[0]?.relativeTime ?? ""}
-            </span>
           </div>
-        </div>
-      </Link>
 
-      <ol className="divide-y divide-border/70 px-2 py-1">
-        {group.events.map((event) => (
-          <li key={event.id} className="list-none py-1">
-            <OperationalFeedCardView card={event} nested />
-          </li>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {[group.propertyLabel, group.dateRangeLabel, group.confirmationCode]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+
+          {group.latestNarrative ? (
+            <p className="mt-2 line-clamp-2 text-sm text-foreground/90">
+              {group.latestNarrative}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="shrink-0 text-right">
+          <time className="text-xs text-muted-foreground">
+            {group.events[0]?.relativeTime ?? ""}
+          </time>
+          <Link
+            href={href}
+            className="mt-2 block text-xs font-medium text-primary hover:underline"
+          >
+            Ver reserva
+          </Link>
+        </div>
+      </div>
+
+      <ol className="relative px-4 py-3">
+        <div
+          className="absolute bottom-4 left-[1.65rem] top-4 w-px bg-border"
+          aria-hidden
+        />
+        {visibleEvents.map((event, index) => (
+          <OperationalFeedTimelineEvent
+            key={event.id}
+            card={event}
+            isLast={index === visibleEvents.length - 1}
+          />
         ))}
       </ol>
+
+      {hiddenCount > 0 ? (
+        <div className="border-t border-border px-4 py-2">
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {expanded
+              ? "Ver menos"
+              : `Ver ${hiddenCount} evento${hiddenCount === 1 ? "" : "s"} más`}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -75,15 +135,18 @@ function UnlinkedSection({ cards }: { cards: OperationalFeedCard[] }) {
   if (cards.length === 0) return null;
 
   return (
-    <section aria-label="Eventos sin reserva vinculada">
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-        Sin reserva vinculada
+    <section aria-label="Pagos sin reserva vinculada" className="space-y-2">
+      <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        Pagos sin reserva
       </h2>
-      <div className="flex flex-col gap-2">
-        {cards.map((card) => (
-          <OperationalFeedCardView key={card.id} card={card} />
-        ))}
-      </div>
+      {cards.map((card) => (
+        <div
+          key={card.id}
+          className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground"
+        >
+          {card.narrative}
+        </div>
+      ))}
     </section>
   );
 }
@@ -96,8 +159,8 @@ export function OperationalFeed({ feed }: OperationalFeedProps) {
   if (totalEvents === 0) {
     return (
       <EmptyState
-        title="Sin novedades por ahora"
-        description="Aquí verás el historial de cada reserva: confirmaciones, cambios, pagos, mensajes importantes y alertas que requieran tu atención."
+        title="Sin actividad por ahora"
+        description="Aquí verás el historial de cada reserva: confirmaciones, cambios, pagos, mensajes del huésped y alertas importantes."
       />
     );
   }
@@ -105,7 +168,7 @@ export function OperationalFeed({ feed }: OperationalFeedProps) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {feed.groups.map((group) => (
-        <ReservationFeedGroup key={group.reservationId} group={group} />
+        <ReservationActivityGroup key={group.reservationId} group={group} />
       ))}
       <UnlinkedSection cards={feed.unlinked} />
     </div>

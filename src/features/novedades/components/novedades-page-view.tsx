@@ -32,7 +32,7 @@ export function NovedadesPageView({
         <PageHeader
           eyebrow="Operación"
           title="Novedades"
-          description="Bandeja de reservas: historial claro de confirmaciones, cambios, pagos, mensajes importantes y alertas operativas."
+          description="Bandeja de actividad por reserva: historial claro de confirmaciones, cambios, pagos y mensajes importantes, sin ruido ni eventos técnicos."
           className="mb-6"
         />
         <OperationalFeed feed={feed} />

@@ -13,8 +13,8 @@ import {
   formatGuestCountLine,
   formatPayoutAmount,
   formatReservationRange,
-  quoteSummary,
 } from "@/services/novedades/operational-feed.present";
+import { stripMessageHtml } from "@/services/novedades/operational-feed.message";
 import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
 
 export const reservationSelect = {
@@ -163,6 +163,12 @@ function buildReservationUpdateLines(
   return lines;
 }
 
+function clipMessage(value: string, max = 220): string {
+  const cleaned = stripMessageHtml(value);
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max - 1).trim()}…`;
+}
+
 function reservationContext(
   reservation: ReservationRow | null | undefined,
   confirmationCode?: string | null,
@@ -172,6 +178,7 @@ function reservationContext(
     propertyLabel: propertyLabelFromReservation(reservation ?? null),
     propertyId: propertyIdFromReservation(reservation ?? null),
     reservationId: reservation?.id ?? null,
+    reservationStatus: reservation?.status ?? null,
     confirmationCode: confirmationCode ?? reservation?.reservationCode ?? null,
     dateRangeLabel:
       reservation?.checkIn && reservation?.checkOut
@@ -222,6 +229,7 @@ export function mapModificationEvent(row: {
       propertyLabelFromReservation(row.reservation),
     propertyId: row.propertyId ?? propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     confirmationCode: readMetadataConfirmationCode(metadata),
     dateRangeLabel:
       row.reservation?.checkIn && row.reservation?.checkOut
@@ -251,12 +259,13 @@ export function mapGuestMessageActivity(row: {
       metadata: row.metadataJson,
       reservationGuestName: row.reservation.guestName,
     }),
-    summary: quoteSummary(row.content),
+    summary: clipMessage(row.content),
     propertyLabel:
       (row.property ? formatPropertyLabel(row.property) : null) ??
       propertyLabelFromReservation(row.reservation),
     propertyId: row.propertyId ?? propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     confirmationCode: readMetadataConfirmationCode(row.metadataJson),
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
@@ -291,6 +300,7 @@ export function mapPayout(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     dateRangeLabel:
       row.reservation?.checkIn && row.reservation?.checkOut
         ? formatReservationRange(row.reservation.checkIn, row.reservation.checkOut)
@@ -318,12 +328,13 @@ export function mapReservationPayment(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: row.reservation.property.id,
     reservationId: row.reservation.id,
+    reservationStatus: row.reservation.status,
     confirmationCode: row.reservation.reservationCode,
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
       row.reservation.checkOut,
     ),
-    detailLines: [`Método: ${row.method.replace(/_/g, " ").toLowerCase()}`],
+    detailLines: [],
   });
 }
 
@@ -348,6 +359,7 @@ export function mapGuestPaymentLink(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: row.reservation.property.id,
     reservationId: row.reservation.id,
+    reservationStatus: row.reservation.status,
     confirmationCode: row.reservation.reservationCode,
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
@@ -487,9 +499,10 @@ export function mapGuestRegistrationAlert(row: {
     propertyLabel: formatPropertyLabel(row.property),
     propertyId: row.property.id,
     reservationId: row.id,
+    reservationStatus: null,
     confirmationCode: row.reservationCode,
     dateRangeLabel: formatReservationRange(row.checkIn, row.checkOut),
-    detailLines: [`Error: ${row.guestRegistrationAdminNotificationError}`],
+    detailLines: [],
   });
 }
 
@@ -509,10 +522,11 @@ export function mapReservationCommunication(row: {
       kind: "ALERT",
       createdAt: row.createdAt,
       guestName: row.reservation.guestName,
-      summary: quoteSummary(row.rawMessage) ?? "Mensaje que requiere respuesta.",
+      summary: clipMessage(row.rawMessage) || "Mensaje que requiere respuesta.",
       propertyLabel: propertyLabelFromReservation(row.reservation),
       propertyId: row.reservation.property.id,
       reservationId: row.reservation.id,
+      reservationStatus: row.reservation.status,
       confirmationCode: row.reservation.reservationCode,
       dateRangeLabel: formatReservationRange(
         row.reservation.checkIn,
@@ -535,12 +549,15 @@ export function mapReservationCommunication(row: {
       propertyLabel: propertyLabelFromReservation(row.reservation),
       propertyId: row.reservation.property.id,
       reservationId: row.reservation.id,
+      reservationStatus: row.reservation.status,
       confirmationCode: row.reservation.reservationCode,
       dateRangeLabel: formatReservationRange(
         row.reservation.checkIn,
         row.reservation.checkOut,
       ),
-      detailLines: row.rawMessage.trim() ? [row.rawMessage.trim().slice(0, 160)] : [],
+      detailLines: row.rawMessage.trim()
+        ? [clipMessage(row.rawMessage, 160)]
+        : [],
     });
   }
 

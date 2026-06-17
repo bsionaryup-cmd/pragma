@@ -2,6 +2,11 @@ import type {
   OperationalFeedCard,
   OperationalFeedKind,
 } from "@/services/novedades/operational-feed.types";
+import {
+  isIncoherentFeedText,
+  isPlaceholderGuestName,
+  unwrapQuotedMessage,
+} from "@/services/novedades/operational-feed.message";
 
 const ATTENTION_KINDS = new Set<OperationalFeedKind>([
   "MODIFICATION_REQUEST",
@@ -18,6 +23,14 @@ const GUEST_MESSAGE_NOISE = [
   /^reply on airbnb/i,
   /^nueva calificaci[oó]n/i,
   /^new review/i,
+  /^write a review/i,
+  /^escribe una reseña/i,
+  /^your guest left a review/i,
+  /^tu hu[eé]sped dej[oó] una reseña/i,
+  /^reminder:/i,
+  /^recordatorio:/i,
+  /^don'?t forget/i,
+  /^no olvides/i,
 ];
 
 const GENERIC_SENDER_NOISE = [
@@ -25,6 +38,18 @@ const GENERIC_SENDER_NOISE = [
   /^notificaciones? airbnb/i,
   /^airbnb support/i,
 ];
+
+const ALWAYS_USEFUL_KINDS = new Set<OperationalFeedKind>([
+  "NEW_RESERVATION",
+  "RESERVATION_CANCELLED",
+  "MODIFICATION_REQUEST",
+  "MODIFICATION_APPROVED",
+  "RESERVATION_UPDATED",
+  "STAY_EXTENDED",
+  "PAYOUT_SENT",
+  "PAYMENT_CONFIRMED",
+  "ALERT",
+]);
 
 export function operationalFeedPriority(
   kind: OperationalFeedKind,
@@ -36,20 +61,40 @@ export function isGuestMessageNoise(input: {
   content: string | null | undefined;
   senderName?: string | null;
 }): boolean {
-  const content = input.content?.trim() ?? "";
+  const raw = unwrapQuotedMessage(input.content) ?? "";
+  const content = raw.trim();
   const sender = input.senderName?.trim() ?? "";
 
-  if (content.length < 8) return true;
+  if (isIncoherentFeedText(content)) return true;
 
   for (const pattern of GUEST_MESSAGE_NOISE) {
     if (pattern.test(content)) return true;
   }
+
+  if (sender && isPlaceholderGuestName(sender) && content.length < 48) return true;
 
   if (sender && GENERIC_SENDER_NOISE.some((pattern) => pattern.test(sender))) {
     if (content.length < 40) return true;
   }
 
   return false;
+}
+
+export function isOperationalFeedCardUseful(card: OperationalFeedCard): boolean {
+  if (ALWAYS_USEFUL_KINDS.has(card.kind)) return true;
+
+  if (card.kind === "GUEST_MESSAGE") {
+    if (isGuestMessageNoise({ content: card.summary, senderName: card.guestName })) {
+      return false;
+    }
+    return Boolean(unwrapQuotedMessage(card.summary));
+  }
+
+  return Boolean(
+    card.summary?.trim() ||
+      card.amountLabel ||
+      card.detailLines.some((line) => line.trim().length > 0),
+  );
 }
 
 function normalizeDedupeText(value: string | null | undefined): string {
@@ -66,7 +111,7 @@ function buildDedupeKey(card: OperationalFeedCard): string {
   if (!card.reservationId) return card.id;
 
   if (card.kind === "GUEST_MESSAGE") {
-    return `${card.reservationId}:GUEST_MESSAGE:${normalizeDedupeText(card.summary)}`;
+    return `${card.reservationId}:GUEST_MESSAGE:${normalizeDedupeText(unwrapQuotedMessage(card.summary))}`;
   }
 
   if (card.kind === "NEW_RESERVATION") {
@@ -94,9 +139,7 @@ export function sanitizeOperationalFeedCards(
   const result: OperationalFeedCard[] = [];
 
   for (const card of sorted) {
-    if (card.kind === "GUEST_MESSAGE" && isGuestMessageNoise({ content: card.summary })) {
-      continue;
-    }
+    if (!isOperationalFeedCardUseful(card)) continue;
 
     const key = buildDedupeKey(card);
     if (seen.has(key)) continue;
@@ -118,4 +161,13 @@ export function sanitizeOperationalFeedCards(
   }
 
   return result;
+}
+
+/** Oculta desembolsos huérfanos sin contexto de reserva. */
+export function filterUnlinkedFeedCards(
+  cards: OperationalFeedCard[],
+): OperationalFeedCard[] {
+  return cards.filter(
+    (card) => card.kind === "PAYOUT_SENT" && Boolean(card.amountLabel),
+  );
 }

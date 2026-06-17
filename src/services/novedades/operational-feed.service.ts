@@ -23,7 +23,7 @@ import {
   mapReservationPayment,
   reservationSelect,
 } from "@/services/novedades/operational-feed.mappers";
-import { sanitizeOperationalFeedCards } from "@/services/novedades/operational-feed.policy";
+import { sanitizeOperationalFeedCards, filterUnlinkedFeedCards } from "@/services/novedades/operational-feed.policy";
 import type {
   OperationalFeedCard,
   OperationalFeedView,
@@ -262,7 +262,7 @@ export async function listNovedadesFeedForTenant(
   const view = groupOperationalFeedByReservation(cards);
   return {
     groups: view.groups.slice(0, limit),
-    unlinked: view.unlinked.slice(0, 10),
+    unlinked: filterUnlinkedFeedCards(view.unlinked).slice(0, 5),
   };
 }
 
