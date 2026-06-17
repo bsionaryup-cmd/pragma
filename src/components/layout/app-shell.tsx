@@ -23,6 +23,10 @@ export function AppShell({
   className,
   paywallMode = false,
 }: AppShellProps) {
+  /** Owner impersonation shell: parent flex column already constrains height. */
+  const shellUsesParentHeight =
+    typeof className === "string" && /\bflex-1\b/.test(className);
+
   if (paywallMode) {
     return (
       <div
@@ -42,7 +46,8 @@ export function AppShell({
     <NovedadesUnreadProvider>
       <div
         className={cn(
-          "flex h-dvh max-h-dvh overflow-hidden bg-surface-alt",
+          "flex overflow-hidden bg-surface-alt",
+          shellUsesParentHeight ? "h-full min-h-0" : "h-dvh max-h-dvh",
           className,
         )}
       >
