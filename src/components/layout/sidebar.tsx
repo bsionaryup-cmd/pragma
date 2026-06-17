@@ -191,7 +191,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
+        "flex min-h-0 shrink-0 flex-col self-stretch border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
         collapsed ? "w-[72px]" : "w-[248px]",
         className,
       )}
@@ -233,7 +233,7 @@ export function Sidebar({
 
       <nav
         className={cn(
-          "pragma-scrollbar flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3",
+          "pragma-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden py-3",
           collapsed ? "px-2" : "px-3",
         )}
         aria-label="Navegación principal"

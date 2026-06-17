@@ -27,51 +27,49 @@ export function ContextualSubSidebar({
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 w-[212px] shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
+        "flex w-[212px] min-h-0 shrink-0 flex-col self-stretch overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
       )}
     >
-      <div className="flex h-full min-h-0 w-[212px] flex-col">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3 py-3">
-            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {t(module.labelKey)}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Cerrar submenú"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            >
-              <ChevronsLeft className="h-4 w-4" strokeWidth={2} />
-            </button>
-          </div>
-
-          <nav
-            className="pragma-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-3"
-            aria-label={t(module.labelKey)}
-          >
-            {module.children.map((child) => {
-              const active =
-                activeChild !== null &&
-                activeChild.href === child.href &&
-                activeChild.labelKey === child.labelKey;
-              return (
-                <Link
-                  key={`${child.href}-${child.labelKey}`}
-                  href={child.href}
-                  onClick={() => onNavigate?.()}
-                  className={cn(
-                    "block rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
-                    active
-                      ? "bg-pragma-soft-cyan/45 text-primary"
-                      : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                  )}
-                >
-                  {t(child.labelKey)}
-                </Link>
-              );
-            })}
-          </nav>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3 py-3">
+        <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+          {t(module.labelKey)}
+        </p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar submenú"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        >
+          <ChevronsLeft className="h-4 w-4" strokeWidth={2} />
+        </button>
       </div>
+
+      <nav
+        className="pragma-scrollbar min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 py-3"
+        aria-label={t(module.labelKey)}
+      >
+        {module.children.map((child) => {
+          const active =
+            activeChild !== null &&
+            activeChild.href === child.href &&
+            activeChild.labelKey === child.labelKey;
+          return (
+            <Link
+              key={`${child.href}-${child.labelKey}`}
+              href={child.href}
+              onClick={() => onNavigate?.()}
+              className={cn(
+                "block rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
+                active
+                  ? "bg-pragma-soft-cyan/45 text-primary"
+                  : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              )}
+            >
+              {t(child.labelKey)}
+            </Link>
+          );
+        })}
+      </nav>
     </aside>
   );
 }

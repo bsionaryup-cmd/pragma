@@ -159,7 +159,7 @@ export function DashboardNavigation({
   }
 
   return (
-    <div className={cn("flex h-full min-h-0 shrink-0", className)}>
+    <div className={cn("flex min-h-0 shrink-0 self-stretch items-stretch", className)}>
       <Sidebar
         modules={modules}
         settingsItem={settingsItem}

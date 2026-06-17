@@ -28,7 +28,7 @@ export function ShellNavigationLayout({
           modules={navModules}
           settingsItem={settingsItem}
           user={user}
-          className="flex"
+          className="min-h-0 self-stretch"
         />
       ) : null}
 
