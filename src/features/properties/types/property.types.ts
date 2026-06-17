@@ -69,7 +69,9 @@ export type PropertyDetailDto = PropertyGridItem & {
   quickMessageREGISTRATION: string;
   quickMessageACCESS: string;
   quickMessageFOLLOW_UP: string;
+  quickMessageHOUSE_RULES: string;
   quickMessageCHECKOUT: string;
+  quickMessageREVIEW: string;
   smartAccess?: {
     lock: import("@/modules/integrations/ttlock/ttlock.types").SmartLockSnapshot | null;
     integrationConnected: boolean;

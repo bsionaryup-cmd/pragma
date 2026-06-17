@@ -14,6 +14,7 @@ import {
 } from "@/features/reservations/lib/reservation-status";
 import { formatDateTime } from "@/lib/helpers/date";
 import type { ReservationActivityRow } from "@/services/reservation-activity/reservation-activity-list.service";
+import { resolveGuestMessageForDisplay } from "@/services/novedades/operational-feed.message";
 import { cn } from "@/lib/utils";
 
 type TimelineEntry = {
@@ -156,6 +157,9 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
   const dates = readMetadataDates(entry.metadata);
   const isMessage = entry.kind === "AIRBNB_MESSAGE";
   const accent = entryAccent(entry.kind);
+  const messageBody = isMessage
+    ? resolveGuestMessageForDisplay(entry.content, { guestName: entry.senderName })
+    : null;
 
   return (
     <li className="relative grid grid-cols-[28px_1fr] gap-3">
@@ -200,7 +204,7 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
 
         {isMessage ? (
           <blockquote className="mt-2 border-l-2 border-primary/30 pl-3 text-sm italic leading-relaxed text-foreground/90">
-            &ldquo;{entry.content}&rdquo;
+            &ldquo;{messageBody ?? "Mensaje del huésped (texto no legible en el correo)."}&rdquo;
           </blockquote>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-foreground/85">

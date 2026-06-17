@@ -5,13 +5,20 @@ import type {
 } from "@/services/novedades/operational-feed.types";
 import {
   guestInitialsFromName,
+  resolveNovedadesGuestName,
   RESERVATION_STATUS_LABELS,
 } from "@/services/novedades/operational-feed.copy";
+import { isPlaceholderGuestName } from "@/services/novedades/operational-feed.message";
 import type { ReservationStatus } from "@prisma/client";
 
 function pickGroupGuestName(events: OperationalFeedCard[]): string | null {
   for (const event of events) {
-    if (event.guestName?.trim()) return event.guestName.trim();
+    const name = event.guestName?.trim();
+    if (name && !isPlaceholderGuestName(name)) return name;
+  }
+  for (const event of events) {
+    const code = event.confirmationCode?.trim();
+    if (code) return `Reserva ${code}`;
   }
   return null;
 }
@@ -64,7 +71,12 @@ export function groupOperationalFeedByReservation(
     const attentionCount = sortedEvents.filter(
       (event) => event.priority === "attention",
     ).length;
-    const guestName = pickGroupGuestName(sortedEvents);
+    const rawGuestName = pickGroupGuestName(sortedEvents);
+    const confirmationCode = pickGroupField(sortedEvents, "confirmationCode");
+    const guestName = resolveNovedadesGuestName({
+      guestName: rawGuestName,
+      confirmationCode,
+    });
     const reservationStatus = pickReservationStatus(sortedEvents);
 
     groups.push({
@@ -73,7 +85,7 @@ export function groupOperationalFeedByReservation(
       guestInitials: guestInitialsFromName(guestName),
       propertyLabel: pickGroupField(sortedEvents, "propertyLabel"),
       propertyId: pickGroupField(sortedEvents, "propertyId"),
-      confirmationCode: pickGroupField(sortedEvents, "confirmationCode"),
+      confirmationCode,
       dateRangeLabel: pickGroupField(sortedEvents, "dateRangeLabel"),
       reservationStatus,
       statusLabel: reservationStatus

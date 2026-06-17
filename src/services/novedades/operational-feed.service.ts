@@ -6,6 +6,7 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { promotePendingActivitiesForReservation } from "@/modules/reservation-activity/services/promote-pending-activities";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
   mergeReservationScope,
@@ -34,6 +35,7 @@ const FEED_EMAIL_EVENT_KINDS: AirbnbEmailEventKind[] = [
   AirbnbEmailEventKind.CANCELED,
   AirbnbEmailEventKind.UPDATED,
   AirbnbEmailEventKind.EXTENDED,
+  AirbnbEmailEventKind.PAYOUT_PROCESSED,
   AirbnbEmailEventKind.EARLY_CHECKIN_REQUEST,
   AirbnbEmailEventKind.TRANSPORT_REQUEST,
 ];
@@ -150,7 +152,12 @@ async function listGuestRegistrationAlerts(
 async function collectOperationalFeedCards(
   scope: TenantDataScope,
   take: number,
+  reservationId?: string,
 ): Promise<OperationalFeedCard[]> {
+  const eventReservationFilter = reservationId ? { reservationId } : {};
+  const payoutReservationFilter = reservationId ? { reservationId } : {};
+  const emailReservationFilter = reservationId ? { reservationId } : {};
+
   const [
     modificationEvents,
     guestActivities,
@@ -162,7 +169,7 @@ async function collectOperationalFeedCards(
     guestRegistrationAlerts,
   ] = await Promise.all([
     db.reservationEvent.findMany({
-      where: reservationEventWhere(scope),
+      where: { ...reservationEventWhere(scope), ...eventReservationFilter },
       orderBy: { createdAt: "desc" },
       take,
       include: {
@@ -171,7 +178,10 @@ async function collectOperationalFeedCards(
       },
     }),
     db.reservationActivity.findMany({
-      where: guestMessageActivityWhere(scope),
+      where: {
+        ...guestMessageActivityWhere(scope),
+        reservationId: reservationId ?? undefined,
+      },
       orderBy: { createdAt: "desc" },
       take,
       include: {
@@ -180,7 +190,10 @@ async function collectOperationalFeedCards(
       },
     }),
     db.reservationPayout.findMany({
-      where: { audit: auditWhere(scope) },
+      where: {
+        ...payoutReservationFilter,
+        audit: auditWhere(scope),
+      },
       orderBy: { createdAt: "desc" },
       take,
       include: {
@@ -192,6 +205,7 @@ async function collectOperationalFeedCards(
       where: {
         eventKind: { in: FEED_EMAIL_EVENT_KINDS },
         audit: auditWhere(scope),
+        ...emailReservationFilter,
       },
       orderBy: { createdAt: "desc" },
       take,
@@ -201,7 +215,9 @@ async function collectOperationalFeedCards(
       },
     }),
     db.reservationPayment.findMany({
-      where: reservationPaymentWhere(scope),
+      where: reservationId
+        ? { reservation: mergeReservationScope(scope, { id: reservationId }) }
+        : reservationPaymentWhere(scope),
       orderBy: { createdAt: "desc" },
       take,
       include: {
@@ -209,7 +225,12 @@ async function collectOperationalFeedCards(
       },
     }),
     db.guestPaymentLink.findMany({
-      where: guestPaymentLinkWhere(scope),
+      where: reservationId
+        ? {
+            ...guestPaymentLinkWhere(scope),
+            reservationId,
+          }
+        : guestPaymentLinkWhere(scope),
       orderBy: { updatedAt: "desc" },
       take,
       include: {
@@ -217,14 +238,21 @@ async function collectOperationalFeedCards(
       },
     }),
     db.reservationCommunication.findMany({
-      where: reservationCommunicationWhere(scope),
+      where: {
+        ...reservationCommunicationWhere(scope),
+        ...(reservationId ? { reservationId } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: Math.min(take, 40),
       include: {
         reservation: { select: reservationSelect },
       },
     }),
-    listGuestRegistrationAlerts(scope),
+    reservationId
+      ? listGuestRegistrationAlerts(scope).then((rows) =>
+          rows.filter((row) => row.reservationId === reservationId),
+        )
+      : listGuestRegistrationAlerts(scope),
   ]);
 
   return [
@@ -241,6 +269,17 @@ async function collectOperationalFeedCards(
       .filter((row): row is OperationalFeedCard => row != null),
     ...guestRegistrationAlerts,
   ];
+}
+
+export async function listOperationalFeedCardsForReservation(
+  scope: TenantDataScope,
+  reservationId: string,
+): Promise<OperationalFeedCard[]> {
+  await promotePendingActivitiesForReservation(reservationId);
+  const raw = await collectOperationalFeedCards(scope, 200, reservationId);
+  return sanitizeOperationalFeedCards(raw).sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  );
 }
 
 export async function listOperationalFeedCardsForTenant(

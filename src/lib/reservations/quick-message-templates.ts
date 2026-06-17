@@ -1,16 +1,16 @@
+import {
+  getDefaultMessageTitle,
+  getQuickMessageButtonLabel,
+  QUICK_MESSAGE_TYPE_ORDER,
+  type QuickMessageType,
+} from "@/lib/default-message-templates";
 import { formatStayRange } from "@/features/reservations/lib/reservation-dates";
 import { formatAccessCode } from "@/lib/access-code";
 import { formatPropertyLabel } from "@/lib/property-display";
-import type { QuickMessageData, QuickMessageType } from "@/lib/reservations/quick-messages";
+import type { QuickMessageData } from "@/lib/reservations/quick-messages";
 import { quickMessageLabel } from "@/lib/reservations/quick-messages";
 
-export const QUICK_MESSAGE_TYPES: QuickMessageType[] = [
-  "WELCOME",
-  "REGISTRATION",
-  "ACCESS",
-  "FOLLOW_UP",
-  "CHECKOUT",
-];
+export const QUICK_MESSAGE_TYPES: QuickMessageType[] = [...QUICK_MESSAGE_TYPE_ORDER];
 
 export type QuickMessageTemplates = Partial<Record<QuickMessageType, string>>;
 
@@ -44,13 +44,12 @@ export function parsePropertyQuickMessageTemplates(
 export function quickMessageTemplatesToFormFields(
   templates: QuickMessageTemplates,
 ): Record<`quickMessage${QuickMessageType}`, string> {
-  return {
-    quickMessageWELCOME: templates.WELCOME ?? "",
-    quickMessageREGISTRATION: templates.REGISTRATION ?? "",
-    quickMessageACCESS: templates.ACCESS ?? "",
-    quickMessageFOLLOW_UP: templates.FOLLOW_UP ?? "",
-    quickMessageCHECKOUT: templates.CHECKOUT ?? "",
-  };
+  return Object.fromEntries(
+    QUICK_MESSAGE_TYPES.map((type) => [
+      `quickMessage${type}`,
+      templates[type] ?? "",
+    ]),
+  ) as Record<`quickMessage${QuickMessageType}`, string>;
 }
 
 export function hasCustomQuickMessageTemplates(
@@ -59,31 +58,21 @@ export function hasCustomQuickMessageTemplates(
   return QUICK_MESSAGE_TYPES.some((type) => Boolean(templates[type]?.trim()));
 }
 
-export function formFieldsToQuickMessageTemplates(input: {
+type QuickMessageFormInput = {
   useDefaultQuickMessages?: boolean;
-  quickMessageWELCOME?: string;
-  quickMessageREGISTRATION?: string;
-  quickMessageACCESS?: string;
-  quickMessageFOLLOW_UP?: string;
-  quickMessageCHECKOUT?: string;
-}): QuickMessageTemplates | null {
+} & Partial<Record<`quickMessage${QuickMessageType}`, string>>;
+
+export function formFieldsToQuickMessageTemplates(
+  input: QuickMessageFormInput,
+): QuickMessageTemplates | null {
   if (input.useDefaultQuickMessages) return null;
   const templates: QuickMessageTemplates = {};
 
-  if (input.quickMessageWELCOME?.trim()) {
-    templates.WELCOME = input.quickMessageWELCOME.trim();
-  }
-  if (input.quickMessageREGISTRATION?.trim()) {
-    templates.REGISTRATION = input.quickMessageREGISTRATION.trim();
-  }
-  if (input.quickMessageACCESS?.trim()) {
-    templates.ACCESS = input.quickMessageACCESS.trim();
-  }
-  if (input.quickMessageFOLLOW_UP?.trim()) {
-    templates.FOLLOW_UP = input.quickMessageFOLLOW_UP.trim();
-  }
-  if (input.quickMessageCHECKOUT?.trim()) {
-    templates.CHECKOUT = input.quickMessageCHECKOUT.trim();
+  for (const type of QUICK_MESSAGE_TYPES) {
+    const value = input[`quickMessage${type}`]?.trim();
+    if (value) {
+      templates[type] = value;
+    }
   }
 
   return Object.keys(templates).length > 0 ? templates : null;
@@ -120,45 +109,6 @@ function cleanupCopiedMessage(text: string): string {
     .replace(/[ \t]+(\r?\n)/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-const DEFAULT_ACCESS_INSTRUCTIONS_TEMPLATE = `Hola {guestName},
-
-Instrucciones de acceso — {propertyName}
-
-📍 Dirección: {address}
-🕒 Check-in: {checkInTime} ({checkIn})
-🕒 Check-out: {checkOutTime} ({checkOut})
-🔐 Acceso: {accessCode}
-📶 WiFi: {wifiName}
-🔑 Clave WiFi: {wifiPassword}
-
-WhatsApp recepción: {receptionWhatsapp}`;
-
-const DEFAULT_HOUSE_RULES_TEMPLATE = `Reglas de la casa — {propertyName}
-
-Estancia: {stayRange}
-
-Por favor respeta las normas del edificio, el horario de silencio y la convivencia con vecinos.
-
-Dudas o novedades: {receptionWhatsapp}`;
-
-export function buildAccessInstructionsCopyText(
-  messageData: QuickMessageData,
-  propertyInstructions?: string | null,
-): string {
-  const custom = propertyInstructions?.trim();
-  const template = custom || DEFAULT_ACCESS_INSTRUCTIONS_TEMPLATE;
-  return applyQuickMessageTemplate(template, messageData);
-}
-
-export function buildHouseRulesCopyText(
-  messageData: QuickMessageData,
-  propertyRules?: string | null,
-): string {
-  const custom = propertyRules?.trim();
-  const template = custom || DEFAULT_HOUSE_RULES_TEMPLATE;
-  return applyQuickMessageTemplate(template, messageData);
 }
 
 export function buildQuickMessageDataFromReservation(input: {
@@ -247,7 +197,11 @@ export function quickMessageFormFieldName(
 }
 
 export function quickMessageFieldLabel(type: QuickMessageType): string {
-  return quickMessageLabel(type);
+  return getDefaultMessageTitle(type);
+}
+
+export function quickMessageButtonLabel(type: QuickMessageType): string {
+  return getQuickMessageButtonLabel(type);
 }
 
 export const QUICK_MESSAGE_TEMPLATE_HINT =

@@ -4,33 +4,17 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import {
-  buildAccessInstructionsCopyText,
-  buildHouseRulesCopyText,
   buildQuickMessageDataFromReservation,
+  quickMessageButtonLabel,
+  QUICK_MESSAGE_TYPES,
 } from "@/lib/reservations/quick-message-templates";
-import {
-  buildQuickMessage,
-  type QuickMessageType,
-} from "@/lib/reservations/quick-messages";
+import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 
 type ReservationQuickMessagesProps = {
   reservation: ReservationDetailItem;
   registrationLink?: string | null;
   accessCode?: string | null;
 };
-
-const QUICK_BUTTONS: { type: QuickMessageType; label: string }[] = [
-  { type: "WELCOME", label: "✅ Reserva confirmada" },
-  { type: "REGISTRATION", label: "📋 Registro huéspedes" },
-  { type: "ACCESS", label: "🔑 Llegada" },
-  { type: "FOLLOW_UP", label: "💬 Durante estadía" },
-  { type: "CHECKOUT", label: "⭐ Salida" },
-];
-
-const PROPERTY_COPY_BUTTONS = [
-  { id: "accessInstructions" as const, label: "📋 Instrucciones de acceso" },
-  { id: "houseRules" as const, label: "📜 Reglas de la casa" },
-];
 
 async function copyText(text: string, successLabel: string) {
   const trimmed = text.trim();
@@ -67,7 +51,7 @@ export function ReservationQuickMessages({
     [reservation, registrationLink, accessCode],
   );
 
-  async function copyMessage(type: QuickMessageType) {
+  async function copyMessage(type: (typeof QUICK_MESSAGE_TYPES)[number]) {
     const text = buildQuickMessage(
       type,
       messageData,
@@ -76,55 +60,20 @@ export function ReservationQuickMessages({
     await copyText(text, "Mensaje copiado");
   }
 
-  async function copyPropertyField(
-    field: (typeof PROPERTY_COPY_BUTTONS)[number]["id"],
-  ) {
-    const text =
-      field === "accessInstructions"
-        ? buildAccessInstructionsCopyText(
-            messageData,
-            reservation.property.accessInstructions,
-          )
-        : buildHouseRulesCopyText(messageData, reservation.property.houseRules);
-
-    await copyText(
-      text,
-      field === "accessInstructions"
-        ? "Instrucciones de acceso copiadas"
-        : "Reglas de la casa copiadas",
-    );
-  }
-
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-1.5">
-        {QUICK_BUTTONS.map((button) => (
-          <button
-            key={button.type}
-            type="button"
-            className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
-            onClick={() => {
-              void copyMessage(button.type);
-            }}
-          >
-            {button.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-1.5 border-t border-border/60 pt-2">
-        {PROPERTY_COPY_BUTTONS.map((button) => (
-          <button
-            key={button.id}
-            type="button"
-            className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
-            onClick={() => {
-              void copyPropertyField(button.id);
-            }}
-          >
-            {button.label}
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-1.5">
+      {QUICK_MESSAGE_TYPES.map((type) => (
+        <button
+          key={type}
+          type="button"
+          className="inline-flex items-center rounded-full border border-border/80 bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted/40"
+          onClick={() => {
+            void copyMessage(type);
+          }}
+        >
+          {quickMessageButtonLabel(type)}
+        </button>
+      ))}
     </div>
   );
 }

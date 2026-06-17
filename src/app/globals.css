@@ -58,6 +58,11 @@
   --pragma-danger: #dc2626;
   --pragma-info: var(--pragma-aqua);
 
+  /** Superficies de módulos (listado vs detalle vs lienzo). */
+  --module-canvas: #edf2f8;
+  --module-pane: var(--pragma-white);
+  --module-pane-alt: #f6fbff;
+
   --background: var(--pragma-background);
   --foreground: var(--pragma-text);
   --card: var(--pragma-card);
@@ -112,6 +117,10 @@
   --pragma-soft-cyan: rgba(20, 228, 200, 0.12);
   --pragma-light-blue: rgba(11, 107, 255, 0.15);
   --pragma-card-active: rgba(20, 228, 200, 0.1);
+
+  --module-canvas: #0a1524;
+  --module-pane: #0f1f33;
+  --module-pane-alt: #0c1a2e;
 
   --background: var(--pragma-background);
   --foreground: var(--pragma-text);
@@ -264,6 +273,9 @@
   --color-sidebar-accent: var(--sidebar-accent);
   --color-surface: var(--surface);
   --color-surface-alt: var(--surface-alt);
+  --color-module-canvas: var(--module-canvas);
+  --color-module-pane: var(--module-pane);
+  --color-module-pane-alt: var(--module-pane-alt);
   --color-text-muted: var(--text-muted);
   --color-text-subtle: var(--text-subtle);
   --color-success: var(--success);

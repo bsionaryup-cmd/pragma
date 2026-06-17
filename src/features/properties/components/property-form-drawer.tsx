@@ -39,10 +39,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { PropertyStatus, PropertyType } from "@prisma/client";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
 import { getDefaultQuickMessageTemplate } from "@/lib/reservations/quick-messages";
+import { defaultMessageTemplatesToFormFields } from "@/lib/default-message-templates";
 import {
   QUICK_MESSAGE_TEMPLATE_HINT,
   QUICK_MESSAGE_TYPES,
-  quickMessageFieldLabel,
+  quickMessageButtonLabel,
   quickMessageFormFieldName,
 } from "@/lib/reservations/quick-message-templates";
 
@@ -95,7 +96,9 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
     quickMessageREGISTRATION: property.quickMessageREGISTRATION ?? "",
     quickMessageACCESS: property.quickMessageACCESS ?? "",
     quickMessageFOLLOW_UP: property.quickMessageFOLLOW_UP ?? "",
+    quickMessageHOUSE_RULES: property.quickMessageHOUSE_RULES ?? "",
     quickMessageCHECKOUT: property.quickMessageCHECKOUT ?? "",
+    quickMessageREVIEW: property.quickMessageREVIEW ?? "",
   };
 }
 
@@ -130,7 +133,9 @@ const defaultCreateValues: PropertyFormValues = {
   quickMessageREGISTRATION: "",
   quickMessageACCESS: "",
   quickMessageFOLLOW_UP: "",
+  quickMessageHOUSE_RULES: "",
   quickMessageCHECKOUT: "",
+  quickMessageREVIEW: "",
 };
 
 type PropertyFormDrawerProps = {
@@ -562,6 +567,18 @@ export function PropertyFormDrawer({
                 onClick={() => {
                   form.setValue("useDefaultQuickMessages", false);
                   setShowCustomizeMessages(true);
+                  const hasAny = QUICK_MESSAGE_TYPES.some((type) =>
+                    Boolean(form.getValues(quickMessageFormFieldName(type))?.trim()),
+                  );
+                  if (!hasAny) {
+                    const defaults = defaultMessageTemplatesToFormFields();
+                    for (const type of QUICK_MESSAGE_TYPES) {
+                      form.setValue(
+                        quickMessageFormFieldName(type),
+                        defaults[quickMessageFormFieldName(type)],
+                      );
+                    }
+                  }
                 }}
               >
                 Personalizar mensajes
@@ -577,7 +594,7 @@ export function PropertyFormDrawer({
                     name={quickMessageFormFieldName(type)}
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{quickMessageFieldLabel(type)}</FormLabel>
+                        <FormLabel>{quickMessageButtonLabel(type)}</FormLabel>
                         <FormControl>
                           <Textarea
                             rows={4}

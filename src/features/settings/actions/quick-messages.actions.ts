@@ -17,7 +17,9 @@ const saveSchema = z.object({
   quickMessageREGISTRATION: z.string().optional(),
   quickMessageACCESS: z.string().optional(),
   quickMessageFOLLOW_UP: z.string().optional(),
+  quickMessageHOUSE_RULES: z.string().optional(),
   quickMessageCHECKOUT: z.string().optional(),
+  quickMessageREVIEW: z.string().optional(),
 });
 
 export async function getQuickMessagesSettingsAction() {

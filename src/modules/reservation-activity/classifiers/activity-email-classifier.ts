@@ -14,8 +14,59 @@ function looksLikeGuestMessage(body: string): boolean {
   return (
     /^(hola|hi|hello|buenos dias|buenas tardes|buenas noches)\b/.test(normalized) ||
     /\bmensaje del huesped\b/.test(normalized) ||
-    /\bmessage from\b/.test(normalized)
+    /\bmessage from\b/.test(normalized) ||
+    /\bpersona que reserva\b/.test(normalized) ||
+    /\bperson who(?:'s| is) booking\b/.test(normalized)
   );
+}
+
+function looksLikeGuestMessageSubject(subject: string): boolean {
+  const normalized = normalizeForMatch(subject);
+  return (
+    /te envi[oó] un mensaje/.test(normalized) ||
+    /envi[oó] un mensaje sobre su reserva/.test(normalized) ||
+    /message from .+ about/.test(normalized) ||
+    /new message about your reservation/.test(normalized) ||
+    /^re:\s*reserva de/.test(normalized)
+  );
+}
+
+function isNonGuestMessageOperationalEmail(input: {
+  subject: string;
+  body: string;
+  pipelineEventKind?: AirbnbEmailEventKind | null;
+}): boolean {
+  const subject = normalizeForMatch(input.subject);
+  const body = normalizeForMatch(input.body);
+
+  if (
+    input.pipelineEventKind &&
+    input.pipelineEventKind !== AirbnbEmailEventKind.RESERVATION_MESSAGE &&
+    input.pipelineEventKind !== AirbnbEmailEventKind.UNKNOWN
+  ) {
+    return true;
+  }
+
+  if (
+    /^(fwd:\s*)?reserva confirmada:/.test(subject) ||
+    /^recordatorio de reserva:/.test(subject) ||
+    /^te hemos enviado un cobro/.test(subject) ||
+    /^consulta sobre .+ para el periodo/.test(subject) ||
+    /^consulta para una estancia en/.test(subject) ||
+    /preaprobar o rechazar/.test(body)
+  ) {
+    return true;
+  }
+
+  if (looksLikeGuestMessageSubject(input.subject) || looksLikeGuestMessage(input.body)) {
+    return false;
+  }
+
+  if (/^re:\s*consulta sobre/.test(subject)) {
+    return true;
+  }
+
+  return false;
 }
 
 export function classifyReservationActivityEmail(input: {
@@ -43,16 +94,24 @@ export function classifyReservationActivityEmail(input: {
     };
   }
 
+  if (isNonGuestMessageOperationalEmail(input)) {
+    return null;
+  }
+
   if (input.pipelineEventKind === AirbnbEmailEventKind.RESERVATION_MESSAGE) {
     return { activityType: ReservationActivityType.AIRBNB_MESSAGE, confidence: 0.95 };
   }
 
-  const messageText = input.messageBody?.trim() || "";
-  if (messageText.length >= 12) {
-    return { activityType: ReservationActivityType.AIRBNB_MESSAGE, confidence: 0.88 };
+  if (looksLikeGuestMessageSubject(input.subject)) {
+    return { activityType: ReservationActivityType.AIRBNB_MESSAGE, confidence: 0.9 };
   }
 
   if (looksLikeGuestMessage(input.body)) {
+    return { activityType: ReservationActivityType.AIRBNB_MESSAGE, confidence: 0.82 };
+  }
+
+  const messageText = input.messageBody?.trim() || "";
+  if (messageText.length >= 12 && looksLikeGuestMessage(messageText)) {
     return { activityType: ReservationActivityType.AIRBNB_MESSAGE, confidence: 0.75 };
   }
 

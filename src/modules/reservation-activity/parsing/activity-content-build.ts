@@ -5,45 +5,44 @@ import {
 } from "@/modules/reservation-events/parsing/modification-metadata-extract";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import type { ActivityMetadata } from "@/modules/reservation-activity/types";
+import { normalizeGuestMessageBody } from "@/services/novedades/operational-feed.message";
 
 function stripNoise(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-function extractMessageContent(input: {
+const RAW_MESSAGE_MAX = 8000;
+
+function pickRawMessageSource(input: {
   messageBody?: string | null;
   body: string;
 }): string {
-  const quoted = input.body.match(/"([^"]{8,})"/)?.[1]?.trim();
-  const fromSignals = input.messageBody?.trim();
+  const messageBody = input.messageBody?.trim();
+  if (messageBody) return messageBody.slice(0, RAW_MESSAGE_MAX);
+  return input.body.trim().slice(0, RAW_MESSAGE_MAX);
+}
 
-  const signalsLookLikeSubjectNoise =
-    Boolean(fromSignals) &&
-    (fromSignals!.length < 24 ||
-      /sobre su reserva|te envi[oó] un mensaje|message from|mensaje de airbnb/i.test(
-        fromSignals!,
-      ));
+function extractMessageContent(input: {
+  messageBody?: string | null;
+  body: string;
+  guestName?: string | null;
+}): { content: string; rawMessageBody: string } {
+  const rawMessageBody = pickRawMessageSource(input);
+  const quoted = input.body.match(/"([^"]{4,800})"/)?.[1]?.trim();
+  const sources = [input.messageBody, quoted, input.body].filter(
+    (value): value is string => Boolean(value?.trim()),
+  );
 
-  if (quoted && (!fromSignals || signalsLookLikeSubjectNoise)) {
-    return stripNoise(quoted);
+  for (const source of sources) {
+    const normalized = normalizeGuestMessageBody(source, {
+      guestName: input.guestName,
+    });
+    if (normalized) {
+      return { content: normalized, rawMessageBody };
+    }
   }
 
-  if (fromSignals && fromSignals.length > 0) return fromSignals;
-
-  if (quoted) return stripNoise(quoted);
-
-  const lines = input.body
-    .split(/\n/)
-    .map((line) => stripNoise(line))
-    .filter((line) => line.length >= 16)
-    .filter(
-      (line) =>
-        !/^(fechas originales|fechas solicitadas|responder|reply|unsubscribe)/i.test(
-          line,
-        ),
-    );
-
-  return lines[0]?.slice(0, 1200) ?? stripNoise(input.body).slice(0, 1200);
+  return { content: rawMessageBody, rawMessageBody };
 }
 
 function parseSenderName(from: string | null | undefined): string | null {
@@ -141,15 +140,17 @@ export function buildActivityContent(input: {
     };
   }
 
-  const message = extractMessageContent({
+  const guestName = guestFromSignals ?? parseSenderName(input.from);
+  const { content, rawMessageBody } = extractMessageContent({
     messageBody: input.signals?.messageBody,
     body: input.body,
+    guestName,
   });
 
   return {
     title: "Mensaje Airbnb",
-    content: message,
-    senderName: guestFromSignals ?? parseSenderName(input.from) ?? "Huésped",
+    content,
+    senderName: guestName ?? "Huésped",
     senderEmail,
     metadata: {
       guestName: guestFromSignals,
@@ -160,6 +161,7 @@ export function buildActivityContent(input: {
       subject: input.subject,
       confirmationCode: input.signals?.confirmationCode ?? null,
       classificationConfidence: input.confidence ?? null,
+      rawMessageBody,
     },
   };
 }

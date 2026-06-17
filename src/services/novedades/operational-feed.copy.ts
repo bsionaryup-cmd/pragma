@@ -1,34 +1,55 @@
+import type { BookingPlatform } from "@prisma/client";
 import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
+import { isPlaceholderGuestName, normalizeGuestMessageBody } from "@/services/novedades/operational-feed.message";
 
-function guestLabel(name: string | null | undefined): string {
-  const value = name?.trim();
-  return value && !isPlaceholderGuestName(value) ? value : "El huésped";
+/** Nombre legible en bandeja: evita placeholders de iCal y usa código si hace falta. */
+export function resolveNovedadesGuestName(input: {
+  guestName?: string | null;
+  confirmationCode?: string | null;
+  enrichedGuestName?: string | null;
+  platform?: BookingPlatform | null;
+}): string {
+  const enriched = input.enrichedGuestName?.trim();
+  if (enriched && !isPlaceholderGuestName(enriched)) return enriched;
+
+  const raw = input.guestName?.trim();
+  if (raw && !isPlaceholderGuestName(raw)) return raw;
+
+  const code = input.confirmationCode?.trim();
+  if (code) return `Reserva ${code}`;
+
+  return input.platform === "AIRBNB" ? "Reserva Airbnb" : "Huésped sin nombre";
 }
 
-function isPlaceholderGuestName(name: string): boolean {
-  return /^(hu[eé]sped airbnb|airbnb guest|airbnb|reserved|reservado)$/i.test(
-    name.trim(),
-  );
+function guestLabel(card: Pick<OperationalFeedCard, "guestName" | "confirmationCode">): string {
+  return resolveNovedadesGuestName({
+    guestName: card.guestName,
+    confirmationCode: card.confirmationCode,
+  });
 }
 
-function plainMessage(summary: string | null | undefined): string | null {
-  if (!summary?.trim()) return null;
-  return summary.replace(/^[“"']|[”"']$/g, "").trim() || null;
+function plainMessage(
+  summary: string | null | undefined,
+  guestName?: string | null,
+): string | null {
+  return normalizeGuestMessageBody(summary, { guestName });
 }
 
 /** Frase legible para el anfitrión, estilo bandeja de actividad. */
 export function buildFeedNarrative(card: OperationalFeedCard): string {
-  const guest = guestLabel(card.guestName);
+  const guest = guestLabel(card);
   const property = card.propertyLabel?.trim();
   const dates = card.dateRangeLabel?.trim();
   const stay = [property, dates].filter(Boolean).join(" · ");
-  const message = plainMessage(card.summary);
+  const message = plainMessage(card.summary, card.guestName);
   const detail = card.detailLines.filter(Boolean).join(" · ");
 
   switch (card.kind) {
-    case "NEW_RESERVATION":
-      if (stay) return `Nueva reserva de ${guest} — ${stay}.`;
-      return `Nueva reserva confirmada de ${guest}.`;
+    case "NEW_RESERVATION": {
+      const amountPart = card.amountLabel ? ` · ${card.amountLabel}` : "";
+      if (stay) return `Nueva reserva — ${stay}${amountPart}`;
+      return `Nueva reserva confirmada${amountPart}.`;
+    }
     case "RESERVATION_CANCELLED":
       return `${guest} canceló la reserva${dates ? ` del ${dates}` : ""}.`;
     case "MODIFICATION_REQUEST":
@@ -43,8 +64,8 @@ export function buildFeedNarrative(card: OperationalFeedCard): string {
       if (detail) return `${guest} extendió la estadía (${detail}).`;
       return `${guest} extendió la estadía.`;
     case "GUEST_MESSAGE":
-      if (message) return `${guest} escribió: ${message}`;
-      return `${guest} envió un mensaje.`;
+      if (message) return message;
+      return "Mensaje del huésped.";
     case "PAYMENT_CONFIRMED":
       if (card.amountLabel) {
         return `Pago recibido de ${guest}: ${card.amountLabel}.`;
@@ -67,6 +88,11 @@ export function buildFeedNarrative(card: OperationalFeedCard): string {
 export function guestInitialsFromName(name: string | null | undefined): string {
   const value = name?.trim();
   if (!value || isPlaceholderGuestName(value)) return "?";
+  if (value.startsWith("Reserva ")) {
+    const code = value.slice("Reserva ".length).trim();
+    return code.slice(0, 2).toUpperCase() || "R";
+  }
+  if (value === "Reserva Airbnb") return "RA";
   const parts = value.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase();

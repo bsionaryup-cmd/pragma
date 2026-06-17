@@ -746,6 +746,19 @@ export function ReservationDetailPanel({
       </div>
 
       {!editing ? (
+        <div className="shrink-0 border-b border-border/60 bg-module-pane-alt/40 px-4 py-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Copiar mensaje
+          </p>
+          <ReservationQuickMessages
+            reservation={reservation}
+            registrationLink={registration?.url ?? reservation.guestRegistrationUrl}
+            accessCode={accessCode?.code ?? null}
+          />
+        </div>
+      ) : null}
+
+      {!editing ? (
         <nav
           className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 px-4"
           aria-label="Secciones de reserva"
@@ -840,13 +853,6 @@ export function ReservationDetailPanel({
 
             {activeTab === "detalles" ? (
               <>
-            <ReservationDetailSection title="Mensajes Rápidos">
-              <ReservationQuickMessages
-                reservation={reservation}
-                registrationLink={registration?.url ?? reservation.guestRegistrationUrl}
-                accessCode={accessCode?.code ?? null}
-              />
-            </ReservationDetailSection>
             <ReservationDetailSection title="Enlace de registro">
               {registrationProgress ? (
                 <p className="mb-2 text-xs text-muted-foreground">
