@@ -18,6 +18,9 @@ import {
   type NavItem,
   type NavModule,
 } from "@/lib/navigation";
+import {
+  MAIN_SIDEBAR_WIDTH_CLASS,
+} from "@/components/layout/nav-layout.constants";
 import { cn } from "@/lib/utils";
 
 type SidebarProps = {
@@ -192,7 +195,7 @@ export function Sidebar({
     <aside
       className={cn(
         "flex min-h-0 shrink-0 flex-col self-stretch border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-pragma-soft transition-[width] duration-150 ease-out dark:shadow-none",
-        collapsed ? "w-[72px]" : "w-[248px]",
+        collapsed ? "w-[72px]" : MAIN_SIDEBAR_WIDTH_CLASS,
         className,
       )}
     >

@@ -2,9 +2,10 @@
 
 import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
 import { MobileDashboardHeader } from "@/components/layout/mobile-dashboard-header";
-import { useShellNavigationMode } from "@/components/layout/use-shell-navigation-mode";
+import { useStandaloneDisplayMode } from "@/components/layout/use-standalone-display-mode";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import type { NavItem, NavModule } from "@/lib/navigation";
+import { cn } from "@/lib/utils";
 
 type ShellNavigationLayoutProps = {
   navModules: NavModule[];
@@ -19,12 +20,12 @@ export function ShellNavigationLayout({
   user,
   children,
 }: ShellNavigationLayoutProps) {
-  const { useDesktopSidebar } = useShellNavigationMode();
+  const isStandalone = useStandaloneDisplayMode();
 
   return (
     <>
-      {useDesktopSidebar ? (
-        <div className="flex h-full max-h-full min-h-0 shrink-0 self-stretch">
+      {!isStandalone ? (
+        <div className="hidden h-full max-h-full min-h-0 shrink-0 self-stretch xl:flex">
           <DashboardNavigation
             modules={navModules}
             settingsItem={settingsItem}
@@ -35,13 +36,13 @@ export function ShellNavigationLayout({
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {!useDesktopSidebar ? (
+        <div className={cn(!isStandalone && "xl:hidden")}>
           <MobileDashboardHeader
             navModules={navModules}
             settingsItem={settingsItem}
             user={user}
           />
-        ) : null}
+        </div>
         {children}
       </div>
     </>

@@ -19,6 +19,7 @@ import {
   type NavModule,
 } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { MAIN_SIDEBAR_WIDTH_CLASS } from "@/components/layout/nav-layout.constants";
 
 type DashboardNavigationProps = {
   modules: NavModule[];
@@ -125,7 +126,13 @@ export function DashboardNavigation({
   }
 
   return (
-    <div className={cn("flex min-h-0 shrink-0 self-stretch items-stretch", className)}>
+    <div
+      className={cn(
+        "flex min-h-0 shrink-0 self-stretch items-stretch",
+        overlay && MAIN_SIDEBAR_WIDTH_CLASS,
+        className,
+      )}
+    >
       <Sidebar
         modules={modules}
         settingsItem={settingsItem}

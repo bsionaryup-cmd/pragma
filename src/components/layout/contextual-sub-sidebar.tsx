@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ChevronsLeft } from "lucide-react";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { getActiveNavChild, type NavGroupModule } from "@/lib/navigation";
+import { SUB_SIDEBAR_WIDTH_CLASS } from "@/components/layout/nav-layout.constants";
 import { cn } from "@/lib/utils";
 
 type ContextualSubSidebarProps = {
@@ -27,7 +28,8 @@ export function ContextualSubSidebar({
   return (
     <aside
       className={cn(
-        "grid w-[212px] shrink-0 grid-rows-[auto_minmax(0,1fr)] self-stretch overflow-hidden border-r border-sidebar-border bg-sidebar/95 transition-[width] duration-150 ease-out",
+        "grid shrink-0 grid-rows-[auto_minmax(0,1fr)] self-stretch overflow-hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-150 ease-out",
+        SUB_SIDEBAR_WIDTH_CLASS,
       )}
     >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-sidebar-border/80 px-3 py-3">

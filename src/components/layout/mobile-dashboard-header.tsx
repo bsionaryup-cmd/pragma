@@ -7,6 +7,10 @@ import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { DashboardNavigation } from "@/components/layout/dashboard-navigation";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
+import { cn } from "@/lib/utils";
+import {
+  MAIN_SIDEBAR_WIDTH_CLASS,
+} from "@/components/layout/nav-layout.constants";
 import {
   Sheet,
   SheetContent,
@@ -56,7 +60,12 @@ export function MobileDashboardHeader({
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           side="left"
-          className="w-[min(100vw,460px)] gap-0 p-0 sm:max-w-[460px]"
+          showCloseButton
+          className={cn(
+            MAIN_SIDEBAR_WIDTH_CLASS,
+            "max-w-[min(100vw,248px)] gap-0 border-r border-sidebar-border bg-sidebar p-0 text-sidebar-foreground shadow-pragma-soft dark:shadow-none",
+            "[&>button]:top-3 [&>button]:right-3 [&>button]:text-muted-foreground",
+          )}
         >
           <SheetTitle className="sr-only">Navegación principal</SheetTitle>
           <DashboardNavigation
@@ -65,7 +74,7 @@ export function MobileDashboardHeader({
             user={user}
             overlay
             onNavigate={() => setOpen(false)}
-            className="h-full w-full border-0 shadow-none"
+            className={cn(MAIN_SIDEBAR_WIDTH_CLASS, "h-full shrink-0 border-0 shadow-none")}
           />
         </SheetContent>
       </Sheet>
