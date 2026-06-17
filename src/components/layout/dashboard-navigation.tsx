@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ContextualSubSidebar } from "@/components/layout/contextual-sub-sidebar";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -40,8 +40,6 @@ export function DashboardNavigation({
 }: DashboardNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const previousPathnameRef = useRef(pathname);
-  const [explicitGroupId, setExplicitGroupId] = useState<string | null>(null);
   const [suppressedGroupId, setSuppressedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -56,13 +54,6 @@ export function DashboardNavigation({
   );
 
   useEffect(() => {
-    const previousPathname = previousPathnameRef.current;
-    if (pathname === previousPathname) return;
-    previousPathnameRef.current = pathname;
-    setExplicitGroupId(null);
-  }, [pathname]);
-
-  useEffect(() => {
     setSuppressedGroupId((current) => {
       if (!current || current === activeGroupId) return current;
       writeSuppressedNavGroupId(null);
@@ -70,14 +61,9 @@ export function DashboardNavigation({
     });
   }, [activeGroupId]);
 
-  const routeGroupId =
-    activeGroupId && activeGroupId !== suppressedGroupId ? activeGroupId : null;
-
-  /** Ruta activa primero; clic explícito en otro grupo prevalece hasta cambiar URL. */
+  /** Sub-sidebar solo en rutas de un grupo con submenú (Finanzas, Ajustes). */
   const openModuleId =
-    explicitGroupId && explicitGroupId !== routeGroupId
-      ? explicitGroupId
-      : routeGroupId;
+    activeGroupId && activeGroupId !== suppressedGroupId ? activeGroupId : null;
 
   const openModule = useMemo(() => {
     const found =
@@ -87,12 +73,6 @@ export function DashboardNavigation({
       ) ?? null;
     return found?.children.length ? found : null;
   }, [modules, openModuleId]);
-
-  useEffect(() => {
-    if (openModuleId && !openModule) {
-      setExplicitGroupId(null);
-    }
-  }, [openModuleId, openModule]);
 
   const isModuleStrongActive = useCallback(
     (module: NavModule) => {
@@ -114,34 +94,21 @@ export function DashboardNavigation({
     }
 
     if (openModuleId === module.id) {
-      setExplicitGroupId(null);
-      if (routeGroupId === module.id) {
-        setSuppressedGroupId(module.id);
-        writeSuppressedNavGroupId(module.id);
-      }
+      setSuppressedGroupId(module.id);
+      writeSuppressedNavGroupId(module.id);
       return;
     }
 
     setSuppressedGroupId(null);
     writeSuppressedNavGroupId(null);
-    setExplicitGroupId(module.id);
 
-    // Usar activeGroupId (ruta actual), no routeGroupId: si el submenú está
-    // suprimido en localStorage, routeGroupId es null pero la URL sigue en Finanzas.
-    const switchingAwayFromRouteGroup =
-      activeGroupId != null && module.id !== activeGroupId;
-    const shouldNavigate =
-      module.href !== pathname &&
-      (module.navigateOnOpen === true || switchingAwayFromRouteGroup);
-
-    if (shouldNavigate) {
+    if (activeGroupId !== module.id) {
       router.push(module.href);
       onNavigate?.();
     }
   }
 
   function handleMainLinkNavigate() {
-    setExplicitGroupId(null);
     setSuppressedGroupId(null);
     writePinnedNavGroupId(null);
     writeSuppressedNavGroupId(null);
@@ -149,7 +116,6 @@ export function DashboardNavigation({
   }
 
   function handleCloseSubSidebar() {
-    setExplicitGroupId(null);
     if (activeGroupId) {
       setSuppressedGroupId(activeGroupId);
       writeSuppressedNavGroupId(activeGroupId);

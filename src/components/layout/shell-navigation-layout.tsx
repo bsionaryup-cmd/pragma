@@ -24,12 +24,14 @@ export function ShellNavigationLayout({
   return (
     <>
       {useDesktopSidebar ? (
-        <DashboardNavigation
-          modules={navModules}
-          settingsItem={settingsItem}
-          user={user}
-          className="min-h-0 self-stretch"
-        />
+        <div className="flex h-full max-h-full min-h-0 shrink-0 self-stretch">
+          <DashboardNavigation
+            modules={navModules}
+            settingsItem={settingsItem}
+            user={user}
+            className="min-h-0 self-stretch"
+          />
+        </div>
       ) : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

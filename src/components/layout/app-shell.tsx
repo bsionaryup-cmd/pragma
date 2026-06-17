@@ -46,7 +46,7 @@ export function AppShell({
     <NovedadesUnreadProvider>
       <div
         className={cn(
-          "flex overflow-hidden bg-surface-alt",
+          "flex min-h-0 overflow-hidden bg-surface-alt",
           shellUsesParentHeight ? "h-full min-h-0" : "h-dvh max-h-dvh",
           className,
         )}
