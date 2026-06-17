@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   QUICK_MESSAGE_TEMPLATE_HINT,
   QUICK_MESSAGE_TYPES,
-  quickMessageFieldLabel,
+  quickMessageButtonLabel,
   quickMessageFormFieldName,
 } from "@/lib/reservations/quick-message-templates";
 import {
@@ -82,8 +82,8 @@ export function QuickMessagesSettings({ canManage }: QuickMessagesSettingsProps)
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Plantillas para los botones de copiar en reservas y novedades. Los datos
-        de cada reserva (huésped, dirección, WiFi, etc.) se rellenan al copiar.
+        Plantillas oficiales de PRAGMA para copiar y pegar al huésped en Airbnb u
+        otros canales. Los datos de cada reserva se rellenan al copiar.
       </p>
       <p className="text-xs text-muted-foreground">{QUICK_MESSAGE_TEMPLATE_HINT}</p>
 
@@ -92,7 +92,7 @@ export function QuickMessagesSettings({ canManage }: QuickMessagesSettingsProps)
         return (
           <div key={type} className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor={fieldName}>{quickMessageFieldLabel(type)}</Label>
+              <Label htmlFor={fieldName}>{quickMessageButtonLabel(type)}</Label>
               <Button
                 type="button"
                 variant="ghost"

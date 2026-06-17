@@ -13,6 +13,7 @@ import type {
 } from "@/features/reservations/components/reservation-drawer";
 import { sortByUpcomingArrivals } from "@/features/reservations/lib/reservation-sort";
 import { formatPropertyLabel, propertyMatchesQuery } from "@/lib/property-display";
+import { moduleShellClasses } from "@/components/layout/module-shell";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -218,9 +219,9 @@ export function ReservationsInbox({
 
   return (
     <>
-      <div className="flex h-full min-h-0 w-full overflow-hidden bg-muted/10">
-        <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border bg-background md:max-w-[360px] lg:max-w-[380px]">
-          <header className="shrink-0 space-y-3 border-b border-border px-3 py-3">
+      <div className={cn("flex h-full min-h-0 w-full overflow-hidden", moduleShellClasses.canvas)}>
+        <aside className={cn("relative flex h-full w-full min-w-0 shrink-0 flex-col border-r border-border md:max-w-[360px] lg:max-w-[380px]", moduleShellClasses.paneList)}>
+          <header className={cn("shrink-0 space-y-3 px-3 py-3", moduleShellClasses.paneHeader)}>
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h1 className="text-base font-semibold tracking-tight">
@@ -343,7 +344,7 @@ export function ReservationsInbox({
           </div>
 
           {canCreate ? (
-            <footer className="hidden shrink-0 border-t border-border bg-background p-3 md:block">
+            <footer className={cn("hidden shrink-0 border-t border-border p-3 md:block", moduleShellClasses.paneList)}>
               <Button type="button" className="h-10 w-full gap-2" onClick={openCreate}>
                 <Plus className="h-4 w-4" />
                 Crear reserva
@@ -352,7 +353,7 @@ export function ReservationsInbox({
           ) : null}
         </aside>
 
-        <div className="hidden min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-background md:flex">
+        <div className={cn("hidden min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:flex", moduleShellClasses.paneDetail)}>
           {drawerMode ? (
             <ReservationSidePanel
               mode={drawerMode}

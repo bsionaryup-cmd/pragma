@@ -1,14 +1,15 @@
 import {
+  DEFAULT_MESSAGE_TEMPLATES,
+  DEFAULT_MESSAGE_TITLES,
+  getDefaultMessageTemplate,
+  type QuickMessageType,
+} from "@/lib/default-message-templates";
+import {
   applyQuickMessageTemplate,
   type QuickMessageTemplates,
 } from "@/lib/reservations/quick-message-templates";
 
-export type QuickMessageType =
-  | "WELCOME"
-  | "REGISTRATION"
-  | "ACCESS"
-  | "FOLLOW_UP"
-  | "CHECKOUT";
+export type { QuickMessageType } from "@/lib/default-message-templates";
 
 export type QuickMessageData = {
   guestName?: string | null;
@@ -29,60 +30,8 @@ export type QuickMessageData = {
   receptionWhatsapp?: string | null;
 };
 
-/** Plantillas predeterminadas de PRAGMA (con variables). */
-export const SYSTEM_QUICK_MESSAGE_TEMPLATES: Record<QuickMessageType, string> = {
-  WELCOME: `Hola {guestName},
-
-Tu reserva en {propertyName} está confirmada.
-
-Check-in: {checkInTime}
-
-Si necesitas algo antes de tu llegada, escríbenos por WhatsApp: {receptionWhatsapp}`,
-
-  REGISTRATION: `Hola {guestName},
-
-Para tu estadía en {propertyName}, completa el registro de huéspedes aquí:
-{registrationLink}
-
-Cualquier duda, WhatsApp recepción: {receptionWhatsapp}`,
-
-  ACCESS: `Hola {guestName},
-
-Datos para tu llegada a {propertyName}:
-
-📍 Dirección: {address}
-🕒 Check-in: {checkInTime}
-🔐 Acceso: {accessCode}
-
-WhatsApp recepción: {receptionWhatsapp}`,
-
-  FOLLOW_UP: `Hola {guestName},
-
-Esperamos que disfrutes tu estadía en {propertyName}.
-
-📶 WiFi: {wifiName}
-🔑 Clave: {wifiPassword}
-
-¿Necesitas algo? WhatsApp: {receptionWhatsapp}`,
-
-  CHECKOUT: `Hola {guestName},
-
-Gracias por hospedarte en {propertyName}.
-
-Check-out: {checkOutTime}
-
-Si todo estuvo bien, una reseña de 5 estrellas nos ayuda mucho.
-
-WhatsApp: {receptionWhatsapp}`,
-};
-
-const quickMessageTitle: Record<QuickMessageType, string> = {
-  WELCOME: "Reserva confirmada",
-  REGISTRATION: "Registro de huéspedes",
-  ACCESS: "Información de llegada",
-  FOLLOW_UP: "Información durante la estadía",
-  CHECKOUT: "Recordatorio de salida",
-};
+/** @deprecated Use DEFAULT_MESSAGE_TEMPLATES from @/lib/default-message-templates */
+export const SYSTEM_QUICK_MESSAGE_TEMPLATES = DEFAULT_MESSAGE_TEMPLATES;
 
 export function buildQuickMessage(
   type: QuickMessageType,
@@ -94,14 +43,13 @@ export function buildQuickMessage(
     return applyQuickMessageTemplate(custom, data);
   }
 
-  return applyQuickMessageTemplate(SYSTEM_QUICK_MESSAGE_TEMPLATES[type], data);
+  return applyQuickMessageTemplate(DEFAULT_MESSAGE_TEMPLATES[type], data);
 }
 
 export function quickMessageLabel(type: QuickMessageType): string {
-  return quickMessageTitle[type];
+  return DEFAULT_MESSAGE_TITLES[type];
 }
 
-/** Texto plantilla del sistema (con variables) para vista previa o edición avanzada. */
 export function getDefaultQuickMessageTemplate(type: QuickMessageType): string {
-  return SYSTEM_QUICK_MESSAGE_TEMPLATES[type];
+  return getDefaultMessageTemplate(type);
 }

@@ -14,7 +14,7 @@ export function ThemedMainContent({ children }: ThemedMainContentProps) {
     <div
       id="pragma-main-content"
       data-theme={resolvedTheme}
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-module-canvas text-foreground"
     >
       <div
         id="pragma-main-scroll"

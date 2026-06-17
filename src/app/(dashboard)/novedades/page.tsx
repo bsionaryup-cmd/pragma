@@ -1,22 +1,42 @@
 import { NovedadesPageView } from "@/features/novedades/components/novedades-page-view";
+import { ModuleShellFill } from "@/components/layout/module-shell";
 import { requirePermission } from "@/lib/auth";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
-import { listNovedadesFeedForTenant, getLatestOperationalFeedTimestamp } from "@/services/novedades/operational-feed.service";
+import {
+  getNovedadesInboxSnapshot,
+} from "@/services/novedades/novedades-inbox.service";
+import { getLatestOperationalFeedTimestamp } from "@/services/novedades/operational-feed.service";
 
-export default async function NovedadesPage() {
+type NovedadesPageProps = {
+  searchParams: Promise<{ reservation?: string }>;
+};
+
+export default async function NovedadesPage({ searchParams }: NovedadesPageProps) {
   await requirePermission("reservations:read");
   const scope = await requireTenantDataScope();
   const scopeKey = scope.organizationId ?? scope.userId;
-  const [feed, latest] = await Promise.all([
-    listNovedadesFeedForTenant(scope),
+  const params = await searchParams;
+
+  const [snapshot, latest] = await Promise.all([
+    getNovedadesInboxSnapshot(scope),
     getLatestOperationalFeedTimestamp(scope),
   ]);
 
+  const reservationId = params.reservation ?? null;
+  const validSelectedId =
+    reservationId &&
+    snapshot.items.some((item) => item.reservationId === reservationId)
+      ? reservationId
+      : null;
+
   return (
-    <NovedadesPageView
-      feed={feed}
-      scopeKey={scopeKey}
-      latestAt={latest.latestAt}
-    />
+    <ModuleShellFill>
+      <NovedadesPageView
+        items={snapshot.items}
+        scopeKey={scopeKey}
+        latestAt={latest.latestAt ?? snapshot.latestAt}
+        initialSelectedId={validSelectedId}
+      />
+    </ModuleShellFill>
   );
 }

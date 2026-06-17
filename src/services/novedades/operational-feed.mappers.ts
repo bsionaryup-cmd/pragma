@@ -13,8 +13,8 @@ import {
   formatGuestCountLine,
   formatPayoutAmount,
   formatReservationRange,
-  quoteSummary,
 } from "@/services/novedades/operational-feed.present";
+import { isPlaceholderGuestName, normalizeGuestMessageBody, resolveGuestMessageParseName } from "@/services/novedades/operational-feed.message";
 import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
 
 export const reservationSelect = {
@@ -66,6 +66,22 @@ function readMetadataConfirmationCode(metadata: unknown): string | null {
   return typeof code === "string" && code.trim() ? code.trim() : null;
 }
 
+function readMetadataRawMessageBody(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+  const raw = (metadata as { rawMessageBody?: unknown }).rawMessageBody;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function guestMessageSourceForCard(row: {
+  content: string;
+  metadataJson: unknown;
+}): string {
+  const raw = readMetadataRawMessageBody(row.metadataJson);
+  const content = row.content?.trim() ?? "";
+  if (raw) return raw;
+  return content;
+}
+
 function readMetadataDates(metadata: unknown): {
   original?: string | null;
   requested?: string | null;
@@ -88,10 +104,18 @@ function readActivityGuestName(input: {
   reservationGuestName: string | null | undefined;
 }): string | null {
   const sender = input.senderName?.trim() || null;
-  if (sender && !/te envi[oó] un mensaje|message from|mensaje sobre su reserva/i.test(sender)) {
+  if (
+    sender &&
+    !isPlaceholderGuestName(sender) &&
+    !/te envi[oó] un mensaje|message from|mensaje sobre su reserva/i.test(sender)
+  ) {
     return sender;
   }
-  return readMetadataGuest(input.metadata) ?? input.reservationGuestName?.trim() ?? sender;
+  const fromMetadata = readMetadataGuest(input.metadata);
+  if (fromMetadata && !isPlaceholderGuestName(fromMetadata)) return fromMetadata;
+  const fromReservation = input.reservationGuestName?.trim();
+  if (fromReservation && !isPlaceholderGuestName(fromReservation)) return fromReservation;
+  return sender;
 }
 
 function propertyLabelFromReservation(
@@ -163,6 +187,26 @@ function buildReservationUpdateLines(
   return lines;
 }
 
+function clipMessage(value: string, max = 800): string {
+  const normalized = normalizeGuestMessageBody(value);
+  if (normalized) {
+    return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1).trim()}…`;
+  }
+  return "";
+}
+
+function clipMessageForGuest(
+  value: string,
+  guestName?: string | null,
+  max = 800,
+): string {
+  const normalized = normalizeGuestMessageBody(value, { guestName });
+  if (normalized) {
+    return normalized.length <= max ? normalized : `${normalized.slice(0, max - 1).trim()}…`;
+  }
+  return "";
+}
+
 function reservationContext(
   reservation: ReservationRow | null | undefined,
   confirmationCode?: string | null,
@@ -172,6 +216,7 @@ function reservationContext(
     propertyLabel: propertyLabelFromReservation(reservation ?? null),
     propertyId: propertyIdFromReservation(reservation ?? null),
     reservationId: reservation?.id ?? null,
+    reservationStatus: reservation?.status ?? null,
     confirmationCode: confirmationCode ?? reservation?.reservationCode ?? null,
     dateRangeLabel:
       reservation?.checkIn && reservation?.checkOut
@@ -222,6 +267,7 @@ export function mapModificationEvent(row: {
       propertyLabelFromReservation(row.reservation),
     propertyId: row.propertyId ?? propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     confirmationCode: readMetadataConfirmationCode(metadata),
     dateRangeLabel:
       row.reservation?.checkIn && row.reservation?.checkOut
@@ -242,21 +288,30 @@ export function mapGuestMessageActivity(row: {
   property: { name: string; unitNumber: string | null; city: string } | null;
   reservation: ReservationRow;
 }): OperationalFeedCard {
+  const guestName = readActivityGuestName({
+    senderName: row.senderName,
+    metadata: row.metadataJson,
+    reservationGuestName: row.reservation.guestName,
+  });
+  const messageSource = guestMessageSourceForCard(row);
+  const parseGuestName = resolveGuestMessageParseName({
+    raw: messageSource,
+    guestName: guestName ?? row.reservation.guestName,
+    senderName: row.senderName,
+  });
+
   return buildOperationalCard({
     id: `activity:${row.id}`,
     kind: "GUEST_MESSAGE",
     createdAt: row.createdAt,
-    guestName: readActivityGuestName({
-      senderName: row.senderName,
-      metadata: row.metadataJson,
-      reservationGuestName: row.reservation.guestName,
-    }),
-    summary: quoteSummary(row.content),
+    guestName: parseGuestName ?? guestName,
+    summary: messageSource,
     propertyLabel:
       (row.property ? formatPropertyLabel(row.property) : null) ??
       propertyLabelFromReservation(row.reservation),
     propertyId: row.propertyId ?? propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     confirmationCode: readMetadataConfirmationCode(row.metadataJson),
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
@@ -291,6 +346,7 @@ export function mapPayout(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: propertyIdFromReservation(row.reservation),
     reservationId: row.reservationId,
+    reservationStatus: row.reservation?.status ?? null,
     dateRangeLabel:
       row.reservation?.checkIn && row.reservation?.checkOut
         ? formatReservationRange(row.reservation.checkIn, row.reservation.checkOut)
@@ -318,12 +374,13 @@ export function mapReservationPayment(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: row.reservation.property.id,
     reservationId: row.reservation.id,
+    reservationStatus: row.reservation.status,
     confirmationCode: row.reservation.reservationCode,
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
       row.reservation.checkOut,
     ),
-    detailLines: [`Método: ${row.method.replace(/_/g, " ").toLowerCase()}`],
+    detailLines: [],
   });
 }
 
@@ -348,6 +405,7 @@ export function mapGuestPaymentLink(row: {
     propertyLabel: propertyLabelFromReservation(row.reservation),
     propertyId: row.reservation.property.id,
     reservationId: row.reservation.id,
+    reservationStatus: row.reservation.status,
     confirmationCode: row.reservation.reservationCode,
     dateRangeLabel: formatReservationRange(
       row.reservation.checkIn,
@@ -368,6 +426,25 @@ export function mapEmailEvent(row: {
   reservation: ReservationRow | null;
 }): OperationalFeedCard | null {
   const ctx = reservationContext(row.reservation, row.confirmationCode);
+
+  if (row.eventKind === AirbnbEmailEventKind.PAYOUT_PROCESSED) {
+    const signals = readEmailEventSignals(row);
+    const netPayout =
+      Number(signals.netPayout ?? signals.hostPayoutAmount ?? 0) || null;
+    const currency =
+      typeof signals.currency === "string"
+        ? signals.currency
+        : (row.reservation?.currency ?? "COP");
+
+    return buildOperationalCard({
+      id: `email-event:${row.id}`,
+      kind: "PAYOUT_SENT",
+      createdAt: row.createdAt,
+      ...ctx,
+      amountLabel: formatPayoutAmount(netPayout, currency),
+      summary: "Airbnb envió el pago a tu cuenta.",
+    });
+  }
 
   if (row.eventKind === AirbnbEmailEventKind.CONFIRMED) {
     const guestCounts = resolveReservationGuestCounts({
@@ -487,9 +564,10 @@ export function mapGuestRegistrationAlert(row: {
     propertyLabel: formatPropertyLabel(row.property),
     propertyId: row.property.id,
     reservationId: row.id,
+    reservationStatus: null,
     confirmationCode: row.reservationCode,
     dateRangeLabel: formatReservationRange(row.checkIn, row.checkOut),
-    detailLines: [`Error: ${row.guestRegistrationAdminNotificationError}`],
+    detailLines: [],
   });
 }
 
@@ -502,17 +580,21 @@ export function mapReservationCommunication(row: {
   reservation: ReservationRow | null;
 }): OperationalFeedCard | null {
   if (!row.reservation) return null;
+  const guestName = row.reservation.guestName;
+  const parsedMessage = clipMessageForGuest(row.rawMessage, guestName);
 
   if (row.requiresAction) {
+    if (!parsedMessage) return null;
     return buildOperationalCard({
       id: `communication:${row.id}`,
-      kind: "ALERT",
+      kind: "GUEST_MESSAGE",
       createdAt: row.createdAt,
       guestName: row.reservation.guestName,
-      summary: quoteSummary(row.rawMessage) ?? "Mensaje que requiere respuesta.",
+      summary: parsedMessage,
       propertyLabel: propertyLabelFromReservation(row.reservation),
       propertyId: row.reservation.property.id,
       reservationId: row.reservation.id,
+      reservationStatus: row.reservation.status,
       confirmationCode: row.reservation.reservationCode,
       dateRangeLabel: formatReservationRange(
         row.reservation.checkIn,
@@ -535,12 +617,34 @@ export function mapReservationCommunication(row: {
       propertyLabel: propertyLabelFromReservation(row.reservation),
       propertyId: row.reservation.property.id,
       reservationId: row.reservation.id,
+      reservationStatus: row.reservation.status,
       confirmationCode: row.reservation.reservationCode,
       dateRangeLabel: formatReservationRange(
         row.reservation.checkIn,
         row.reservation.checkOut,
       ),
-      detailLines: row.rawMessage.trim() ? [row.rawMessage.trim().slice(0, 160)] : [],
+      detailLines: parsedMessage
+        ? [parsedMessage.length <= 160 ? parsedMessage : `${parsedMessage.slice(0, 159).trim()}…`]
+        : [],
+    });
+  }
+
+  if (parsedMessage) {
+    return buildOperationalCard({
+      id: `communication:${row.id}`,
+      kind: "GUEST_MESSAGE",
+      createdAt: row.createdAt,
+      guestName: row.reservation.guestName,
+      summary: row.rawMessage,
+      propertyLabel: propertyLabelFromReservation(row.reservation),
+      propertyId: row.reservation.property.id,
+      reservationId: row.reservation.id,
+      reservationStatus: row.reservation.status,
+      confirmationCode: row.reservation.reservationCode,
+      dateRangeLabel: formatReservationRange(
+        row.reservation.checkIn,
+        row.reservation.checkOut,
+      ),
     });
   }
 

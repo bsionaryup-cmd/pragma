@@ -3,10 +3,22 @@ import type {
   OperationalFeedReservationGroup,
   OperationalFeedView,
 } from "@/services/novedades/operational-feed.types";
+import {
+  guestInitialsFromName,
+  resolveNovedadesGuestName,
+  RESERVATION_STATUS_LABELS,
+} from "@/services/novedades/operational-feed.copy";
+import { isPlaceholderGuestName } from "@/services/novedades/operational-feed.message";
+import type { ReservationStatus } from "@prisma/client";
 
 function pickGroupGuestName(events: OperationalFeedCard[]): string | null {
   for (const event of events) {
-    if (event.guestName?.trim()) return event.guestName.trim();
+    const name = event.guestName?.trim();
+    if (name && !isPlaceholderGuestName(name)) return name;
+  }
+  for (const event of events) {
+    const code = event.confirmationCode?.trim();
+    if (code) return `Reserva ${code}`;
   }
   return null;
 }
@@ -21,6 +33,15 @@ function pickGroupField(
   for (const event of events) {
     const value = event[key];
     if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function pickReservationStatus(
+  events: OperationalFeedCard[],
+): ReservationStatus | null {
+  for (const event of events) {
+    if (event.reservationStatus) return event.reservationStatus;
   }
   return null;
 }
@@ -50,15 +71,28 @@ export function groupOperationalFeedByReservation(
     const attentionCount = sortedEvents.filter(
       (event) => event.priority === "attention",
     ).length;
+    const rawGuestName = pickGroupGuestName(sortedEvents);
+    const confirmationCode = pickGroupField(sortedEvents, "confirmationCode");
+    const guestName = resolveNovedadesGuestName({
+      guestName: rawGuestName,
+      confirmationCode,
+    });
+    const reservationStatus = pickReservationStatus(sortedEvents);
 
     groups.push({
       reservationId,
-      guestName: pickGroupGuestName(sortedEvents),
+      guestName,
+      guestInitials: guestInitialsFromName(guestName),
       propertyLabel: pickGroupField(sortedEvents, "propertyLabel"),
       propertyId: pickGroupField(sortedEvents, "propertyId"),
-      confirmationCode: pickGroupField(sortedEvents, "confirmationCode"),
+      confirmationCode,
       dateRangeLabel: pickGroupField(sortedEvents, "dateRangeLabel"),
+      reservationStatus,
+      statusLabel: reservationStatus
+        ? (RESERVATION_STATUS_LABELS[reservationStatus] ?? null)
+        : null,
       latestAt: sortedEvents[0]?.createdAt ?? new Date(0).toISOString(),
+      latestNarrative: sortedEvents[0]?.narrative ?? null,
       attentionCount,
       events: sortedEvents,
     });

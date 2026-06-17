@@ -29,4 +29,6 @@ export type ActivityMetadata = {
   confirmationCode?: string | null;
   classificationConfidence?: number | null;
   pipelineEventKind?: string | null;
+  /** Cuerpo crudo del correo para parseo en lectura (Novedades). */
+  rawMessageBody?: string | null;
 };
