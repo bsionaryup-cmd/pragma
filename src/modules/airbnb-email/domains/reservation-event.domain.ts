@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
-import { AirbnbEmailEventKind } from "@prisma/client";
+import { AirbnbEmailEventKind, ReservationStatus } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { applySafeReservationEnrichment } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { shouldApplyEmailCancellation } from "@/lib/reservations/reservation-cancellation-policy";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -47,6 +48,29 @@ export async function persistReservationEmailEvent(input: {
         Object.keys(enrichedFields).length > 0 ? enrichedFields : undefined,
     },
   });
+
+  if (
+    input.eventKind === AirbnbEmailEventKind.CANCELED &&
+    input.match.reservationId
+  ) {
+    const reservation = await db.reservation.findUnique({
+      where: { id: input.match.reservationId },
+      select: { status: true },
+    });
+
+    if (reservation && shouldApplyEmailCancellation(reservation.status)) {
+      await db.reservation.update({
+        where: { id: input.match.reservationId },
+        data: { status: ReservationStatus.CANCELLED },
+      });
+      airbnbEmailLog.info("reservation_cancelled_from_email", {
+        auditId: input.auditId,
+        eventId: event.id,
+        reservationId: input.match.reservationId,
+        previousStatus: reservation.status,
+      });
+    }
+  }
 
   airbnbEmailLog.info("reservation_email_event_created", {
     auditId: input.auditId,

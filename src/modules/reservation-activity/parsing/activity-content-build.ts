@@ -121,6 +121,10 @@ export function buildActivityContent(input: {
   }
 
   if (input.activityType === "UNMATCHED_AIRBNB") {
+    const rawMessageBody = pickRawMessageSource({
+      messageBody: input.signals?.messageBody,
+      body: input.body,
+    });
     const excerpt = stripNoise(input.body).slice(0, 480);
     return {
       title: "Correo Airbnb pendiente de asociar",
@@ -136,6 +140,7 @@ export function buildActivityContent(input: {
         subject: input.subject,
         confirmationCode: input.signals?.confirmationCode ?? null,
         classificationConfidence: input.confidence ?? null,
+        rawMessageBody,
       },
     };
   }

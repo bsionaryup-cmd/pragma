@@ -20,6 +20,7 @@ import type {
 } from "@/services/novedades/novedades-inbox.types";
 import { buildNovedadesReservationDetail } from "@/services/novedades/novedades-timeline.service";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import { detectInboxMessageIntent, inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
 
 function feedKindToTimelineKind(kind: OperationalFeedKind): NovedadesTimelineKind {
   return kind;
@@ -113,6 +114,12 @@ export async function listNovedadesInboxItems(
       ? formatPayoutAmount(Number(reservation.totalAmount), reservation.currency)
       : null;
 
+    const latestKind = latestEvent ? feedKindToTimelineKind(latestEvent.kind) : null;
+    const latestIntentLabel =
+      latestKind === "GUEST_MESSAGE" && latestNarrative
+        ? inboxIntentLabel(detectInboxMessageIntent(latestNarrative).intent)
+        : null;
+
     return {
       reservationId: group.reservationId,
       guestName,
@@ -126,7 +133,8 @@ export async function listNovedadesInboxItems(
       latestAt: group.latestAt,
       latestTimeLabel: formatOperationalRelativeTime(group.latestAt),
       latestNarrative,
-      latestKind: latestEvent ? feedKindToTimelineKind(latestEvent.kind) : null,
+      latestKind,
+      latestIntentLabel,
       amountLabel: latestEvent?.amountLabel ?? reservationAmount,
       attentionCount: group.attentionCount,
       eventCount: group.events.length,

@@ -27,8 +27,20 @@ function looksLikeGuestMessageSubject(subject: string): boolean {
     /envi[oó] un mensaje sobre su reserva/.test(normalized) ||
     /message from .+ about/.test(normalized) ||
     /new message about your reservation/.test(normalized) ||
-    /^re:\s*reserva de/.test(normalized)
+    /^re:\s*reserva de/.test(normalized) ||
+    /^re:\s*consulta sobre/.test(normalized)
   );
+}
+
+export function isLikelyGuestMessageEmail(input: {
+  subject: string;
+  body: string;
+  messageBody?: string | null;
+}): boolean {
+  if (looksLikeGuestMessageSubject(input.subject)) return true;
+  if (looksLikeGuestMessage(input.body)) return true;
+  const messageText = input.messageBody?.trim() || "";
+  return messageText.length >= 12 && looksLikeGuestMessage(messageText);
 }
 
 function isNonGuestMessageOperationalEmail(input: {
@@ -36,6 +48,10 @@ function isNonGuestMessageOperationalEmail(input: {
   body: string;
   pipelineEventKind?: AirbnbEmailEventKind | null;
 }): boolean {
+  if (isLikelyGuestMessageEmail(input)) {
+    return false;
+  }
+
   const subject = normalizeForMatch(input.subject);
   const body = normalizeForMatch(input.body);
 
@@ -56,10 +72,6 @@ function isNonGuestMessageOperationalEmail(input: {
     /preaprobar o rechazar/.test(body)
   ) {
     return true;
-  }
-
-  if (looksLikeGuestMessageSubject(input.subject) || looksLikeGuestMessage(input.body)) {
-    return false;
   }
 
   if (/^re:\s*consulta sobre/.test(subject)) {

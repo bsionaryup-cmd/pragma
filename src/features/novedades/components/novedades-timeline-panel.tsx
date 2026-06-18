@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NovedadesCopyActions } from "@/features/novedades/components/novedades-copy-actions";
+import { NovedadesAiDraftPanel } from "@/features/novedades/components/novedades-ai-draft-panel";
 import type {
   NovedadesReservationDetail,
   NovedadesTimelineEntry,
@@ -83,10 +84,12 @@ function groupEntriesByDay(entries: NovedadesTimelineEntry[]) {
 function GuestMessageRow({
   entry,
   guestName,
+  reservationId,
   isLast,
 }: {
   entry: NovedadesTimelineEntry;
   guestName: string;
+  reservationId: string;
   isLast: boolean;
 }) {
   return (
@@ -117,6 +120,13 @@ function GuestMessageRow({
           </p>
           <NovedadesCopyActions actions={entry.suggestedReplies} compact />
         </div>
+      ) : null}
+      {entry.messageBody ? (
+        <NovedadesAiDraftPanel
+          reservationId={reservationId}
+          guestMessageId={entry.id}
+          guestMessageBody={entry.messageBody}
+        />
       ) : null}
     </li>
   );
@@ -297,6 +307,7 @@ export function NovedadesTimelinePanel({
                           key={entry.id}
                           entry={entry}
                           guestName={detail.guestName}
+                          reservationId={detail.reservationId}
                           isLast={index === group.entries.length - 1}
                         />
                       ))}

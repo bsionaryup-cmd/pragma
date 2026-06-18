@@ -184,11 +184,13 @@ function buildMilestoneEntries(input: {
   platform: BookingPlatform;
   status: ReservationStatus;
   createdAt: Date;
+  updatedAt: Date;
   checkIn: Date;
   checkOut: Date;
   guestRegistrationToken: string | null;
   guestRegistrationCompletedAt: Date | null;
   hasFeedNewReservation: boolean;
+  hasFeedCancellation: boolean;
   amountLabel: string | null;
 }): NovedadesTimelineEntry[] {
   const entries: NovedadesTimelineEntry[] = [];
@@ -271,6 +273,24 @@ function buildMilestoneEntries(input: {
     });
   }
 
+  if (
+    input.status === ReservationStatus.CANCELLED &&
+    !input.hasFeedCancellation
+  ) {
+    entries.push({
+      id: `${input.reservationId}:cancelled`,
+      kind: "RESERVATION_CANCELLED",
+      title: "Cancelación",
+      narrative:
+        input.platform === "AIRBNB"
+          ? `${input.guestName} canceló la reserva.`
+          : `Reserva cancelada para ${input.guestName}.`,
+      priority: "normal",
+      createdAt: input.updatedAt.toISOString(),
+      timeLabel: formatTimeLabel(input.updatedAt),
+    });
+  }
+
   return entries;
 }
 
@@ -317,6 +337,7 @@ export async function buildNovedadesReservationDetail(
       totalAmount: true,
       currency: true,
       createdAt: true,
+      updatedAt: true,
       guestRegistrationToken: true,
       guestRegistrationCompletedAt: true,
       property: {
@@ -442,6 +463,9 @@ export async function buildNovedadesReservationDetail(
   const feedEntries = feedCards
     .flatMap((card) => cardToTimelineEntries(card, timelineCtx));
   const hasFeedNewReservation = feedCards.some((card) => card.kind === "NEW_RESERVATION");
+  const hasFeedCancellation = feedCards.some(
+    (card) => card.kind === "RESERVATION_CANCELLED",
+  );
 
   const milestoneEntries = buildMilestoneEntries({
     reservationId,
@@ -449,11 +473,13 @@ export async function buildNovedadesReservationDetail(
     platform: reservation.platform,
     status: reservation.status,
     createdAt: reservation.createdAt,
+    updatedAt: reservation.updatedAt,
     checkIn: reservation.checkIn,
     checkOut: reservation.checkOut,
     guestRegistrationToken: reservation.guestRegistrationToken,
     guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
     hasFeedNewReservation,
+    hasFeedCancellation,
     amountLabel: totalAmountLabel,
   });
 

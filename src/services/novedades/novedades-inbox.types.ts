@@ -65,6 +65,8 @@ export type NovedadesInboxListItem = {
   latestTimeLabel: string;
   latestNarrative: string;
   latestKind: NovedadesTimelineKind | null;
+  /** Etiqueta de intención IA (solo si el último evento es mensaje del huésped). */
+  latestIntentLabel?: string | null;
   amountLabel: string | null;
   attentionCount: number;
   eventCount: number;

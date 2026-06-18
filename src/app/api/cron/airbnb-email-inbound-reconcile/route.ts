@@ -5,6 +5,8 @@ import { isResendInboundConfigured } from "@/modules/airbnb-email/integrations/r
 import { logAirbnbEnrichmentHealthSnapshot } from "@/modules/airbnb-email/observability/enrichment-health-snapshot";
 import { runUnlinkedEmailEnrichmentRetryJob } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
 import { runAirbnbEmailLinkageRepairJob } from "@/modules/airbnb-email/repair/run-linkage-repair-job";
+import { syncGuestMessageActivitiesForFeed } from "@/modules/reservation-activity/services/sync-guest-message-activities";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,6 +53,17 @@ export async function GET(request: Request) {
   });
 
   const linkageRepair = await runAirbnbEmailLinkageRepairJob();
+
+  const orgIds = await db.tenantAirbnbEmailIntegration.findMany({
+    where: { enabled: true },
+    select: { organizationId: true },
+  });
+  for (const row of orgIds) {
+    await syncGuestMessageActivitiesForFeed({
+      organizationId: row.organizationId,
+      userId: "cron",
+    });
+  }
 
   const health = await logAirbnbEnrichmentHealthSnapshot();
 

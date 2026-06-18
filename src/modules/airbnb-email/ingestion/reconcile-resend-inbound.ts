@@ -14,6 +14,7 @@ import {
   extractReservationSignals,
   hashEmailContent,
 } from "@/modules/airbnb-email/parsing/extractors";
+import { ensureReservationActivityFromAuditRow } from "@/modules/reservation-activity/services/ensure-reservation-activity-from-email";
 import {
   recordIntegrationInboundReceived,
   resolveOrganizationByInboundEmail,
@@ -103,6 +104,52 @@ export async function reconcileMissedResendInboundEmails(input?: {
         });
 
         if (already) {
+          const existingAudit = await db.emailIngestionAudit.findFirst({
+            where: {
+              organizationId: resolved.organizationId,
+              OR: [
+                ...(full.message_id ?? row.message_id
+                  ? [{ messageId: (full.message_id ?? row.message_id)!.trim() }]
+                  : []),
+                {
+                  contentHash: hashEmailContent({
+                    messageId: full.message_id ?? row.message_id ?? undefined,
+                    from: full.from,
+                    subject: full.subject,
+                    body: bodyPreview,
+                    organizationId: resolved.organizationId,
+                  }),
+                },
+              ],
+            },
+            select: {
+              id: true,
+              reservationId: true,
+              propertyId: true,
+              subject: true,
+              fromAddress: true,
+              rawEmail: true,
+              classification: true,
+              createdAt: true,
+            },
+          });
+
+          if (existingAudit) {
+            const raw = existingAudit.rawEmail as Record<string, unknown> | null;
+            await ensureReservationActivityFromAuditRow({
+              organizationId: resolved.organizationId,
+              auditId: existingAudit.id,
+              reservationId: existingAudit.reservationId,
+              propertyId: existingAudit.propertyId,
+              subject: existingAudit.subject,
+              from: existingAudit.fromAddress,
+              html: typeof raw?.html === "string" ? raw.html : null,
+              text: typeof raw?.text === "string" ? raw.text : null,
+              receivedAt: existingAudit.createdAt.toISOString(),
+              pipelineEventKind: existingAudit.classification,
+            });
+          }
+
           result.skippedDuplicate += 1;
           continue;
         }
@@ -152,6 +199,21 @@ export async function reconcileMissedResendInboundEmails(input?: {
           result.failed += 1;
         } else {
           result.ingested += 1;
+        }
+
+        if (outcome.auditId) {
+          await ensureReservationActivityFromAuditRow({
+            organizationId: resolved.organizationId,
+            auditId: outcome.auditId,
+            reservationId: outcome.reservationId ?? null,
+            propertyId: propertyResolution.propertyId,
+            subject: full.subject,
+            from: full.from,
+            html: full.html,
+            text: full.text,
+            receivedAt: full.created_at ?? row.created_at ?? null,
+            pipelineEventKind: outcome.eventKind ?? null,
+          });
         }
       } catch (error) {
         result.failed += 1;

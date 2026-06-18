@@ -177,6 +177,10 @@ function buildDedupeKey(card: OperationalFeedCard): string {
     return `${card.reservationId}:NEW_RESERVATION`;
   }
 
+  if (card.kind === "RESERVATION_CANCELLED") {
+    return `${card.reservationId}:RESERVATION_CANCELLED`;
+  }
+
   if (card.kind === "PAYOUT_SENT") {
     return `${card.reservationId}:PAYOUT_SENT:${card.createdAt.slice(0, 10)}`;
   }

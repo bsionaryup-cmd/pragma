@@ -46,6 +46,7 @@ import {
   extractReservationSignals,
   hashEmailContent,
 } from "@/modules/airbnb-email/parsing/extractors";
+import { buildAuditRawEmailPayload } from "@/modules/airbnb-email/parsing/audit-raw-email";
 import { classifyAirbnbEmail } from "@/modules/airbnb-email/router/airbnb-email-router";
 import type {
   EmailProcessingOutcome,
@@ -263,13 +264,7 @@ export async function processInboundAirbnbEmail(
         toAddress: payload.to ?? null,
         subject: payload.subject,
         senderChannel: classified.senderChannel,
-        rawEmail: (payload.raw ?? {
-          from: payload.from,
-          to: payload.to,
-          subject: payload.subject,
-          html: payload.html,
-          text: payload.text,
-        }) as Prisma.InputJsonValue,
+        rawEmail: buildAuditRawEmailPayload(payload),
         classification: classified.eventKind,
         processingStatus: AirbnbEmailProcessingStatus.CLASSIFIED,
         parsedPayload,

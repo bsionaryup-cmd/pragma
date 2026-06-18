@@ -7,6 +7,7 @@ import {
 import { formatPropertyLabel } from "@/lib/property-display";
 import { prismaDateToKey } from "@/lib/dates";
 import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
+import { isCancellationFeedEligible } from "@/lib/reservations/reservation-cancellation-policy";
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
 import {
   buildOperationalCard,
@@ -415,6 +416,36 @@ export function mapGuestPaymentLink(row: {
   });
 }
 
+export function mapCanceledReservationFallback(row: {
+  id: string;
+  guestName: string;
+  checkIn: Date;
+  checkOut: Date;
+  status: ReservationStatus;
+  reservationCode: string | null;
+  updatedAt: Date;
+  property: {
+    id: string;
+    name: string;
+    unitNumber: string | null;
+    city: string;
+  };
+}): OperationalFeedCard {
+  return buildOperationalCard({
+    id: `reservation-cancelled:${row.id}`,
+    kind: "RESERVATION_CANCELLED",
+    createdAt: row.updatedAt,
+    guestName: row.guestName,
+    summary: "La reserva fue cancelada.",
+    propertyLabel: formatPropertyLabel(row.property),
+    propertyId: row.property.id,
+    reservationId: row.id,
+    reservationStatus: row.status,
+    confirmationCode: row.reservationCode,
+    dateRangeLabel: formatReservationRange(row.checkIn, row.checkOut),
+  });
+}
+
 export function mapEmailEvent(row: {
   id: string;
   eventKind: AirbnbEmailEventKind;
@@ -476,13 +507,14 @@ export function mapEmailEvent(row: {
   }
 
   if (row.eventKind === AirbnbEmailEventKind.CANCELED) {
-    if (row.reservation?.status !== ReservationStatus.CANCELLED) return null;
+    if (!isCancellationFeedEligible(row.reservation?.status)) return null;
 
     return buildOperationalCard({
       id: `email-event:${row.id}`,
       kind: "RESERVATION_CANCELLED",
       createdAt: row.createdAt,
       ...ctx,
+      reservationStatus: ReservationStatus.CANCELLED,
       summary: "Airbnb confirmó la cancelación de la reserva.",
     });
   }

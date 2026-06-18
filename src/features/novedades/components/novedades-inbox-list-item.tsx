@@ -94,6 +94,11 @@ export function NovedadesInboxListItem({
                 {kindPreview.label}
               </span>
             ) : null}
+            {item.latestKind === "GUEST_MESSAGE" && item.latestIntentLabel ? (
+              <span className="rounded bg-indigo-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-800 dark:text-indigo-200">
+                {item.latestIntentLabel}
+              </span>
+            ) : null}
             {item.amountLabel ? (
               <span className="text-xs font-semibold tabular-nums text-foreground">
                 {item.amountLabel}

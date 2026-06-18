@@ -45,6 +45,7 @@ model Organization {
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
+  inboxAiDrafts          InboxAiDraft[]
 
   @@map("organizations")
 }
@@ -103,6 +104,8 @@ model User {
   salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
   airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
   reservationActivitySeen          ReservationActivitySeen[]
+  inboxAiDraftsCreated             InboxAiDraft[] @relation("InboxAiDraftCreator")
+  inboxAiDraftAuditEvents          InboxAiDraftAuditEvent[] @relation("InboxAiDraftAuditActor")
 
   @@index([role, isActive])
   @@index([organizationId])
@@ -270,6 +273,7 @@ model Reservation {
   observabilityEvents     ReservationEvent[]
   activityEntries         ReservationActivity[]
   activitySeenByUsers     ReservationActivitySeen[]
+  inboxAiDrafts           InboxAiDraft[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -1961,4 +1965,63 @@ model AirbnbFinancialBackfillLog {
   @@index([reservationId])
   @@index([status])
   @@map("airbnb_financial_backfill_logs")
+}
+
+// ─── Inbox AI (borradores + auditoría) ───────────────────────
+
+enum InboxAiDraftStatus {
+  GENERATED
+  EDITED
+  DISCARDED
+}
+
+enum InboxAiDraftAuditAction {
+  GENERATED
+  EDITED
+  COPIED
+  DISCARDED
+}
+
+model InboxAiDraft {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  reservationId      String
+  guestMessageId     String?
+  guestMessageBody   String             @db.Text
+  detectedIntent     String
+  intentConfidence   Decimal?           @db.Decimal(5, 4)
+  intentSource       String?
+  contextSnapshot    Json
+  generatedText      String             @db.Text
+  editedText         String?            @db.Text
+  generationProvider String
+  generationModel    String?
+  status             InboxAiDraftStatus @default(GENERATED)
+  createdById        String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reservation  Reservation             @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  createdBy    User                    @relation("InboxAiDraftCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  auditEvents  InboxAiDraftAuditEvent[]
+
+  @@index([reservationId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("inbox_ai_drafts")
+}
+
+model InboxAiDraftAuditEvent {
+  id          String                  @id @default(cuid())
+  draftId     String
+  action      InboxAiDraftAuditAction
+  actorUserId String
+  payload     Json?
+  createdAt   DateTime                @default(now())
+
+  draft InboxAiDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  actor User         @relation("InboxAiDraftAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([draftId, createdAt])
+  @@map("inbox_ai_draft_audit_events")
 }

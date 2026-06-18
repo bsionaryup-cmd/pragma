@@ -3,10 +3,12 @@ import "server-only";
 import {
   AirbnbEmailEventKind,
   ReservationActivityType,
+  ReservationStatus,
   type Prisma,
 } from "@prisma/client";
 import { db } from "@/lib/db";
 import { promotePendingActivitiesForReservation } from "@/modules/reservation-activity/services/promote-pending-activities";
+import { syncGuestMessageActivitiesForFeed } from "@/modules/reservation-activity/services/sync-guest-message-activities";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
   mergeReservationScope,
@@ -15,6 +17,7 @@ import {
 import { groupOperationalFeedByReservation } from "@/services/novedades/operational-feed.group";
 import {
   mapEmailEvent,
+  mapCanceledReservationFallback,
   mapGuestMessageActivity,
   mapGuestPaymentLink,
   mapGuestRegistrationAlert,
@@ -149,11 +152,67 @@ async function listGuestRegistrationAlerts(
     .filter((row): row is OperationalFeedCard => row != null);
 }
 
+async function listCanceledReservationFallbackCards(
+  scope: TenantDataScope,
+  reservationId?: string,
+): Promise<OperationalFeedCard[]> {
+  const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const rows = await db.reservation.findMany({
+    where: mergeReservationScope(scope, {
+      status: ReservationStatus.CANCELLED,
+      updatedAt: { gte: cutoff },
+      ...(reservationId ? { id: reservationId } : {}),
+    }),
+    orderBy: { updatedAt: "desc" },
+    take: reservationId ? 1 : 40,
+    select: {
+      id: true,
+      guestName: true,
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      reservationCode: true,
+      updatedAt: true,
+      property: {
+        select: {
+          id: true,
+          name: true,
+          unitNumber: true,
+          city: true,
+        },
+      },
+    },
+  });
+
+  if (rows.length === 0) return [];
+
+  const emailCancelReservationIds = new Set(
+    (
+      await db.reservationEmailEvent.findMany({
+        where: {
+          eventKind: AirbnbEmailEventKind.CANCELED,
+          reservationId: { in: rows.map((row) => row.id) },
+        },
+        select: { reservationId: true },
+      })
+    )
+      .map((row) => row.reservationId)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  return rows
+    .filter((row) => !emailCancelReservationIds.has(row.id))
+    .map(mapCanceledReservationFallback);
+}
+
 async function collectOperationalFeedCards(
   scope: TenantDataScope,
   take: number,
   reservationId?: string,
 ): Promise<OperationalFeedCard[]> {
+  await syncGuestMessageActivitiesForFeed(scope);
+
   const eventReservationFilter = reservationId ? { reservationId } : {};
   const payoutReservationFilter = reservationId ? { reservationId } : {};
   const emailReservationFilter = reservationId ? { reservationId } : {};
@@ -167,6 +226,7 @@ async function collectOperationalFeedCards(
     guestPaymentLinks,
     communications,
     guestRegistrationAlerts,
+    canceledReservationFallbacks,
   ] = await Promise.all([
     db.reservationEvent.findMany({
       where: { ...reservationEventWhere(scope), ...eventReservationFilter },
@@ -253,6 +313,7 @@ async function collectOperationalFeedCards(
           rows.filter((row) => row.reservationId === reservationId),
         )
       : listGuestRegistrationAlerts(scope),
+    listCanceledReservationFallbackCards(scope, reservationId),
   ]);
 
   return [
@@ -268,6 +329,7 @@ async function collectOperationalFeedCards(
       .map(mapReservationCommunication)
       .filter((row): row is OperationalFeedCard => row != null),
     ...guestRegistrationAlerts,
+    ...canceledReservationFallbacks,
   ];
 }
 

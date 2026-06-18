@@ -35,6 +35,15 @@ describe("reservation activity email classifier", () => {
     assert.equal(result?.activityType, "AIRBNB_MESSAGE");
   });
 
+  it("prefers guest message subject over TRANSPORT_REQUEST pipeline kind", () => {
+    const result = classifyReservationActivityEmail({
+      subject: "RE: Reserva de «Loft amplio 4P con Vista Panorámica | Laureles Top», 18–23 jun",
+      body: "Reserva de loft\nKarla\nPersona que reserva\nHola, ¿a qué hora puedo llegar?",
+      pipelineEventKind: AirbnbEmailEventKind.TRANSPORT_REQUEST,
+    });
+    assert.equal(result?.activityType, "AIRBNB_MESSAGE");
+  });
+
   it("stores UNMATCHED_AIRBNB when no pattern matches", () => {
     const result = resolveActivityCaptureType({
       subject: "Reservation inquiry for your listing",

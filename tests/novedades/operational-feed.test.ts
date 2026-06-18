@@ -14,6 +14,11 @@ import {
   isPlaceholderGuestName,
   stripMessageHtml,
 } from "@/services/novedades/operational-feed.message";
+import { AirbnbEmailEventKind, ReservationStatus } from "@prisma/client";
+import {
+  mapCanceledReservationFallback,
+  mapEmailEvent,
+} from "@/services/novedades/operational-feed.mappers";
 import { buildOperationalCard } from "@/services/novedades/operational-feed.present";
 
 describe("operational feed policy", () => {
@@ -257,5 +262,79 @@ describe("operational feed grouping", () => {
     ]);
 
     assert.equal(view.groups[0]?.guestName, "Reserva HM8K2P9Q4X");
+  });
+});
+
+describe("reservation cancellation feed", () => {
+  const reservation = {
+    id: "res-cancel",
+    guestName: "María López",
+    checkIn: new Date("2026-06-20T00:00:00Z"),
+    checkOut: new Date("2026-06-23T00:00:00Z"),
+    status: ReservationStatus.CONFIRMED,
+    totalAmount: 450000,
+    currency: "COP",
+    adults: 2,
+    children: 0,
+    infants: 0,
+    reservationCode: "HMXYZ123",
+    createdAt: new Date("2026-06-15T10:00:00Z"),
+    property: {
+      id: "prop-1",
+      name: "Loft Laureles",
+      unitNumber: "2P",
+      city: "Medellín",
+    },
+  };
+
+  it("maps CANCELED email events even if reservation status is stale", () => {
+    const card = mapEmailEvent({
+      id: "evt-cancel",
+      eventKind: AirbnbEmailEventKind.CANCELED,
+      createdAt: new Date("2026-06-16T18:00:00Z"),
+      confirmationCode: "HMXYZ123",
+      reservationId: reservation.id,
+      payload: {},
+      enrichedFields: {},
+      reservation,
+    });
+
+    assert.equal(card?.kind, "RESERVATION_CANCELLED");
+    assert.equal(card?.reservationStatus, ReservationStatus.CANCELLED);
+    assert.match(card?.narrative ?? "", /cancel/i);
+  });
+
+  it("keeps cancellation cards in the sanitized feed", () => {
+    const cards = sanitizeOperationalFeedCards([
+      buildOperationalCard({
+        id: "new",
+        kind: "NEW_RESERVATION",
+        createdAt: new Date("2026-06-15T10:00:00Z"),
+        reservationId: reservation.id,
+        guestName: reservation.guestName,
+      }),
+      buildOperationalCard({
+        id: "cancel",
+        kind: "RESERVATION_CANCELLED",
+        createdAt: new Date("2026-06-16T18:00:00Z"),
+        reservationId: reservation.id,
+        guestName: reservation.guestName,
+        summary: "Airbnb confirmó la cancelación de la reserva.",
+      }),
+    ]);
+
+    assert.equal(cards.length, 2);
+    assert.equal(cards[0]?.kind, "RESERVATION_CANCELLED");
+  });
+
+  it("builds fallback cards for iCal-only cancellations", () => {
+    const card = mapCanceledReservationFallback({
+      ...reservation,
+      status: ReservationStatus.CANCELLED,
+      updatedAt: new Date("2026-06-16T19:00:00Z"),
+    });
+
+    assert.equal(card.kind, "RESERVATION_CANCELLED");
+    assert.match(card.narrative, /canceló la reserva/i);
   });
 });
