@@ -182,6 +182,12 @@ export async function runMisclassifiedConfirmationRepairJob(input?: {
       return;
     }
 
+    if (!audit.organizationId) {
+      result.skipped += 1;
+      result.details.push({ auditId: audit.id, status: "skipped", reason: "organization_missing" });
+      return;
+    }
+
     let match = await matchReservationFromEmailSignals(signals, {
       organizationId: audit.organizationId,
       propertyId: audit.propertyId,

@@ -117,6 +117,7 @@ export async function applyFinancialBackfill(input: {
       eventKind: true,
       confirmationCode: true,
       enrichedFields: true,
+      payload: true,
       audit: { select: { parsedPayload: true, rawEmail: true, subject: true } },
     },
   });
