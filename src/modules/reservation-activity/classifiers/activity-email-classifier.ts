@@ -28,7 +28,9 @@ function looksLikeGuestMessageSubject(subject: string): boolean {
     /message from .+ about/.test(normalized) ||
     /new message about your reservation/.test(normalized) ||
     /^re:\s*reserva de/.test(normalized) ||
-    /^re:\s*consulta sobre/.test(normalized)
+    /^re:\s*consulta sobre/.test(normalized) ||
+    /^consulta sobre .+ para el periodo/.test(normalized) ||
+    /^re:\s*preaprobaci[oó]n para/.test(normalized)
   );
 }
 
@@ -67,15 +69,17 @@ function isNonGuestMessageOperationalEmail(input: {
     /^(fwd:\s*)?reserva confirmada:/.test(subject) ||
     /^recordatorio de reserva:/.test(subject) ||
     /^te hemos enviado un cobro/.test(subject) ||
-    /^consulta sobre .+ para el periodo/.test(subject) ||
-    /^consulta para una estancia en/.test(subject) ||
-    /preaprobar o rechazar/.test(body)
+    /^consulta para una estancia en/.test(subject)
   ) {
     return true;
   }
 
-  if (/^re:\s*consulta sobre/.test(subject)) {
-    return true;
+  if (
+    /^consulta sobre .+ para el periodo/.test(subject) ||
+    /^re:\s*consulta sobre/.test(subject) ||
+    /^re:\s*preaprobaci[oó]n para/.test(subject)
+  ) {
+    return !looksLikeGuestMessage(body);
   }
 
   return false;

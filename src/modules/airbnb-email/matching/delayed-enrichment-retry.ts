@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { isReservationEventKind } from "@/modules/airbnb-email/domains/reservation-event.domain";
 import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
+import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import {
   persistReservationMatchLinkage,
   reapplyReservationEnrichmentFromAudit,
@@ -127,10 +128,19 @@ export async function attemptDelayedEnrichmentRetry(
     return { status: "skipped" };
   }
 
-  const propertyId = input.propertyId ?? audit.propertyId;
+  let propertyId = input.propertyId ?? audit.propertyId;
   const organizationId = input.organizationId ?? audit.organizationId;
   if (!organizationId) {
     return { status: "skipped" };
+  }
+
+  if (!propertyId) {
+    const resolved = await resolvePropertyIdFromEmailSignals(
+      organizationId,
+      signals,
+      null,
+    );
+    propertyId = resolved.propertyId;
   }
 
   if (

@@ -64,7 +64,32 @@ export function buildPropertyKnowledgeFromContext(
     "Check-out",
     property.checkOutTime ? `Hora: ${property.checkOutTime}` : null,
   );
-  push("PARKING", "Contacto recepción", property.receptionWhatsapp);
+
+  const locationParts = [
+    property.label,
+    property.unitNumber ? `Unidad ${property.unitNumber}` : null,
+    property.address,
+    property.neighborhood,
+    property.city,
+  ].filter(Boolean);
+
+  push(
+    "FAQ",
+    "Ubicación del alojamiento",
+    locationParts.length > 0 ? locationParts.join(" · ") : null,
+  );
+
+  if (property.neighborhood?.trim() || property.city?.trim()) {
+    push(
+      "RECOMMENDATIONS",
+      "Zona / barrio",
+      [property.neighborhood, property.city].filter(Boolean).join(", "),
+    );
+  }
+
+  if (property.receptionWhatsapp?.trim()) {
+    push("INTERNAL_NOTES", "Contacto recepción", property.receptionWhatsapp);
+  }
 
   return { propertyId: property.id, sections };
 }

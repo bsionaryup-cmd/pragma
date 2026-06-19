@@ -3,21 +3,24 @@ import {
   formatConversationThreadForPrompt,
   formatInboxAiContextForPrompt,
   formatKnowledgeForPrompt,
+  formatQuickMessagesForPrompt,
+  selectQuickMessageTypesForIntent,
   sliceGuestMessagesForReply,
 } from "@/services/inbox-ai/inbox-context.format";
 import type { InboxAiIntent } from "@/services/inbox-ai/inbox-intent.types";
 import { inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
+import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 
 const SYSTEM_PROMPT = `Eres un asistente de hospitalidad para anfitriones de alquiler vacacional en Colombia.
 REGLAS ESTRICTAS:
-- Lee el hilo de conversación completo antes de redactar.
-- Responde de forma directa y natural al mensaje marcado como objetivo, teniendo en cuenta lo que el huésped dijo antes.
-- Usa ÚNICAMENTE los hechos listados en el contexto confirmado.
-- Si falta información en "Información NO disponible", di que confirmarás con el equipo y NO inventes datos.
-- No repitas información genérica de check-in si el huésped pregunta otra cosa (disponibilidad, fechas, etc.).
-- Tono cálido, profesional, en español (Colombia).
-- Respuesta lista para enviar al huésped por Airbnb (texto plano, sin markdown).
-- Máximo 120 palabras.`;
+- Lee el hilo completo y responde PRIMERO a la pregunta concreta del huésped (mensaje marcado como objetivo).
+- Usa los hechos confirmados, la base de conocimiento y las plantillas operativas del anfitrión.
+- Incluye detalles útiles de la propiedad cuando el huésped pregunta por ubicación, acceso, WiFi, horarios o reglas.
+- Si falta información en "Información NO disponible", dilo con naturalidad y ofrece confirmar — NO inventes direcciones, POIs, precios ni horarios.
+- No des respuestas genéricas tipo "lo reviso con el equipo" si ya tienes datos concretos en el contexto.
+- No repitas check-in/WiFi si el huésped preguntó otra cosa, salvo que sea relevante para su duda.
+- Tono cálido, profesional, español Colombia. Texto plano listo para Airbnb (sin markdown).
+- Entre 80 y 200 palabras; prioriza utilidad sobre brevedad extrema.`;
 
 export type InboxAiGenerationProvider = "openai" | "template";
 
@@ -31,6 +34,48 @@ function truncateForReply(text: string, max = 100): string {
   const trimmed = text.trim();
   if (trimmed.length <= max) return trimmed;
   return `${trimmed.slice(0, max - 1)}…`;
+}
+
+function firstNonEmptyLines(text: string, maxLines = 6): string {
+  return text
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, maxLines)
+    .join("\n");
+}
+
+function buildLocationReply(input: {
+  context: InboxAiContext;
+  question: string;
+}): string[] {
+  const lines: string[] = [];
+  const { knownFacts, property } = input.context;
+  const asksNearby = /cerca|alrededor|qué hay|que hay|supermercado|restaurante|farmacia|transporte/i.test(
+    input.question,
+  );
+
+  if (knownFacts.propertyAddress) {
+    lines.push(`El alojamiento ${knownFacts.propertyName ?? property.label} queda en ${knownFacts.propertyAddress}.`);
+  }
+
+  if (knownFacts.neighborhood || knownFacts.city) {
+    const zone = [knownFacts.neighborhood, knownFacts.city].filter(Boolean).join(", ");
+    lines.push(`Estamos en ${zone}.`);
+  }
+
+  if (asksNearby) {
+    lines.push(
+      "En el barrio hay comercio, restaurantes y transporte público accesible; en Airbnb verás la ubicación exacta en el mapa del anuncio.",
+    );
+    lines.push(
+      "Si me cuentas qué necesitas cerca (supermercado, farmacia, etc.), te oriento con más detalle.",
+    );
+  } else if (knownFacts.checkInTime) {
+    lines.push(`El check-in es desde las ${knownFacts.checkInTime}.`);
+  }
+
+  return lines;
 }
 
 function buildContextualTemplateReply(input: {
@@ -67,15 +112,19 @@ function buildContextualTemplateReply(input: {
     }
   } else if (input.intent === "PARKING") {
     lines.push(
-      "Sobre parqueadero: te confirmo las opciones más cercanas en un momento.",
+      "Sobre parqueadero: en la zona suele haber opciones de parqueo; te confirmo la más conveniente para esta propiedad en un momento.",
     );
-  } else if (input.intent === "ACCESS" && input.context.knownFacts.accessCode) {
-    lines.push(`El código de acceso es ${input.context.knownFacts.accessCode}.`);
+  } else if (input.intent === "ACCESS") {
+    if (input.context.knownFacts.accessCode) {
+      lines.push(`El código de acceso es ${input.context.knownFacts.accessCode}.`);
+    }
     if (input.context.knownFacts.accessInstructions) {
       lines.push(input.context.knownFacts.accessInstructions);
+    } else if (!input.context.knownFacts.accessCode) {
+      lines.push("Te comparto las instrucciones de acceso más cerca de tu llegada.");
     }
-  } else if (input.intent === "LOCATION" && input.context.knownFacts.propertyAddress) {
-    lines.push(`La dirección es ${input.context.knownFacts.propertyAddress}.`);
+  } else if (input.intent === "LOCATION") {
+    lines.push(...buildLocationReply({ context: input.context, question }));
   } else if (input.intent === "PAYMENT") {
     lines.push("Revisaré el detalle del pago de tu reserva y te confirmo.");
   } else if (/disponib|21 al 23|fechas|extender|adelant|antes de|otra fecha/i.test(question)) {
@@ -89,6 +138,9 @@ function buildContextualTemplateReply(input: {
         ? `El check-in es desde las ${time}.`
         : "Te confirmo la hora de check-in en un momento.",
     );
+    if (input.context.knownFacts.propertyAddress) {
+      lines.push(`La dirección es ${input.context.knownFacts.propertyAddress}.`);
+    }
   } else if (/check.?out|salida/i.test(question)) {
     const time = input.context.knownFacts.checkOutTime;
     lines.push(
@@ -106,24 +158,45 @@ function buildContextualTemplateReply(input: {
     } else {
       lines.push("Te comparto las reglas de la casa en un momento.");
     }
+  } else if (/ubicaci[oó]n|cerca|direcci[oó]n|llegar|mapa/i.test(question)) {
+    lines.push(...buildLocationReply({ context: input.context, question }));
   } else {
     const snippet = truncateForReply(input.guestMessageBody);
     lines.push(
-      `Sobre tu consulta ("${snippet}"): lo reviso con el equipo y te respondo en breve.`,
+      `Entiendo tu consulta sobre "${snippet}".`,
     );
   }
 
-  if (input.context.missingFacts.length > 0) {
-    lines.push("Si necesitas algo más, con gusto te ayudamos.");
+  const quickTypes = selectQuickMessageTypesForIntent(input.intent);
+  const quickRendered = quickTypes
+    .map((type) =>
+      buildQuickMessage(
+        type,
+        input.context.messageData,
+        input.context.templates.templates,
+      ).trim(),
+    )
+    .find(Boolean);
+
+  if (quickRendered && lines.length <= 3) {
+    const excerpt = firstNonEmptyLines(quickRendered, 5);
+    if (excerpt.length > 40) {
+      lines.push("", "Te comparto la información de la propiedad:", excerpt);
+    }
   }
 
-  if (input.context.knownFacts.receptionWhatsapp) {
+  if (
+    input.context.knownFacts.receptionWhatsapp &&
+    (input.intent === "EMERGENCY" || input.intent === "COMPLAINT" || input.context.missingFacts.length > 2)
+  ) {
     lines.push(
       `También puedes escribirnos al ${input.context.knownFacts.receptionWhatsapp}.`,
     );
+  } else if (input.context.missingFacts.length > 0 && lines.length <= 2) {
+    lines.push("Si necesitas algo más, con gusto te ayudamos.");
   }
 
-  return lines.join("\n\n");
+  return lines.filter(Boolean).join("\n\n");
 }
 
 export async function generateInboxAiDraftText(input: {
@@ -162,6 +235,7 @@ export async function generateInboxAiDraftText(input: {
     missingFacts: input.context.missingFacts,
     guestMessages: conversation?.threadMessages ?? input.context.guestMessages,
     activityHistory: input.context.activityHistory.slice(-8),
+    omitGuestMessages: true,
   });
 
   const conversationBlock = conversation
@@ -169,15 +243,27 @@ export async function generateInboxAiDraftText(input: {
     : `Mensaje del huésped:\n"""${targetBody.trim()}"""`;
 
   const knowledgeBlock = formatKnowledgeForPrompt(input.context.knowledge.sections);
+  const templatesBlock = formatQuickMessagesForPrompt({
+    intent: input.intent,
+    messageData: input.context.messageData,
+    templates: input.context.templates.templates,
+  });
 
-  const userPrompt = `Intención detectada: ${inboxIntentLabel(input.intent)} (${input.intent})
-
-${conversationBlock}
-
-${knowledgeBlock ? `${knowledgeBlock}\n\n` : ""}Contexto operativo:
-${contextBlock}
-
-Redacta una respuesta conversacional para el huésped, respondiendo al mensaje marcado como objetivo.`;
+  const userPrompt = [
+    `Intención detectada: ${inboxIntentLabel(input.intent)} (${input.intent})`,
+    "",
+    conversationBlock,
+    "",
+    knowledgeBlock || "",
+    templatesBlock || "",
+    "",
+    "Contexto operativo:",
+    contextBlock,
+    "",
+    "Redacta una respuesta conversacional que responda directamente al mensaje objetivo del huésped, usando los detalles concretos disponibles arriba.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -188,7 +274,7 @@ Redacta una respuesta conversacional para el huésped, respondiendo al mensaje m
       },
       body: JSON.stringify({
         model,
-        temperature: 0.25,
+        temperature: 0.35,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },

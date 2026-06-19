@@ -32,8 +32,16 @@ async function loadRetryableAuditIds(input: {
   return db.emailIngestionAudit.findMany({
     where: {
       reservationId: null,
-      propertyId: input.propertyId ? input.propertyId : { not: null },
-      organizationId: input.organizationId ? input.organizationId : { not: null },
+      ...(input.propertyId
+        ? { propertyId: input.propertyId }
+        : input.organizationId
+          ? { organizationId: input.organizationId }
+          : {
+              OR: [
+                { propertyId: { not: null } },
+                { organizationId: { not: null } },
+              ],
+            }),
       classification: { in: RESERVATION_EVENT_KINDS },
       processingStatus: {
         in: [

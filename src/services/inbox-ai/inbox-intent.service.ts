@@ -83,7 +83,7 @@ const RULES: IntentRule[] = [
     intent: "LOCATION",
     weight: 78,
     test: (t) =>
-      /ubicaci[oó]n|direcci[oó]n|c[oó]mo llegar|mapa|transporte|taxi|aeropuerto|pickup|recogida|llego a las|vuelo/i.test(
+      /ubicaci[oó]n|direcci[oó]n|c[oó]mo llegar|mapa|transporte|taxi|aeropuerto|pickup|recogida|llego a las|vuelo|queda cerca|cerca de|alrededor|qu[eé] hay|zona|barrio|supermercado|restaurante|farmacia/i.test(
         t,
       ),
   },

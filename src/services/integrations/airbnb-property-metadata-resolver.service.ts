@@ -56,16 +56,28 @@ type PropertyNameCandidate = {
   name: string;
 };
 
+function expandListingSynonymsForMatch(normalized: string): string {
+  return normalized
+    .replace(/\b(\d+)\s*p\b/g, "para $1 personas")
+    .replace(/\bde la av\b/g, "de av")
+    .replace(/\bde la avenida\b/g, "de av")
+    .replace(/\bav\b/g, "av")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function normalizeAirbnbListingForMatch(value: string): string {
-  return value
+  const base = value
     .toLowerCase()
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;|&amp;|&lt;|&gt;/g, " ")
-    .replace(/[|•]/g, " ")
+    .replace(/[|•«»]/g, " ")
     .replace(/[^a-z0-9áéíóúñü\s-]/gi, " ")
     .replace(/\b(?:codigo|c[oó]digo|confirmation|confirmaci[oó]n|check-?in|check-?out|llega|arrives)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  return expandListingSynonymsForMatch(base);
 }
 
 function stripTrailingUnitSuffix(normName: string): string {

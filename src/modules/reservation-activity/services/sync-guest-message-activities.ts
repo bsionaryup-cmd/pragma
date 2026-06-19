@@ -3,7 +3,11 @@ import "server-only";
 import { ReservationActivityType, type Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { buildEmailBody } from "@/modules/airbnb-email/parsing/extractors";
+import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
+import { matchReservationFromEmailSignals } from "@/modules/airbnb-email/matching/reservation-matcher";
+import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import { isLikelyGuestMessageEmail } from "@/modules/reservation-activity/classifiers/activity-email-classifier";
+import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import {
   ensureLinkedGuestMessageActivities,
   repairUnparseableGuestMessageActivities,
@@ -141,10 +145,98 @@ export async function promotePendingGuestMessageActivities(
   return promoted;
 }
 
+function readSignalsFromAuditPayload(
+  payload: unknown,
+): ExtractedReservationSignals | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const signals = (payload as { signals?: unknown }).signals;
+  if (!signals || typeof signals !== "object" || Array.isArray(signals)) return null;
+  return signals as ExtractedReservationSignals;
+}
+
+export async function relinkUnlinkedGuestMessageAudits(
+  scope: TenantDataScope,
+): Promise<number> {
+  if (!scope.organizationId) return 0;
+
+  const pendingRows = await db.reservationActivityPending.findMany({
+    where: {
+      organizationId: scope.organizationId,
+      activityType: ReservationActivityType.AIRBNB_MESSAGE,
+    },
+    select: { sourceEmailId: true },
+    take: 80,
+  });
+  const pendingAuditIds = pendingRows.map((row) => row.sourceEmailId);
+
+  const audits = await db.emailIngestionAudit.findMany({
+    where: {
+      organizationId: scope.organizationId,
+      reservationId: null,
+      OR: [
+        ...(pendingAuditIds.length > 0
+          ? [{ id: { in: pendingAuditIds } }]
+          : []),
+        { subject: { contains: "Consulta sobre", mode: "insensitive" as const } },
+        { subject: { contains: "Preaprobación", mode: "insensitive" as const } },
+        { subject: { contains: "Reserva de", mode: "insensitive" as const } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+    select: {
+      id: true,
+      subject: true,
+      parsedPayload: true,
+      propertyId: true,
+      rawEmail: true,
+    },
+  });
+
+  let linked = 0;
+  for (const audit of audits) {
+    const signals = readSignalsFromAuditPayload(audit.parsedPayload);
+    if (!signals) continue;
+
+    const body = readAuditEmailBody(audit.rawEmail, audit.subject);
+    if (!isLikelyGuestMessageEmail({ subject: audit.subject, body }) &&
+        !audit.subject.toLowerCase().includes("consulta sobre") &&
+        !audit.subject.toLowerCase().includes("preaprobación")) {
+      continue;
+    }
+
+    const propertyResolution = await resolvePropertyIdFromEmailSignals(
+      scope.organizationId,
+      signals,
+      audit.propertyId,
+    );
+    const match = await matchReservationFromEmailSignals(signals, {
+      organizationId: scope.organizationId,
+      propertyId: propertyResolution.propertyId ?? audit.propertyId,
+      listingAmbiguous: propertyResolution.ambiguous,
+    });
+    if (!match.reservationId) continue;
+
+    await db.emailIngestionAudit.update({
+      where: { id: audit.id },
+      data: {
+        reservationId: match.reservationId,
+        propertyId: match.propertyId ?? propertyResolution.propertyId ?? audit.propertyId,
+        matchMethod: toPersistedMatchMethod(match.method),
+        matchConfidence: match.confidence,
+      },
+    });
+    linked += 1;
+  }
+
+  return linked;
+}
+
 export async function syncGuestMessageActivitiesForFeed(
   scope: TenantDataScope,
 ): Promise<void> {
   await repairMisclassifiedGuestMessageActivities(scope);
+  await relinkUnlinkedGuestMessageAudits(scope);
   await promotePendingGuestMessageActivities(scope);
   await ensureLinkedGuestMessageActivities(scope);
   await repairUnparseableGuestMessageActivities(scope);

@@ -7,6 +7,7 @@ import {
   extractGuestMessagesFromFeedCards,
   formatConversationThreadForPrompt,
   formatInboxAiContextForPrompt,
+  formatQuickMessagesForPrompt,
   resolveInboxAiTemplates,
   sliceGuestMessagesForReply,
 } from "@/services/inbox-ai/inbox-context.format";
@@ -182,5 +183,20 @@ describe("inbox context format", () => {
     assert.match(thread, /RESPONDER A ESTE MENSAJE/);
     assert.match(thread, /21 al 23/);
     assert.doesNotMatch(thread, /viajar antes/);
+  });
+
+  it("formats quick message templates for prompts", () => {
+    const block = formatQuickMessagesForPrompt({
+      intent: "LOCATION",
+      messageData: {
+        guestName: "María",
+        propertyName: "Loft Laureles",
+        address: "Calle 70",
+        checkInTime: "15:00",
+      },
+      templates: {},
+    });
+    assert.match(block, /Plantillas operativas/i);
+    assert.match(block, /Calle 70|Dirección/i);
   });
 });

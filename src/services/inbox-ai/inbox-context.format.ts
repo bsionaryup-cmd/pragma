@@ -1,6 +1,10 @@
 import { DEFAULT_MESSAGE_TEMPLATES } from "@/lib/default-message-templates";
+import type { QuickMessageType } from "@/lib/default-message-templates";
 import type { QuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
 import { hasCustomQuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
+import type { QuickMessageData } from "@/lib/reservations/quick-messages";
+import { buildQuickMessage } from "@/lib/reservations/quick-messages";
+import type { InboxAiIntent } from "@/services/inbox-ai/inbox-intent.types";
 import type { OperationalFeedCard } from "@/services/novedades/operational-feed.types";
 import {
   resolveGuestMessageBodiesForDisplay,
@@ -35,6 +39,8 @@ const FACT_KEYS = {
   reservationCode: "reservationCode",
   reservationStatus: "reservationStatus",
   totalAmount: "totalAmount",
+  neighborhood: "neighborhood",
+  city: "city",
 } as const;
 
 type FactKey = (typeof FACT_KEYS)[keyof typeof FACT_KEYS];
@@ -170,6 +176,8 @@ export function buildKnownFacts(input: {
   pushFact(facts, FACT_KEYS.accessInstructions, input.property.accessInstructions);
   pushFact(facts, FACT_KEYS.registrationLink, input.reservation.registrationLink);
   pushFact(facts, FACT_KEYS.receptionWhatsapp, input.property.receptionWhatsapp);
+  pushFact(facts, FACT_KEYS.neighborhood, input.property.neighborhood);
+  pushFact(facts, FACT_KEYS.city, input.property.city);
   pushFact(facts, FACT_KEYS.reservationCode, input.reservation.reservationCode);
   pushFact(facts, FACT_KEYS.reservationStatus, input.reservation.statusLabel);
   pushFact(facts, FACT_KEYS.totalAmount, input.reservation.totalAmountLabel);
@@ -221,13 +229,80 @@ export function detectMissingFacts(input: {
   return missing;
 }
 
-/** Serialización legible para prompts futuros (sin LLM en esta fase). */
+const FACT_LABELS: Record<string, string> = {
+  guestName: "Huésped",
+  propertyName: "Propiedad",
+  propertyAddress: "Dirección",
+  neighborhood: "Barrio",
+  city: "Ciudad",
+  checkIn: "Check-in (fecha)",
+  checkOut: "Check-out (fecha)",
+  stayRange: "Estadía",
+  checkInTime: "Hora check-in",
+  checkOutTime: "Hora check-out",
+  wifiName: "Red WiFi",
+  wifiPassword: "Clave WiFi",
+  houseRules: "Reglas de la casa",
+  accessCode: "Código de acceso",
+  accessInstructions: "Instrucciones de acceso",
+  registrationLink: "Enlace registro huéspedes",
+  receptionWhatsapp: "WhatsApp recepción",
+  reservationCode: "Código reserva",
+  reservationStatus: "Estado reserva",
+  totalAmount: "Total reserva",
+  lastGuestMessage: "Último mensaje huésped",
+};
+
+export function selectQuickMessageTypesForIntent(
+  intent: InboxAiIntent,
+): QuickMessageType[] {
+  switch (intent) {
+    case "WIFI":
+      return ["FOLLOW_UP", "ACCESS"];
+    case "ACCESS":
+    case "CHECK_IN":
+    case "EARLY_CHECKIN":
+    case "LOCATION":
+      return ["ACCESS", "WELCOME"];
+    case "HOUSE_RULES":
+      return ["HOUSE_RULES", "ACCESS"];
+    case "CHECK_OUT":
+    case "LATE_CHECKOUT":
+      return ["CHECKOUT"];
+    case "PARKING":
+      return ["ACCESS", "WELCOME"];
+    default:
+      return ["WELCOME", "ACCESS"];
+  }
+}
+
+export function formatQuickMessagesForPrompt(input: {
+  intent: InboxAiIntent;
+  messageData: QuickMessageData;
+  templates: QuickMessageTemplates;
+}): string {
+  const types = selectQuickMessageTypesForIntent(input.intent);
+  const lines: string[] = [
+    "Plantillas operativas del anfitrión (información autorizada para usar en la respuesta):",
+  ];
+
+  for (const type of types) {
+    const rendered = buildQuickMessage(type, input.messageData, input.templates).trim();
+    if (!rendered) continue;
+    lines.push(`--- ${type} ---`, rendered, "");
+  }
+
+  return lines.length > 1 ? lines.join("\n").trim() : "";
+}
+
+/** Serialización legible para prompts de IA. */
 export function formatInboxAiContextForPrompt(input: {
   knownFacts: Record<string, string>;
   missingFacts: string[];
   guestMessages: InboxAiGuestMessageSummary[];
   activityHistory: InboxAiHistoryEntry[];
   stayStage: string;
+  omitGuestMessages?: boolean;
 }): string {
   const lines: string[] = [
     `Etapa de estadía: ${input.stayStage}`,
@@ -236,7 +311,9 @@ export function formatInboxAiContextForPrompt(input: {
   ];
 
   for (const [key, value] of Object.entries(input.knownFacts)) {
-    lines.push(`- ${key}: ${value}`);
+    if (key === "lastGuestMessage" && input.omitGuestMessages) continue;
+    const label = FACT_LABELS[key] ?? key;
+    lines.push(`- ${label}: ${value}`);
   }
 
   if (input.missingFacts.length > 0) {
@@ -246,7 +323,7 @@ export function formatInboxAiContextForPrompt(input: {
     }
   }
 
-  if (input.guestMessages.length > 0) {
+  if (!input.omitGuestMessages && input.guestMessages.length > 0) {
     lines.push("", "Mensajes del huésped:");
     for (const message of input.guestMessages) {
       lines.push(`- [${message.createdAt}] ${message.body}`);

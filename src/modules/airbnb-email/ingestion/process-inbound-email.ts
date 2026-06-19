@@ -400,18 +400,17 @@ export async function processInboundAirbnbEmail(
 
       if (
         isReservationEventKind(classified.eventKind) &&
-        organizationId &&
-        unresolvedPropertyId
+        organizationId
       ) {
         airbnbEmailLog.info("no_safe_candidate_found", {
           auditId: audit.id,
-          propertyId: unresolvedPropertyId,
+          propertyId: unresolvedPropertyId ?? undefined,
           organizationId,
         });
         airbnbEmailLog.info("automatic_reconciliation_retry", {
           auditId: audit.id,
           organizationId,
-          propertyId: unresolvedPropertyId,
+          propertyId: unresolvedPropertyId ?? undefined,
           retryDelaysSeconds: "30,120,300",
         });
         scheduleDelayedEnrichmentRetry({

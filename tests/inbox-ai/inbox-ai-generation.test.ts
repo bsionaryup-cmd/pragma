@@ -136,4 +136,39 @@ describe("inbox ai generation", () => {
       }
     }
   });
+
+  it("answers location and nearby questions with property context", async () => {
+    const previous = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    const locationContext: InboxAiContext = {
+      ...baseContext,
+      knownFacts: {
+        ...baseContext.knownFacts,
+        propertyName: "Loft Laureles",
+        propertyAddress: "Calle 70 #45-12, Laureles",
+        neighborhood: "Laureles",
+        city: "Medellín",
+        checkInTime: "15:00",
+      },
+    };
+
+    try {
+      const result = await generateInboxAiDraftText({
+        context: locationContext,
+        guestMessageBody:
+          "Hola, quisiera saber la ubicación y qué queda cerca, gracias",
+        intent: "LOCATION",
+      });
+
+      assert.equal(result.provider, "template");
+      assert.match(result.text, /Calle 70|Laureles|Medellín/i);
+      assert.match(result.text, /cerca|barrio|ubicaci/i);
+      assert.doesNotMatch(result.text, /lo reviso con el equipo/i);
+    } finally {
+      if (previous !== undefined) {
+        process.env.OPENAI_API_KEY = previous;
+      }
+    }
+  });
 });

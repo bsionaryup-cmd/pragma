@@ -1,9 +1,13 @@
 import { PropertyStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { parseAirbnbRoomId } from "@/services/airbnb/airbnb-import.service";
+import {
+  normalizeAirbnbListingForMatch,
+  pickUniquePropertyByListingName,
+} from "@/services/integrations/airbnb-property-metadata-resolver.service";
 
 function normalizeListingName(name: string): string {
-  return name.trim().toLowerCase();
+  return normalizeAirbnbListingForMatch(name);
 }
 
 export async function syncListingEmailMapsForOrganization(
@@ -86,26 +90,35 @@ export async function resolvePropertyFromListingMap(input: {
   if (!name || name.length < 4) return null;
 
   const norm = normalizeListingName(name);
-  const matches = await db.airbnbListingEmailMap.findMany({
-    where: {
-      organizationId: input.organizationId,
-      OR: [
-        { listingNameNorm: norm },
-        { listingNameNorm: { contains: norm.slice(0, 24) } },
-      ],
-    },
-    select: { propertyId: true, listingNameNorm: true },
+  const maps = await db.airbnbListingEmailMap.findMany({
+    where: { organizationId: input.organizationId },
+    select: { propertyId: true, listingName: true, listingNameNorm: true },
   });
 
-  const exact = matches.filter((m) => m.listingNameNorm === norm);
+  const exact = maps.filter(
+    (m) =>
+      normalizeListingName(m.listingName) === norm ||
+      normalizeListingName(m.listingNameNorm) === norm,
+  );
   if (exact.length === 1) {
     return { propertyId: exact[0]!.propertyId, ambiguous: false };
   }
-  if (exact.length > 1 || matches.length > 1) {
+  if (exact.length > 1) {
     return { propertyId: null, ambiguous: true };
   }
-  if (matches.length === 1) {
-    return { propertyId: matches[0]!.propertyId, ambiguous: false };
+
+  const picked = pickUniquePropertyByListingName({
+    listingName: name,
+    properties: maps.map((m) => ({
+      propertyId: m.propertyId,
+      name: m.listingName,
+    })),
+  });
+  if (picked.propertyId) {
+    return { propertyId: picked.propertyId, ambiguous: false };
+  }
+  if (picked.ambiguous) {
+    return { propertyId: null, ambiguous: true };
   }
 
   return null;

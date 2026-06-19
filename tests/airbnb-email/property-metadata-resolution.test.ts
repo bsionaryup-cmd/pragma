@@ -94,4 +94,22 @@ describe("normalized listing -> property name mapping", () => {
     assert.equal(picked.propertyId, null);
     assert.equal(picked.ambiguous, true);
   });
+
+  it("mapea título Airbnb abreviado 4P al nombre interno de propiedad", () => {
+    const picked = pickUniquePropertyByListingName({
+      listingName: "Loft moderno 4P en Laureles | A 10 min de Av. 70",
+      properties: [
+        {
+          propertyId: "p802",
+          name: "Loft moderno para 4 personas en Laureles | A 10 min de la Av. 70",
+        },
+        {
+          propertyId: "p801",
+          name: "Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+        },
+      ],
+    });
+    assert.equal(picked.propertyId, "p802");
+    assert.equal(picked.ambiguous, false);
+  });
 });

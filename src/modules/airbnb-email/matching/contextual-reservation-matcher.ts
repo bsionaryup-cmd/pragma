@@ -1,5 +1,6 @@
 import {
   BookingPlatform,
+  PropertyStatus,
   ReservationStatus,
   AirbnbEmailMatchMethod,
 } from "@prisma/client";
@@ -10,6 +11,7 @@ import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-rese
 import { guestNamesEquivalent } from "@/modules/airbnb-email/matching/guest-name-normalize";
 import { checkInWithinSlack } from "@/modules/airbnb-email/matching/stay-date-resolve";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
+import { pickUniquePropertyByListingName } from "@/services/integrations/airbnb-property-metadata-resolver.service";
 
 type ContextualCandidate = {
   id: string;
@@ -208,6 +210,70 @@ export function narrowContextualCandidates(
   if (byGuest.length === 1) return byGuest;
 
   return [];
+}
+
+async function resolvePropertyHintFromListingName(input: {
+  organizationId: string;
+  listingName: string | null | undefined;
+}): Promise<string | null> {
+  const listingName = input.listingName?.trim();
+  if (!listingName || listingName.length < 8) return null;
+
+  const properties = await db.property.findMany({
+    where: {
+      organizationId: input.organizationId,
+      status: PropertyStatus.ACTIVE,
+    },
+    select: { id: true, name: true },
+  });
+
+  const picked = pickUniquePropertyByListingName({
+    listingName,
+    properties: properties.map((row) => ({
+      propertyId: row.id,
+      name: row.name,
+    })),
+  });
+
+  return picked.propertyId;
+}
+
+function selectContextualWinnerFromRanked(input: {
+  ranked: Array<{
+    candidate: ContextualCandidate;
+    confidence: number;
+    guestMatch: boolean;
+    dateOverlap: boolean;
+  }>;
+  propertyId?: string | null;
+  decisiveSignal: string;
+}): ContextualMatchBase | null {
+  const selected = input.ranked[0]!.candidate;
+  const confidence = input.ranked[0]!.confidence;
+
+  airbnbEmailLog.info("ical_context_selected", {
+    propertyId: input.propertyId ?? undefined,
+    reservationId: selected.id,
+    confidence,
+    decisiveSignal: input.decisiveSignal,
+    reason: input.decisiveSignal,
+  });
+
+  airbnbEmailLog.info("contextual_match_selected", {
+    propertyId: input.propertyId ?? undefined,
+    reservationId: selected.id,
+    confidence,
+    hasIcalUid: Boolean(selected.icalUid),
+    branch: "listing_property_tiebreak",
+  });
+
+  return {
+    reservationId: selected.id,
+    propertyId: selected.propertyId,
+    organizationId: selected.organizationId,
+    method: AirbnbEmailMatchMethod.ICAL_CONTEXTUAL_MATCH,
+    confidence,
+  };
 }
 
 export async function matchByListingContextual(input: {
@@ -444,15 +510,48 @@ export async function matchByListingContextual(input: {
         reason: "exact_stay_length_alignment",
       });
     } else {
-    airbnbEmailLog.warn("ical_context_ambiguous", {
-      propertyId: input.propertyId ?? undefined,
-      topReservationId: top.candidate.id,
-      secondReservationId: second.candidate.id,
-      topConfidence: top.confidence,
-      secondConfidence: second.confidence,
-      reason: "confidence_too_close",
-    });
-    return null;
+      const propertyHint =
+        input.propertyId ??
+        (await resolvePropertyHintFromListingName({
+          organizationId: input.organizationId,
+          listingName: input.signals.listingName,
+        }));
+
+      if (propertyHint) {
+        const onProperty = ranked.filter(
+          (row) => row.candidate.propertyId === propertyHint,
+        );
+        const onPropertyWithDates = onProperty.filter((row) => row.dateOverlap);
+        const narrowedPool =
+          onPropertyWithDates.length === 1
+            ? onPropertyWithDates
+            : onProperty.length === 1
+              ? onProperty
+              : [];
+
+        if (narrowedPool.length === 1) {
+          airbnbEmailLog.info("ical_context_tie_broken", {
+            propertyId: propertyHint,
+            topReservationId: narrowedPool[0]!.candidate.id,
+            reason: "listing_property_hint",
+          });
+          return selectContextualWinnerFromRanked({
+            ranked: narrowedPool,
+            propertyId: propertyHint,
+            decisiveSignal: "listing_property_hint",
+          });
+        }
+      }
+
+      airbnbEmailLog.warn("ical_context_ambiguous", {
+        propertyId: input.propertyId ?? undefined,
+        topReservationId: top.candidate.id,
+        secondReservationId: second.candidate.id,
+        topConfidence: top.confidence,
+        secondConfidence: second.confidence,
+        reason: "confidence_too_close",
+      });
+      return null;
     }
   }
 
