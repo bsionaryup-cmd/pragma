@@ -66,6 +66,19 @@ describe("reservation finance trace", () => {
     );
   });
 
+  it("allows traceability from email revenue when iCal exists without confirmation code", () => {
+    assert.equal(
+      isReservationFinanceTraceable({
+        platform: "AIRBNB",
+        totalAmount: 0,
+        icalUid: "abc",
+        reservationCode: null,
+        emailRevenueAmount: 366508.17,
+      }),
+      true,
+    );
+  });
+
   it("allows canceled email events only for canceled reservations", () => {
     assert.equal(
       isFinanceRevenueEmailEvent(

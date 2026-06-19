@@ -5,6 +5,8 @@ import { isResendInboundConfigured } from "@/modules/airbnb-email/integrations/r
 import { logAirbnbEnrichmentHealthSnapshot } from "@/modules/airbnb-email/observability/enrichment-health-snapshot";
 import { runUnlinkedEmailEnrichmentRetryJob } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
 import { runAirbnbEmailLinkageRepairJob } from "@/modules/airbnb-email/repair/run-linkage-repair-job";
+import { runMisclassifiedConfirmationRepairJob } from "@/modules/airbnb-email/repair/run-misclassified-confirmation-repair-job";
+import { runZeroAmountFinancialBackfillJob } from "@/modules/airbnb-email/repair/run-zero-amount-financial-backfill-job";
 import { syncGuestMessageActivitiesForFeed } from "@/modules/reservation-activity/services/sync-guest-message-activities";
 import { db } from "@/lib/db";
 
@@ -54,6 +56,14 @@ export async function GET(request: Request) {
 
   const linkageRepair = await runAirbnbEmailLinkageRepairJob();
 
+  const misclassifiedRepair = await runMisclassifiedConfirmationRepairJob({
+    limit: 40,
+  });
+
+  const zeroAmountBackfill = await runZeroAmountFinancialBackfillJob({
+    limit: 40,
+  });
+
   const orgIds = await db.tenantAirbnbEmailIntegration.findMany({
     where: { enabled: true },
     select: { organizationId: true },
@@ -76,6 +86,11 @@ export async function GET(request: Request) {
     linkageRepairScanned: linkageRepair.scanned,
     linkageRepairRelocated: linkageRepair.relocated,
     linkageRepairFinancialBackfilled: linkageRepair.financialBackfilled,
+    misclassifiedRepairScanned: misclassifiedRepair.scanned,
+    misclassifiedRepairRepaired: misclassifiedRepair.repaired,
+    misclassifiedRepairFinancialBackfilled: misclassifiedRepair.financialBackfilled,
+    zeroAmountBackfillScanned: zeroAmountBackfill.scanned,
+    zeroAmountBackfillApplied: zeroAmountBackfill.applied,
     healthUnlinkedStale24h: health.unlinkedAuditsOlderThan24h,
     healthPlaceholderZeroAmount: health.placeholderZeroAmountActive,
     healthActiveWithoutEmailEvent: health.activeAirbnbWithoutEmailEvent,
@@ -88,6 +103,8 @@ export async function GET(request: Request) {
     resend,
     retry,
     linkageRepair,
+    misclassifiedRepair,
+    zeroAmountBackfill,
     health,
   });
 }

@@ -1,8 +1,11 @@
-import { AirbnbEmailMatchMethod } from "@prisma/client";
+import { AirbnbEmailEventKind, AirbnbEmailMatchMethod } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { isReservationEventKind } from "@/modules/airbnb-email/domains/reservation-event.domain";
-import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import {
+  isPlaceholderGuestName,
+  isZeroReservationAmount,
+} from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import { resolvePropertyIdFromEmailSignals } from "@/modules/airbnb-email/matching/property-resolver";
 import {
@@ -18,6 +21,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function readPositiveNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 function hasMeaningfulEnrichedFields(enrichedFields: unknown): boolean {
   if (!enrichedFields || typeof enrichedFields !== "object" || Array.isArray(enrichedFields)) {
     return false;
@@ -25,12 +34,18 @@ function hasMeaningfulEnrichedFields(enrichedFields: unknown): boolean {
   const fields = enrichedFields as Record<string, unknown>;
   const guestName =
     typeof fields.guestName === "string" ? fields.guestName.trim() : "";
+  const hasFinancial = Boolean(
+    readPositiveNumber(fields.guestTotalPaid) ||
+      readPositiveNumber(fields.hostPayoutAmount) ||
+      readPositiveNumber(fields.netPayout) ||
+      readPositiveNumber(fields.grossAmount),
+  );
+  if (hasFinancial) return true;
+
   return Boolean(
-    (guestName && !isPlaceholderGuestName(guestName)) ||
-      fields.guestCountTotal != null ||
-      fields.guestTotalPaid != null ||
-      fields.hostPayoutAmount != null ||
-      (typeof fields.reservationCode === "string" && fields.reservationCode.trim()),
+    guestName &&
+      !isPlaceholderGuestName(guestName) &&
+      fields.guestCountTotal != null,
   );
 }
 
@@ -143,14 +158,28 @@ export async function attemptDelayedEnrichmentRetry(
     propertyId = resolved.propertyId;
   }
 
-  if (
-    audit.reservationId &&
+  if (audit.reservationId && hasMeaningfulEnrichedFields(audit.reservationEvent?.enrichedFields)) {
+    const reservation = await db.reservation.findUnique({
+      where: { id: audit.reservationId },
+      select: { totalAmount: true },
+    });
+    const needsFinancialRepair =
+      isZeroReservationAmount(reservation?.totalAmount) &&
+      audit.classification === AirbnbEmailEventKind.CANCELED;
+    if (!needsFinancialRepair) {
+      airbnbEmailLog.info("retry_enrichment_skipped", {
+        auditId: audit.id,
+        reason: "already_enriched",
+        reservationId: audit.reservationId,
+      });
+      return { status: "skipped" };
+    }
+  } else if (
     hasMeaningfulEnrichedFields(audit.reservationEvent?.enrichedFields)
   ) {
     airbnbEmailLog.info("retry_enrichment_skipped", {
       auditId: audit.id,
       reason: "already_enriched",
-      reservationId: audit.reservationId,
     });
     return { status: "skipped" };
   }

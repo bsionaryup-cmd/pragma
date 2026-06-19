@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveReservationRevenueAmount } from "@/lib/finance/reservation-revenue-amount";
+import {
+  resolveFinanceReservationRevenueAmount,
+  resolveReservationRevenueAmount,
+} from "@/lib/finance/reservation-revenue-amount";
 
 describe("resolveReservationRevenueAmount", () => {
   it("prefers host payout from email over stale stored totalAmount", () => {
@@ -23,12 +26,24 @@ describe("resolveReservationRevenueAmount", () => {
     const amount = resolveReservationRevenueAmount({
       totalAmount: 0,
       payloadSignals: {
+        hostPayoutAmount: 116249.86,
+        grossAmount: 157565.25,
+        netPayout: 0,
+      },
+    });
+    assert.equal(amount, 116249.86);
+  });
+
+  it("rejects incoherent host payout against gross in payload signals", () => {
+    const amount = resolveReservationRevenueAmount({
+      totalAmount: 0,
+      payloadSignals: {
         hostPayoutAmount: 514011.14,
         grossAmount: 157565.25,
         netPayout: 0,
       },
     });
-    assert.equal(amount, 514011.14);
+    assert.equal(amount, 0);
   });
 
   it("extracts host payout from Airbnb email blob (Ganas)", () => {
@@ -38,5 +53,20 @@ describe("resolveReservationRevenueAmount", () => {
         "Cobro del anfitrión\nPrecio de la habitación por 4 noches\n$630.261,00\nGanas\n$514.011,14",
     });
     assert.equal(amount, 514011.14);
+  });
+
+  it("counts finance revenue from email payout without stored total or confirmation code", () => {
+    const amount = resolveFinanceReservationRevenueAmount(
+      {
+        platform: "AIRBNB",
+        totalAmount: 0,
+        icalUid: "ical-uid",
+        reservationCode: null,
+      },
+      {
+        payloadSignals: { hostPayoutAmount: 366508.17 },
+      },
+    );
+    assert.equal(amount, 366508.17);
   });
 });

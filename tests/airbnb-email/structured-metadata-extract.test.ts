@@ -35,4 +35,34 @@ describe("extractReservationFinancialSignals", () => {
     assert.equal(signals.hostPayoutAmount, 366508.17);
     assert.equal(signals.nightCount, 3);
   });
+
+  it("rechaza Ganas de otro forward cuando el total del huésped no cuadra", () => {
+    const text = `
+      Total (COP)
+      $157.565,25
+      Ganas
+      $514.011,14
+    `;
+    const signals = extractReservationFinancialSignals(text);
+    assert.equal(signals.guestTotalPaid, 157565.25);
+    assert.equal(signals.hostPayoutAmount, null);
+  });
+
+  it("elige el Ganas del slice que contiene el código HM", () => {
+    const html = `
+      <div>Ganas $514.011,14 HMOOTHER123456</div>
+      ---------- Forwarded message ---------
+      <div>HMJDFHKS4R</div>
+      <div>Total (COP) $157.565,25</div>
+      <div>Ganas $128.432,10</div>
+    `;
+    const signals = extractReservationFinancialSignals("", {
+      html,
+      confirmationCode: "HMJDFHKS4R",
+      checkIn: "2026-06-22",
+      checkOut: "2026-06-26",
+    });
+    assert.equal(signals.guestTotalPaid, 157565.25);
+    assert.equal(signals.hostPayoutAmount, 128432.1);
+  });
 });

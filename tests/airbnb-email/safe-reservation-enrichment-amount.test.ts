@@ -28,15 +28,27 @@ describe("shouldCorrectStoredReservationAmount", () => {
     );
   });
 
-  it("ignores CONFIRMED events for correction", () => {
+  it("ignores CONFIRMED when stored already matches host payout", () => {
     assert.equal(
       shouldCorrectStoredReservationAmount({
         eventKind: AirbnbEmailEventKind.CONFIRMED,
-        storedAmount: 247421,
-        incomingAmount: 1023779.89,
-        signals: { hostPayoutAmount: 1023779.89 },
+        storedAmount: 366508.17,
+        incomingAmount: 366508.17,
+        signals: { hostPayoutAmount: 366508.17, grossAmount: 449400 },
       }),
       false,
+    );
+  });
+
+  it("corrects CONFIRMED gross amount when host payout is known", () => {
+    assert.equal(
+      shouldCorrectStoredReservationAmount({
+        eventKind: AirbnbEmailEventKind.CONFIRMED,
+        storedAmount: 449400,
+        incomingAmount: 449400,
+        signals: { hostPayoutAmount: 366508.17, grossAmount: 449400 },
+      }),
+      true,
     );
   });
 });

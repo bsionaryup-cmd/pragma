@@ -36,14 +36,14 @@ describe("safe reservation enrichment helpers", () => {
     assert.equal(isZeroReservationAmount(1200), false);
   });
 
-  it("pickReservationAmount prioriza netPayout, luego hostPayoutAmount, luego grossAmount", () => {
+  it("pickReservationAmount prioriza hostPayoutAmount, luego netPayout, luego grossAmount", () => {
     assert.equal(
       pickReservationAmount({
         netPayout: 100,
         hostPayoutAmount: 200,
         grossAmount: 300,
       }),
-      100,
+      200,
     );
     assert.equal(
       pickReservationAmount({

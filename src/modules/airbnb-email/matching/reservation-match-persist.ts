@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
 import { applySafeReservationEnrichment, mergeEnrichedFieldsForEmailEvent } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
+import { refreshAuditSignalsFromRaw } from "@/modules/airbnb-email/repair/refresh-audit-signals-from-raw";
 import {
   isReservationEventKind,
 } from "@/modules/airbnb-email/domains/reservation-event.domain";
@@ -45,23 +46,42 @@ export function buildStructuredMetadataFields(
   return metadata;
 }
 
+async function resolveEnrichmentSignalsFromAudit(
+  auditId: string,
+  signals: ExtractedReservationSignals,
+): Promise<ExtractedReservationSignals> {
+  const audit = await db.emailIngestionAudit.findUnique({
+    where: { id: auditId },
+    select: { parsedPayload: true, rawEmail: true, subject: true },
+  });
+  if (!audit) return signals;
+  return (
+    refreshAuditSignalsFromRaw({
+      parsedPayload: audit.parsedPayload ?? { signals },
+      rawEmail: audit.rawEmail,
+      subject: audit.subject,
+    }) ?? signals
+  );
+}
+
 export async function reapplyReservationEnrichmentFromAudit(
   input: PersistReservationMatchInput,
 ): Promise<PersistReservationMatchResult | null> {
   if (!input.match.reservationId || !input.match.allowReservationEnrichment) return null;
   const persistedMatchMethod = toPersistedMatchMethod(input.match.method);
+  const signals = await resolveEnrichmentSignalsFromAudit(input.auditId, input.signals);
 
   const reservationEnrichedFields = await applySafeReservationEnrichment({
     match: input.match,
-    signals: input.signals,
+    signals,
     eventKind: input.eventKind,
     mode: "reservation",
   });
-  const metadataFields = buildStructuredMetadataFields(input.signals);
+  const metadataFields = buildStructuredMetadataFields(signals);
   const enrichedFields = mergeEnrichedFieldsForEmailEvent({
     reservationEnrichedFields,
     metadataFields,
-    signals: input.signals,
+    signals,
     eventKind: input.eventKind,
   });
   const enrichedFieldKeys = Object.keys(enrichedFields);
@@ -90,7 +110,7 @@ export async function reapplyReservationEnrichmentFromAudit(
       update: {
         reservationId: input.match.reservationId,
         eventKind: input.eventKind,
-        confirmationCode: input.signals.confirmationCode,
+        confirmationCode: signals.confirmationCode,
         matchMethod: persistedMatchMethod,
         matchConfidence: input.match.confidence,
         enrichedFields,
@@ -99,7 +119,7 @@ export async function reapplyReservationEnrichmentFromAudit(
         auditId: input.auditId,
         reservationId: input.match.reservationId,
         eventKind: input.eventKind,
-        confirmationCode: input.signals.confirmationCode,
+        confirmationCode: signals.confirmationCode,
         matchMethod: persistedMatchMethod,
         matchConfidence: input.match.confidence,
         payload: input.payload,
@@ -148,6 +168,10 @@ export async function persistReservationMatchLinkage(
   });
 
   try {
+    const signals = await resolveEnrichmentSignalsFromAudit(
+      input.auditId,
+      input.signals,
+    );
     const result = await db.$transaction(async (tx) => {
       await tx.emailIngestionAudit.update({
         where: { id: input.auditId },
@@ -169,15 +193,15 @@ export async function persistReservationMatchLinkage(
         });
         const reservationEnrichedFields = await applySafeReservationEnrichment({
           match: input.match,
-          signals: input.signals,
+          signals,
           eventKind: input.eventKind,
           mode: "reservation",
         });
-        const metadataFields = buildStructuredMetadataFields(input.signals);
+        const metadataFields = buildStructuredMetadataFields(signals);
         const enrichedFields = mergeEnrichedFieldsForEmailEvent({
           reservationEnrichedFields,
           metadataFields,
-          signals: input.signals,
+          signals,
           eventKind: input.eventKind,
         });
         enrichedFieldKeys = Object.keys(enrichedFields);
@@ -187,7 +211,7 @@ export async function persistReservationMatchLinkage(
             auditId: input.auditId,
             reservationId: input.match.reservationId,
             eventKind: input.eventKind,
-            confirmationCode: input.signals.confirmationCode,
+            confirmationCode: signals.confirmationCode,
             matchMethod: persistedMatchMethod,
             matchConfidence: input.match.confidence,
             payload: input.payload,

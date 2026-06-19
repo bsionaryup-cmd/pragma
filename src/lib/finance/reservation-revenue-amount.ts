@@ -1,4 +1,8 @@
-import { extractReservationFinancialSignals } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
+import {
+  extractReservationFinancialSignals,
+  isHostPayoutConsistentWithGuestTotal,
+  sanitizeHostPayoutAgainstGuestTotal,
+} from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 import type { FinanceRevenueEmailEventRow } from "@/lib/finance/reservation-finance-trace";
 import {
   isReservationFinanceTraceable,
@@ -49,10 +53,12 @@ export function mergeReservationRevenueSources(
   const enriched = asRecord(sources.enrichedFields);
   const signals = asRecord(sources.payloadSignals);
   const financials = sources.emailMatchBlob
-    ? extractReservationFinancialSignals(sources.emailMatchBlob)
+    ? sanitizeHostPayoutAgainstGuestTotal(
+        extractReservationFinancialSignals(sources.emailMatchBlob),
+      )
     : EMPTY_FINANCIALS;
 
-  return {
+  const merged = {
     ...signals,
     ...enriched,
     hostPayoutAmount:
@@ -70,22 +76,29 @@ export function mergeReservationRevenueSources(
       signals.guestTotalPaid ??
       financials.guestTotalPaid,
   };
+
+  const host = readNumber(merged.hostPayoutAmount);
+  if (
+    host != null &&
+    !isHostPayoutConsistentWithGuestTotal({
+      hostPayoutAmount: host,
+      guestTotalPaid: readNumber(merged.guestTotalPaid),
+      grossAmount: readNumber(merged.grossAmount),
+    })
+  ) {
+    return { ...merged, hostPayoutAmount: null };
+  }
+  return merged;
 }
 
 function readFromMergedSources(sources: ReservationRevenueSources): number | null {
-  return readFromJson(mergeReservationRevenueSources(sources));
+  return readHostRevenueFromJson(mergeReservationRevenueSources(sources));
 }
 
-function readFromJson(source: unknown): number | null {
+function readHostRevenueFromJson(source: unknown): number | null {
   if (!source || typeof source !== "object" || Array.isArray(source)) return null;
   const record = source as JsonRecord;
-  return (
-    readNumber(record.hostPayoutAmount) ??
-    readNumber(record.netPayout) ??
-    readNumber(record.grossAmount) ??
-    readNumber(record.guestTotalPaid) ??
-    null
-  );
+  return readNumber(record.hostPayoutAmount) ?? readNumber(record.netPayout) ?? null;
 }
 
 /** Monto contable: ingreso del anfitrión (email Airbnb) prevalece sobre totalAmount persistido desactualizado. */
@@ -110,7 +123,7 @@ export function resolveReservationRevenueAmount(input: {
   const stored = readNumber(input.totalAmount);
   if (stored != null) return stored;
 
-  return readFromJson(merged) ?? 0;
+  return readHostRevenueFromJson(merged) ?? 0;
 }
 
 export function resolveFinanceReservationRevenueAmount(
@@ -134,7 +147,13 @@ export function resolveFinanceReservationRevenueAmount(
   const stored = readNumber(reservation.totalAmount);
   if (stored != null) return amount;
 
-  if (!sources || !isReservationFinanceTraceable(reservation)) {
+  if (
+    !sources ||
+    !isReservationFinanceTraceable({
+      ...reservation,
+      emailRevenueAmount: amount,
+    })
+  ) {
     return 0;
   }
 

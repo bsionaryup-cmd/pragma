@@ -86,6 +86,7 @@ export function isReservationFinanceTraceable(input: {
   totalAmount: unknown;
   icalUid?: string | null;
   reservationCode?: string | null;
+  emailRevenueAmount?: number | null;
 }): boolean {
   const stored = Number(input.totalAmount?.toString?.() ?? input.totalAmount);
   if (Number.isFinite(stored) && stored > 0) return true;
@@ -93,6 +94,11 @@ export function isReservationFinanceTraceable(input: {
   if (input.platform === BookingPlatform.DIRECT) {
     return Number.isFinite(stored) && stored > 0;
   }
+
+  const emailAmount = Number(input.emailRevenueAmount);
+  const hasEmailRevenue =
+    Number.isFinite(emailAmount) && emailAmount > 0 && Boolean(input.icalUid?.trim());
+  if (hasEmailRevenue) return true;
 
   const hasIcal = Boolean(input.icalUid?.trim());
   const hasCode = Boolean(input.reservationCode?.trim());

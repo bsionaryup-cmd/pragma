@@ -3,6 +3,7 @@ import { AirbnbEmailEventKind } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
+import { isHostPayoutConsistentWithGuestTotal } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -105,24 +106,60 @@ export function splitGuestName(fullName: string): {
   return { guestName, guestFirstName, guestLastName };
 }
 
-/** Prefer net payout; fall back to host payout then gross booking amount. */
+/** Monto contable del anfitrión: solo payout real (nunca bruto de huésped). */
+export function pickAuthoritativeHostRevenueAmount(
+  signals: ExtractedReservationSignals,
+): number | null {
+  for (const value of [signals.hostPayoutAmount, signals.netPayout]) {
+    if (value != null && value > 0) {
+      if (
+        isHostPayoutConsistentWithGuestTotal({
+          hostPayoutAmount: value,
+          guestTotalPaid: signals.guestTotalPaid,
+          grossAmount: signals.grossAmount,
+        })
+      ) {
+        return value;
+      }
+    }
+  }
+  return null;
+}
+
+/** Prefer host payout; gross only as último recurso cuando no hay payout del anfitrión. */
 export function pickReservationAmount(
   signals: ExtractedReservationSignals,
 ): number | null {
-  const candidates = [
-    signals.netPayout,
-    signals.hostPayoutAmount,
-    signals.grossAmount,
-  ];
-  for (const value of candidates) {
-    if (value != null && value > 0) return value;
+  const hostRevenue = pickAuthoritativeHostRevenueAmount(signals);
+  if (hostRevenue != null) return hostRevenue;
+  if (signals.grossAmount != null && signals.grossAmount > 0) {
+    return signals.grossAmount;
   }
   return null;
+}
+
+export function isStoredGuestFacingAirbnbAmount(
+  storedAmount: unknown,
+  signals: ExtractedReservationSignals,
+): boolean {
+  const stored = readStoredAmount(storedAmount);
+  if (stored == null) return false;
+  const gross = signals.grossAmount ?? 0;
+  const guestTotal = signals.guestTotalPaid ?? 0;
+  return (
+    (gross > 0 && Math.abs(stored - gross) < 1) ||
+    (guestTotal > 0 && Math.abs(stored - guestTotal) < 1)
+  );
 }
 
 const FINANCIAL_AMOUNT_CORRECTION_KINDS = new Set<AirbnbEmailEventKind>([
   AirbnbEmailEventKind.UPDATED,
   AirbnbEmailEventKind.EXTENDED,
+]);
+
+const CONFIRM_LIKE_CORRECTION_KINDS = new Set<AirbnbEmailEventKind>([
+  AirbnbEmailEventKind.CONFIRMED,
+  AirbnbEmailEventKind.CHECKIN_REMINDER,
 ]);
 
 function readStoredAmount(value: unknown): number | null {
@@ -134,28 +171,51 @@ function readStoredAmount(value: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** UPDATED/EXTENDED con payout del anfitrión pueden corregir montos parciales de CONFIRMED. */
+/** UPDATED/EXTENDED/CONFIRMED pueden corregir montos parciales o bruto vs payout del anfitrión. */
 export function shouldCorrectStoredReservationAmount(input: {
   eventKind?: AirbnbEmailEventKind;
   storedAmount: unknown;
   incomingAmount: number;
   signals: ExtractedReservationSignals;
 }): boolean {
-  if (
-    !input.eventKind ||
-    !FINANCIAL_AMOUNT_CORRECTION_KINDS.has(input.eventKind)
-  ) {
-    return false;
-  }
-  const hasAuthoritativeHostPayout =
-    (input.signals.hostPayoutAmount ?? 0) > 0 ||
-    (input.signals.netPayout ?? 0) > 0;
-  if (!hasAuthoritativeHostPayout) return false;
+  if (!input.eventKind) return false;
+
+  const hostPayout = input.signals.hostPayoutAmount ?? 0;
+  const hasAuthoritativeHostPayout = hostPayout > 0;
+  const hasAuthoritativeNet = (input.signals.netPayout ?? 0) > 0;
+  if (!hasAuthoritativeHostPayout && !hasAuthoritativeNet) return false;
+
+  const authoritativeAmount = hasAuthoritativeHostPayout
+    ? hostPayout
+    : input.incomingAmount;
 
   const stored = readStoredAmount(input.storedAmount);
   if (stored == null) return true;
-  if (Math.abs(stored - input.incomingAmount) < 1) return false;
-  return input.incomingAmount > stored * 1.05 || stored < input.incomingAmount * 0.5;
+  if (Math.abs(stored - authoritativeAmount) < 1) return false;
+
+  if (FINANCIAL_AMOUNT_CORRECTION_KINDS.has(input.eventKind)) {
+    return (
+      authoritativeAmount > stored * 1.05 || stored < authoritativeAmount * 0.5
+    );
+  }
+
+  if (CONFIRM_LIKE_CORRECTION_KINDS.has(input.eventKind)) {
+    if (isStoredGuestFacingAirbnbAmount(stored, input.signals)) return true;
+    if (
+      hasAuthoritativeHostPayout &&
+      hostPayout < stored * 0.98 &&
+      isHostPayoutConsistentWithGuestTotal({
+        hostPayoutAmount: hostPayout,
+        guestTotalPaid: input.signals.guestTotalPaid,
+        grossAmount: input.signals.grossAmount,
+      })
+    ) {
+      return true;
+    }
+    return Math.abs(stored - authoritativeAmount) / authoritativeAmount > 0.02;
+  }
+
+  return false;
 }
 
 function applyReservationAmountUpdate(input: {
@@ -166,7 +226,9 @@ function applyReservationAmountUpdate(input: {
   applied: Record<string, string | number>;
   skipped: string[];
 }) {
-  const amount = pickReservationAmount(input.signals);
+  const amount =
+    pickAuthoritativeHostRevenueAmount(input.signals) ??
+    pickReservationAmount(input.signals);
   if (amount == null) return;
 
   if (isZeroReservationAmount(input.reservationTotalAmount)) {

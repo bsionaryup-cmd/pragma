@@ -207,6 +207,15 @@ export function buildEmailBody(payload: {
   return normalizeAirbnbForwardedText(payload.subject);
 }
 
+function firstPositiveMoney(
+  ...values: Array<number | null | undefined>
+): number | null {
+  for (const value of values) {
+    if (value != null && value > 0) return value;
+  }
+  return null;
+}
+
 export function extractReservationSignals(input: {
   subject: string;
   body: string;
@@ -315,7 +324,32 @@ export function extractReservationSignals(input: {
       guestCountTotal: guestCounts.guestCountTotal,
     });
   }
-  const reservationFinancials = extractReservationFinancialSignals(extractionText);
+  const reservationFinancials = extractReservationFinancialSignals(extractionText, {
+    html: input.html,
+    confirmationCode:
+      confirmation?.[1]?.toUpperCase() ??
+      merged.confirmationCode?.toUpperCase() ??
+      null,
+    checkIn,
+    checkOut,
+  });
+  const grossAmount =
+    parseMoneyToken(merged.grossAmount) ?? money[0] ?? null;
+  const anchoredFinancials =
+    grossAmount != null &&
+    reservationFinancials.guestTotalPaid != null &&
+    reservationFinancials.guestTotalPaid > grossAmount * 1.15
+      ? extractReservationFinancialSignals(extractionText, {
+          html: input.html,
+          confirmationCode:
+            confirmation?.[1]?.toUpperCase() ??
+            merged.confirmationCode?.toUpperCase() ??
+            null,
+          checkIn,
+          checkOut,
+          anchorGuestTotal: grossAmount,
+        })
+      : reservationFinancials;
 
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,
@@ -334,17 +368,17 @@ export function extractReservationSignals(input: {
     petCount: guestCounts.petCount,
     checkIn,
     checkOut,
-    grossAmount:
-      parseMoneyToken(merged.grossAmount) ?? money[0] ?? null,
+    grossAmount,
     hostFee: parseMoneyToken(merged.hostFee) ?? money[1] ?? null,
-    netPayout:
-      parseMoneyToken(merged.netPayout) ??
-      money[2] ??
-      money[money.length - 1] ??
-      null,
-    guestTotalPaid: reservationFinancials.guestTotalPaid,
-    hostPayoutAmount: reservationFinancials.hostPayoutAmount,
-    nightCount: reservationFinancials.nightCount,
+    netPayout: firstPositiveMoney(
+      anchoredFinancials.hostPayoutAmount,
+      parseMoneyToken(merged.netPayout),
+      money[2],
+      money[money.length - 1],
+    ),
+    guestTotalPaid: anchoredFinancials.guestTotalPaid,
+    hostPayoutAmount: anchoredFinancials.hostPayoutAmount,
+    nightCount: anchoredFinancials.nightCount,
     currency: /\bUSD\b/i.test(extractionText)
       ? "USD"
       : /\bCOP\b/i.test(extractionText)
