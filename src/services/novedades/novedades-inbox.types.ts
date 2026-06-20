@@ -94,5 +94,20 @@ export type NovedadesReservationDetail = {
 
 export type NovedadesInboxSnapshot = {
   items: NovedadesInboxListItem[];
+  /** Consultas Airbnb sin reserva vinculada (actividades pendientes). */
+  unlinkedInquiries: NovedadesUnlinkedInquiryItem[];
   latestAt: string | null;
+};
+
+export type NovedadesUnlinkedInquiryItem = {
+  pendingActivityId: string;
+  guestName: string;
+  guestInitials: string;
+  propertyLabel: string;
+  dateRangeLabel: string | null;
+  latestAt: string;
+  latestTimeLabel: string;
+  latestNarrative: string;
+  latestIntentLabel: string | null;
+  subject: string | null;
 };

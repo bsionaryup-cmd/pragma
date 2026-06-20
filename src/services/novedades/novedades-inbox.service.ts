@@ -19,6 +19,7 @@ import type {
   NovedadesTimelineKind,
 } from "@/services/novedades/novedades-inbox.types";
 import { buildNovedadesReservationDetail } from "@/services/novedades/novedades-timeline.service";
+import { listNovedadesUnlinkedInquiryItems } from "@/services/novedades/novedades-unlinked-inquiry.service";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { detectInboxMessageIntent, inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
 
@@ -146,10 +147,19 @@ export async function getNovedadesInboxSnapshot(
   scope: TenantDataScope,
   limit = 80,
 ): Promise<NovedadesInboxSnapshot> {
-  const items = await listNovedadesInboxItems(scope, limit);
+  const [items, unlinkedInquiries] = await Promise.all([
+    listNovedadesInboxItems(scope, limit),
+    listNovedadesUnlinkedInquiryItems(scope, 40),
+  ]);
+
+  const latestAt = [items[0]?.latestAt, unlinkedInquiries[0]?.latestAt]
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => b.localeCompare(a))[0] ?? null;
+
   return {
     items,
-    latestAt: items[0]?.latestAt ?? null,
+    unlinkedInquiries,
+    latestAt,
   };
 }
 

@@ -3,6 +3,7 @@
 import { requirePermission } from "@/lib/auth";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { buildNovedadesReservationDetail } from "@/services/novedades/novedades-inbox.service";
+import { getNovedadesUnlinkedInquiryDetail } from "@/services/novedades/novedades-unlinked-inquiry.service";
 import { getNovedadesUnreadSnapshot } from "@/services/reservation-events/novedades-unread.service";
 
 export async function getNovedadesUnreadSnapshotAction() {
@@ -28,5 +29,20 @@ export async function getNovedadesReservationDetailAction(reservationId: string)
     return { success: true as const, detail };
   } catch {
     return { success: false as const, error: "No se pudo cargar la actividad" };
+  }
+}
+
+export async function getNovedadesUnlinkedInquiryDetailAction(pendingActivityId: string) {
+  await requirePermission("reservations:read");
+
+  try {
+    const scope = await requireTenantDataScope();
+    const inquiry = await getNovedadesUnlinkedInquiryDetail(scope, pendingActivityId);
+    if (!inquiry) {
+      return { success: false as const, error: "Consulta no encontrada" };
+    }
+    return { success: true as const, inquiry };
+  } catch {
+    return { success: false as const, error: "No se pudo cargar la consulta" };
   }
 }

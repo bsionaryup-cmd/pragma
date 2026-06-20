@@ -5,14 +5,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getNovedadesReservationDetailAction } from "@/features/novedades/actions/novedades.actions";
+import { getNovedadesReservationDetailAction, getNovedadesUnlinkedInquiryDetailAction } from "@/features/novedades/actions/novedades.actions";
 import { NovedadesInboxListItem } from "@/features/novedades/components/novedades-inbox-list-item";
+import { NovedadesUnlinkedInquiryListItem } from "@/features/novedades/components/novedades-unlinked-inquiry-list-item";
+import { NovedadesUnlinkedInquiryPanel } from "@/features/novedades/components/novedades-unlinked-inquiry-panel";
 import { NovedadesTimelinePanel } from "@/features/novedades/components/novedades-timeline-panel";
 import { moduleShellClasses } from "@/components/layout/module-shell";
 import { Input } from "@/components/ui/input";
 import type {
   NovedadesInboxListItem as NovedadesInboxListItemType,
   NovedadesReservationDetail,
+  NovedadesUnlinkedInquiryItem,
 } from "@/services/novedades/novedades-inbox.types";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +23,9 @@ type InboxQuickFilter = "all" | "messages" | "pending";
 
 type NovedadesInboxProps = {
   items: NovedadesInboxListItemType[];
+  unlinkedInquiries: NovedadesUnlinkedInquiryItem[];
   initialSelectedId?: string | null;
+  initialSelectedInquiryId?: string | null;
 };
 
 function useIsMobile(breakpoint = 768) {
@@ -39,14 +44,22 @@ function useIsMobile(breakpoint = 768) {
 
 export function NovedadesInbox({
   items,
+  unlinkedInquiries,
   initialSelectedId = null,
+  initialSelectedInquiryId = null,
 }: NovedadesInboxProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const [query, setQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<InboxQuickFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
+  const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(
+    initialSelectedInquiryId,
+  );
   const [detail, setDetail] = useState<NovedadesReservationDetail | null>(null);
+  const [inquiryDetail, setInquiryDetail] = useState<NovedadesUnlinkedInquiryItem | null>(
+    null,
+  );
   const [detailLoading, setDetailLoading] = useState(false);
   const openedInitialRef = useRef(false);
 
@@ -98,9 +111,53 @@ export function NovedadesInbox({
     }
   }, []);
 
+  const filteredInquiries = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return unlinkedInquiries;
+    return unlinkedInquiries.filter((item) => {
+      return (
+        item.guestName.toLowerCase().includes(q) ||
+        item.propertyLabel.toLowerCase().includes(q) ||
+        item.latestNarrative.toLowerCase().includes(q) ||
+        (item.subject?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [unlinkedInquiries, query]);
+
+  const loadInquiryDetail = useCallback(async (pendingActivityId: string) => {
+    setDetailLoading(true);
+    try {
+      const result = await getNovedadesUnlinkedInquiryDetailAction(pendingActivityId);
+      if (!result.success) {
+        toast.error(result.error);
+        return null;
+      }
+      setInquiryDetail(result.inquiry);
+      return result.inquiry;
+    } catch {
+      toast.error("No se pudo cargar la consulta");
+      return null;
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const selectInquiry = useCallback(
+    async (pendingActivityId: string) => {
+      setSelectedInquiryId(pendingActivityId);
+      setSelectedId(null);
+      setDetail(null);
+      router.replace(`/novedades?inquiry=${pendingActivityId}`, { scroll: false });
+      await loadInquiryDetail(pendingActivityId);
+    },
+    [loadInquiryDetail, router],
+  );
+
   const selectReservation = useCallback(
     async (reservationId: string) => {
       setSelectedId(reservationId);
+      setSelectedInquiryId(null);
+      setInquiryDetail(null);
       router.replace(`/novedades?reservation=${reservationId}`, { scroll: false });
       await loadDetail(reservationId);
     },
@@ -111,6 +168,17 @@ export function NovedadesInbox({
     if (openedInitialRef.current) return;
     openedInitialRef.current = true;
 
+    const targetInquiryId =
+      initialSelectedInquiryId &&
+      unlinkedInquiries.some((item) => item.pendingActivityId === initialSelectedInquiryId)
+        ? initialSelectedInquiryId
+        : null;
+
+    if (targetInquiryId) {
+      void selectInquiry(targetInquiryId);
+      return;
+    }
+
     const targetId =
       initialSelectedId && items.some((item) => item.reservationId === initialSelectedId)
         ? initialSelectedId
@@ -119,10 +187,10 @@ export function NovedadesInbox({
     if (targetId) {
       void selectReservation(targetId);
     }
-  }, [initialSelectedId, items, selectReservation]);
+  }, [initialSelectedId, initialSelectedInquiryId, items, unlinkedInquiries, selectInquiry, selectReservation]);
 
-  const showListOnMobile = isMobile && !selectedId;
-  const showDetailOnMobile = isMobile && Boolean(selectedId);
+  const showListOnMobile = isMobile && !selectedId && !selectedInquiryId;
+  const showDetailOnMobile = isMobile && Boolean(selectedId || selectedInquiryId);
 
   return (
     <div className={cn("flex h-full min-h-0 w-full overflow-hidden", moduleShellClasses.canvas)}>
@@ -189,7 +257,7 @@ export function NovedadesInbox({
         </header>
 
         <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && filteredInquiries.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1 px-3 py-12 text-center">
               <p className="text-sm font-medium text-foreground">Sin actividad</p>
               <p className="max-w-[240px] text-xs text-muted-foreground">
@@ -199,14 +267,50 @@ export function NovedadesInbox({
               </p>
             </div>
           ) : (
-            filtered.map((item) => (
-              <NovedadesInboxListItem
-                key={item.reservationId}
-                item={item}
-                isActive={selectedId === item.reservationId}
-                onSelect={() => void selectReservation(item.reservationId)}
-              />
-            ))
+            <>
+              {filteredInquiries.length > 0 ? (
+                <section>
+                  <div className="sticky top-0 z-10 border-b border-border/70 bg-module-pane/95 px-3 py-2 backdrop-blur-sm">
+                    <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Consultas sin reserva
+                    </h2>
+                    <p className="text-[10px] text-muted-foreground">
+                      {filteredInquiries.length} conversación
+                      {filteredInquiries.length === 1 ? "" : "es"} previa
+                      {filteredInquiries.length === 1 ? "" : "s"} a reservar
+                    </p>
+                  </div>
+                  {filteredInquiries.map((item) => (
+                    <NovedadesUnlinkedInquiryListItem
+                      key={item.pendingActivityId}
+                      item={item}
+                      isActive={selectedInquiryId === item.pendingActivityId}
+                      onSelect={() => void selectInquiry(item.pendingActivityId)}
+                    />
+                  ))}
+                </section>
+              ) : null}
+
+              {filtered.length > 0 ? (
+                <section>
+                  {filteredInquiries.length > 0 ? (
+                    <div className="sticky top-0 z-10 border-b border-border/70 bg-module-pane/95 px-3 py-2 backdrop-blur-sm">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Reservas con actividad
+                      </h2>
+                    </div>
+                  ) : null}
+                  {filtered.map((item) => (
+                    <NovedadesInboxListItem
+                      key={item.reservationId}
+                      item={item}
+                      isActive={selectedId === item.reservationId}
+                      onSelect={() => void selectReservation(item.reservationId)}
+                    />
+                  ))}
+                </section>
+              ) : null}
+            </>
           )}
         </div>
       </aside>
@@ -218,7 +322,21 @@ export function NovedadesInbox({
           showListOnMobile && "hidden md:flex",
         )}
       >
-        {selectedId ? (
+        {selectedInquiryId ? (
+          <NovedadesUnlinkedInquiryPanel
+            inquiry={inquiryDetail}
+            loading={detailLoading}
+            onBack={
+              isMobile
+                ? () => {
+                    setSelectedInquiryId(null);
+                    setInquiryDetail(null);
+                    router.replace("/novedades", { scroll: false });
+                  }
+                : undefined
+            }
+          />
+        ) : selectedId ? (
           <NovedadesTimelinePanel
             detail={detail}
             loading={detailLoading}

@@ -8,7 +8,7 @@ import {
 import { getLatestOperationalFeedTimestamp } from "@/services/novedades/operational-feed.service";
 
 type NovedadesPageProps = {
-  searchParams: Promise<{ reservation?: string }>;
+  searchParams: Promise<{ reservation?: string; inquiry?: string }>;
 };
 
 export default async function NovedadesPage({ searchParams }: NovedadesPageProps) {
@@ -23,19 +23,27 @@ export default async function NovedadesPage({ searchParams }: NovedadesPageProps
   ]);
 
   const reservationId = params.reservation ?? null;
+  const inquiryId = params.inquiry ?? null;
   const validSelectedId =
     reservationId &&
     snapshot.items.some((item) => item.reservationId === reservationId)
       ? reservationId
+      : null;
+  const validSelectedInquiryId =
+    inquiryId &&
+    snapshot.unlinkedInquiries.some((item) => item.pendingActivityId === inquiryId)
+      ? inquiryId
       : null;
 
   return (
     <ModuleShellFill>
       <NovedadesPageView
         items={snapshot.items}
+        unlinkedInquiries={snapshot.unlinkedInquiries}
         scopeKey={scopeKey}
         latestAt={latest.latestAt ?? snapshot.latestAt}
         initialSelectedId={validSelectedId}
+        initialSelectedInquiryId={validSelectedInquiryId}
       />
     </ModuleShellFill>
   );
