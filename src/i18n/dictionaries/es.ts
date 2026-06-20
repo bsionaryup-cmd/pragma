@@ -64,6 +64,13 @@ export const es = {
     greeting: "Hola, {{name}}. Tu operación en un vistazo.",
     greetingWithAttention:
       "Hola, {{name}}. {{count}} elementos requieren tu atención.",
+    greetingPeriod: {
+      morning: "Buenos días, {{name}}.",
+      afternoon: "Buenas tardes, {{name}}.",
+      evening: "Buenas noches, {{name}}.",
+    },
+    attentionSummary: "{{count}} elementos requieren atención.",
+    allClear: "Todo al día.",
     alertsButton: "Alertas",
     novedadesButton: "Avisos PRAGMA",
     novedades: {
@@ -113,6 +120,11 @@ export const es = {
       departures: "Salen hoy",
       emptyArrivals: "No hay llegadas programadas para hoy.",
       emptyDepartures: "No hay salidas programadas para hoy.",
+      statusArrival: "Llegada",
+      statusDeparture: "Salida",
+    },
+    upcoming: {
+      statusInStay: "En estancia",
     },
     attention: {
       messages: "{{count}} mensaje(s) requieren respuesta",
@@ -160,6 +172,7 @@ export const es = {
     },
     activity: {
       viewAll: "Ver bandeja",
+      viewAllActivity: "Ver toda la actividad",
       reservation: "Nueva reserva",
       checkIn: "Llegada",
       checkOut: "Salida",

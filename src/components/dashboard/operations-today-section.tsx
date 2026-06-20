@@ -1,15 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useI18n } from "@/components/providers/i18n-provider";
-import { SectionCard } from "@/components/ui/section-card";
-import { PlatformBadge } from "@/components/dashboard/platform-badge";
 import {
   formatCalendarUnitDisplay,
   resolveCalendarUnitLabel,
 } from "@/features/calendar/lib/property-unit";
-import { Clock } from "lucide-react";
 import type { PanelReservationRow } from "@/services/dashboard/dashboard.service";
 import type { TodayPanelCounts } from "@/services/dashboard/dashboard.service";
 import { cn } from "@/lib/utils";
@@ -29,7 +25,15 @@ function resolveUnitNumber(row: PanelReservationRow): string | null {
   return unitLabel ? formatCalendarUnitDisplay(unitLabel) : null;
 }
 
-function TodayRow({ row, mode }: { row: PanelReservationRow; mode: "arrival" | "departure" }) {
+function TodayRow({
+  row,
+  mode,
+  statusLabel,
+}: {
+  row: PanelReservationRow;
+  mode: "arrival" | "departure";
+  statusLabel: string;
+}) {
   const router = useRouter();
   const unit = resolveUnitNumber(row);
   const time =
@@ -39,32 +43,28 @@ function TodayRow({ row, mode }: { row: PanelReservationRow; mode: "arrival" | "
     <button
       type="button"
       onClick={() => router.push(`/novedades?reservation=${row.id}`)}
-      className="flex w-full items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-3 text-left transition-colors hover:bg-muted/20"
+      className="flex w-full items-center gap-4 border-b border-border/50 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/15"
     >
-      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
-        {row.property.coverImageUrl ? (
-          <Image src={row.property.coverImageUrl} alt="" fill className="object-cover" sizes="40px" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-muted-foreground">
-            {(unit ?? row.property.name).slice(0, 2).toUpperCase()}
-          </div>
-        )}
-      </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{row.guestName}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {unit ? `${unit} · ` : ""}
-          {row.property.name}
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {unit ?? row.property.name}
         </p>
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <PlatformBadge platform={row.platform} />
+      <div className="flex shrink-0 items-center gap-3">
         {time ? (
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {time}
-          </span>
+          <span className="text-sm tabular-nums text-foreground/80">{time}</span>
         ) : null}
+        <span
+          className={cn(
+            "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+            mode === "arrival"
+              ? "bg-pragma-olive-leaf/15 text-pragma-olive-leaf"
+              : "bg-pragma-sand-oak/15 text-pragma-sand-oak",
+          )}
+        >
+          {statusLabel}
+        </span>
       </div>
     </button>
   );
@@ -76,27 +76,34 @@ function TodayColumn({
   rows,
   mode,
   emptyLabel,
+  statusLabel,
 }: {
   title: string;
   count: number;
   rows: PanelReservationRow[];
   mode: "arrival" | "departure";
   emptyLabel: string;
+  statusLabel: string;
 }) {
   return (
-    <div className="min-w-0 flex-1">
-      <div className="mb-3 flex items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-card/50 p-4 sm:p-5">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <h3 className="font-heading text-sm font-semibold tracking-tight text-foreground">
+          {title}
+        </h3>
         <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
       </div>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border/80 px-3 py-6 text-center text-xs text-muted-foreground">
-          {emptyLabel}
-        </p>
+        <p className="py-8 text-center text-xs text-muted-foreground">{emptyLabel}</p>
       ) : (
-        <div className="space-y-2">
+        <div>
           {rows.map((row) => (
-            <TodayRow key={row.id} row={row} mode={mode} />
+            <TodayRow
+              key={row.id}
+              row={row}
+              mode={mode}
+              statusLabel={statusLabel}
+            />
           ))}
         </div>
       )}
@@ -112,14 +119,20 @@ export function OperationsTodaySection({
   const { t } = useI18n();
 
   return (
-    <SectionCard title={t("dashboard.sections.today")} description={t("dashboard.sections.todayDesc")}>
-      <div className={cn("grid gap-6 px-4 pb-5 sm:px-6", "md:grid-cols-2")}>
+    <section>
+      <div className="mb-4">
+        <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+          {t("dashboard.sections.today")}
+        </h2>
+      </div>
+      <div className={cn("grid gap-4", "md:grid-cols-2")}>
         <TodayColumn
           title={t("dashboard.today.arrivals")}
           count={counts.arrivals}
           rows={arrivals}
           mode="arrival"
           emptyLabel={t("dashboard.today.emptyArrivals")}
+          statusLabel={t("dashboard.today.statusArrival")}
         />
         <TodayColumn
           title={t("dashboard.today.departures")}
@@ -127,8 +140,9 @@ export function OperationsTodaySection({
           rows={departures}
           mode="departure"
           emptyLabel={t("dashboard.today.emptyDepartures")}
+          statusLabel={t("dashboard.today.statusDeparture")}
         />
       </div>
-    </SectionCard>
+    </section>
   );
 }

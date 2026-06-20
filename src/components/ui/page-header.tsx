@@ -40,7 +40,7 @@ export function PageHeader({
           {title}
         </h1>
         {description ? (
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground/75">
+          <p className="mt-2 max-w-2xl whitespace-pre-line text-sm leading-6 text-foreground/75">
             {description}
           </p>
         ) : null}

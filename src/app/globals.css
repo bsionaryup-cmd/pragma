@@ -18,6 +18,9 @@
   --pragma-soft-gray: #f4f6f8;
   --pragma-mid-gray: #6b7280;
   --pragma-border: #d9dee5;
+  --pragma-caramel: #c9a66b;
+  --pragma-sand-oak: #b8a088;
+  --pragma-olive-leaf: #8b9a6b;
 
   --pragma-gradient: linear-gradient(
     135deg,
@@ -117,6 +120,9 @@
   --pragma-soft-cyan: rgba(20, 228, 200, 0.12);
   --pragma-light-blue: rgba(11, 107, 255, 0.15);
   --pragma-card-active: rgba(20, 228, 200, 0.1);
+  --pragma-caramel: #d4b87a;
+  --pragma-sand-oak: #c9b49a;
+  --pragma-olive-leaf: #a3b382;
 
   --module-canvas: #0a1524;
   --module-pane: #0f1f33;
@@ -291,6 +297,9 @@
   --color-pragma-mid-gray: var(--pragma-mid-gray);
   --color-pragma-soft-cyan: var(--pragma-soft-cyan);
   --color-pragma-light-blue: var(--pragma-light-blue);
+  --color-pragma-caramel: var(--pragma-caramel);
+  --color-pragma-sand-oak: var(--pragma-sand-oak);
+  --color-pragma-olive-leaf: var(--pragma-olive-leaf);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

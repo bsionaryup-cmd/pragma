@@ -64,6 +64,13 @@ export const en = {
     eyebrow: "Today",
     greeting: "Hi, {{name}}. Your operation at a glance.",
     greetingWithAttention: "Hi, {{name}}. {{count}} items need your attention.",
+    greetingPeriod: {
+      morning: "Good morning, {{name}}.",
+      afternoon: "Good afternoon, {{name}}.",
+      evening: "Good evening, {{name}}.",
+    },
+    attentionSummary: "{{count}} items need attention.",
+    allClear: "All clear.",
     alertsButton: "Alerts",
     novedadesButton: "PRAGMA notices",
     novedades: {
@@ -113,6 +120,11 @@ export const en = {
       departures: "Departing today",
       emptyArrivals: "No arrivals scheduled for today.",
       emptyDepartures: "No departures scheduled for today.",
+      statusArrival: "Arrival",
+      statusDeparture: "Departure",
+    },
+    upcoming: {
+      statusInStay: "In stay",
     },
     attention: {
       messages: "{{count}} message(s) need a reply",
@@ -160,6 +172,7 @@ export const en = {
     },
     activity: {
       viewAll: "Open inbox",
+      viewAllActivity: "View all activity",
       reservation: "New reservation",
       checkIn: "Check-in",
       checkOut: "Check-out",
