@@ -232,9 +232,22 @@ export async function relinkUnlinkedGuestMessageAudits(
   return linked;
 }
 
+/** En dev omite re-link/repair pesados en cada lectura del feed (localhost usable). */
+function shouldSkipHeavyFeedSyncInDev(): boolean {
+  return (
+    process.env.NODE_ENV === "development" &&
+    process.env.PRAGMA_DEV_SKIP_FEED_SYNC !== "0"
+  );
+}
+
 export async function syncGuestMessageActivitiesForFeed(
   scope: TenantDataScope,
 ): Promise<void> {
+  if (shouldSkipHeavyFeedSyncInDev()) {
+    await promotePendingGuestMessageActivities(scope);
+    return;
+  }
+
   await repairMisclassifiedGuestMessageActivities(scope);
   await relinkUnlinkedGuestMessageAudits(scope);
   await promotePendingGuestMessageActivities(scope);
