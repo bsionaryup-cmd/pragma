@@ -9,8 +9,8 @@ import type {
 } from "@/services/dashboard/operations-center.types";
 import { getFinanceOverview } from "@/services/finance/finance.service";
 import { getSmartAccessOverview } from "@/services/access/smart-access.service";
-import { getNovedadesInboxSnapshot } from "@/services/novedades/novedades-inbox.service";
 import { listOperationalFeedCardsForTenant } from "@/services/novedades/operational-feed.service";
+import { countInboxAttentionFromFeedCards } from "@/services/dashboard/operations-center.feed-attention";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 
 export async function getOperationsCenterSnapshot(input: {
@@ -20,19 +20,15 @@ export async function getOperationsCenterSnapshot(input: {
 }): Promise<OperationsCenterSnapshot> {
   const scope = await requireTenantDataScope();
 
-  const [commandCenter, inboxSnapshot, feedCards, financeOverview, smartAccessOverview] =
-    await Promise.all([
-      getCommandCenterData(input.locale),
-      getNovedadesInboxSnapshot(scope, 40),
-      listOperationalFeedCardsForTenant(scope, 8),
-      input.canReadFinance ? getFinanceOverview(input.locale) : Promise.resolve(null),
-      input.canReadAccess ? getSmartAccessOverview() : Promise.resolve(null),
-    ]);
+  const feedCardsAll = await listOperationalFeedCardsForTenant(scope, 80);
+  const inboxAttentionCount = countInboxAttentionFromFeedCards(feedCardsAll);
+  const feedCards = feedCardsAll.slice(0, 8);
 
-  const inboxAttentionCount = inboxSnapshot.items.reduce(
-    (sum, row) => sum + row.attentionCount,
-    0,
-  );
+  const [commandCenter, financeOverview, smartAccessOverview] = await Promise.all([
+    getCommandCenterData(input.locale),
+    input.canReadFinance ? getFinanceOverview(input.locale) : Promise.resolve(null),
+    input.canReadAccess ? getSmartAccessOverview() : Promise.resolve(null),
+  ]);
 
   const smartAccessPending = smartAccessOverview
     ? smartAccessOverview.metrics.awaitingRegistration +
