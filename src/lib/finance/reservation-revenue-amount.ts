@@ -1,7 +1,9 @@
 import type { FinanceRevenueEmailEventRow } from "@/lib/finance/reservation-finance-trace";
 import {
   isReservationFinanceTraceable,
-  pickFinanceRevenueEmailEvents,
+  pickFinanceRevenueEmailEventsByQuality,
+  type FinanceRevenueEmailEventWithAudit,
+  type FinanceRevenueReservationMeta,
 } from "@/lib/finance/reservation-finance-trace";
 import {
   resolveAuthoritativeHostPayout,
@@ -264,22 +266,36 @@ export function buildReservationRevenueSourcesFromEmailEvent(input: {
 }
 
 export function buildReservationRevenueSourcesMapFromEmailEvents<
-  T extends FinanceRevenueEmailEventRow,
+  T extends FinanceRevenueEmailEventWithAudit,
 >(
   rows: T[],
   reservationStatusById?: Map<string, import("@prisma/client").ReservationStatus>,
+  reservationMetaById?: Map<string, FinanceRevenueReservationMeta>,
 ): Map<string, ReservationRevenueSources> {
   const map = new Map<string, ReservationRevenueSources>();
   const statusById = reservationStatusById ?? new Map();
-  const picked = reservationStatusById
-    ? pickFinanceRevenueEmailEvents(rows, statusById)
-    : null;
+  const metaById = reservationMetaById ?? new Map();
 
-  if (picked) {
+  if (reservationStatusById) {
+    const picked = pickFinanceRevenueEmailEventsByQuality(
+      rows,
+      statusById,
+      metaById,
+    );
     for (const [reservationId, row] of picked) {
+      const meta = metaById.get(reservationId);
+      const raw = row.rawEmail;
       map.set(
         reservationId,
-        buildReservationRevenueSourcesFromEmailEvent(row),
+        buildReservationRevenueSourcesFromEmailEvent({
+          enrichedFields: row.enrichedFields,
+          payload: row.payload,
+          confirmationCode: meta?.reservationCode ?? null,
+          checkIn: meta?.checkIn ?? null,
+          checkOut: meta?.checkOut ?? null,
+          emailHtml: raw?.html ?? null,
+          emailText: raw?.text ?? null,
+        }),
       );
     }
     return map;
@@ -287,9 +303,15 @@ export function buildReservationRevenueSourcesMapFromEmailEvents<
 
   for (const row of rows) {
     if (!row.reservationId || map.has(row.reservationId)) continue;
+    const raw = row.rawEmail;
     map.set(
       row.reservationId,
-      buildReservationRevenueSourcesFromEmailEvent(row),
+      buildReservationRevenueSourcesFromEmailEvent({
+        enrichedFields: row.enrichedFields,
+        payload: row.payload,
+        emailHtml: raw?.html ?? null,
+        emailText: raw?.text ?? null,
+      }),
     );
   }
   return map;

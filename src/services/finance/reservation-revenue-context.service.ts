@@ -2,19 +2,22 @@ import "server-only";
 
 import type { ReservationStatus } from "@prisma/client";
 import { db } from "@/lib/db";
-import { pickFinanceRevenueEmailEvents } from "@/lib/finance/reservation-finance-trace";
+import {
+  pickFinanceRevenueEmailEventsByQuality,
+  type FinanceRevenueEmailRawEmail,
+} from "@/lib/finance/reservation-finance-trace";
 import {
   buildReservationRevenueSourcesFromEmailEvent,
   type ReservationRevenueSources,
 } from "@/lib/finance/reservation-revenue-amount";
 
-function readRawEmail(value: unknown): { html?: string; text?: string } | null {
+function readRawEmail(value: unknown): FinanceRevenueEmailRawEmail | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  return {
-    html: typeof record.html === "string" ? record.html : undefined,
-    text: typeof record.text === "string" ? record.text : undefined,
-  };
+  const html = typeof record.html === "string" ? record.html : undefined;
+  const text = typeof record.text === "string" ? record.text : undefined;
+  if (!html && !text) return null;
+  return { html, text };
 }
 
 export async function loadReservationRevenueSourcesByReservationId(
@@ -24,14 +27,21 @@ export async function loadReservationRevenueSourcesByReservationId(
 
   const uniqueIds = [...new Set(reservationIds)];
 
-  const [events, payouts, reservations, audits] = await Promise.all([
+  const [events, payouts, reservations] = await Promise.all([
     db.reservationEmailEvent.findMany({
       where: { reservationId: { in: uniqueIds } },
       select: {
         reservationId: true,
+        auditId: true,
         eventKind: true,
         enrichedFields: true,
         payload: true,
+        audit: {
+          select: {
+            processedAt: true,
+            rawEmail: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -53,15 +63,6 @@ export async function loadReservationRevenueSourcesByReservationId(
         checkOut: true,
       },
     }),
-    db.emailIngestionAudit.findMany({
-      where: { reservationId: { in: uniqueIds } },
-      select: {
-        reservationId: true,
-        rawEmail: true,
-        processedAt: true,
-      },
-      orderBy: { processedAt: "desc" },
-    }),
   ]);
 
   const reservationStatusById = new Map<string, ReservationStatus>(
@@ -77,21 +78,25 @@ export async function loadReservationRevenueSourcesByReservationId(
       },
     ]),
   );
-  const rawEmailByReservationId = new Map<string, { html?: string; text?: string }>();
-  for (const audit of audits) {
-    if (!audit.reservationId || rawEmailByReservationId.has(audit.reservationId)) {
-      continue;
-    }
-    const raw = readRawEmail(audit.rawEmail);
-    if (raw) rawEmailByReservationId.set(audit.reservationId, raw);
-  }
 
   const map = new Map<string, ReservationRevenueSources>();
-  const picked = pickFinanceRevenueEmailEvents(events, reservationStatusById);
+  const picked = pickFinanceRevenueEmailEventsByQuality(
+    events.map((event) => ({
+      reservationId: event.reservationId,
+      eventKind: event.eventKind,
+      enrichedFields: event.enrichedFields,
+      payload: event.payload,
+      auditId: event.auditId,
+      processedAt: event.audit.processedAt,
+      rawEmail: readRawEmail(event.audit.rawEmail),
+    })),
+    reservationStatusById,
+    reservationMetaById,
+  );
 
   for (const [reservationId, row] of picked) {
     const meta = reservationMetaById.get(reservationId);
-    const raw = rawEmailByReservationId.get(reservationId);
+    const raw = row.rawEmail;
     map.set(
       reservationId,
       buildReservationRevenueSourcesFromEmailEvent({
