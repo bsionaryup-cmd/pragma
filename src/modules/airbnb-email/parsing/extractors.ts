@@ -334,22 +334,11 @@ export function extractReservationSignals(input: {
     checkOut,
   });
   const grossAmount =
-    parseMoneyToken(merged.grossAmount) ?? money[0] ?? null;
-  const anchoredFinancials =
-    grossAmount != null &&
-    reservationFinancials.guestTotalPaid != null &&
-    reservationFinancials.guestTotalPaid > grossAmount * 1.15
-      ? extractReservationFinancialSignals(extractionText, {
-          html: input.html,
-          confirmationCode:
-            confirmation?.[1]?.toUpperCase() ??
-            merged.confirmationCode?.toUpperCase() ??
-            null,
-          checkIn,
-          checkOut,
-          anchorGuestTotal: grossAmount,
-        })
-      : reservationFinancials;
+    reservationFinancials.guestTotalPaid ??
+    parseMoneyToken(merged.grossAmount) ??
+    money[0] ??
+    null;
+  const anchoredFinancials = reservationFinancials;
 
   return {
     confirmationCode: confirmation?.[1]?.toUpperCase() ?? null,

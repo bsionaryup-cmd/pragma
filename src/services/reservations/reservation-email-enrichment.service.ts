@@ -12,7 +12,7 @@ import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import { applyMatchPolicy } from "@/modules/airbnb-email/lib/match-policy";
 import { persistReservationMatchLinkage } from "@/modules/airbnb-email/matching/reservation-match-persist";
 import { extractGuestCountSignals } from "@/modules/airbnb-email/parsing/guest-count-extract";
-import { extractReservationFinancialSignals } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
+import { resolveAuthoritativeHostPayout } from "@/lib/finance/resolve-authoritative-host-payout";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 
 export { reservationHasVisibleEmailEnrichment } from "@/lib/airbnb-email/reservation-enrichment-visibility";
@@ -458,7 +458,7 @@ export async function getReservationEmailEnrichmentSummary(
     }),
     db.emailIngestionAudit.findMany({
       where: { reservationId },
-      select: { id: true, processedAt: true },
+      select: { id: true, processedAt: true, rawEmail: true },
       orderBy: { processedAt: "desc" },
       take: 1,
     }),
@@ -559,9 +559,6 @@ export async function getReservationEmailEnrichmentSummary(
   const guestTotalPaid =
     readNumberField(structuredFields, "guestTotalPaid") ??
     readNumberField(payloadSignals, "guestTotalPaid");
-  const hostPayoutAmount =
-    readNumberField(structuredFields, "hostPayoutAmount") ??
-    readNumberField(payloadSignals, "hostPayoutAmount");
   const nightCount =
     readNumberField(structuredFields, "nightCount") ??
     readNumberField(payloadSignals, "nightCount");
@@ -569,6 +566,16 @@ export async function getReservationEmailEnrichmentSummary(
     readStringField(structuredFields, "currency") ??
     readStringField(payloadSignals, "currency");
   const emailMatchBlob = readStringField(payloadSignals, "emailMatchBlob");
+  const latestRawEmail =
+    audits[0]?.rawEmail &&
+    typeof audits[0].rawEmail === "object" &&
+    !Array.isArray(audits[0].rawEmail)
+      ? (audits[0].rawEmail as Record<string, unknown>)
+      : null;
+  const emailHtml =
+    typeof latestRawEmail?.html === "string" ? latestRawEmail.html : null;
+  const emailText =
+    typeof latestRawEmail?.text === "string" ? latestRawEmail.text : null;
   const fallbackGuestCounts = emailMatchBlob
     ? extractGuestCountSignals(emailMatchBlob)
     : {
@@ -578,14 +585,19 @@ export async function getReservationEmailEnrichmentSummary(
         infantCount: null,
         petCount: null,
       };
-  const fallbackFinancials = emailMatchBlob
-    ? extractReservationFinancialSignals(emailMatchBlob)
-    : {
-        guestTotalPaid: null,
-        hostPayoutAmount: null,
-        currency: null,
-        nightCount: null,
-      };
+  const authoritativeFinancials = resolveAuthoritativeHostPayout({
+    confirmationCode:
+      reservation?.reservationCode ??
+      latestEvent?.confirmationCode ??
+      readStringField(payloadSignals, "confirmationCode"),
+    checkIn: readStringField(payloadSignals, "checkIn"),
+    checkOut: readStringField(payloadSignals, "checkOut"),
+    emailMatchBlob,
+    emailHtml,
+    emailText,
+    payloadSignals,
+    enrichedFields: structuredFields,
+  });
   airbnbEmailLog.info("enrichment_guest_name_persist_check", {
     reservationId,
     auditId: latestAuditId ?? undefined,
@@ -639,10 +651,11 @@ export async function getReservationEmailEnrichmentSummary(
     childCount: childCount ?? fallbackGuestCounts.childCount ?? null,
     infantCount: infantCount ?? fallbackGuestCounts.infantCount ?? null,
     petCount: petCount ?? fallbackGuestCounts.petCount ?? null,
-    guestTotalPaid: guestTotalPaid ?? fallbackFinancials.guestTotalPaid ?? null,
-    hostPayoutAmount:
-      hostPayoutAmount ?? fallbackFinancials.hostPayoutAmount ?? null,
-    nightCount: nightCount ?? fallbackFinancials.nightCount ?? null,
-    metadataCurrency: metadataCurrency ?? fallbackFinancials.currency ?? null,
+    guestTotalPaid:
+      guestTotalPaid ?? authoritativeFinancials.guestTotalPaid ?? null,
+    hostPayoutAmount: authoritativeFinancials.hostPayoutAmount,
+    nightCount: nightCount ?? authoritativeFinancials.nightCount ?? null,
+    metadataCurrency:
+      metadataCurrency ?? authoritativeFinancials.currency ?? null,
   };
 }

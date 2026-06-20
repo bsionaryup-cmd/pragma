@@ -1,13 +1,13 @@
-import {
-  extractReservationFinancialSignals,
-  isHostPayoutConsistentWithGuestTotal,
-  sanitizeHostPayoutAgainstGuestTotal,
-} from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 import type { FinanceRevenueEmailEventRow } from "@/lib/finance/reservation-finance-trace";
 import {
   isReservationFinanceTraceable,
   pickFinanceRevenueEmailEvents,
 } from "@/lib/finance/reservation-finance-trace";
+import {
+  resolveAuthoritativeHostPayout,
+  type ResolveAuthoritativeHostPayoutInput,
+} from "@/lib/finance/resolve-authoritative-host-payout";
+import { isHostPayoutConsistentWithGuestTotal } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
 import type { BookingPlatform } from "@prisma/client";
 
 type JsonRecord = Record<string, unknown>;
@@ -16,7 +16,12 @@ export type ReservationRevenueSources = {
   enrichedFields?: unknown;
   payloadSignals?: unknown;
   emailMatchBlob?: string | null;
+  emailHtml?: string | null;
+  emailText?: string | null;
   payoutNet?: unknown;
+  confirmationCode?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
 };
 
 function readNumber(value: unknown): number | null {
@@ -39,12 +44,36 @@ function readPayloadSignals(payload: unknown): JsonRecord {
   return asRecord(asRecord(payload).signals);
 }
 
-const EMPTY_FINANCIALS = {
-  guestTotalPaid: null,
-  hostPayoutAmount: null,
-  currency: null,
-  nightCount: null,
-};
+function buildResolveInput(
+  sources: ReservationRevenueSources,
+): ResolveAuthoritativeHostPayoutInput {
+  const enriched = asRecord(sources.enrichedFields);
+  const signals = asRecord(sources.payloadSignals);
+  const emailMatchBlob =
+    sources.emailMatchBlob ??
+    (typeof signals.emailMatchBlob === "string" ? signals.emailMatchBlob : null);
+
+  return {
+    confirmationCode: sources.confirmationCode,
+    checkIn: sources.checkIn,
+    checkOut: sources.checkOut,
+    emailMatchBlob,
+    emailHtml: sources.emailHtml,
+    emailText: sources.emailText,
+    payloadSignals: signals,
+    enrichedFields: enriched,
+  };
+}
+
+function hadEmailSources(sources: ReservationRevenueSources): boolean {
+  const signals = asRecord(sources.payloadSignals);
+  return Boolean(
+    sources.emailMatchBlob ||
+      sources.emailHtml ||
+      sources.emailText ||
+      (typeof signals.emailMatchBlob === "string" && signals.emailMatchBlob),
+  );
+}
 
 /** Unifica las mismas fuentes que usa el panel de reserva Airbnb. */
 export function mergeReservationRevenueSources(
@@ -52,29 +81,28 @@ export function mergeReservationRevenueSources(
 ): JsonRecord {
   const enriched = asRecord(sources.enrichedFields);
   const signals = asRecord(sources.payloadSignals);
-  const financials = sources.emailMatchBlob
-    ? sanitizeHostPayoutAgainstGuestTotal(
-        extractReservationFinancialSignals(sources.emailMatchBlob),
-      )
-    : EMPTY_FINANCIALS;
+  const reconciledFinancials = resolveAuthoritativeHostPayout(
+    buildResolveInput(sources),
+  );
 
   const merged = {
     ...signals,
     ...enriched,
-    hostPayoutAmount:
-      enriched.hostPayoutAmount ??
-      signals.hostPayoutAmount ??
-      financials.hostPayoutAmount,
+    hostPayoutAmount: reconciledFinancials.hostPayoutAmount,
     netPayout:
       enriched.netPayout ??
       signals.netPayout ??
       sources.payoutNet ??
       null,
-    grossAmount: enriched.grossAmount ?? signals.grossAmount ?? null,
+    grossAmount:
+      reconciledFinancials.guestTotalPaid ??
+      enriched.grossAmount ??
+      signals.grossAmount ??
+      null,
     guestTotalPaid:
+      reconciledFinancials.guestTotalPaid ??
       enriched.guestTotalPaid ??
-      signals.guestTotalPaid ??
-      financials.guestTotalPaid,
+      signals.guestTotalPaid,
   };
 
   const host = readNumber(merged.hostPayoutAmount);
@@ -91,10 +119,6 @@ export function mergeReservationRevenueSources(
   return merged;
 }
 
-function readFromMergedSources(sources: ReservationRevenueSources): number | null {
-  return readHostRevenueFromJson(mergeReservationRevenueSources(sources));
-}
-
 function readHostRevenueFromJson(source: unknown): number | null {
   if (!source || typeof source !== "object" || Array.isArray(source)) return null;
   const record = source as JsonRecord;
@@ -107,18 +131,36 @@ export function resolveReservationRevenueAmount(input: {
   enrichedFields?: unknown;
   payloadSignals?: unknown;
   emailMatchBlob?: string | null;
+  emailHtml?: string | null;
+  emailText?: string | null;
   payoutNet?: unknown;
+  confirmationCode?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
 }): number {
+  const payloadSignals = asRecord(input.payloadSignals);
+  const emailMatchBlob =
+    input.emailMatchBlob ??
+    (typeof payloadSignals.emailMatchBlob === "string"
+      ? payloadSignals.emailMatchBlob
+      : null);
   const sources: ReservationRevenueSources = {
     enrichedFields: input.enrichedFields,
     payloadSignals: input.payloadSignals,
-    emailMatchBlob: input.emailMatchBlob,
+    emailMatchBlob,
+    emailHtml: input.emailHtml,
+    emailText: input.emailText,
     payoutNet: input.payoutNet,
+    confirmationCode: input.confirmationCode,
+    checkIn: input.checkIn,
+    checkOut: input.checkOut,
   };
   const merged = mergeReservationRevenueSources(sources);
   const fromHostPayout =
     readNumber(merged.hostPayoutAmount) ?? readNumber(merged.netPayout);
   if (fromHostPayout != null) return fromHostPayout;
+
+  if (hadEmailSources(sources)) return 0;
 
   const stored = readNumber(input.totalAmount);
   if (stored != null) return stored;
@@ -132,15 +174,35 @@ export function resolveFinanceReservationRevenueAmount(
     platform: BookingPlatform;
     icalUid?: string | null;
     reservationCode?: string | null;
+    checkIn?: Date | string | null;
+    checkOut?: Date | string | null;
   },
   sources?: ReservationRevenueSources | null,
 ): number {
+  const checkIn =
+    reservation.checkIn instanceof Date
+      ? reservation.checkIn.toISOString().slice(0, 10)
+      : typeof reservation.checkIn === "string"
+        ? reservation.checkIn.slice(0, 10)
+        : sources?.checkIn ?? null;
+  const checkOut =
+    reservation.checkOut instanceof Date
+      ? reservation.checkOut.toISOString().slice(0, 10)
+      : typeof reservation.checkOut === "string"
+        ? reservation.checkOut.slice(0, 10)
+        : sources?.checkOut ?? null;
+
   const amount = resolveReservationRevenueAmount({
     totalAmount: reservation.totalAmount,
     enrichedFields: sources?.enrichedFields,
     payloadSignals: sources?.payloadSignals,
     emailMatchBlob: sources?.emailMatchBlob,
+    emailHtml: sources?.emailHtml,
+    emailText: sources?.emailText,
     payoutNet: sources?.payoutNet,
+    confirmationCode: reservation.reservationCode ?? sources?.confirmationCode ?? null,
+    checkIn,
+    checkOut,
   });
   if (amount <= 0) return 0;
 
@@ -174,6 +236,11 @@ export function pickLatestEnrichmentByReservation<
 export function buildReservationRevenueSourcesFromEmailEvent(input: {
   enrichedFields: unknown;
   payload: unknown;
+  confirmationCode?: string | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
+  emailHtml?: string | null;
+  emailText?: string | null;
 }): ReservationRevenueSources {
   const signals = readPayloadSignals(input.payload);
   const emailMatchBlob =
@@ -183,6 +250,16 @@ export function buildReservationRevenueSourcesFromEmailEvent(input: {
     enrichedFields: input.enrichedFields,
     payloadSignals: signals,
     emailMatchBlob,
+    emailHtml: input.emailHtml ?? null,
+    emailText: input.emailText ?? null,
+    confirmationCode:
+      input.confirmationCode ??
+      (typeof signals.confirmationCode === "string"
+        ? signals.confirmationCode
+        : null),
+    checkIn: input.checkIn ?? (typeof signals.checkIn === "string" ? signals.checkIn : null),
+    checkOut:
+      input.checkOut ?? (typeof signals.checkOut === "string" ? signals.checkOut : null),
   };
 }
 
