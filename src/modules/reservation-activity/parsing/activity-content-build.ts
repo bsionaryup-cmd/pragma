@@ -5,6 +5,7 @@ import {
 } from "@/modules/reservation-events/parsing/modification-metadata-extract";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import type { ActivityMetadata } from "@/modules/reservation-activity/types";
+import { isPreReservationInquirySubject } from "@/services/novedades/novedades-unlinked-inquiry.logic";
 import { normalizeGuestMessageBody } from "@/services/novedades/operational-feed.message";
 
 function stripNoise(value: string): string {
@@ -151,9 +152,10 @@ export function buildActivityContent(input: {
     body: input.body,
     guestName,
   });
+  const isInquiry = isPreReservationInquirySubject(input.subject);
 
   return {
-    title: "Mensaje Airbnb",
+    title: isInquiry ? "Consulta" : "Mensaje Airbnb",
     content,
     senderName: guestName ?? "Huésped",
     senderEmail,
@@ -167,6 +169,7 @@ export function buildActivityContent(input: {
       confirmationCode: input.signals?.confirmationCode ?? null,
       classificationConfidence: input.confidence ?? null,
       rawMessageBody,
+      isInquiry,
     },
   };
 }

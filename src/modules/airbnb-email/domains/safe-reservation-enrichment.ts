@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
+import { resolveAuthoritativeHostPayout } from "@/lib/finance/resolve-authoritative-host-payout";
 import { db } from "@/lib/db";
 import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import { isHostPayoutConsistentWithGuestTotal } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
@@ -218,6 +219,24 @@ export function shouldCorrectStoredReservationAmount(input: {
   return false;
 }
 
+function resolveEnrichmentHostAmount(
+  signals: ExtractedReservationSignals,
+): number | null {
+  const authoritative = resolveAuthoritativeHostPayout({
+    confirmationCode: signals.confirmationCode,
+    checkIn: signals.checkIn,
+    checkOut: signals.checkOut,
+    emailMatchBlob: signals.emailMatchBlob,
+    payloadSignals: signals,
+    enrichedFields: signals,
+  }).hostPayoutAmount;
+  if (authoritative != null && authoritative > 0) return authoritative;
+
+  return (
+    pickAuthoritativeHostRevenueAmount(signals) ?? pickReservationAmount(signals)
+  );
+}
+
 function applyReservationAmountUpdate(input: {
   eventKind?: AirbnbEmailEventKind;
   reservationTotalAmount: unknown;
@@ -226,9 +245,7 @@ function applyReservationAmountUpdate(input: {
   applied: Record<string, string | number>;
   skipped: string[];
 }) {
-  const amount =
-    pickAuthoritativeHostRevenueAmount(input.signals) ??
-    pickReservationAmount(input.signals);
+  const amount = resolveEnrichmentHostAmount(input.signals);
   if (amount == null) return;
 
   if (isZeroReservationAmount(input.reservationTotalAmount)) {

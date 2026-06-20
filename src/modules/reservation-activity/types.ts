@@ -31,4 +31,5 @@ export type ActivityMetadata = {
   pipelineEventKind?: string | null;
   /** Cuerpo crudo del correo para parseo en lectura (Novedades). */
   rawMessageBody?: string | null;
+  isInquiry?: boolean;
 };

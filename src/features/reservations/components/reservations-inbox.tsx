@@ -6,10 +6,12 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getReservationInboxItemAction } from "@/features/reservations/actions/reservation.actions";
+import { getReservationInquiryDetailAction } from "@/features/reservations/actions/reservation-inquiry.actions";
 import { ReservationCard } from "@/features/reservations/components/reservation-card";
+import { ReservationInquiryCard } from "@/features/reservations/components/reservation-inquiry-card";
+import { ReservationInquiryPanel } from "@/features/reservations/components/reservation-inquiry-panel";
 import type {
   ReservationCreateInitialValues,
-  ReservationDrawerMode,
 } from "@/features/reservations/components/reservation-drawer";
 import { sortByUpcomingArrivals } from "@/features/reservations/lib/reservation-sort";
 import { formatPropertyLabel, propertyMatchesQuery } from "@/lib/property-display";
@@ -18,10 +20,15 @@ import { useI18n } from "@/components/providers/i18n-provider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { subscribeDashboardDataRefresh } from "@/lib/dashboard-refresh";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
 import type {
   PropertyOption,
   ReservationDetailItem,
   ReservationInboxItem,
+  ReservationInquiryInboxItem,
 } from "@/features/reservations/types/reservation.types";
 import {
   Select,
@@ -48,8 +55,11 @@ const ReservationDrawer = dynamic(
   { loading: () => null },
 );
 
+type InboxPanelMode = "create" | "detail" | "inquiry" | null;
+
 type ReservationsInboxProps = {
   initialReservations: ReservationInboxItem[];
+  initialInquiries: ReservationInquiryInboxItem[];
   properties: PropertyOption[];
   canCreate: boolean;
   canWrite: boolean;
@@ -58,6 +68,7 @@ type ReservationsInboxProps = {
   canManagePayments?: boolean;
   openCreateOnMount?: boolean;
   initialSelectedId?: string | null;
+  initialSelectedInquiryId?: string | null;
   initialCreateValues?: ReservationCreateInitialValues;
 };
 
@@ -77,6 +88,7 @@ function useIsMobile(breakpoint = 768) {
 
 export function ReservationsInbox({
   initialReservations,
+  initialInquiries,
   properties,
   canCreate,
   canWrite,
@@ -85,6 +97,7 @@ export function ReservationsInbox({
   canManagePayments = false,
   openCreateOnMount = false,
   initialSelectedId = null,
+  initialSelectedInquiryId = null,
   initialCreateValues,
 }: ReservationsInboxProps) {
   const { t } = useI18n();
@@ -106,8 +119,15 @@ export function ReservationsInbox({
   const [selectedDetail, setSelectedDetail] =
     useState<ReservationDetailItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<ReservationDrawerMode>(() => {
+  const [selectedInquiryId, setSelectedInquiryId] = useState<string | null>(
+    initialSelectedInquiryId,
+  );
+  const [selectedInquiry, setSelectedInquiry] =
+    useState<ReservationInquiryInboxItem | null>(null);
+  const [inquiryLoading, setInquiryLoading] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<InboxPanelMode>(() => {
     if (openCreateOnMount && canCreate) return "create";
+    if (initialSelectedInquiryId) return "inquiry";
     if (initialSelectedId) return "detail";
     return null;
   });
@@ -120,7 +140,7 @@ export function ReservationsInbox({
     selectedIdRef.current = selectedId;
   }, [drawerMode, selectedId]);
 
-  const filtered = useMemo(() => {
+  const filteredReservations = useMemo(() => {
     const q = query.trim().toLowerCase();
     return reservations.filter((r) => {
       if (propertyFilter !== "all" && r.property.id !== propertyFilter) {
@@ -137,6 +157,28 @@ export function ReservationsInbox({
       );
     });
   }, [reservations, query, propertyFilter]);
+
+  const filteredInquiries = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return initialInquiries.filter((inquiry) => {
+      if (propertyFilter !== "all") {
+        const property = properties.find((p) => p.id === propertyFilter);
+        if (property) {
+          const label = formatPropertyLabel(property).toLowerCase();
+          if (!inquiry.propertyLabel.toLowerCase().includes(label)) return false;
+        }
+      }
+      if (!q) return true;
+      return (
+        inquiry.guestName.toLowerCase().includes(q) ||
+        inquiry.propertyLabel.toLowerCase().includes(q) ||
+        inquiry.latestNarrative.toLowerCase().includes(q)
+      );
+    });
+  }, [initialInquiries, properties, propertyFilter, query]);
+
+  const filteredCount = filteredReservations.length + filteredInquiries.length;
+  const totalCount = reservations.length + initialInquiries.length;
 
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
@@ -156,8 +198,46 @@ export function ReservationsInbox({
     }
   }, []);
 
+  const loadInquiryDetail = useCallback(async (pendingActivityId: string) => {
+    setInquiryLoading(true);
+    try {
+      const cached = initialInquiries.find(
+        (item) => item.pendingActivityId === pendingActivityId,
+      );
+      if (cached) {
+        setSelectedInquiry(cached);
+      }
+      const result = await getReservationInquiryDetailAction(pendingActivityId);
+      if (!result.success) {
+        toast.error(result.error);
+        return null;
+      }
+      setSelectedInquiry(result.inquiry);
+      return result.inquiry;
+    } catch {
+      toast.error("No se pudo cargar la consulta");
+      return null;
+    } finally {
+      setInquiryLoading(false);
+    }
+  }, [initialInquiries]);
+
+  const openInquiry = useCallback(
+    async (pendingActivityId: string) => {
+      setSelectedId(null);
+      setSelectedDetail(null);
+      setSelectedInquiryId(pendingActivityId);
+      setDrawerMode("inquiry");
+      router.replace(`/reservations?inquiry=${pendingActivityId}`, { scroll: false });
+      await loadInquiryDetail(pendingActivityId);
+    },
+    [loadInquiryDetail, router],
+  );
+
   const openDetail = useCallback(
     async (id: string) => {
+      setSelectedInquiryId(null);
+      setSelectedInquiry(null);
       setSelectedId(id);
       setDrawerMode("detail");
       router.replace(`/reservations?reservation=${id}`, { scroll: false });
@@ -167,10 +247,15 @@ export function ReservationsInbox({
   );
 
   useEffect(() => {
+    if (initialSelectedInquiryId && !openedInitialRef.current) {
+      openedInitialRef.current = true;
+      void openInquiry(initialSelectedInquiryId);
+      return;
+    }
     if (!initialSelectedId || openedInitialRef.current) return;
     openedInitialRef.current = true;
     void openDetail(initialSelectedId);
-  }, [initialSelectedId, openDetail]);
+  }, [initialSelectedId, initialSelectedInquiryId, openDetail, openInquiry]);
 
   useEffect(() => {
     return subscribeDashboardDataRefresh(() => {
@@ -184,12 +269,16 @@ export function ReservationsInbox({
   function openCreate() {
     setSelectedId(null);
     setSelectedDetail(null);
+    setSelectedInquiryId(null);
+    setSelectedInquiry(null);
     setDrawerMode("create");
   }
 
   function closePanel() {
     setDrawerMode(null);
     setSelectedDetail(null);
+    setSelectedInquiryId(null);
+    setSelectedInquiry(null);
     router.replace("/reservations", { scroll: false });
   }
 
@@ -228,7 +317,7 @@ export function ReservationsInbox({
                   {t("reservations.moduleTitle")}
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  {filtered.length} de {reservations.length} · próximas llegadas
+                  {filteredCount} de {totalCount} · reservas y consultas
                 </p>
               </div>
               {canCreate ? (
@@ -316,20 +405,31 @@ export function ReservationsInbox({
           </header>
 
           <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-            {filtered.length === 0 ? (
+            {filteredCount === 0 ? (
               <div className="flex flex-col items-center justify-center gap-1 px-3 py-12 text-center">
-                <p className="text-sm font-medium text-foreground">Sin reservas</p>
+                <p className="text-sm font-medium text-foreground">Sin resultados</p>
                 <p className="max-w-[220px] text-xs text-muted-foreground">
                   {hasActiveFilters
                     ? "Prueba otra búsqueda o quita los filtros."
                     : canCreate
                       ? "Crea la primera reserva con el botón de abajo."
-                      : "No hay reservas en el listado."}
+                      : "No hay reservas ni consultas en el listado."}
                 </p>
               </div>
             ) : (
               <div className="space-y-1.5">
-                {filtered.map((reservation) => (
+                {filteredInquiries.map((inquiry) => (
+                  <ReservationInquiryCard
+                    key={inquiry.pendingActivityId}
+                    inquiry={inquiry}
+                    isActive={
+                      selectedInquiryId === inquiry.pendingActivityId &&
+                      drawerMode === "inquiry"
+                    }
+                    onSelect={() => void openInquiry(inquiry.pendingActivityId)}
+                  />
+                ))}
+                {filteredReservations.map((reservation) => (
                   <ReservationCard
                     key={reservation.id}
                     reservation={reservation}
@@ -354,9 +454,14 @@ export function ReservationsInbox({
         </aside>
 
         <div className={cn("hidden min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden md:flex", moduleShellClasses.paneDetail)}>
-          {drawerMode ? (
+          {drawerMode === "inquiry" ? (
+            <ReservationInquiryPanel
+              inquiry={selectedInquiry}
+              loading={inquiryLoading}
+            />
+          ) : drawerMode ? (
             <ReservationSidePanel
-              mode={drawerMode}
+              mode={drawerMode === "create" ? "create" : "detail"}
               reservation={selectedDetail}
               properties={properties}
               canWrite={canWrite}
@@ -373,9 +478,11 @@ export function ReservationsInbox({
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-              <p className="text-sm font-medium text-foreground">Selecciona una reserva</p>
+              <p className="text-sm font-medium text-foreground">
+                Selecciona una reserva o consulta
+              </p>
               <p className="max-w-xs text-xs text-muted-foreground">
-                El detalle aparece aquí: fechas, registro de huéspedes, cobro y acceso.
+                El detalle aparece aquí: mensajes, fechas, registro y cobro.
               </p>
             </div>
           )}
@@ -383,22 +490,38 @@ export function ReservationsInbox({
       </div>
 
       {isMobile ? (
-        <ReservationDrawer
-          open={drawerMode !== null}
-          mode={drawerMode}
-          reservation={selectedDetail}
-          properties={properties}
-          canWrite={canWrite}
-          canManageGuestRegistration={canManageGuestRegistration}
-          canDelete={canDelete}
-          canManagePayments={canManagePayments}
-          initialCreateValues={initialCreateValues}
-          onClose={closePanel}
-          onCreated={handleCreated}
-          onDeleted={handleDeleted}
-          detailLoading={detailLoading}
-          onUpdated={handleUpdated}
-        />
+        drawerMode === "inquiry" ? (
+          <Sheet open onOpenChange={(isOpen) => !isOpen && closePanel()}>
+            <SheetContent
+              side="right"
+              showCloseButton
+              className="flex w-full flex-col gap-0 border-l border-border p-0 sm:max-w-[min(100%,480px)]"
+            >
+              <ReservationInquiryPanel
+                inquiry={selectedInquiry}
+                loading={inquiryLoading}
+                onBack={closePanel}
+              />
+            </SheetContent>
+          </Sheet>
+        ) : (
+          <ReservationDrawer
+            open={drawerMode !== null}
+            mode={drawerMode === "create" ? "create" : drawerMode === "detail" ? "detail" : null}
+            reservation={selectedDetail}
+            properties={properties}
+            canWrite={canWrite}
+            canManageGuestRegistration={canManageGuestRegistration}
+            canDelete={canDelete}
+            canManagePayments={canManagePayments}
+            initialCreateValues={initialCreateValues}
+            onClose={closePanel}
+            onCreated={handleCreated}
+            onDeleted={handleDeleted}
+            detailLoading={detailLoading}
+            onUpdated={handleUpdated}
+          />
+        )
       ) : null}
     </>
   );

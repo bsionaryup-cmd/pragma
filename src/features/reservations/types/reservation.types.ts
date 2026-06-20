@@ -66,6 +66,20 @@ export type ReservationGuestRegistrationDto = {
   usedAt: string | null;
 };
 
+/** Consulta Airbnb sin reserva (bandeja unificada de reservas). */
+export type ReservationInquiryInboxItem = {
+  pendingActivityId: string;
+  guestName: string;
+  guestInitials: string;
+  propertyLabel: string;
+  dateRangeLabel: string | null;
+  latestAt: string;
+  latestTimeLabel: string;
+  latestNarrative: string;
+  latestIntentLabel: string | null;
+  subject: string | null;
+};
+
 export type ReservationInboxItem = {
   id: string;
   guestName: string;

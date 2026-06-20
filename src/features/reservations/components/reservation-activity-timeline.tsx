@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   Mail,
+  MessageCircleQuestion,
 } from "lucide-react";
 import type { ReservationActivityType } from "@prisma/client";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
@@ -15,6 +16,10 @@ import {
 import { formatDateTime } from "@/lib/helpers/date";
 import type { ReservationActivityRow } from "@/services/reservation-activity/reservation-activity-list.service";
 import { resolveGuestMessageForDisplay } from "@/services/novedades/operational-feed.message";
+import {
+  isInquiryActivityMetadata,
+  resolveReservationActivityDisplayTitle,
+} from "@/features/reservations/lib/inquiry-activity";
 import { cn } from "@/lib/utils";
 
 type TimelineEntry = {
@@ -106,7 +111,10 @@ function mapActivityRows(rows: ReservationActivityRow[]): TimelineEntry[] {
   return rows.map((row) => ({
     id: row.id,
     kind: row.activityType,
-    title: row.title,
+    title: resolveReservationActivityDisplayTitle({
+      title: row.title,
+      metadata: row.metadata,
+    }),
     content: row.content,
     senderName: row.senderName,
     createdAt: row.createdAt,
@@ -128,7 +136,11 @@ function mergeTimelineEntries(
   );
 }
 
-function entryAccent(kind: TimelineEntry["kind"]) {
+function entryAccent(kind: TimelineEntry["kind"], title: string, metadata?: unknown) {
+  const isInquiry =
+    title === "Consulta" ||
+    isInquiryActivityMetadata(metadata) ||
+    (kind === "AIRBNB_MESSAGE" && title === "Consulta");
   if (kind === "MODIFICATION_REQUEST") {
     return {
       dot: "border-amber-400 bg-amber-50 text-amber-700",
@@ -139,6 +151,12 @@ function entryAccent(kind: TimelineEntry["kind"]) {
     return {
       dot: "border-emerald-400 bg-emerald-50 text-emerald-700",
       card: "border-emerald-200/70 bg-emerald-50/40 dark:border-emerald-900/40 dark:bg-emerald-950/20",
+    };
+  }
+  if (kind === "AIRBNB_MESSAGE" && isInquiry) {
+    return {
+      dot: "border-sky-400 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200",
+      card: "border-sky-200/70 bg-sky-50/40 dark:border-sky-900/40 dark:bg-sky-950/20",
     };
   }
   if (kind === "AIRBNB_MESSAGE") {
@@ -155,8 +173,10 @@ function entryAccent(kind: TimelineEntry["kind"]) {
 
 function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean }) {
   const dates = readMetadataDates(entry.metadata);
-  const isMessage = entry.kind === "AIRBNB_MESSAGE";
-  const accent = entryAccent(entry.kind);
+  const isInquiry =
+    entry.title === "Consulta" || isInquiryActivityMetadata(entry.metadata);
+  const isMessage = entry.kind === "AIRBNB_MESSAGE" && !isInquiry;
+  const accent = entryAccent(entry.kind, entry.title, entry.metadata);
   const messageBody = isMessage
     ? resolveGuestMessageForDisplay(entry.content, { guestName: entry.senderName })
     : null;
@@ -174,6 +194,8 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
             <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
           ) : entry.kind === "MODIFICATION_APPROVED" ? (
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "AIRBNB_MESSAGE" && isInquiry ? (
+            <MessageCircleQuestion className="h-3.5 w-3.5" aria-hidden />
           ) : entry.kind === "AIRBNB_MESSAGE" ? (
             <Mail className="h-3.5 w-3.5" aria-hidden />
           ) : (
@@ -206,6 +228,8 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
           <blockquote className="mt-2 border-l-2 border-primary/30 pl-3 text-sm italic leading-relaxed text-foreground/90">
             &ldquo;{messageBody ?? "Mensaje del huésped (texto no legible en el correo)."}&rdquo;
           </blockquote>
+        ) : isInquiry ? (
+          <p className="mt-2 text-sm leading-relaxed text-foreground/90">{entry.content}</p>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-foreground/85">
             {entry.content}

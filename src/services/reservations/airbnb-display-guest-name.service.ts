@@ -31,11 +31,20 @@ function isDisplayableGuestName(name: string | null | undefined): boolean {
 
 export function extractGuestNameFromReservationEmailEvent(input: {
   enrichedFields: unknown;
-  /** @deprecated Display reads guestName from enrichedFields only; payload is ignored. */
   payload?: unknown;
 }): string | null {
   const fromEnriched = readJsonFieldAsString(input.enrichedFields, "guestName");
   if (isDisplayableGuestName(fromEnriched)) return fromEnriched;
+
+  if (input.payload) {
+    const fromPayload = readGuestNameFromSignals(
+      typeof input.payload === "object" && !Array.isArray(input.payload)
+        ? (input.payload as Record<string, unknown>).signals
+        : null,
+    );
+    if (isDisplayableGuestName(fromPayload)) return fromPayload;
+  }
+
   return null;
 }
 
@@ -79,6 +88,7 @@ export type ReservationEmailEventForDisplayGuestName = {
   eventKind: AirbnbEmailEventKind;
   confirmationCode: string | null;
   enrichedFields: unknown;
+  payload?: unknown;
   createdAt: Date;
 };
 
@@ -97,6 +107,7 @@ export function pickGuestNameFromReservationEmailEvents(input: {
   for (const event of orderEventsForDisplayGuestName(eligible)) {
     const name = extractGuestNameFromReservationEmailEvent({
       enrichedFields: event.enrichedFields,
+      payload: event.payload,
     });
     if (name) return name;
   }
@@ -125,6 +136,7 @@ export async function getAirbnbEnrichedGuestNameByReservationIds(
         eventKind: true,
         confirmationCode: true,
         enrichedFields: true,
+        payload: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },
