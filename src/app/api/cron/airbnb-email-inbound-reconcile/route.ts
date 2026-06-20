@@ -7,6 +7,7 @@ import { runUnlinkedEmailEnrichmentRetryJob } from "@/modules/airbnb-email/match
 import { runAirbnbEmailLinkageRepairJob } from "@/modules/airbnb-email/repair/run-linkage-repair-job";
 import { runMisclassifiedConfirmationRepairJob } from "@/modules/airbnb-email/repair/run-misclassified-confirmation-repair-job";
 import { runZeroAmountFinancialBackfillJob } from "@/modules/airbnb-email/repair/run-zero-amount-financial-backfill-job";
+import { runPlaceholderGuestNameBackfillJob } from "@/modules/airbnb-email/repair/run-placeholder-guest-name-backfill-job";
 import { syncGuestMessageActivitiesForFeed } from "@/modules/reservation-activity/services/sync-guest-message-activities";
 import { db } from "@/lib/db";
 
@@ -56,6 +57,10 @@ export async function GET(request: Request) {
 
   const linkageRepair = await runAirbnbEmailLinkageRepairJob();
 
+  const placeholderGuestNameBackfill = await runPlaceholderGuestNameBackfillJob({
+    limit: 40,
+  });
+
   const misclassifiedRepair = await runMisclassifiedConfirmationRepairJob({
     limit: 40,
   });
@@ -86,6 +91,8 @@ export async function GET(request: Request) {
     linkageRepairScanned: linkageRepair.scanned,
     linkageRepairRelocated: linkageRepair.relocated,
     linkageRepairFinancialBackfilled: linkageRepair.financialBackfilled,
+    placeholderGuestNameScanned: placeholderGuestNameBackfill.scanned,
+    placeholderGuestNameApplied: placeholderGuestNameBackfill.applied,
     misclassifiedRepairScanned: misclassifiedRepair.scanned,
     misclassifiedRepairRepaired: misclassifiedRepair.repaired,
     misclassifiedRepairFinancialBackfilled: misclassifiedRepair.financialBackfilled,
@@ -103,6 +110,7 @@ export async function GET(request: Request) {
     resend,
     retry,
     linkageRepair,
+    placeholderGuestNameBackfill,
     misclassifiedRepair,
     zeroAmountBackfill,
     health,
