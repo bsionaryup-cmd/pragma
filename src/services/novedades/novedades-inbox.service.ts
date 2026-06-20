@@ -20,6 +20,9 @@ import type {
 } from "@/services/novedades/novedades-inbox.types";
 import { buildNovedadesReservationDetail } from "@/services/novedades/novedades-timeline.service";
 import { listNovedadesUnlinkedInquiryItems } from "@/services/novedades/novedades-unlinked-inquiry.service";
+import {
+  buildInboxHistoryConsolidationContext,
+} from "@/services/novedades/inbox-history-consolidation.service";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { detectInboxMessageIntent, inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
 
@@ -147,19 +150,57 @@ export async function getNovedadesInboxSnapshot(
   scope: TenantDataScope,
   limit = 80,
 ): Promise<NovedadesInboxSnapshot> {
-  const [items, unlinkedInquiries] = await Promise.all([
+  const [items, rawInquiries] = await Promise.all([
     listNovedadesInboxItems(scope, limit),
     listNovedadesUnlinkedInquiryItems(scope, 40),
   ]);
 
-  const latestAt = [items[0]?.latestAt, unlinkedInquiries[0]?.latestAt]
+  const consolidation = await buildInboxHistoryConsolidationContext(scope, rawInquiries);
+  const unlinkedInquiries = rawInquiries.filter(
+    (row) => !consolidation.absorbedInquiryIds.has(row.pendingActivityId),
+  );
+
+  const mergedItems = items.map((item) => {
+    const matches = consolidation.matchesByReservationId.get(item.reservationId) ?? [];
+    if (matches.length === 0) return item;
+
+    const inquiryRows = matches
+      .map((match) => consolidation.inquiryByPendingId.get(match.pendingActivityId))
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+    const latestInquiryAt = inquiryRows
+      .map((row) => row.latestAt)
+      .sort((a, b) => b.localeCompare(a))[0];
+    const latestAt =
+      latestInquiryAt && latestInquiryAt.localeCompare(item.latestAt) > 0
+        ? latestInquiryAt
+        : item.latestAt;
+
+    const resolvedGuestName = matches[0]?.resolvedGuestName ?? item.guestName;
+
+    return {
+      ...item,
+      guestName: resolvedGuestName,
+      guestInitials: guestInitialsFromName(resolvedGuestName),
+      latestAt,
+      latestTimeLabel: formatOperationalRelativeTime(latestAt),
+      eventCount: item.eventCount + inquiryRows.length,
+    };
+  });
+
+  const inquiryToReservationMap = Object.fromEntries(
+    consolidation.plan.matches.map((match) => [match.pendingActivityId, match.reservationId]),
+  );
+
+  const latestAt = [mergedItems[0]?.latestAt, unlinkedInquiries[0]?.latestAt]
     .filter((value): value is string => Boolean(value))
     .sort((a, b) => b.localeCompare(a))[0] ?? null;
 
   return {
-    items,
+    items: mergedItems.sort((a, b) => b.latestAt.localeCompare(a.latestAt)),
     unlinkedInquiries,
     latestAt,
+    inquiryToReservationMap,
   };
 }
 

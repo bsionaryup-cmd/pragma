@@ -24,13 +24,29 @@ export default async function NovedadesPage({ searchParams }: NovedadesPageProps
 
   const reservationId = params.reservation ?? null;
   const inquiryId = params.inquiry ?? null;
-  const validSelectedId =
-    reservationId &&
-    snapshot.items.some((item) => item.reservationId === reservationId)
-      ? reservationId
+  const absorbedReservationId =
+    inquiryId && snapshot.inquiryToReservationMap[inquiryId]
+      ? snapshot.inquiryToReservationMap[inquiryId]
       : null;
+
+  const validSelectedId = (() => {
+    if (
+      reservationId &&
+      snapshot.items.some((item) => item.reservationId === reservationId)
+    ) {
+      return reservationId;
+    }
+    if (
+      absorbedReservationId &&
+      snapshot.items.some((item) => item.reservationId === absorbedReservationId)
+    ) {
+      return absorbedReservationId;
+    }
+    return null;
+  })();
   const validSelectedInquiryId =
     inquiryId &&
+    !absorbedReservationId &&
     snapshot.unlinkedInquiries.some((item) => item.pendingActivityId === inquiryId)
       ? inquiryId
       : null;

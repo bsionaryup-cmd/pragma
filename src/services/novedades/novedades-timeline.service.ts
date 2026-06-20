@@ -46,6 +46,13 @@ import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 import type { QuickMessageType } from "@/lib/reservations/quick-messages";
 import { quickMessageButtonLabel } from "@/lib/reservations/quick-message-templates";
 import { formatPayoutAmount } from "@/services/novedades/operational-feed.present";
+import {
+  buildAbsorbedInquiryTimelineEntry,
+} from "@/services/novedades/inbox-history-consolidation";
+import {
+  buildInboxHistoryConsolidationContext,
+} from "@/services/novedades/inbox-history-consolidation.service";
+import { listNovedadesUnlinkedInquiryItems } from "@/services/novedades/novedades-unlinked-inquiry.service";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   PENDING: "pendiente",
@@ -423,7 +430,7 @@ export async function buildNovedadesReservationDetail(
     accessCode,
   };
 
-  const [feedCards, accessCredentials, accessEvents, tasks] = await Promise.all([
+  const [feedCards, accessCredentials, accessEvents, tasks, rawInquiries] = await Promise.all([
     listOperationalFeedCardsForReservation(scope, reservationId),
     db.accessCredential.findMany({
       where: { reservationId },
@@ -458,7 +465,43 @@ export async function buildNovedadesReservationDetail(
         completedAt: true,
       },
     }),
+    listNovedadesUnlinkedInquiryItems(scope, 40),
   ]);
+
+  const consolidation = await buildInboxHistoryConsolidationContext(scope, rawInquiries);
+  const absorbedMatches = consolidation.matchesByReservationId.get(reservationId) ?? [];
+  const absorbedInquiryEntries: NovedadesTimelineEntry[] = absorbedMatches
+    .map((match) => {
+      const inquiry = consolidation.inquiryByPendingId.get(match.pendingActivityId);
+      if (!inquiry) return null;
+      const base = buildAbsorbedInquiryTimelineEntry({
+        pendingActivityId: inquiry.pendingActivityId,
+        createdAt: inquiry.latestAt,
+        narrative: inquiry.latestNarrative,
+        guestName: match.resolvedGuestName,
+      });
+      const entry: NovedadesTimelineEntry = {
+        id: base.id,
+        kind: base.kind,
+        title: base.title,
+        narrative: base.narrative,
+        priority: "normal",
+        createdAt: base.createdAt,
+        timeLabel: formatTimeLabel(base.createdAt),
+        messageBody: base.messageBody,
+      };
+      if (entry.messageBody) {
+        entry.suggestedReplies = buildGuestMessageReplyActions({
+          messageBody: entry.messageBody,
+          messageData,
+          templates,
+          registrationLink,
+          accessCode,
+        });
+      }
+      return entry;
+    })
+    .filter((entry): entry is NovedadesTimelineEntry => Boolean(entry));
 
   const feedEntries = feedCards
     .flatMap((card) => cardToTimelineEntries(card, timelineCtx));
@@ -552,6 +595,7 @@ export async function buildNovedadesReservationDetail(
   }
 
   const entries = dedupeTimelineEntries([
+    ...absorbedInquiryEntries,
     ...milestoneEntries,
     ...feedEntries,
     ...accessEntries,

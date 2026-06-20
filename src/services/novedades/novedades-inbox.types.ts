@@ -97,6 +97,8 @@ export type NovedadesInboxSnapshot = {
   /** Consultas Airbnb sin reserva vinculada (actividades pendientes). */
   unlinkedInquiries: NovedadesUnlinkedInquiryItem[];
   latestAt: string | null;
+  /** Consultas absorbidas en el hilo de una reserva (pendingId → reservationId). */
+  inquiryToReservationMap: Record<string, string>;
 };
 
 export type NovedadesUnlinkedInquiryItem = {
