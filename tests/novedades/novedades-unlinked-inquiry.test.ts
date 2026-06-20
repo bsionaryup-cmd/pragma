@@ -6,6 +6,7 @@ import {
   parseInquiryDateRangeFromSubject,
   parseInquiryPropertyFromSubject,
   resolveInquiryGuestName,
+  resolveInquiryNarrative,
   shouldIncludePendingInquiry,
 } from "@/services/novedades/novedades-unlinked-inquiry.logic";
 
@@ -43,6 +44,31 @@ describe("novedades unlinked inquiry", () => {
       }),
       "María López",
     );
+  });
+
+  it("resuelve nombre desde cuerpo del mensaje (escribió)", () => {
+    assert.equal(
+      resolveInquiryGuestName({
+        senderName: null,
+        subject: "Consulta sobre Loft 4P",
+        narrative: null,
+        auditGuestName: null,
+        content:
+          'Juan escribió:\n"Hola, me interesa el loft para esas fechas. ¿Está disponible?"',
+      }),
+      "Juan",
+    );
+  });
+
+  it("decodifica entidades HTML en narrativa de consulta", () => {
+    const narrative = resolveInquiryNarrative({
+      content: "Hola, Samuel, &iquest;c&oacute;mo est&aacute;s? Queremos reservar.",
+      subject: "Consulta sobre Loft 4P",
+      senderName: null,
+      auditGuestName: null,
+    });
+    assert.match(narrative ?? "", /¿cómo estás\?/);
+    assert.doesNotMatch(narrative ?? "", /&iquest;|&aacute;|&oacute;/);
   });
 
   it("incluye mensajes de consulta con cuerpo parseable", () => {

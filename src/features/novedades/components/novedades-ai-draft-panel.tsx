@@ -1,7 +1,12 @@
 "use client";
 
-import { Copy, Loader2, Sparkles } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Copy, Loader2 } from "lucide-react";
+import {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   generateInboxAiDraftAction,
@@ -12,19 +17,34 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
+export type NovedadesAiDraftPanelHandle = {
+  generate: () => Promise<void>;
+  copy: () => Promise<void>;
+  getDraftText: () => string;
+  isGenerating: () => boolean;
+};
+
 type NovedadesAiDraftPanelProps = {
   reservationId: string;
   guestMessageId: string;
   guestMessageBody: string;
   className?: string;
+  hideInlineTrigger?: boolean;
 };
 
-export function NovedadesAiDraftPanel({
-  reservationId,
-  guestMessageId,
-  guestMessageBody,
-  className,
-}: NovedadesAiDraftPanelProps) {
+export const NovedadesAiDraftPanel = forwardRef<
+  NovedadesAiDraftPanelHandle,
+  NovedadesAiDraftPanelProps
+>(function NovedadesAiDraftPanel(
+  {
+    reservationId,
+    guestMessageId,
+    guestMessageBody,
+    className,
+    hideInlineTrigger = false,
+  },
+  ref,
+) {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [draftText, setDraftText] = useState("");
   const [intentLabel, setIntentLabel] = useState<string | null>(null);
@@ -82,7 +102,6 @@ export function NovedadesAiDraftPanel({
         toast.error(result.error ?? "No se pudo guardar");
         return;
       }
-      toast.success("Borrador guardado");
     } catch {
       toast.error("No se pudo guardar el borrador");
     } finally {
@@ -102,31 +121,30 @@ export function NovedadesAiDraftPanel({
       if (draftId) {
         void recordInboxAiDraftCopiedAction(draftId);
       }
-      toast.success("Borrador copiado — pégalo en Airbnb");
+      toast.success("Respuesta copiada");
     } catch {
       toast.error("No se pudo copiar");
     }
   }, [draftId, draftText]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      generate: handleGenerate,
+      copy: handleCopy,
+      getDraftText: () => draftText,
+      isGenerating: () => generating,
+    }),
+    [draftText, generating, handleCopy, handleGenerate],
+  );
+
+  if (hideInlineTrigger && !expanded) {
+    return null;
+  }
+
   return (
     <div className={cn("mt-3 max-w-[min(100%,36rem)]", className)}>
-      {!expanded ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 border-primary/25 bg-primary/[0.04] text-xs font-medium text-primary hover:bg-primary/10"
-          onClick={() => void handleGenerate()}
-          disabled={generating}
-        >
-          {generating ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Generar con IA
-        </Button>
-      ) : (
+      {expanded ? (
         <div className="rounded-xl border border-primary/20 bg-module-pane/80 p-3 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +152,7 @@ export function NovedadesAiDraftPanel({
                 Borrador IA
               </span>
               {intentLabel ? (
-                <span className="rounded bg-sky-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 dark:text-sky-200">
+                <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {intentLabel}
                 </span>
               ) : null}
@@ -144,32 +162,34 @@ export function NovedadesAiDraftPanel({
                 </span>
               ) : null}
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1 px-2 text-[11px]"
-                onClick={() => void handleCopy()}
-              >
-                <Copy className="h-3 w-3" />
-                Copiar
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-[11px]"
-                onClick={() => void handleGenerate()}
-                disabled={generating}
-              >
-                {generating ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  "Regenerar"
-                )}
-              </Button>
-            </div>
+            {!hideInlineTrigger ? (
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-[11px]"
+                  onClick={() => void handleCopy()}
+                >
+                  <Copy className="h-3 w-3" />
+                  Copiar
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => void handleGenerate()}
+                  disabled={generating}
+                >
+                  {generating ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    "Regenerar"
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           <Textarea
@@ -191,7 +211,7 @@ export function NovedadesAiDraftPanel({
             ) : null}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
-}
+});

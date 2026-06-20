@@ -1,3 +1,6 @@
+import { decodeHtmlEntities } from "@/lib/text/decode-html-entities";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
+
 const PLACEHOLDER_GUEST_NAMES = new Set([
   "huésped airbnb",
   "huesped airbnb",
@@ -187,7 +190,14 @@ function filterQualityGuestMessageBodies(bodies: string[]): string[] {
 
 function inferGuestNameFromMessageContent(raw: string | null | undefined): string | null {
   if (!raw?.trim()) return null;
-  const lines = raw
+  const decoded = decodeHtmlEntities(raw);
+  const wroteMatch = decoded.match(
+    /(?:^|\n)\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,40}?)\s+escribi[oó]\s*:/i,
+  );
+  const wroteName = wroteMatch?.[1]?.trim();
+  if (wroteName && isPlausibleGuestName(wroteName)) return wroteName;
+
+  const lines = decoded
     .split(/\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
@@ -562,9 +572,10 @@ function prepareGuestMessageText(
   raw: string,
   guestName?: string | null,
 ): string {
-  const multiline = raw.includes("<")
-    ? stripMessageHtml(raw)
-    : raw.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n");
+  const decoded = decodeHtmlEntities(raw);
+  const multiline = decoded.includes("<")
+    ? stripMessageHtml(decoded)
+    : decoded.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n");
 
   return stripQuotedReplyChain(stripAirbnbEmailWrapper(multiline));
 }

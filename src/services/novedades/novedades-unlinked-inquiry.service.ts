@@ -18,7 +18,45 @@ import {
   shouldIncludePendingInquiry,
 } from "@/services/novedades/novedades-unlinked-inquiry.logic";
 import { detectInboxMessageIntent, inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
-import { extractGuestNameFromAuditPayload } from "@/services/reservations/airbnb-display-guest-name.service";
+import {
+  extractGuestNameFromAuditPayload,
+  extractGuestNameFromReservationEmailEvent,
+} from "@/services/reservations/airbnb-display-guest-name.service";
+
+function resolveInquiryGuestNameFromSources(input: {
+  senderName: string | null | undefined;
+  subject: string | null | undefined;
+  narrative: string | null | undefined;
+  content: string;
+  audit: {
+    parsedPayload: unknown;
+  } | null | undefined;
+  emailEvent: {
+    enrichedFields: unknown;
+    payload: unknown;
+  } | null | undefined;
+}): string {
+  const auditGuestName = input.audit
+    ? extractGuestNameFromAuditPayload(input.audit.parsedPayload)
+    : null;
+
+  const enrichedGuestName =
+    (input.emailEvent
+      ? extractGuestNameFromReservationEmailEvent({
+          enrichedFields: input.emailEvent.enrichedFields,
+          payload: input.emailEvent.payload,
+        })
+      : null) ?? auditGuestName;
+
+  return resolveInquiryGuestName({
+    senderName: input.senderName,
+    subject: input.subject,
+    narrative: input.narrative,
+    auditGuestName,
+    enrichedGuestName,
+    content: input.content,
+  });
+}
 
 function pendingWhere(scope: TenantDataScope): Prisma.ReservationActivityPendingWhereInput {
   if (scope.organizationId) {
@@ -68,13 +106,23 @@ export async function listNovedadesUnlinkedInquiryItems(
       id: { in: auditIds },
       reservationId: null,
     },
-    select: {
-      id: true,
-      subject: true,
-      parsedPayload: true,
-    },
+      select: {
+        id: true,
+        subject: true,
+        parsedPayload: true,
+      },
   });
   const auditById = new Map(audits.map((row) => [row.id, row]));
+
+  const emailEvents = await db.reservationEmailEvent.findMany({
+    where: { auditId: { in: auditIds } },
+    select: {
+      auditId: true,
+      enrichedFields: true,
+      payload: true,
+    },
+  });
+  const emailEventByAuditId = new Map(emailEvents.map((row) => [row.auditId, row]));
 
   const items: NovedadesUnlinkedInquiryItem[] = [];
 
@@ -105,11 +153,13 @@ export async function listNovedadesUnlinkedInquiryItems(
         auditGuestName,
       }) ?? "Mensaje del huésped";
 
-    const guestName = resolveInquiryGuestName({
+    const guestName = resolveInquiryGuestNameFromSources({
       senderName: row.senderName,
       subject,
       narrative,
-      auditGuestName,
+      content: row.content,
+      audit,
+      emailEvent: emailEventByAuditId.get(row.sourceEmailId) ?? null,
     });
 
     const latestAt = row.createdAt.toISOString();
@@ -182,6 +232,14 @@ export async function getNovedadesUnlinkedInquiryDetail(
 
   if (!audit) return null;
 
+  const emailEvent = await db.reservationEmailEvent.findFirst({
+    where: { auditId: row.sourceEmailId },
+    select: {
+      enrichedFields: true,
+      payload: true,
+    },
+  });
+
   const subject = row.rawSubject ?? audit.subject;
   const auditGuestName = extractGuestNameFromAuditPayload(audit.parsedPayload);
 
@@ -205,11 +263,13 @@ export async function getNovedadesUnlinkedInquiryDetail(
       auditGuestName,
     }) ?? "Mensaje del huésped";
 
-  const guestName = resolveInquiryGuestName({
+  const guestName = resolveInquiryGuestNameFromSources({
     senderName: row.senderName,
     subject,
     narrative,
-    auditGuestName,
+    content: row.content,
+    audit,
+    emailEvent,
   });
 
   const latestAt = row.createdAt.toISOString();

@@ -2,16 +2,33 @@
 
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { toast } from "sonner";
+import { InboxActionBar } from "@/features/novedades/components/inbox-action-bar";
+import {
+  InboxDetailTabs,
+  type InboxDetailTab,
+} from "@/features/novedades/components/inbox-detail-tabs";
+import { InboxStatusBadge } from "@/features/novedades/components/inbox-status-badge";
+import {
+  NovedadesAiDraftPanel,
+  type NovedadesAiDraftPanelHandle,
+} from "@/features/novedades/components/novedades-ai-draft-panel";
 import { NovedadesCopyActions } from "@/features/novedades/components/novedades-copy-actions";
-import { NovedadesAiDraftPanel } from "@/features/novedades/components/novedades-ai-draft-panel";
+import {
+  displayInboxGuestName,
+  displayInboxText,
+  extractInboxUnitLabel,
+  formatInboxDateRangeLabel,
+} from "@/features/novedades/lib/inbox-display";
+import { groupInboxActivityEntries } from "@/features/novedades/lib/inbox-activity-grouping";
+import { resolveInboxThreadStatus } from "@/features/novedades/lib/inbox-thread-status";
 import type {
   NovedadesReservationDetail,
   NovedadesTimelineEntry,
   NovedadesTimelineKind,
 } from "@/services/novedades/novedades-inbox.types";
 import { moduleShellClasses } from "@/components/layout/module-shell";
-import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/helpers/date";
 import { cn } from "@/lib/utils";
@@ -22,26 +39,23 @@ type NovedadesTimelinePanelProps = {
   onBack?: () => void;
 };
 
-const KIND_META: Record<
-  NovedadesTimelineKind,
-  { label: string; tone: string }
-> = {
-  RESERVATION_CREATED: { label: "Reserva confirmada", tone: "text-emerald-700 dark:text-emerald-300" },
-  NEW_RESERVATION: { label: "Reserva confirmada", tone: "text-emerald-700 dark:text-emerald-300" },
-  MODIFICATION_REQUEST: { label: "Solicitud de cambio", tone: "text-amber-700 dark:text-amber-300" },
-  MODIFICATION_APPROVED: { label: "Cambio confirmado", tone: "text-amber-700 dark:text-amber-300" },
-  RESERVATION_UPDATED: { label: "Actualización", tone: "text-muted-foreground" },
-  STAY_EXTENDED: { label: "Extensión", tone: "text-muted-foreground" },
-  RESERVATION_CANCELLED: { label: "Cancelación", tone: "text-red-700 dark:text-red-300" },
-  GUEST_MESSAGE: { label: "Mensaje del huésped", tone: "text-sky-700 dark:text-sky-300" },
-  PAYMENT_CONFIRMED: { label: "Pago recibido", tone: "text-violet-700 dark:text-violet-300" },
-  PAYOUT_SENT: { label: "Desembolso Airbnb", tone: "text-violet-700 dark:text-violet-300" },
-  GUEST_REGISTRATION: { label: "Registro", tone: "text-muted-foreground" },
-  ACCESS_CODE: { label: "Acceso", tone: "text-muted-foreground" },
-  CHECK_IN: { label: "Check-in", tone: "text-muted-foreground" },
-  CHECK_OUT: { label: "Check-out", tone: "text-muted-foreground" },
-  TASK: { label: "Tarea", tone: "text-muted-foreground" },
-  ALERT: { label: "Requiere atención", tone: "text-amber-700 dark:text-amber-300" },
+const KIND_META: Record<NovedadesTimelineKind, { label: string }> = {
+  RESERVATION_CREATED: { label: "Reserva confirmada" },
+  NEW_RESERVATION: { label: "Reserva confirmada" },
+  MODIFICATION_REQUEST: { label: "Solicitud de cambio" },
+  MODIFICATION_APPROVED: { label: "Cambio confirmado" },
+  RESERVATION_UPDATED: { label: "Actualización" },
+  STAY_EXTENDED: { label: "Extensión" },
+  RESERVATION_CANCELLED: { label: "Cancelación" },
+  GUEST_MESSAGE: { label: "Mensaje del huésped" },
+  PAYMENT_CONFIRMED: { label: "Pago recibido" },
+  PAYOUT_SENT: { label: "Desembolso Airbnb" },
+  GUEST_REGISTRATION: { label: "Registro" },
+  ACCESS_CODE: { label: "Acceso" },
+  CHECK_IN: { label: "Check-in" },
+  CHECK_OUT: { label: "Check-out" },
+  TASK: { label: "Tarea" },
+  ALERT: { label: "Requiere atención" },
 };
 
 const MONEY_KINDS = new Set<NovedadesTimelineKind>([
@@ -86,18 +100,18 @@ function GuestMessageRow({
   guestName,
   reservationId,
   isLast,
+  draftRef,
 }: {
   entry: NovedadesTimelineEntry;
   guestName: string;
   reservationId: string;
   isLast: boolean;
+  draftRef?: RefObject<NovedadesAiDraftPanelHandle | null>;
 }) {
   return (
     <li className={cn("pb-6", isLast && "pb-1")}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">
-          Mensaje del huésped
-        </span>
+        <span className="text-xs font-medium text-muted-foreground">{guestName}</span>
         <time
           className="text-[11px] tabular-nums text-muted-foreground"
           dateTime={entry.createdAt}
@@ -106,64 +120,94 @@ function GuestMessageRow({
         </time>
       </div>
       <div className="max-w-[min(100%,36rem)]">
-        <p className="mb-1 text-[11px] font-medium text-muted-foreground">{guestName}</p>
-        <div className="rounded-2xl rounded-tl-sm border border-primary/20 bg-pragma-soft-cyan/40 px-4 py-3 shadow-sm dark:bg-primary/[0.08]">
+        <div className="rounded-2xl rounded-tl-sm border border-border/80 bg-module-pane px-4 py-3">
           <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground">
-            {entry.messageBody}
+            {displayInboxText(entry.messageBody)}
           </p>
         </div>
       </div>
       {entry.suggestedReplies && entry.suggestedReplies.length > 0 ? (
-        <div className="mt-3 max-w-[min(100%,36rem)]">
-          <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-            Sugerencia de respuesta
-          </p>
-          <NovedadesCopyActions actions={entry.suggestedReplies} compact />
-        </div>
+        <details className="mt-3 max-w-[min(100%,36rem)]">
+          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">
+            Más respuestas sugeridas
+          </summary>
+          <div className="mt-2">
+            <NovedadesCopyActions actions={entry.suggestedReplies} compact />
+          </div>
+        </details>
       ) : null}
-      {entry.messageBody ? (
+      {entry.messageBody && isLast ? (
         <NovedadesAiDraftPanel
+          ref={draftRef}
           reservationId={reservationId}
           guestMessageId={entry.id}
           guestMessageBody={entry.messageBody}
+          hideInlineTrigger
         />
       ) : null}
     </li>
   );
 }
 
-function ActivityRow({
-  entry,
-  isLast,
+function ActivityGroupRow({
+  group,
+  expanded,
+  onToggle,
 }: {
-  entry: NovedadesTimelineEntry;
-  isLast: boolean;
+  group: ReturnType<typeof groupInboxActivityEntries>[number];
+  expanded: boolean;
+  onToggle: () => void;
 }) {
-  const meta = KIND_META[entry.kind];
-  const showAmount = Boolean(entry.amountLabel) && MONEY_KINDS.has(entry.kind);
+  const meta = KIND_META[group.kind];
+  const showAmount =
+    Boolean(group.amountLabel) && MONEY_KINDS.has(group.kind) && group.count === 1;
 
   return (
-    <li className={cn("relative pb-4", isLast && "pb-1")}>
-      <div className="flex gap-3">
+    <li className="rounded-lg border border-border/60 bg-module-pane/50">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start gap-3 px-3 py-3 text-left"
+      >
         <time
-          className="w-14 shrink-0 pt-0.5 text-right text-[11px] tabular-nums text-muted-foreground sm:w-16"
-          dateTime={entry.createdAt}
+          className="w-14 shrink-0 pt-0.5 text-right text-[11px] tabular-nums text-muted-foreground"
+          dateTime={group.latestAt}
         >
-          {formatTimeOnly(entry.createdAt)}
+          {formatTimeOnly(group.latestAt)}
         </time>
-
-        <article className="min-w-0 flex-1 rounded-lg border border-border/70 bg-module-pane/80 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className={cn("text-[11px] font-semibold", meta.tone)}>{meta.label}</span>
+            <span className="text-sm font-medium text-foreground">
+              {group.count > 1 ? group.title : meta.label}
+            </span>
             {showAmount ? (
               <span className="text-xs font-semibold tabular-nums text-foreground">
-                {entry.amountLabel}
+                {group.amountLabel}
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-sm leading-snug text-muted-foreground">{entry.narrative}</p>
-        </article>
-      </div>
+          <p className="mt-1 text-sm leading-snug text-muted-foreground">
+            {group.narrative}
+          </p>
+          {group.count > 1 ? (
+            <span className="mt-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+              {expanded ? "Ocultar" : "Mostrar más"}
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")} />
+            </span>
+          ) : null}
+        </div>
+      </button>
+      {expanded && group.count > 1 ? (
+        <ul className="space-y-2 border-t border-border/60 px-3 py-2">
+          {group.entries.map((entry) => (
+            <li key={entry.id} className="text-xs text-muted-foreground">
+              <span className="tabular-nums">{formatTimeOnly(entry.createdAt)}</span>
+              {" · "}
+              {entry.narrative}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </li>
   );
 }
@@ -173,8 +217,11 @@ export function NovedadesTimelinePanel({
   loading = false,
   onBack,
 }: NovedadesTimelinePanelProps) {
-  const [activityOpen, setActivityOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<InboxDetailTab>("messages");
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef<NovedadesAiDraftPanelHandle>(null);
+  const [generating, setGenerating] = useState(false);
 
   const { guestMessages, activityEntries } = useMemo(() => {
     if (!detail) {
@@ -192,21 +239,82 @@ export function NovedadesTimelinePanel({
     () => groupEntriesByDay(guestMessages),
     [guestMessages],
   );
-  const activityDayGroups = useMemo(
-    () => groupEntriesByDay(activityEntries),
+  const activityGroups = useMemo(
+    () => groupInboxActivityEntries(activityEntries),
     [activityEntries],
   );
+  const activityDayGroups = useMemo(() => {
+    const byDay = new Map<string, ReturnType<typeof groupInboxActivityEntries>>();
+    for (const group of activityGroups) {
+      const day = formatDayLabel(group.latestAt);
+      const list = byDay.get(day) ?? [];
+      list.push(group);
+      byDay.set(day, list);
+    }
+    return [...byDay.entries()].map(([dayLabel, groups]) => ({ dayLabel, groups }));
+  }, [activityGroups]);
+
+  const lastGuestMessage = guestMessages[guestMessages.length - 1] ?? null;
+  const guestName = detail ? displayInboxGuestName(detail.guestName) : "";
+  const unitLabel = detail ? extractInboxUnitLabel(detail.propertyLabel) : null;
+  const dateRange = detail ? formatInboxDateRangeLabel(detail.dateRangeLabel) : null;
+  const threadStatus = detail
+    ? resolveInboxThreadStatus({
+        isInquiry: false,
+        reservationStatus: detail.reservationStatus,
+        stayStage: detail.stayStage,
+      })
+    : "reservada";
 
   useEffect(() => {
     const node = messagesScrollRef.current;
-    if (!node || guestMessages.length === 0) return;
+    if (!node || guestMessages.length === 0 || activeTab !== "messages") return;
     node.scrollTop = node.scrollHeight;
-  }, [detail?.reservationId, guestMessages.length]);
+  }, [detail?.reservationId, guestMessages.length, activeTab]);
+
+  useEffect(() => {
+    setActiveTab("messages");
+    setExpandedGroups({});
+  }, [detail?.reservationId]);
+
+  const handleGenerateAi = async () => {
+    if (!draftRef.current) {
+      toast.error("No hay mensaje del huésped para responder");
+      return;
+    }
+    setGenerating(true);
+    try {
+      await draftRef.current.generate();
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    const draftText = draftRef.current?.getDraftText()?.trim();
+    if (draftText) {
+      await draftRef.current?.copy();
+      return;
+    }
+
+    const fallback = detail?.copyMessageActions[0]?.messageText?.trim();
+    if (!fallback) {
+      toast.error("Genera una respuesta con IA o usa una plantilla");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(fallback);
+      toast.success("Respuesta copiada");
+    } catch {
+      toast.error("No se pudo copiar");
+    }
+  };
 
   if (loading && !detail) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-        Cargando historial…
+        Cargando conversación…
       </div>
     );
   }
@@ -236,32 +344,16 @@ export function NovedadesTimelinePanel({
             </Button>
           ) : null}
 
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground">
-            {detail.guestInitials}
-          </div>
-
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-lg font-semibold text-foreground">
-                {detail.guestName}
-              </h2>
-              <ReservationSourceBadge platform={detail.platform} size="sm" />
+              <h2 className="truncate text-lg font-semibold text-foreground">{guestName}</h2>
+              <InboxStatusBadge status={threadStatus} />
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {detail.propertyLabel} · {detail.dateRangeLabel}
+              {unitLabel ?? detail.propertyLabel}
+              {dateRange ? ` · ${dateRange}` : ""}
               {detail.confirmationCode ? ` · ${detail.confirmationCode}` : ""}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-foreground">
-                {detail.stayStage}
-              </span>
-              <span className="text-xs text-muted-foreground">{detail.statusLabel}</span>
-              {detail.totalAmountLabel ? (
-                <span className="rounded-md bg-emerald-500/10 px-2 py-1 text-sm font-semibold tabular-nums text-emerald-800 dark:text-emerald-200">
-                  {detail.totalAmountLabel}
-                </span>
-              ) : null}
-            </div>
           </div>
 
           <Link
@@ -272,91 +364,96 @@ export function NovedadesTimelinePanel({
             <ExternalLink className="h-3.5 w-3.5" />
           </Link>
         </div>
-
-        <div className="mt-4 rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-3">
-          <p className="mb-2 text-xs font-medium text-foreground">
-            Copiar mensaje — pega en Airbnb o WhatsApp
-          </p>
-          <NovedadesCopyActions actions={detail.copyMessageActions} />
-        </div>
       </header>
+
+      <InboxDetailTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        activityCount={activityEntries.length}
+      />
 
       <div
         ref={messagesScrollRef}
-        className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-module-canvas/60 px-4 py-6"
+        className={cn(
+          "pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-module-canvas/40 px-4 py-6",
+          activeTab !== "messages" && "hidden",
+        )}
       >
         <div className="mx-auto max-w-3xl space-y-8">
-          <section>
-            <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Mensajes del huésped
-            </h3>
-            {guestMessages.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border/80 bg-module-pane/50 px-4 py-8 text-center text-sm text-muted-foreground">
-                Aún no hay mensajes legibles del huésped en esta reserva.
-              </p>
-            ) : (
-              <div className="space-y-8">
-                {guestDayGroups.map((group) => (
-                  <div key={group.dayLabel}>
-                    <p className="mb-4 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {group.dayLabel}
-                    </p>
-                    <ol className="space-y-1">
-                      {group.entries.map((entry, index) => (
-                        <GuestMessageRow
-                          key={entry.id}
-                          entry={entry}
-                          guestName={detail.guestName}
-                          reservationId={detail.reservationId}
-                          isLast={index === group.entries.length - 1}
-                        />
-                      ))}
-                    </ol>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {activityEntries.length > 0 ? (
-            <section>
-              <button
-                type="button"
-                onClick={() => setActivityOpen((open) => !open)}
-                className="mb-4 flex w-full items-center justify-between gap-2 rounded-lg border border-border/70 bg-module-pane/60 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:bg-module-pane"
-              >
-                <span>Actividad de la reserva ({activityEntries.length})</span>
-                <ChevronDown
-                  className={cn(
-                    "h-4 w-4 shrink-0 transition-transform",
-                    activityOpen && "rotate-180",
-                  )}
-                />
-              </button>
-              {activityOpen ? (
-                <div className="space-y-6">
-                  {activityDayGroups.map((group) => (
-                    <div key={group.dayLabel}>
-                      <p className="mb-3 text-center text-[11px] font-medium text-muted-foreground">
-                        {group.dayLabel}
-                      </p>
-                      <ol className="space-y-1">
-                        {group.entries.map((entry, index) => (
-                          <ActivityRow
-                            key={entry.id}
-                            entry={entry}
-                            isLast={index === group.entries.length - 1}
-                          />
-                        ))}
-                      </ol>
-                    </div>
+          {guestMessages.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/80 bg-module-pane/50 px-4 py-10 text-center text-sm text-muted-foreground">
+              Aún no hay mensajes del huésped en esta conversación.
+            </p>
+          ) : (
+            guestDayGroups.map((group) => (
+              <div key={group.dayLabel}>
+                <p className="mb-4 text-center text-[11px] font-medium text-muted-foreground">
+                  {group.dayLabel}
+                </p>
+                <ol className="space-y-1">
+                  {group.entries.map((entry) => (
+                    <GuestMessageRow
+                      key={entry.id}
+                      entry={entry}
+                      guestName={guestName}
+                      reservationId={detail.reservationId}
+                      isLast={entry.id === lastGuestMessage?.id}
+                      draftRef={entry.id === lastGuestMessage?.id ? draftRef : undefined}
+                    />
                   ))}
-                </div>
-              ) : null}
-            </section>
-          ) : null}
+                </ol>
+              </div>
+            ))
+          )}
         </div>
       </div>
+
+      <div
+        className={cn(
+          "pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-module-canvas/40 px-4 py-6",
+          activeTab !== "activity" && "hidden",
+        )}
+      >
+        <div className="mx-auto max-w-3xl space-y-6">
+          {activityEntries.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-border/80 bg-module-pane/50 px-4 py-10 text-center text-sm text-muted-foreground">
+              Sin actividad registrada para esta reserva.
+            </p>
+          ) : (
+            activityDayGroups.map((group) => (
+              <div key={group.dayLabel}>
+                <p className="mb-3 text-center text-[11px] font-medium text-muted-foreground">
+                  {group.dayLabel}
+                </p>
+                <ol className="space-y-2">
+                  {group.groups.map((activityGroup) => (
+                    <ActivityGroupRow
+                      key={activityGroup.id}
+                      group={activityGroup}
+                      expanded={Boolean(expandedGroups[activityGroup.id])}
+                      onToggle={() =>
+                        setExpandedGroups((current) => ({
+                          ...current,
+                          [activityGroup.id]: !current[activityGroup.id],
+                        }))
+                      }
+                    />
+                  ))}
+                </ol>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {activeTab === "messages" ? (
+        <InboxActionBar
+          onGenerateAi={lastGuestMessage ? () => void handleGenerateAi() : undefined}
+          onCopy={() => void handleCopy()}
+          generating={generating}
+          airbnbHref="https://www.airbnb.com/hosting/inbox"
+        />
+      ) : null}
     </div>
   );
 }

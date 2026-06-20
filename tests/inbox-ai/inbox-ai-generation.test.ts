@@ -171,4 +171,25 @@ describe("inbox ai generation", () => {
       }
     }
   });
+
+  it("uses responsible fallback when parking context is missing", async () => {
+    const previous = process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+
+    try {
+      const result = await generateInboxAiDraftText({
+        context: baseContext,
+        guestMessageBody: "¿Hay parqueadero disponible?",
+        intent: "PARKING",
+      });
+
+      assert.equal(result.provider, "template");
+      assert.match(result.text, /verificar|revisar|confirmamos/i);
+      assert.doesNotMatch(result.text, /suele haber opciones/i);
+    } finally {
+      if (previous !== undefined) {
+        process.env.OPENAI_API_KEY = previous;
+      }
+    }
+  });
 });

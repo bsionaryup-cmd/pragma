@@ -14,9 +14,10 @@ import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 const SYSTEM_PROMPT = `Eres un asistente de hospitalidad para anfitriones de alquiler vacacional en Colombia.
 REGLAS ESTRICTAS:
 - Lee el hilo completo y responde PRIMERO a la pregunta concreta del huésped (mensaje marcado como objetivo).
-- Usa los hechos confirmados, la base de conocimiento y las plantillas operativas del anfitrión.
+- Usa SOLO los hechos confirmados, la base de conocimiento y las plantillas operativas del anfitrión.
 - Incluye detalles útiles de la propiedad cuando el huésped pregunta por ubicación, acceso, WiFi, horarios o reglas.
-- Si falta información en "Información NO disponible", dilo con naturalidad y ofrece confirmar — NO inventes direcciones, POIs, precios ni horarios.
+- Si falta información en "Información NO disponible", NO inventes direcciones, POIs, precios, horarios ni políticas.
+  Responde con honestidad que verificarás y confirmarás en breve.
 - No des respuestas genéricas tipo "lo reviso con el equipo" si ya tienes datos concretos en el contexto.
 - No repitas check-in/WiFi si el huésped preguntó otra cosa, salvo que sea relevante para su duda.
 - Tono cálido, profesional, español Colombia. Texto plano listo para Airbnb (sin markdown).
@@ -29,6 +30,88 @@ export type InboxAiGenerationResult = {
   provider: InboxAiGenerationProvider;
   model: string | null;
 };
+
+function guestFirstName(context: InboxAiContext): string {
+  return context.reservation.guestName.split(/\s+/)[0] || "huésped";
+}
+
+function hasSufficientContextForIntent(
+  intent: InboxAiIntent,
+  context: InboxAiContext,
+): boolean {
+  const facts = context.knownFacts;
+  const knowledge = context.knowledge.sections;
+
+  switch (intent) {
+    case "WIFI":
+      return Boolean(
+        facts.wifiName || knowledge.some((section) => section.type === "WIFI"),
+      );
+    case "ACCESS":
+      return Boolean(facts.accessCode || facts.accessInstructions);
+    case "LOCATION":
+      return Boolean(facts.propertyAddress || facts.neighborhood || facts.city);
+    case "CHECK_IN":
+    case "EARLY_CHECKIN":
+      return Boolean(
+        facts.checkInTime || facts.propertyAddress || facts.accessInstructions,
+      );
+    case "CHECK_OUT":
+    case "LATE_CHECKOUT":
+      return Boolean(facts.checkOutTime);
+    case "HOUSE_RULES":
+      return Boolean(facts.houseRules);
+    case "PAYMENT":
+      return Boolean(facts.totalAmount || context.reservation.paymentStatus);
+    case "PARKING":
+    case "HOT_WATER":
+    case "DISCOUNT":
+    case "COMPLAINT":
+    case "EMERGENCY":
+    case "OTHER":
+      return false;
+    default:
+      return context.missingFacts.length <= 1;
+  }
+}
+
+function buildResponsibleFallbackReply(input: {
+  context: InboxAiContext;
+  intent: InboxAiIntent;
+  guestMessageBody: string;
+}): string {
+  const firstName = guestFirstName(input.context);
+  const question = input.guestMessageBody.trim().toLowerCase();
+
+  if (input.intent === "EARLY_CHECKIN" || input.intent === "CHECK_IN") {
+    if (input.context.knownFacts.checkInTime) {
+      return `Hola ${firstName}, gracias por escribir. El check-in es desde las ${input.context.knownFacts.checkInTime}. Voy a confirmar si podemos acomodar tu solicitud y te respondo enseguida.`;
+    }
+  }
+
+  if (
+    /urgente|emergencia|problema|no funciona|roto|aver/i.test(question) ||
+    input.intent === "EMERGENCY" ||
+    input.intent === "COMPLAINT"
+  ) {
+    return `Hola ${firstName}, con gusto te ayudamos. Vamos a revisar tu solicitud y te responderemos lo antes posible.`;
+  }
+
+  return `Hola ${firstName}, gracias por escribirnos. Permítenos verificar esa información y enseguida te confirmamos.`;
+}
+
+function isGenericAiReply(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (normalized.length > 180) return false;
+  if (/wifi|calle|direcci|check-?in|check-?out|c[oó]digo|clave|\d{1,2}:\d{2}/i.test(text)) {
+    return false;
+  }
+  return (
+    /gracias por (tu mensaje|escribir)/i.test(text) ||
+    /entendemos tu consulta/i.test(text) ||
+    /lo reviso con el equipo/i.test(text)
+  );
+}
 
 function truncateForReply(text: string, max = 100): string {
   const trimmed = text.trim();
@@ -78,12 +161,43 @@ function buildLocationReply(input: {
   return lines;
 }
 
+function buildAvailabilityReply(input: {
+  context: InboxAiContext;
+  guestMessageBody: string;
+}): string | null {
+  const question = input.guestMessageBody.trim().toLowerCase();
+  if (
+    !/disponib|fechas|extender|adelant|antes de|otra fecha|\d{1,2}\s*al\s*\d{1,2}/i.test(
+      question,
+    )
+  ) {
+    return null;
+  }
+
+  const firstName = guestFirstName(input.context);
+  return `Hola ${firstName}, gracias por escribir. Revisaré la disponibilidad para las fechas que mencionas y te confirmo en breve.`;
+}
+
 function buildContextualTemplateReply(input: {
   context: InboxAiContext;
   guestMessageBody: string;
   intent: InboxAiIntent;
   priorMessages: Array<{ body: string }>;
 }): string {
+  const availabilityReply = buildAvailabilityReply({
+    context: input.context,
+    guestMessageBody: input.guestMessageBody,
+  });
+  if (availabilityReply) return availabilityReply;
+
+  if (!hasSufficientContextForIntent(input.intent, input.context)) {
+    return buildResponsibleFallbackReply({
+      context: input.context,
+      intent: input.intent,
+      guestMessageBody: input.guestMessageBody,
+    });
+  }
+
   const guestName =
     input.context.reservation.guestName.split(/\s+/)[0] || "huésped";
   const facts = input.context.knowledge.sections;
@@ -111,9 +225,11 @@ function buildContextualTemplateReply(input: {
       lines.push("Te confirmo los datos de WiFi en un momento.");
     }
   } else if (input.intent === "PARKING") {
-    lines.push(
-      "Sobre parqueadero: en la zona suele haber opciones de parqueo; te confirmo la más conveniente para esta propiedad en un momento.",
-    );
+    return buildResponsibleFallbackReply({
+      context: input.context,
+      intent: input.intent,
+      guestMessageBody: input.guestMessageBody,
+    });
   } else if (input.intent === "ACCESS") {
     if (input.context.knownFacts.accessCode) {
       lines.push(`El código de acceso es ${input.context.knownFacts.accessCode}.`);
@@ -306,6 +422,21 @@ export async function generateInboxAiDraftText(input: {
           guestMessageBody: targetBody,
           intent: input.intent,
           priorMessages,
+        }),
+        provider: "template",
+        model: null,
+      };
+    }
+
+    if (
+      !hasSufficientContextForIntent(input.intent, input.context) &&
+      isGenericAiReply(text)
+    ) {
+      return {
+        text: buildResponsibleFallbackReply({
+          context: input.context,
+          intent: input.intent,
+          guestMessageBody: targetBody,
         }),
         provider: "template",
         model: null,

@@ -6,10 +6,13 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getNovedadesReservationDetailAction, getNovedadesUnlinkedInquiryDetailAction } from "@/features/novedades/actions/novedades.actions";
-import { NovedadesInboxListItem } from "@/features/novedades/components/novedades-inbox-list-item";
-import { NovedadesUnlinkedInquiryListItem } from "@/features/novedades/components/novedades-unlinked-inquiry-list-item";
+import { InboxListItem } from "@/features/novedades/components/inbox-list-item";
 import { NovedadesUnlinkedInquiryPanel } from "@/features/novedades/components/novedades-unlinked-inquiry-panel";
 import { NovedadesTimelinePanel } from "@/features/novedades/components/novedades-timeline-panel";
+import {
+  buildUnifiedInboxThreads,
+  filterUnifiedInboxThreads,
+} from "@/features/novedades/lib/inbox-unified-list";
 import { moduleShellClasses } from "@/components/layout/module-shell";
 import { Input } from "@/components/ui/input";
 import type {
@@ -19,7 +22,7 @@ import type {
 } from "@/services/novedades/novedades-inbox.types";
 import { cn } from "@/lib/utils";
 
-type InboxQuickFilter = "all" | "messages" | "pending";
+type InboxQuickFilter = "all" | "pending";
 
 type NovedadesInboxProps = {
   items: NovedadesInboxListItemType[];
@@ -63,34 +66,23 @@ export function NovedadesInbox({
   const [detailLoading, setDetailLoading] = useState(false);
   const openedInitialRef = useRef(false);
 
-  const filtered = useMemo(() => {
-    let list = items;
+  const unifiedThreads = useMemo(
+    () => buildUnifiedInboxThreads({ items, unlinkedInquiries }),
+    [items, unlinkedInquiries],
+  );
 
-    if (quickFilter === "messages") {
-      list = list.filter((item) => item.latestKind === "GUEST_MESSAGE");
-    } else if (quickFilter === "pending") {
-      list = list.filter((item) => item.attentionCount > 0);
-    }
-
-    const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((item) => {
-      return (
-        item.guestName.toLowerCase().includes(q) ||
-        item.propertyLabel.toLowerCase().includes(q) ||
-        item.latestNarrative.toLowerCase().includes(q) ||
-        (item.confirmationCode?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [items, query, quickFilter]);
+  const filteredThreads = useMemo(
+    () =>
+      filterUnifiedInboxThreads(unifiedThreads, {
+        query,
+        pendingOnly: quickFilter === "pending",
+      }),
+    [unifiedThreads, query, quickFilter],
+  );
 
   const pendingCount = useMemo(
-    () => items.filter((item) => item.attentionCount > 0).length,
-    [items],
-  );
-  const messageCount = useMemo(
-    () => items.filter((item) => item.latestKind === "GUEST_MESSAGE").length,
-    [items],
+    () => unifiedThreads.filter((thread) => thread.attentionCount > 0).length,
+    [unifiedThreads],
   );
 
   const loadDetail = useCallback(async (reservationId: string) => {
@@ -104,25 +96,12 @@ export function NovedadesInbox({
       setDetail(result.detail);
       return result.detail;
     } catch {
-      toast.error("No se pudo cargar la actividad de la reserva");
+      toast.error("No se pudo cargar la conversación");
       return null;
     } finally {
       setDetailLoading(false);
     }
   }, []);
-
-  const filteredInquiries = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return unlinkedInquiries;
-    return unlinkedInquiries.filter((item) => {
-      return (
-        item.guestName.toLowerCase().includes(q) ||
-        item.propertyLabel.toLowerCase().includes(q) ||
-        item.latestNarrative.toLowerCase().includes(q) ||
-        (item.subject?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [unlinkedInquiries, query]);
 
   const loadInquiryDetail = useCallback(async (pendingActivityId: string) => {
     setDetailLoading(true);
@@ -164,6 +143,17 @@ export function NovedadesInbox({
     [loadDetail, router],
   );
 
+  const selectThread = useCallback(
+    (thread: (typeof filteredThreads)[number]) => {
+      if (thread.kind === "inquiry") {
+        void selectInquiry(thread.threadId);
+        return;
+      }
+      void selectReservation(thread.threadId);
+    },
+    [selectInquiry, selectReservation],
+  );
+
   useEffect(() => {
     if (openedInitialRef.current) return;
     openedInitialRef.current = true;
@@ -182,15 +172,25 @@ export function NovedadesInbox({
     const targetId =
       initialSelectedId && items.some((item) => item.reservationId === initialSelectedId)
         ? initialSelectedId
-        : items[0]?.reservationId ?? null;
+        : items[0]?.reservationId ?? unlinkedInquiries[0]?.pendingActivityId ?? null;
 
-    if (targetId) {
-      void selectReservation(targetId);
+    if (!targetId) return;
+
+    if (unlinkedInquiries.some((item) => item.pendingActivityId === targetId)) {
+      void selectInquiry(targetId);
+      return;
     }
+
+    void selectReservation(targetId);
   }, [initialSelectedId, initialSelectedInquiryId, items, unlinkedInquiries, selectInquiry, selectReservation]);
 
   const showListOnMobile = isMobile && !selectedId && !selectedInquiryId;
   const showDetailOnMobile = isMobile && Boolean(selectedId || selectedInquiryId);
+
+  const isThreadActive = (thread: (typeof filteredThreads)[number]) =>
+    thread.kind === "inquiry"
+      ? selectedInquiryId === thread.threadId
+      : selectedId === thread.threadId;
 
   return (
     <div className={cn("flex h-full min-h-0 w-full overflow-hidden", moduleShellClasses.canvas)}>
@@ -203,9 +203,10 @@ export function NovedadesInbox({
       >
         <header className={cn("shrink-0 space-y-3 px-3 py-3", moduleShellClasses.paneHeader)}>
           <div className="min-w-0">
-            <h1 className="text-base font-semibold tracking-tight">Novedades</h1>
+            <h1 className="text-base font-semibold tracking-tight">Bandeja de entrada</h1>
             <p className="text-xs text-muted-foreground">
-              {filtered.length} reserva{filtered.length === 1 ? "" : "s"} con actividad
+              {filteredThreads.length} conversación
+              {filteredThreads.length === 1 ? "" : "es"}
             </p>
           </div>
 
@@ -214,7 +215,7 @@ export function NovedadesInbox({
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar huésped o propiedad…"
+              placeholder="Buscar huésped o apartamento…"
               className="h-8 pl-8 pr-8 text-sm"
             />
             {query ? (
@@ -231,8 +232,7 @@ export function NovedadesInbox({
           <div className="flex flex-wrap gap-1.5">
             {(
               [
-                { id: "all" as const, label: "Todas", count: items.length },
-                { id: "messages" as const, label: "Mensajes", count: messageCount },
+                { id: "all" as const, label: "Todas", count: unifiedThreads.length },
                 { id: "pending" as const, label: "Pendientes", count: pendingCount },
               ] as const
             ).map((tab) => (
@@ -257,60 +257,24 @@ export function NovedadesInbox({
         </header>
 
         <div className="pragma-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          {filtered.length === 0 && filteredInquiries.length === 0 ? (
+          {filteredThreads.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1 px-3 py-12 text-center">
-              <p className="text-sm font-medium text-foreground">Sin actividad</p>
+              <p className="text-sm font-medium text-foreground">Sin conversaciones</p>
               <p className="max-w-[240px] text-xs text-muted-foreground">
                 {query || quickFilter !== "all"
                   ? "Prueba otra búsqueda o quita el filtro."
-                  : "Cuando haya reservas, pagos o mensajes importantes, aparecerán aquí."}
+                  : "Cuando lleguen mensajes o consultas, aparecerán aquí."}
               </p>
             </div>
           ) : (
-            <>
-              {filteredInquiries.length > 0 ? (
-                <section>
-                  <div className="sticky top-0 z-10 border-b border-border/70 bg-module-pane/95 px-3 py-2 backdrop-blur-sm">
-                    <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Consultas sin reserva
-                    </h2>
-                    <p className="text-[10px] text-muted-foreground">
-                      {filteredInquiries.length} conversación
-                      {filteredInquiries.length === 1 ? "" : "es"} previa
-                      {filteredInquiries.length === 1 ? "" : "s"} a reservar
-                    </p>
-                  </div>
-                  {filteredInquiries.map((item) => (
-                    <NovedadesUnlinkedInquiryListItem
-                      key={item.pendingActivityId}
-                      item={item}
-                      isActive={selectedInquiryId === item.pendingActivityId}
-                      onSelect={() => void selectInquiry(item.pendingActivityId)}
-                    />
-                  ))}
-                </section>
-              ) : null}
-
-              {filtered.length > 0 ? (
-                <section>
-                  {filteredInquiries.length > 0 ? (
-                    <div className="sticky top-0 z-10 border-b border-border/70 bg-module-pane/95 px-3 py-2 backdrop-blur-sm">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Reservas con actividad
-                      </h2>
-                    </div>
-                  ) : null}
-                  {filtered.map((item) => (
-                    <NovedadesInboxListItem
-                      key={item.reservationId}
-                      item={item}
-                      isActive={selectedId === item.reservationId}
-                      onSelect={() => void selectReservation(item.reservationId)}
-                    />
-                  ))}
-                </section>
-              ) : null}
-            </>
+            filteredThreads.map((thread) => (
+              <InboxListItem
+                key={`${thread.kind}-${thread.threadId}`}
+                thread={thread}
+                isActive={isThreadActive(thread)}
+                onSelect={() => selectThread(thread)}
+              />
+            ))
           )}
         </div>
       </aside>
@@ -352,12 +316,10 @@ export function NovedadesInbox({
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-            <p className="text-sm font-medium text-foreground">
-              Selecciona una reserva
-            </p>
+            <p className="text-sm font-medium text-foreground">Selecciona una conversación</p>
             <p className="max-w-sm text-xs text-muted-foreground">
-              Aquí verás el historial completo: reserva, pagos, mensajes, registro,
-              acceso y tareas — sin ruido ni eventos técnicos.
+              Aquí verás mensajes del huésped y la actividad de la reserva, sin ruido ni eventos
+              técnicos.
             </p>
             <Link href="/reservations" className="text-xs font-medium text-primary hover:underline">
               Ir al módulo de reservas

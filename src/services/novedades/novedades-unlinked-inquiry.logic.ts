@@ -1,5 +1,6 @@
 import { ReservationActivityType } from "@prisma/client";
 import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
+import { decodeHtmlEntities } from "@/lib/text/decode-html-entities";
 import {
   resolveGuestMessageBodiesForDisplay,
   resolveGuestMessageParseName,
@@ -54,23 +55,85 @@ export function parseInquiryPropertyFromSubject(
   return null;
 }
 
+const REJECTED_INQUIRY_GUEST_RE =
+  /^(consulta\s+airbnb|airbnb\s+inquiry|sin\s+reserva|hu[eé]sped\s+airbnb|airbnb|consulta)$/i;
+
+function isRejectedInquiryGuestLabel(name: string | null | undefined): boolean {
+  const trimmed = name?.trim();
+  if (!trimmed) return true;
+  return REJECTED_INQUIRY_GUEST_RE.test(trimmed);
+}
+
+function acceptInquiryGuestName(name: string | null | undefined): string | null {
+  const decoded = decodeHtmlEntities(name?.trim() ?? "");
+  if (!decoded || isRejectedInquiryGuestLabel(decoded)) return null;
+  if (!isPlausibleGuestName(decoded)) return null;
+  return decoded;
+}
+
+function extractGuestNameFromInquirySubject(
+  subject: string | null | undefined,
+): string | null {
+  const decoded = decodeHtmlEntities(subject?.trim() ?? "");
+  if (!decoded) return null;
+
+  const preapprovalMatch = decoded.match(
+    /preaprobaci[oó]n para\s+(.+?)(?:\s+para|\s*,|$)/i,
+  );
+  const preapprovalName = acceptInquiryGuestName(preapprovalMatch?.[1]?.trim());
+  if (preapprovalName) return preapprovalName;
+
+  const consultaDeMatch = decoded.match(
+    /consulta\s+(?:de|from)\s+([A-Za-zÀ-ÿ][\s'A-Za-zÀ-ÿ.-]{2,50}?)(?:\s+sobre|\s+para|,|$)/i,
+  );
+  const consultaDeName = acceptInquiryGuestName(consultaDeMatch?.[1]?.trim());
+  if (consultaDeName) return consultaDeName;
+
+  const mensajeDeMatch = decoded.match(
+    /mensaje\s+de\s+([A-Za-zÀ-ÿ][\s'A-Za-zÀ-ÿ.-]{2,50}?)(?:\s+sobre|,|$)/i,
+  );
+  const mensajeDeName = acceptInquiryGuestName(mensajeDeMatch?.[1]?.trim());
+  if (mensajeDeName) return mensajeDeName;
+
+  return null;
+}
+
+function extractGuestNameFromInquiryContent(
+  content: string | null | undefined,
+): string | null {
+  const decoded = decodeHtmlEntities(content?.trim() ?? "");
+  if (!decoded) return null;
+
+  const wroteMatch = decoded.match(
+    /(?:^|\n)\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{1,40}?)\s+escribi[oó]\s*:/i,
+  );
+  const wroteName = acceptInquiryGuestName(wroteMatch?.[1]?.trim());
+  if (wroteName) return wroteName;
+
+  const parseName = resolveGuestMessageParseName({ raw: decoded });
+  return acceptInquiryGuestName(parseName);
+}
+
 export function resolveInquiryGuestName(input: {
   senderName: string | null | undefined;
   subject: string | null | undefined;
   narrative: string | null | undefined;
   auditGuestName: string | null | undefined;
+  enrichedGuestName?: string | null | undefined;
+  content?: string | null | undefined;
 }): string {
-  const auditName = input.auditGuestName?.trim();
-  if (auditName && isPlausibleGuestName(auditName)) return auditName;
+  const candidates = [
+    input.enrichedGuestName,
+    input.auditGuestName,
+    extractGuestNameFromInquirySubject(input.subject),
+    extractGuestNameFromInquiryContent(input.content ?? input.narrative),
+    input.senderName,
+  ];
 
-  const sender = input.senderName?.trim();
-  if (sender && isPlausibleGuestName(sender)) return sender;
-
-  const preapprovalMatch = input.subject?.match(
-    /preaprobaci[oó]n para\s+(.+?)(?:\s+para|\s*,|$)/i,
-  );
-  const preapprovalName = preapprovalMatch?.[1]?.trim();
-  if (preapprovalName && isPlausibleGuestName(preapprovalName)) return preapprovalName;
+  for (const candidate of candidates) {
+    const name = acceptInquiryGuestName(candidate);
+    if (name) return name;
+  }
 
   return "Consulta Airbnb";
 }
@@ -82,7 +145,8 @@ export function formatInquiryPropertyLabel(input: {
 }): string {
   const name = input.propertyName?.trim();
   const unit = input.unitNumber?.trim();
-  if (name) return unit ? `${name} ${unit}` : name;
+  if (unit && name) return `${unit} — ${name}`;
+  if (name) return name;
   return parseInquiryPropertyFromSubject(input.subject) ?? "Propiedad por confirmar";
 }
 
@@ -105,10 +169,13 @@ export function resolveInquiryNarrative(input: {
   const bodies = resolveGuestMessageBodiesForDisplay(input.content, {
     guestName: parseGuestName,
   });
-  if (bodies.length > 0) return bodies[bodies.length - 1]!;
+  if (bodies.length > 0) {
+    return decodeHtmlEntities(bodies[bodies.length - 1]!);
+  }
 
   if (isPreReservationInquirySubject(input.subject)) {
-    return input.subject?.trim() ?? null;
+    const subject = input.subject?.trim();
+    return subject ? decodeHtmlEntities(subject) : null;
   }
 
   return null;

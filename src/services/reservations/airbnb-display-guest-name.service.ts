@@ -48,11 +48,20 @@ export function extractGuestNameFromReservationEmailEvent(input: {
   return null;
 }
 
-export function extractGuestNameFromAuditPayload(parsedPayload: unknown): string | null {
+export function extractGuestNameFromAuditPayload(
+  parsedPayload: unknown,
+  enrichedFields?: unknown,
+): string | null {
+  const fromEnriched = readJsonFieldAsString(enrichedFields, "guestName");
+  if (isDisplayableGuestName(fromEnriched)) return fromEnriched;
+
   if (!parsedPayload || typeof parsedPayload !== "object" || Array.isArray(parsedPayload)) {
     return null;
   }
   const payload = parsedPayload as Record<string, unknown>;
+  const fromPayloadEnriched = readJsonFieldAsString(payload.enrichedFields, "guestName");
+  if (isDisplayableGuestName(fromPayloadEnriched)) return fromPayloadEnriched;
+
   const fromSignals = readGuestNameFromSignals(payload.signals);
   if (isDisplayableGuestName(fromSignals)) return fromSignals;
   return null;

@@ -15,8 +15,8 @@ export default function NovedadesLoading() {
                 key={index}
                 className="border-b border-border/70 px-3 py-3"
               >
-                <div className="flex gap-2.5">
-                  <div className="h-9 w-9 shrink-0 rounded-full bg-muted" />
+                <div className="flex gap-3">
+                  <div className="h-14 w-14 shrink-0 rounded-lg bg-muted" />
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="h-3.5 w-32 rounded bg-muted" />
                     <div className="h-3 w-full rounded bg-muted/80" />
