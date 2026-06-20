@@ -86,8 +86,15 @@ const reservationsNavItem: NavItem = {
 const novedadesNavItem: NavItem = {
   labelKey: "nav.novedades",
   href: "/novedades",
-  icon: "bell",
+  icon: "message-circle",
   permission: "reservations:read",
+};
+
+const integrationsNavItem: NavItem = {
+  labelKey: "nav.integrations",
+  href: "/integrations",
+  icon: "ribbon",
+  permission: "integrations:read",
 };
 
 const calendarNavItem: NavItem = {
@@ -170,11 +177,6 @@ const configurationNavGroup: Omit<NavGroupModule, "children"> = {
 };
 
 const configurationNavChildren: NavChildLink[] = [
-  {
-    labelKey: "nav.integrations",
-    href: "/integrations",
-    permission: "integrations:read",
-  },
   {
     labelKey: "nav.users",
     href: "/users",
@@ -305,12 +307,12 @@ export function getNavigationModulesForRole(
     modules.push(navLinkModule(panelNavItem));
   }
 
-  if (navLinkAllowed(reservationsNavItem, role, plan)) {
-    modules.push(navLinkModule(reservationsNavItem));
-  }
-
   if (navLinkAllowed(novedadesNavItem, role, plan)) {
     modules.push(navLinkModule(novedadesNavItem));
+  }
+
+  if (navLinkAllowed(reservationsNavItem, role, plan)) {
+    modules.push(navLinkModule(reservationsNavItem));
   }
 
   if (navLinkAllowed(calendarNavItem, role, plan)) {
@@ -319,18 +321,6 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(tasksNavItem, role, plan)) {
     modules.push(navLinkModule(tasksNavItem));
-  }
-
-  if (navLinkAllowed(propertiesNavItem, role, plan)) {
-    modules.push(navLinkModule(propertiesNavItem));
-  }
-
-  if (navLinkAllowed(accessCodesNavItem, role, plan)) {
-    modules.push(navLinkModule(accessCodesNavItem));
-  }
-
-  if (navLinkAllowed(revenueNavItem, role, plan)) {
-    modules.push(navLinkModule(revenueNavItem));
   }
 
   if (
@@ -347,19 +337,23 @@ export function getNavigationModulesForRole(
     }
   }
 
-  const configurationChildren: NavChildLink[] = [];
-
-  if (hasPermission(role, "integrations:read")) {
-    configurationChildren.push(
-      ...filterNavChildren(
-        configurationNavChildren.filter((child) =>
-          child.href.startsWith("/integrations"),
-        ),
-        role,
-        plan,
-      ),
-    );
+  if (navLinkAllowed(propertiesNavItem, role, plan)) {
+    modules.push(navLinkModule(propertiesNavItem));
   }
+
+  if (navLinkAllowed(integrationsNavItem, role, plan)) {
+    modules.push(navLinkModule(integrationsNavItem));
+  }
+
+  if (navLinkAllowed(accessCodesNavItem, role, plan)) {
+    modules.push(navLinkModule(accessCodesNavItem));
+  }
+
+  if (navLinkAllowed(revenueNavItem, role, plan)) {
+    modules.push(navLinkModule(revenueNavItem));
+  }
+
+  const configurationChildren: NavChildLink[] = [];
 
   const usersChild = configurationNavChildren.find(
     (child) => child.href === "/users",
