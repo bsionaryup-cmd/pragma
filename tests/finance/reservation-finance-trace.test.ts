@@ -185,7 +185,7 @@ describe("pickFinanceRevenueEmailEventsByQuality", () => {
     checkOut: "2026-06-23",
   });
 
-  it("prefers CONFIRMED with authoritative Ganas over UPDATED with corrupt stored payout", () => {
+  it("Karla: keeps stale CONFIRMED when UPDATED reminder has no parseable Ganas", () => {
     const reservationId = "karla-res";
     const statusById = new Map([[reservationId, ReservationStatus.CHECKED_IN]]);
     const metaById = new Map([[reservationId, meta("HM4SPXSTS2")]]);
@@ -243,6 +243,72 @@ describe("pickFinanceRevenueEmailEventsByQuality", () => {
       sources,
     );
     assert.equal(amount, 807137.83);
+  });
+
+  it("Karla: newer UPDATED with parsed revised Ganas beats stale CONFIRMED", () => {
+    const reservationId = "karla-res-updated";
+    const statusById = new Map([[reservationId, ReservationStatus.CHECKED_IN]]);
+    const metaById = new Map([[reservationId, meta("HM4SPXSTS2")]]);
+    const updatedText = KARLA_TEXT.replace("807.137,83", "1.023.779,89").replace(
+      "4 noches",
+      "5 noches",
+    );
+    const rows = [
+      {
+        reservationId,
+        eventKind: AirbnbEmailEventKind.UPDATED,
+        enrichedFields: { hostPayoutAmount: 1023779.89 },
+        payload: {
+          signals: {
+            hostPayoutAmount: 1023779.89,
+            guestTotalPaid: 1255324,
+            emailMatchBlob: updatedText,
+          },
+        },
+        processedAt: "2026-06-16T20:01:37.127Z",
+        rawEmail: { text: updatedText, html: `<div>${updatedText}</div>` },
+      },
+      {
+        reservationId,
+        eventKind: AirbnbEmailEventKind.CONFIRMED,
+        enrichedFields: null,
+        payload: {
+          signals: {
+            grossAmount: 247421,
+            emailMatchBlob: KARLA_TEXT,
+          },
+        },
+        processedAt: "2026-05-28T01:38:02.304Z",
+        rawEmail: { text: KARLA_TEXT, html: `<div>${KARLA_TEXT}</div>` },
+      },
+    ];
+
+    const picked = pickFinanceRevenueEmailEventsByQuality(rows, statusById, metaById);
+    assert.equal(picked.get(reservationId)?.eventKind, AirbnbEmailEventKind.UPDATED);
+
+    const sources = buildReservationRevenueSourcesFromEmailEvent({
+      enrichedFields: picked.get(reservationId)!.enrichedFields,
+      payload: picked.get(reservationId)!.payload,
+      confirmationCode: "HM4SPXSTS2",
+      checkIn: "2026-06-18",
+      checkOut: "2026-06-23",
+      emailHtml: picked.get(reservationId)!.rawEmail?.html ?? null,
+      emailText: picked.get(reservationId)!.rawEmail?.text ?? null,
+    });
+    assert.equal(
+      resolveFinanceReservationRevenueAmount(
+        {
+          totalAmount: 807137.83,
+          platform: "AIRBNB",
+          icalUid: "ical-1",
+          reservationCode: "HM4SPXSTS2",
+          checkIn: "2026-06-18",
+          checkOut: "2026-06-23",
+        },
+        sources,
+      ),
+      1023779.89,
+    );
   });
 
   it("Roberto: blob-only confirmation wins over empty global-style rawEmail", () => {
@@ -415,8 +481,8 @@ describe("pickFinanceRevenueEmailEventsByQuality", () => {
     );
   });
 
-  it("prefers independent authoritative Ganas over UPDATED echoing corrupt stored payout", () => {
-    const reservationId = "karla-res";
+  it("still prefers CONFIRMED when UPDATED only echoes corrupt stored payout without parse", () => {
+    const reservationId = "karla-res-corrupt";
     const statusById = new Map([[reservationId, ReservationStatus.CHECKED_IN]]);
     const metaById = new Map([[reservationId, meta("HM4SPXSTS2")]]);
     const rows = [
@@ -428,13 +494,11 @@ describe("pickFinanceRevenueEmailEventsByQuality", () => {
           signals: {
             hostPayoutAmount: 1023779.89,
             guestTotalPaid: 1255324,
-            emailMatchBlob: KARLA_TEXT.replace("807.137,83", "1.023.779,89"),
+            emailMatchBlob: TRUNCATED_BLOB,
           },
         },
         processedAt: "2026-06-16T20:01:37.127Z",
-        rawEmail: {
-          text: KARLA_TEXT.replace("807.137,83", "1.023.779,89"),
-        },
+        rawEmail: { html: "<div>Recordatorio check-in sin Ganas</div>" },
       },
       {
         reservationId,

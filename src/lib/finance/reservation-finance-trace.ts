@@ -161,10 +161,14 @@ function compareFinanceRevenueCandidates(
   if (aHasAuth !== bHasAuth) return bHasAuth - aHasAuth;
 
   if (aHasAuth === 1 && bHasAuth === 1) {
+    // Modificaciones de estadía publican montos nuevos en emails posteriores (UPDATED/EXTENDED).
+    if (a.processedAtMs !== b.processedAtMs) {
+      return b.processedAtMs - a.processedAtMs;
+    }
     if (a.authoritativeIndependent !== b.authoritativeIndependent) {
       return Number(b.authoritativeIndependent) - Number(a.authoritativeIndependent);
     }
-    return b.processedAtMs - a.processedAtMs;
+    return (b.authoritativeHostPayout ?? 0) - (a.authoritativeHostPayout ?? 0);
   }
 
   if (a.hasHtml !== b.hasHtml) return Number(b.hasHtml) - Number(a.hasHtml);
