@@ -324,3 +324,67 @@ export async function getCurrentStays(scope: TenantDataScope, limit = 20) {
   });
   return attachPanelReservationEnrichment(reservations);
 }
+
+export type TodayPanelCounts = {
+  arrivals: number;
+  departures: number;
+};
+
+export async function getTodayPanelCounts(scope: TenantDataScope): Promise<TodayPanelCounts> {
+  const today = startOfDay();
+
+  const [arrivals, departures] = await Promise.all([
+    db.reservation.count({
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          checkIn: today,
+          status: { not: ReservationStatus.CANCELLED },
+        }),
+      ),
+    }),
+    db.reservation.count({
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          checkOut: today,
+          status: { not: ReservationStatus.CANCELLED },
+        }),
+      ),
+    }),
+  ]);
+
+  return { arrivals, departures };
+}
+
+export async function getTodayArrivals(scope: TenantDataScope, limit = 8) {
+  const today = startOfDay();
+
+  const reservations = await db.reservation.findMany({
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        checkIn: today,
+        status: { not: ReservationStatus.CANCELLED },
+      }),
+    ),
+    include: panelReservationInclude,
+    orderBy: { checkIn: "asc" },
+    take: limit,
+  });
+  return attachPanelReservationEnrichment(reservations);
+}
+
+export async function getTodayDepartures(scope: TenantDataScope, limit = 8) {
+  const today = startOfDay();
+
+  const reservations = await db.reservation.findMany({
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        checkOut: today,
+        status: { not: ReservationStatus.CANCELLED },
+      }),
+    ),
+    include: panelReservationInclude,
+    orderBy: { checkOut: "asc" },
+    take: limit,
+  });
+  return attachPanelReservationEnrichment(reservations);
+}

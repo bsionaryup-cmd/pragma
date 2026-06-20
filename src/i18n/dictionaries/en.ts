@@ -3,7 +3,7 @@ import type { Dictionary } from "@/i18n/types";
 export const en = {
   common: {
     appName: "PRAGMA",
-    commandCenter: "Airbnb Host Command Center",
+    commandCenter: "Operations center",
     loading: "Loading…",
     save: "Save",
     cancel: "Cancel",
@@ -23,7 +23,7 @@ export const en = {
     trendFlat: "Flat",
   },
   nav: {
-    overview: "Overview",
+    overview: "Today",
     operations: "Operations",
     reservations: "Reservations",
     novedades: "Inbox",
@@ -61,8 +61,9 @@ export const en = {
     en: "English",
   },
   dashboard: {
-    eyebrow: "Control Panel",
-    greeting: "Hi, {{name}}. Your Airbnb operation at a glance.",
+    eyebrow: "Today",
+    greeting: "Hi, {{name}}. Your operation at a glance.",
+    greetingWithAttention: "Hi, {{name}}. {{count}} items need your attention.",
     alertsButton: "Alerts",
     novedadesButton: "PRAGMA notices",
     novedades: {
@@ -96,13 +97,32 @@ export const en = {
     sections: {
       operational: "Operational summary",
       operationalDesc: "Today's priorities and the next 7 days.",
+      today: "Today",
+      todayDesc: "Arrivals and departures scheduled for today.",
+      upcoming: "Upcoming stays",
+      upcomingDesc: "Arrivals, departures, and in-stay guests over the next 7 days.",
       calendar: "Daily activity",
       calendarDesc: "Arrivals, departures, and guests in stay.",
-      alerts: "Alerts",
-      alertsDesc: "Issues that require action.",
+      alerts: "Needs attention",
+      alertsDesc: "Items that require action now.",
       activity: "Recent activity",
       activityDesc: "Latest events in your operation.",
     },
+    today: {
+      arrivals: "Arriving today",
+      departures: "Departing today",
+      emptyArrivals: "No arrivals scheduled for today.",
+      emptyDepartures: "No departures scheduled for today.",
+    },
+    attention: {
+      messages: "{{count}} message(s) need a reply",
+      registration: "{{count}} guest registration(s) pending",
+      ttlock: "{{count}} access item(s) pending",
+      payment: "Pending income needs follow-up",
+      cleaning: "{{count}} cleaning task(s) pending",
+      sync: "Calendar sync needs review",
+    },
+    financeSummaryDesc: "Same source as Finance · current month.",
     operational: {
       checkIns: "Upcoming check-ins",
       checkOuts: "Upcoming check-outs",
@@ -136,9 +156,10 @@ export const en = {
       cleaningDelayed: "Cleaning delayed",
       syncFailure: "Sync failure",
       conflict: "Calendar conflict",
-      none: "No critical alerts",
+      none: "All clear. Nothing needs attention right now.",
     },
     activity: {
+      viewAll: "Open inbox",
       reservation: "New reservation",
       checkIn: "Check-in",
       checkOut: "Check-out",

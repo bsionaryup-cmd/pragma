@@ -1,7 +1,7 @@
 export const es = {
   common: {
     appName: "PRAGMA",
-    commandCenter: "Centro de operación Airbnb",
+    commandCenter: "Centro de operaciones",
     loading: "Cargando…",
     save: "Guardar",
     cancel: "Cancelar",
@@ -22,7 +22,7 @@ export const es = {
     trendFlat: "Estable",
   },
   nav: {
-    overview: "Panel de Control",
+    overview: "HOY",
     operations: "Operaciones",
     reservations: "Reservas",
     novedades: "Bandeja de entrada",
@@ -60,8 +60,10 @@ export const es = {
     en: "English",
   },
   dashboard: {
-    eyebrow: "Panel de Control",
-    greeting: "Hola, {{name}}. Tu operación Airbnb en un vistazo.",
+    eyebrow: "HOY",
+    greeting: "Hola, {{name}}. Tu operación en un vistazo.",
+    greetingWithAttention:
+      "Hola, {{name}}. {{count}} elementos requieren tu atención.",
     alertsButton: "Alertas",
     novedadesButton: "Avisos PRAGMA",
     novedades: {
@@ -95,13 +97,32 @@ export const es = {
     sections: {
       operational: "Resumen operativo",
       operationalDesc: "Prioridades del día y próximos 7 días.",
+      today: "Hoy",
+      todayDesc: "Llegadas y salidas programadas para hoy.",
+      upcoming: "Próximas estancias",
+      upcomingDesc: "Llegadas, salidas y huéspedes alojados en los próximos 7 días.",
       calendar: "Actividad diaria",
       calendarDesc: "Llegadas, salidas y huéspedes alojados.",
-      alerts: "Alertas",
-      alertsDesc: "Incidencias que requieren acción.",
+      alerts: "Atención requerida",
+      alertsDesc: "Elementos que necesitan acción ahora.",
       activity: "Actividad reciente",
       activityDesc: "Últimos eventos en tu operación.",
     },
+    today: {
+      arrivals: "Llegan hoy",
+      departures: "Salen hoy",
+      emptyArrivals: "No hay llegadas programadas para hoy.",
+      emptyDepartures: "No hay salidas programadas para hoy.",
+    },
+    attention: {
+      messages: "{{count}} mensaje(s) requieren respuesta",
+      registration: "{{count}} registro(s) de huésped pendiente(s)",
+      ttlock: "{{count}} acceso(s) pendiente(s)",
+      payment: "Ingresos pendientes por confirmar",
+      cleaning: "{{count}} limpieza(s) pendiente(s)",
+      sync: "Sincronización de calendario requiere revisión",
+    },
+    financeSummaryDesc: "Misma información que Finanzas · mes en curso.",
     operational: {
       checkIns: "Próximas llegadas",
       checkOuts: "Próximas salidas",
@@ -135,9 +156,10 @@ export const es = {
       cleaningDelayed: "Limpieza retrasada",
       syncFailure: "Fallo de sincronización",
       conflict: "Conflicto de calendario",
-      none: "Sin alertas críticas",
+      none: "Todo al día. No hay elementos que requieran atención.",
     },
     activity: {
+      viewAll: "Ver bandeja",
       reservation: "Nueva reserva",
       checkIn: "Llegada",
       checkOut: "Salida",

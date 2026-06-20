@@ -29,7 +29,8 @@ type PanelTab = "arrivals" | "departures" | "current";
 type PanelReservationsTableProps = {
   tab: PanelTab;
   rows: PanelReservationRow[];
-  downloadLabel: string;
+  downloadLabel?: string;
+  compactFooter?: boolean;
 };
 
 function guestTotal(row: PanelReservationRow) {
@@ -94,6 +95,7 @@ export function PanelReservationsTable({
   tab,
   rows,
   downloadLabel,
+  compactFooter = false,
 }: PanelReservationsTableProps) {
   const { t } = useI18n();
   const router = useRouter();
@@ -107,7 +109,7 @@ export function PanelReservationsTable({
 
   const openReservation = useCallback(
     (reservationId: string) => {
-      router.push(`/reservations?reservation=${reservationId}`);
+      router.push(`/novedades?reservation=${reservationId}`);
     },
     [router],
   );
@@ -265,33 +267,37 @@ export function PanelReservationsTable({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-full border-border bg-card shadow-none"
-            disabled
-            aria-label="Página anterior"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 rounded-full border-border bg-card shadow-none"
-            disabled
-            aria-label="Página siguiente"
-          />
+      {!compactFooter ? (
+        <div className="flex flex-col gap-3 border-t border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-border bg-card shadow-none"
+              disabled
+              aria-label="Página anterior"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-8 w-8 rounded-full border-border bg-card shadow-none"
+              disabled
+              aria-label="Página siguiente"
+            />
+          </div>
+          {downloadLabel ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              <Download className="h-4 w-4" />
+              {downloadLabel}
+            </button>
+          ) : null}
         </div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
-        >
-          <Download className="h-4 w-4" />
-          {downloadLabel}
-        </button>
-      </div>
+      ) : null}
     </div>
   );
 }

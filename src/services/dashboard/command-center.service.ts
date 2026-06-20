@@ -24,12 +24,16 @@ import type { Locale } from "@/i18n/types";
 import {
   getCurrentStays,
   getPanelCounts,
+  getTodayArrivals,
+  getTodayDepartures,
+  getTodayPanelCounts,
   getUpcomingArrivals,
   getUpcomingDepartures,
   toPanelReservationRow,
   sortPanelRowsByCheckIn,
   sortPanelRowsByCheckOut,
   type PanelReservationRow,
+  type TodayPanelCounts,
 } from "@/services/dashboard/dashboard.service";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
@@ -92,6 +96,9 @@ export type CommandCenterData = {
   arrivals: PanelReservationRow[];
   departures: PanelReservationRow[];
   currentStays: PanelReservationRow[];
+  todayArrivals: PanelReservationRow[];
+  todayDepartures: PanelReservationRow[];
+  todayCounts: TodayPanelCounts;
   counts: Awaited<ReturnType<typeof getPanelCounts>>;
   totalPropertyCount: number;
 };
@@ -144,6 +151,9 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     arrivalsRaw,
     departuresRaw,
     currentRaw,
+    todayArrivalsRaw,
+    todayDeparturesRaw,
+    todayCounts,
     pendingCleaning,
     propertiesWithStaleSync,
     pendingGuestRegistration,
@@ -178,6 +188,9 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     getUpcomingArrivals(scope, 8),
     getUpcomingDepartures(scope, 8),
     getCurrentStays(scope, 8),
+    getTodayArrivals(scope, 8),
+    getTodayDepartures(scope, 8),
+    getTodayPanelCounts(scope),
     db.task.count({
       where: {
         ...taskWhere(scope),
@@ -457,6 +470,9 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     arrivals: sortPanelRowsByCheckIn(arrivalsRaw.map(toPanelReservationRow)),
     departures: sortPanelRowsByCheckOut(departuresRaw.map(toPanelReservationRow)),
     currentStays: sortPanelRowsByCheckIn(currentRaw.map(toPanelReservationRow)),
+    todayArrivals: sortPanelRowsByCheckIn(todayArrivalsRaw.map(toPanelReservationRow)),
+    todayDepartures: sortPanelRowsByCheckOut(todayDeparturesRaw.map(toPanelReservationRow)),
+    todayCounts,
     counts,
     totalPropertyCount,
   };
