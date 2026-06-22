@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, Pencil, Plus, Search, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, FileUp, Pencil, Plus, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   archiveProspectAction,
@@ -15,6 +15,7 @@ import {
   type ProspectRow,
   type ProspectStatus,
 } from "@/features/sales-console/types/prospect";
+import { ProspectImportDialog } from "@/components/sales-console/prospect-import-dialog";
 import { ProspectFormDialog } from "@/components/sales-console/prospect-form-dialog";
 import { ProspectGenerateDialog } from "@/components/sales-console/prospect-generate-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,7 @@ export function ProspectsView({
   const [status, setStatus] = useState<ProspectStatus | "ALL">("ALL");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
 
@@ -104,6 +106,10 @@ export function ProspectsView({
     setDialogMode("edit");
     setSelectedProspect(prospect);
     setDialogOpen(true);
+  }
+
+  function openImportDialog() {
+    setImportDialogOpen(true);
   }
 
   function openGenerateDialog() {
@@ -184,6 +190,10 @@ export function ProspectsView({
             <Plus className="h-4 w-4" />
             Nuevo prospecto
           </Button>
+          <Button type="button" onClick={openImportDialog} variant="outline" className="gap-2">
+            <FileUp className="h-4 w-4" />
+            Importar
+          </Button>
           <Button type="button" onClick={openGenerateDialog} variant="secondary" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Generar
@@ -210,17 +220,24 @@ export function ProspectsView({
                 <TableCell colSpan={7} className="py-12 text-center">
                   <p className="text-sm font-medium text-foreground">Sin prospectos.</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Aún no has generado prospectos. Genera empresas desde Google Maps para comenzar.
+                    Sin prospectos. Importa empresas o genera prospectos para comenzar.
                   </p>
-                  <Button
-                    type="button"
-                    className="mt-4 gap-2"
-                    onClick={openGenerateDialog}
-                    disabled={!apifyConfigured}
-                  >
-                    <Sparkles className="h-4 w-4" />
-                    Generar
-                  </Button>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <Button type="button" className="gap-2" onClick={openImportDialog}>
+                      <FileUp className="h-4 w-4" />
+                      Importar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="gap-2"
+                      onClick={openGenerateDialog}
+                      disabled={!apifyConfigured}
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Generar
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : filtered.length === 0 ? (
@@ -315,17 +332,24 @@ export function ProspectsView({
           <div className="rounded-xl border border-dashed border-border py-10 text-center">
             <p className="text-sm font-medium text-foreground">Sin prospectos.</p>
             <p className="mt-2 px-4 text-sm text-muted-foreground">
-              Aún no has generado prospectos. Genera empresas desde Google Maps para comenzar.
+              Sin prospectos. Importa empresas o genera prospectos para comenzar.
             </p>
-            <Button
-              type="button"
-              className="mt-4 gap-2"
-              onClick={openGenerateDialog}
-              disabled={!apifyConfigured}
-            >
-              <Sparkles className="h-4 w-4" />
-              Generar
-            </Button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2 px-4">
+              <Button type="button" className="gap-2" onClick={openImportDialog}>
+                <FileUp className="h-4 w-4" />
+                Importar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2"
+                onClick={openGenerateDialog}
+                disabled={!apifyConfigured}
+              >
+                <Sparkles className="h-4 w-4" />
+                Generar
+              </Button>
+            </div>
           </div>
         ) : filtered.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
@@ -400,6 +424,12 @@ export function ProspectsView({
         mode={dialogMode}
         prospect={selectedProspect}
         openAiConfigured={openAiConfigured}
+        onSuccess={refreshList}
+      />
+
+      <ProspectImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
         onSuccess={refreshList}
       />
 

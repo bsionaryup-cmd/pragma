@@ -71,11 +71,11 @@ export function PipelineView({ prospects }: PipelineViewProps) {
           icon={Users}
           branded={false}
           title="Sin prospectos."
-          description="Aún no has generado prospectos. Genera empresas desde Google Maps para comenzar."
+          description="Sin prospectos. Importa empresas o genera prospectos para comenzar."
         />
         <div className="mt-4 flex justify-center">
           <Button asChild>
-            <Link href="/owner-dashboard/sales/prospects">Ir a Prospectos · Generar</Link>
+            <Link href="/owner-dashboard/sales/prospects">Ir a Prospectos</Link>
           </Button>
         </div>
       </div>
