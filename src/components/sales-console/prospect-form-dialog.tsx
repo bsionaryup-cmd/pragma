@@ -1,10 +1,12 @@
 "use client";
 
+import { Copy, Sparkles } from "lucide-react";
 import { useState, useTransition } from "react";
 import {
   createProspectAction,
   updateProspectAction,
 } from "@/features/sales-console/actions/prospect.actions";
+import { enrichProspectAction } from "@/features/sales-console/actions/prospect-enrich.actions";
 import {
   PROSPECT_PIPELINE_STATUSES,
   PROSPECT_SEGMENTS,
@@ -17,6 +19,7 @@ import {
   type ProspectFormValues,
   type ProspectRow,
 } from "@/features/sales-console/types/prospect";
+import type { ProspectEnrichmentContent } from "@/modules/sales-console/enrichment/enrichment.types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,17 +38,41 @@ type ProspectFormDialogProps = {
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   prospect: ProspectRow | null;
+  openAiConfigured: boolean;
   onSuccess: () => void;
 };
+
+const COPY_LABELS: Array<{ key: keyof ProspectEnrichmentContent; label: string }> = [
+  { key: "brief", label: "Brief" },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "email", label: "Email" },
+  { key: "phonePitch", label: "Pitch" },
+  { key: "objections", label: "Objeciones" },
+  { key: "cta", label: "CTA" },
+];
+
+async function copyText(label: string, text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(`${label} copiado`);
+  } catch {
+    toast.error("No se pudo copiar al portapapeles");
+  }
+}
 
 export function ProspectFormDialog({
   open,
   onOpenChange,
   mode,
   prospect,
+  openAiConfigured,
   onSuccess,
 }: ProspectFormDialogProps) {
   const [pending, startTransition] = useTransition();
+  const [enriching, setEnriching] = useState(false);
+  const [enrichmentContent, setEnrichmentContent] = useState<ProspectEnrichmentContent | null>(
+    null,
+  );
   const [values, setValues] = useState<ProspectFormValues>(() =>
     mode === "edit" && prospect
       ? prospectToFormValues(prospect)
@@ -90,9 +117,31 @@ export function ProspectFormDialog({
     });
   }
 
+  async function handleEnrich() {
+    if (!prospect) return;
+
+    setEnriching(true);
+    try {
+      const result = await enrichProspectAction(prospect.id);
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+
+      setValues((current) => ({ ...current, notes: result.notes }));
+      setEnrichmentContent(result.content);
+      toast.success("Material comercial generado");
+      onSuccess();
+    } finally {
+      setEnriching(false);
+    }
+  }
+
+  const busy = pending || enriching;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>
             {mode === "create" ? "Nuevo prospecto" : "Editar prospecto"}
@@ -100,7 +149,7 @@ export function ProspectFormDialog({
           <DialogDescription>
             {mode === "create"
               ? "Entrada manual · el estado queda en Nuevo hasta que lo cambies en el pipeline."
-              : "Actualiza los datos y el estado del prospecto."}
+              : "Actualiza los datos, enriquece con IA y copia mensajes listos para vender."}
           </DialogDescription>
         </DialogHeader>
 
@@ -216,16 +265,66 @@ export function ProspectFormDialog({
               id="prospect-notes"
               value={values.notes}
               onChange={(event) => updateField("notes", event.target.value)}
-              rows={3}
-              className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm dark:bg-card"
+              rows={8}
+              className="w-full rounded-xl border border-input bg-white px-3 py-2 font-mono text-xs leading-relaxed dark:bg-card"
+              placeholder={
+                mode === "edit"
+                  ? "Usa Enriquecer para generar brief, mensajes y guion de venta."
+                  : undefined
+              }
             />
           </div>
 
-          <DialogFooter>
+          {mode === "edit" ? (
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-foreground">Asistente comercial</p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!openAiConfigured || busy}
+                  onClick={() => void handleEnrich()}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {enriching ? "Enriqueciendo…" : "Enriquecer"}
+                </Button>
+              </div>
+
+              {!openAiConfigured ? (
+                <p className="text-xs text-muted-foreground">
+                  Configura OPENAI_API_KEY para habilitar el asistente comercial.
+                </p>
+              ) : enrichmentContent ? (
+                <div className="flex flex-wrap gap-2">
+                  {COPY_LABELS.map(({ key, label }) => (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => void copyText(label, enrichmentContent[key])}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Genera brief, WhatsApp, email, pitch, objeciones y CTA con un clic.
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={busy}>
               {pending ? "Guardando…" : mode === "create" ? "Crear" : "Guardar"}
             </Button>
           </DialogFooter>

@@ -6,6 +6,7 @@ import {
   PlatformOwnerForbiddenError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
+import { isOpenAiEnrichmentConfigured } from "@/modules/sales-console/enrichment/openai-sales.client";
 import { isApifyProspectingConfigured } from "@/modules/sales-console/prospecting/apify-prospecting.client";
 import { listProspects } from "@/modules/sales-console/services/prospect.service";
 
@@ -35,6 +36,7 @@ export default async function OwnerSalesProspectsPage({
         initialProspects={prospects.map(serializeProspectRow)}
         includeArchived={includeArchived}
         apifyConfigured={isApifyProspectingConfigured()}
+        openAiConfigured={isOpenAiEnrichmentConfigured()}
       />
     </SalesConsoleSectionShell>
   );

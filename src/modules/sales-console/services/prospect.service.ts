@@ -46,6 +46,17 @@ export async function listProspects(options?: { includeArchived?: boolean }) {
   });
 }
 
+export async function getProspectById(id: string) {
+  return db.prospect.findUnique({ where: { id } });
+}
+
+export async function updateProspectNotes(id: string, notes: string | null) {
+  return db.prospect.update({
+    where: { id },
+    data: { notes: normalizeOptional(notes) },
+  });
+}
+
 export async function createProspect(
   input: ProspectFormInput & { createdById: string },
 ) {

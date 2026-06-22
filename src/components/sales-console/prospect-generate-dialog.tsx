@@ -144,7 +144,7 @@ export function ProspectGenerateDialog({
         <DialogHeader>
           <DialogTitle>Generar prospectos</DialogTitle>
           <DialogDescription>
-            Google Maps vía Apify · estado Nuevo · sin OpenAI
+            Google Maps vía Apify · los prospectos importados quedan en estado Nuevo
           </DialogDescription>
         </DialogHeader>
 

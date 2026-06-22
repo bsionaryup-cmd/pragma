@@ -36,6 +36,7 @@ type ProspectsViewProps = {
   initialProspects: ProspectRow[];
   includeArchived: boolean;
   apifyConfigured: boolean;
+  openAiConfigured: boolean;
 };
 
 function statusBadgeClass(status: ProspectStatus): string {
@@ -54,6 +55,7 @@ export function ProspectsView({
   initialProspects,
   includeArchived,
   apifyConfigured,
+  openAiConfigured,
 }: ProspectsViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -397,6 +399,7 @@ export function ProspectsView({
         onOpenChange={setDialogOpen}
         mode={dialogMode}
         prospect={selectedProspect}
+        openAiConfigured={openAiConfigured}
         onSuccess={refreshList}
       />
 
