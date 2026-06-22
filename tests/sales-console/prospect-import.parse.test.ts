@@ -46,4 +46,21 @@ describe("parseProspectImportText", () => {
     const result = parseProspectImportText("   \n\n   ");
     assert.equal(result.rows.length, 0);
   });
+
+  it("handles corrupt CSV without throwing", () => {
+    const result = parseProspectImportText('Empresa,Teléfono\n"Sin cerrar comillas,3001');
+    assert.ok(result.rows.length <= 1);
+  });
+
+  it("handles missing columns without failing", () => {
+    const result = parseProspectImportText("Empresa,Teléfono\nAcme PM,");
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0]?.companyName, "Acme PM");
+    assert.equal(result.rows[0]?.phone, null);
+  });
+
+  it("handles special characters", () => {
+    const result = parseProspectImportText("Niño & Asociados S.A.S.\nCafé Ñoño PM");
+    assert.equal(result.rows.length, 2);
+  });
 });

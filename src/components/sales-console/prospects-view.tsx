@@ -230,7 +230,7 @@ export function ProspectsView({
                 <TableCell colSpan={7} className="py-12 text-center">
                   <p className="text-sm font-medium text-foreground">Sin prospectos.</p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Sin prospectos. Importa empresas o genera prospectos para comenzar.
+                    Sin prospectos. Explora fuentes públicas, importa empresas o utiliza Generate para comenzar.
                   </p>
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     <Button type="button" className="gap-2" onClick={openImportDialog}>
@@ -346,7 +346,7 @@ export function ProspectsView({
           <div className="rounded-xl border border-dashed border-border py-10 text-center">
             <p className="text-sm font-medium text-foreground">Sin prospectos.</p>
             <p className="mt-2 px-4 text-sm text-muted-foreground">
-              Sin prospectos. Importa empresas o genera prospectos para comenzar.
+              Sin prospectos. Explora fuentes públicas, importa empresas o utiliza Generate para comenzar.
             </p>
             <div className="mt-4 flex flex-wrap justify-center gap-2 px-4">
               <Button type="button" className="gap-2" onClick={openImportDialog}>

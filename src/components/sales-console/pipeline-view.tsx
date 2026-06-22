@@ -71,7 +71,7 @@ export function PipelineView({ prospects }: PipelineViewProps) {
           icon={Users}
           branded={false}
           title="Sin prospectos."
-          description="Sin prospectos. Importa empresas o genera prospectos para comenzar."
+          description="Sin prospectos. Explora fuentes públicas, importa empresas o utiliza Generate para comenzar."
         />
         <div className="mt-4 flex justify-center">
           <Button asChild>
