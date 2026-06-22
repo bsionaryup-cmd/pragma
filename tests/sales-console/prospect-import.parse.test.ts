@@ -27,9 +27,23 @@ describe("parseProspectImportText", () => {
     assert.equal(result.rows[1]?.website, null);
   });
 
-  it("skips invalid rows without failing", () => {
-    const result = parseProspectImportText("Empresa OK\n\n   \n");
+  it("strips UTF-8 BOM and caps row count", () => {
+    const rows = Array.from({ length: 205 }, (_, index) => `Empresa ${index + 1}`);
+    const result = parseProspectImportText(`\uFEFF${rows.join("\n")}`);
+    assert.equal(result.rows.length, 200);
+    assert.ok(result.skippedInvalid >= 5);
+  });
+
+  it("parses quoted CSV commas", () => {
+    const result = parseProspectImportText(
+      'Empresa,Telefono\n"Acme, SAS",3001234567',
+    );
     assert.equal(result.rows.length, 1);
-    assert.equal(result.rows[0]?.companyName, "Empresa OK");
+    assert.equal(result.rows[0]?.companyName, "Acme, SAS");
+  });
+
+  it("returns empty for whitespace-only input", () => {
+    const result = parseProspectImportText("   \n\n   ");
+    assert.equal(result.rows.length, 0);
   });
 });

@@ -14,6 +14,11 @@ export type ParseProspectImportResult = {
 
 const MAX_IMPORT_ROWS = 200;
 const MAX_COMPANY_NAME_LENGTH = 200;
+const MAX_PHONE_LENGTH = 50;
+const MAX_WEBSITE_LENGTH = 500;
+const MAX_CITY_LENGTH = 100;
+const MAX_INSTAGRAM_LENGTH = 100;
+const UTF8_BOM = "\uFEFF";
 
 const COMPANY_HEADER_ALIASES = new Set([
   "companyname",
@@ -40,9 +45,13 @@ function normalizeHeader(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
-function normalizeCell(value: string | undefined): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+function normalizeCell(value: string | undefined, maxLength?: number): string | null {
+  const trimmed = value?.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").trim();
+  if (!trimmed) return null;
+  if (maxLength && trimmed.length > maxLength) {
+    return trimmed.slice(0, maxLength);
+  }
+  return trimmed;
 }
 
 function isValidCompanyName(value: string): boolean {
@@ -113,17 +122,21 @@ function rowFromCells(
   return {
     companyName: companyName.trim(),
     phone:
-      headerMap.phone !== undefined ? normalizeCell(cells[headerMap.phone]) : normalizeCell(cells[1]),
+      headerMap.phone !== undefined
+        ? normalizeCell(cells[headerMap.phone], MAX_PHONE_LENGTH)
+        : normalizeCell(cells[1], MAX_PHONE_LENGTH),
     website:
       headerMap.website !== undefined
-        ? normalizeCell(cells[headerMap.website])
-        : normalizeCell(cells[2]),
+        ? normalizeCell(cells[headerMap.website], MAX_WEBSITE_LENGTH)
+        : normalizeCell(cells[2], MAX_WEBSITE_LENGTH),
     city:
-      headerMap.city !== undefined ? normalizeCell(cells[headerMap.city]) : normalizeCell(cells[3]),
+      headerMap.city !== undefined
+        ? normalizeCell(cells[headerMap.city], MAX_CITY_LENGTH)
+        : normalizeCell(cells[3], MAX_CITY_LENGTH),
     instagram:
       headerMap.instagram !== undefined
-        ? normalizeCell(cells[headerMap.instagram])
-        : normalizeCell(cells[4]),
+        ? normalizeCell(cells[headerMap.instagram], MAX_INSTAGRAM_LENGTH)
+        : normalizeCell(cells[4], MAX_INSTAGRAM_LENGTH),
   };
 }
 
@@ -196,7 +209,8 @@ function capParseResult(result: ParseProspectImportResult): ParseProspectImportR
 }
 
 export function parseProspectImportText(rawText: string): ParseProspectImportResult {
-  const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  const withoutBom = rawText.startsWith(UTF8_BOM) ? rawText.slice(UTF8_BOM.length) : rawText;
+  const normalized = withoutBom.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
   if (!normalized) {
     return { rows: [], skippedEmpty: 0, skippedInvalid: 0 };
   }

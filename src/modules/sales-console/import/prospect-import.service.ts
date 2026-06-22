@@ -12,6 +12,7 @@ import {
   type ProspectFormInput,
 } from "@/modules/sales-console/services/prospect.service";
 
+import { IMPORT_FAILURE_MESSAGE } from "@/modules/sales-console/import/prospect-import.errors";
 import type { ProspectImportSourcePreset } from "@/modules/sales-console/import/prospect-import.types";
 
 const SOURCE_PRESET_MAP: Record<
@@ -58,26 +59,33 @@ export async function importProspectsFromText(
   skippedDuplicate: number;
   skippedEmpty: number;
 }> {
-  const parsed = parseProspectImportText(rawText);
+  try {
+    const parsed = parseProspectImportText(rawText);
 
-  if (parsed.rows.length === 0) {
+    if (parsed.rows.length === 0) {
+      return {
+        imported: 0,
+        skippedInvalid: parsed.skippedInvalid,
+        skippedDuplicate: 0,
+        skippedEmpty: parsed.skippedEmpty,
+      };
+    }
+
+    const candidates = parsed.rows.map((row) => mapParsedRowToInput(row, preset));
+    const existingKeys = await loadExistingProspectDedupKeys();
+    const { rows: dedupedRows, skippedDuplicate } = filterProspectsForInsert(
+      candidates,
+      existingKeys,
+    );
+    const { imported } = await bulkCreateProspects(dedupedRows, createdById);
+
     return {
-      imported: 0,
+      imported,
       skippedInvalid: parsed.skippedInvalid,
-      skippedDuplicate: 0,
+      skippedDuplicate,
       skippedEmpty: parsed.skippedEmpty,
     };
+  } catch {
+    throw new Error(IMPORT_FAILURE_MESSAGE);
   }
-
-  const candidates = parsed.rows.map((row) => mapParsedRowToInput(row, preset));
-  const existingKeys = await loadExistingProspectDedupKeys();
-  const { rows: dedupedRows, skippedDuplicate } = filterProspectsForInsert(candidates, existingKeys);
-  const { imported } = await bulkCreateProspects(dedupedRows, createdById);
-
-  return {
-    imported,
-    skippedInvalid: parsed.skippedInvalid,
-    skippedDuplicate,
-    skippedEmpty: parsed.skippedEmpty,
-  };
 }

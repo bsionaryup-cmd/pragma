@@ -2,6 +2,7 @@ import "server-only";
 
 const APIFY_API_BASE = "https://api.apify.com/v2";
 const DEFAULT_GOOGLE_MAPS_ACTOR_ID = "compass~crawler-google-places";
+const APIFY_REQUEST_TIMEOUT_MS = 60_000;
 
 export type ApifyRunStatus =
   | "READY"
@@ -63,23 +64,36 @@ function resolveApifyErrorMessage(payload: unknown, fallback: string): string {
 
 async function apifyFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = resolveApifyToken();
-  const response = await fetch(`${APIFY_API_BASE}${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers ?? {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), APIFY_REQUEST_TIMEOUT_MS);
 
-  const payload = (await response.json()) as T & ApifyActorRunResponse;
+  try {
+    const response = await fetch(`${APIFY_API_BASE}${path}`, {
+      ...init,
+      cache: "no-store",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers ?? {}),
+      },
+    });
 
-  if (!response.ok) {
-    throw new Error(resolveApifyErrorMessage(payload, `La solicitud a Apify falló (${response.status})`));
+    const payload = (await response.json()) as T & ApifyActorRunResponse;
+
+    if (!response.ok) {
+      throw new Error(resolveApifyErrorMessage(payload, `La solicitud a Apify falló (${response.status})`));
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("La solicitud a Apify expiró");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return payload;
 }
 
 function normalizeRunStatus(value: string | undefined): ApifyRunStatus {
@@ -158,31 +172,44 @@ export async function fetchApifyDatasetItems<T extends Record<string, unknown> =
   }
 
   const token = resolveApifyToken();
-  const response = await fetch(
-    `${APIFY_API_BASE}/datasets/${trimmedDatasetId}/items?format=json&clean=true`,
-    {
-      cache: "no-store",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), APIFY_REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(
+      `${APIFY_API_BASE}/datasets/${trimmedDatasetId}/items?format=json&clean=true`,
+      {
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       },
-    },
-  );
+    );
 
-  if (!response.ok) {
-    throw new Error(`La descarga del dataset de Apify falló (${response.status})`);
+    if (!response.ok) {
+      throw new Error(`La descarga del dataset de Apify falló (${response.status})`);
+    }
+
+    const payload: unknown = await response.json();
+    const rawItems = Array.isArray(payload)
+      ? payload
+      : payload &&
+          typeof payload === "object" &&
+          Array.isArray((payload as ApifyDatasetItemsResponse).data)
+        ? (payload as ApifyDatasetItemsResponse).data!
+        : [];
+
+    return rawItems.filter(
+      (item): item is T => Boolean(item) && typeof item === "object" && !Array.isArray(item),
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("La descarga del dataset de Apify expiró");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const payload: unknown = await response.json();
-  const rawItems = Array.isArray(payload)
-    ? payload
-    : payload &&
-        typeof payload === "object" &&
-        Array.isArray((payload as ApifyDatasetItemsResponse).data)
-      ? (payload as ApifyDatasetItemsResponse).data!
-      : [];
-
-  return rawItems.filter(
-    (item): item is T => Boolean(item) && typeof item === "object" && !Array.isArray(item),
-  );
 }

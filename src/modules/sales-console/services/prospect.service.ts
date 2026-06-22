@@ -21,6 +21,15 @@ function normalizeOptional(value: string | null | undefined): string | null {
   return trimmed ? trimmed : null;
 }
 
+const MAX_NOTES_LENGTH = 16_000;
+
+function normalizeNotes(value: string | null | undefined): string | null {
+  const trimmed = normalizeOptional(value);
+  if (!trimmed) return null;
+  if (trimmed.length <= MAX_NOTES_LENGTH) return trimmed;
+  return `${trimmed.slice(0, MAX_NOTES_LENGTH - 1)}…`;
+}
+
 function validateCompanyName(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) {
@@ -53,7 +62,7 @@ export async function getProspectById(id: string) {
 export async function updateProspectNotes(id: string, notes: string | null) {
   return db.prospect.update({
     where: { id },
-    data: { notes: normalizeOptional(notes) },
+    data: { notes: normalizeNotes(notes) },
   });
 }
 
@@ -69,7 +78,7 @@ export async function createProspect(
       city: normalizeOptional(input.city),
       segment: input.segment,
       source: input.source,
-      notes: normalizeOptional(input.notes),
+      notes: normalizeNotes(input.notes),
       status: "NEW",
       archived: false,
       score: null,
@@ -90,7 +99,7 @@ export async function updateProspect(id: string, input: ProspectFormInput) {
       city: normalizeOptional(input.city),
       segment: input.segment,
       source: input.source,
-      notes: normalizeOptional(input.notes),
+      notes: normalizeNotes(input.notes),
       ...(input.status ? { status: validatePipelineStatus(input.status) } : {}),
     },
   });

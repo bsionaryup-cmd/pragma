@@ -5,6 +5,7 @@ import {
   PlatformOwnerForbiddenError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
+import { IMPORT_FAILURE_MESSAGE } from "@/modules/sales-console/import/prospect-import.errors";
 import type { ProspectImportSourcePreset } from "@/modules/sales-console/import/prospect-import.types";
 import { importProspectsFromText } from "@/modules/sales-console/import/prospect-import.service";
 import { PROSPECT_IMPORT_MAX_ROWS } from "@/modules/sales-console/import/prospect-import.parse";
@@ -39,10 +40,34 @@ export async function importProspectsAction(input: {
 
     const result = await importProspectsFromText(text, owner.id, input.sourcePreset);
 
-    if (result.imported === 0 && result.skippedInvalid === 0 && result.skippedDuplicate === 0) {
+    if (
+      result.imported === 0 &&
+      result.skippedInvalid === 0 &&
+      result.skippedDuplicate === 0 &&
+      result.skippedEmpty === 0
+    ) {
       return {
         success: false as const,
         error: "No se encontraron empresas válidas para importar",
+      };
+    }
+
+    if (result.imported === 0 && result.skippedDuplicate > 0 && result.skippedInvalid === 0) {
+      revalidateProspects();
+      return {
+        success: true as const,
+        imported: 0,
+        skippedInvalid: 0,
+        skippedDuplicate: result.skippedDuplicate,
+        skippedEmpty: result.skippedEmpty,
+        maxRows: PROSPECT_IMPORT_MAX_ROWS,
+      };
+    }
+
+    if (result.imported === 0) {
+      return {
+        success: false as const,
+        error: IMPORT_FAILURE_MESSAGE,
       };
     }
 
@@ -60,9 +85,9 @@ export async function importProspectsAction(input: {
     if (error instanceof PlatformOwnerForbiddenError) {
       return { success: false as const, error: "Acceso denegado" };
     }
-    if (error instanceof Error) {
+    if (error instanceof Error && error.message !== IMPORT_FAILURE_MESSAGE) {
       return { success: false as const, error: error.message };
     }
-    return { success: false as const, error: "No fue posible importar los prospectos" };
+    return { success: false as const, error: IMPORT_FAILURE_MESSAGE };
   }
 }
