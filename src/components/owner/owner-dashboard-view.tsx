@@ -12,6 +12,7 @@ import {
   Home,
   Search,
   Shield,
+  Sparkles,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -267,10 +268,35 @@ function OverviewPanel({ snapshot }: { snapshot: OwnerDashboardSnapshot }) {
 
   return (
     <div className="space-y-6">
+      <section className="rounded-2xl border border-pragma-electric/25 bg-gradient-to-br from-pragma-electric/10 via-card to-card p-5 shadow-pragma-soft">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-pragma-electric">
+              Consola de ventas
+            </p>
+            <h2 className="font-heading mt-1 text-lg font-semibold text-foreground">
+              Prospectación outbound
+            </h2>
+            <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+              CRM manual, generación con Google Maps vía Apify, archivar y filtros. Entra a
+              Prospectos para crear o generar empresas.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button asChild className="gap-2">
+              <Link href="/owner-dashboard/sales/prospects">
+                <Sparkles className="h-4 w-4" />
+                Prospectos · Generar
+              </Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/owner-dashboard/sales">Cotizaciones</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       <div className="flex flex-wrap justify-end gap-2">
-        <Button asChild size="sm" variant="outline">
-          <Link href="/owner-dashboard/sales">Sales Console</Link>
-        </Button>
         <Button asChild size="sm" variant="outline">
           <Link href="/owner-dashboard/support">Support Center</Link>
         </Button>

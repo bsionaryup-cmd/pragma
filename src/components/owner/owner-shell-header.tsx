@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Shield } from "lucide-react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import {
@@ -9,6 +10,16 @@ import {
 } from "@/components/owner/owner-account-menu";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
 import { cn } from "@/lib/utils";
+
+const PLATFORM_NAV = [
+  { href: OWNER_DASHBOARD_PATH, label: "Resumen", activePrefix: OWNER_DASHBOARD_PATH, exact: true },
+  {
+    href: "/owner-dashboard/sales/prospects",
+    label: "Consola de ventas",
+    activePrefix: "/owner-dashboard/sales",
+  },
+  { href: "/owner-dashboard/support", label: "Soporte", activePrefix: "/owner-dashboard/support" },
+] as const;
 
 type OwnerShellHeaderProps = {
   user: OwnerAccountMenuUser;
@@ -23,6 +34,8 @@ export function OwnerShellHeader({
   context = "platform",
   className,
 }: OwnerShellHeaderProps) {
+  const pathname = usePathname();
+
   return (
     <header
       className={cn(
@@ -50,6 +63,31 @@ export function OwnerShellHeader({
               </p>
             </div>
           </Link>
+
+          {context === "platform" ? (
+            <nav className="hidden items-center gap-1 md:flex" aria-label="Owner platform">
+              {PLATFORM_NAV.map((item) => {
+                const isActive =
+                  "exact" in item && item.exact
+                    ? pathname === item.activePrefix
+                    : pathname.startsWith(item.activePrefix);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-pragma-electric/15 text-pragma-electric"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
         </div>
 
         <OwnerAccountMenu
