@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, FileUp, Pencil, Plus, Search, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, FileUp, Globe, Pencil, Plus, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   archiveProspectAction,
@@ -15,6 +15,7 @@ import {
   type ProspectRow,
   type ProspectStatus,
 } from "@/features/sales-console/types/prospect";
+import { ProspectPublicDiscoveryDialog } from "@/components/sales-console/prospect-public-discovery-dialog";
 import { ProspectImportDialog } from "@/components/sales-console/prospect-import-dialog";
 import { ProspectFormDialog } from "@/components/sales-console/prospect-form-dialog";
 import { ProspectGenerateDialog } from "@/components/sales-console/prospect-generate-dialog";
@@ -66,6 +67,7 @@ export function ProspectsView({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [publicDiscoveryDialogOpen, setPublicDiscoveryDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
 
@@ -106,6 +108,10 @@ export function ProspectsView({
     setDialogMode("edit");
     setSelectedProspect(prospect);
     setDialogOpen(true);
+  }
+
+  function openPublicDiscoveryDialog() {
+    setPublicDiscoveryDialogOpen(true);
   }
 
   function openImportDialog() {
@@ -194,6 +200,10 @@ export function ProspectsView({
             <FileUp className="h-4 w-4" />
             Importar
           </Button>
+          <Button type="button" onClick={openPublicDiscoveryDialog} variant="outline" className="gap-2">
+            <Globe className="h-4 w-4" />
+            Explorar público
+          </Button>
           <Button type="button" onClick={openGenerateDialog} variant="secondary" className="gap-2">
             <Sparkles className="h-4 w-4" />
             Generar
@@ -226,6 +236,10 @@ export function ProspectsView({
                     <Button type="button" className="gap-2" onClick={openImportDialog}>
                       <FileUp className="h-4 w-4" />
                       Importar
+                    </Button>
+                    <Button type="button" variant="outline" className="gap-2" onClick={openPublicDiscoveryDialog}>
+                      <Globe className="h-4 w-4" />
+                      Explorar público
                     </Button>
                     <Button
                       type="button"
@@ -339,6 +353,10 @@ export function ProspectsView({
                 <FileUp className="h-4 w-4" />
                 Importar
               </Button>
+              <Button type="button" variant="outline" className="gap-2" onClick={openPublicDiscoveryDialog}>
+                <Globe className="h-4 w-4" />
+                Explorar público
+              </Button>
               <Button
                 type="button"
                 variant="secondary"
@@ -424,6 +442,13 @@ export function ProspectsView({
         mode={dialogMode}
         prospect={selectedProspect}
         openAiConfigured={openAiConfigured}
+        onSuccess={refreshList}
+      />
+
+      <ProspectPublicDiscoveryDialog
+        open={publicDiscoveryDialogOpen}
+        onOpenChange={setPublicDiscoveryDialogOpen}
+        onOpenImport={openImportDialog}
         onSuccess={refreshList}
       />
 
