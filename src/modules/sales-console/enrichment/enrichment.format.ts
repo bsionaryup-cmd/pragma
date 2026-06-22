@@ -5,7 +5,7 @@ export function formatEnrichmentNotes(content: ProspectEnrichmentContent): strin
     ["BRIEF", content.brief],
     ["WHATSAPP", content.whatsapp],
     ["EMAIL", content.email],
-    ["PITCH TELEFÓNICO", content.phonePitch],
+    ["PITCH TELEFÓNICO", content.pitch],
     ["OBJECIONES COMUNES", content.objections],
     ["CTA RECOMENDADO", content.cta],
   ];

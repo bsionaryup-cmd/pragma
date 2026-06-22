@@ -6,6 +6,10 @@ import {
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
 import {
+  ApifyGenerationError,
+  GENERATION_FAILURE_MESSAGE,
+} from "@/modules/sales-console/enrichment/enrichment.errors";
+import {
   isApifyProspectingConfigured,
   startGoogleMapsProspectingRun,
 } from "@/modules/sales-console/prospecting/apify-prospecting.client";
@@ -24,14 +28,26 @@ function revalidateProspects() {
   revalidatePath(PIPELINE_PATH);
 }
 
-function actionError(error: unknown): { success: false; error: string } {
+function isValidationGenerationError(message: string): boolean {
+  return (
+    message.includes("consulta de búsqueda") ||
+    message.includes("El límite debe ser") ||
+    message === "Acceso denegado" ||
+    message.includes("Configura APIFY_API_TOKEN")
+  );
+}
+
+function mapGenerationError(error: unknown): { success: false; error: string } {
   if (error instanceof PlatformOwnerForbiddenError) {
     return { success: false, error: "Acceso denegado" };
   }
-  if (error instanceof Error) {
+  if (error instanceof Error && isValidationGenerationError(error.message)) {
     return { success: false, error: error.message };
   }
-  return { success: false, error: "Error inesperado" };
+  if (error instanceof ApifyGenerationError) {
+    return { success: false, error: error.message };
+  }
+  return { success: false, error: GENERATION_FAILURE_MESSAGE };
 }
 
 export async function startProspectGenerationAction(input: {
@@ -65,7 +81,7 @@ export async function startProspectGenerationAction(input: {
     const { runId } = await startGoogleMapsProspectingRun({ searchQuery, limit });
     return { success: true, runId };
   } catch (error) {
-    return actionError(error);
+    return mapGenerationError(error);
   }
 }
 
@@ -87,7 +103,11 @@ export async function importGeneratedProspectsAction(
     }
 
     if (result.phase === "FAILED") {
-      return { success: false, status: "FAILED", error: result.error };
+      return {
+        success: false,
+        status: "FAILED",
+        error: GENERATION_FAILURE_MESSAGE,
+      };
     }
 
     revalidateProspects();
@@ -99,7 +119,7 @@ export async function importGeneratedProspectsAction(
       skippedDuplicate: result.skippedDuplicate,
     };
   } catch (error) {
-    const message = actionError(error).error;
-    return { success: false, status: "FAILED", error: message };
+    const mapped = mapGenerationError(error);
+    return { success: false, status: "FAILED", error: mapped.error };
   }
 }

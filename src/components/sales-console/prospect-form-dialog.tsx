@@ -20,6 +20,7 @@ import {
   type ProspectRow,
 } from "@/features/sales-console/types/prospect";
 import type { ProspectEnrichmentContent } from "@/modules/sales-console/enrichment/enrichment.types";
+import { copyTextToClipboard } from "@/lib/copy-to-clipboard";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,22 +43,19 @@ type ProspectFormDialogProps = {
   onSuccess: () => void;
 };
 
+const ENRICHMENT_FAILURE_TOAST = "No fue posible enriquecer el prospecto.";
+
 const COPY_LABELS: Array<{ key: keyof ProspectEnrichmentContent; label: string }> = [
   { key: "brief", label: "Brief" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "email", label: "Email" },
-  { key: "phonePitch", label: "Pitch" },
+  { key: "pitch", label: "Pitch" },
   { key: "objections", label: "Objeciones" },
   { key: "cta", label: "CTA" },
 ];
 
-async function copyText(label: string, text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(`${label} copiado`);
-  } catch {
-    toast.error("No se pudo copiar al portapapeles");
-  }
+function showEnrichmentError(message: string) {
+  toast.error(message === ENRICHMENT_FAILURE_TOAST ? ENRICHMENT_FAILURE_TOAST : message);
 }
 
 export function ProspectFormDialog({
@@ -124,7 +122,7 @@ export function ProspectFormDialog({
     try {
       const result = await enrichProspectAction(prospect.id);
       if (!result.success) {
-        toast.error(result.error);
+        showEnrichmentError(result.error);
         return;
       }
 
@@ -305,7 +303,7 @@ export function ProspectFormDialog({
                       variant="outline"
                       size="sm"
                       className="gap-1.5"
-                      onClick={() => void copyText(label, enrichmentContent[key])}
+                      onClick={() => void copyTextToClipboard(label, enrichmentContent[key])}
                     >
                       <Copy className="h-3.5 w-3.5" />
                       {label}

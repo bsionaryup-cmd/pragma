@@ -27,6 +27,9 @@ type GenerationLimit = (typeof GENERATION_LIMITS)[number];
 
 type DialogPhase = "form" | "running" | "done";
 
+const GENERATION_FAILURE_TOAST =
+  "No fue posible generar prospectos. Verifica APIFY_API_TOKEN o tus créditos de Apify.";
+
 type ProspectGenerateDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,7 +95,8 @@ export function ProspectGenerateDialog({
 
     if (!result.success) {
       setPhase("form");
-      toast.error("error" in result ? result.error : "La generación de prospectos falló");
+      const message = "error" in result ? result.error : GENERATION_FAILURE_TOAST;
+      toast.error(message);
       return;
     }
 
@@ -129,7 +133,7 @@ export function ProspectGenerateDialog({
 
     const start = await startProspectGenerationAction({ searchQuery, limit });
     if (!start.success) {
-      toast.error(start.error);
+      toast.error(start.error ?? GENERATION_FAILURE_TOAST);
       return;
     }
 

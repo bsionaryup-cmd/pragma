@@ -5,6 +5,10 @@ import {
   PlatformOwnerForbiddenError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
+import {
+  ENRICHMENT_FAILURE_MESSAGE,
+  OpenAiEnrichmentError,
+} from "@/modules/sales-console/enrichment/enrichment.errors";
 import { enrichProspect } from "@/modules/sales-console/enrichment/prospect-enrich.service";
 
 const PROSPECTS_PATH = "/owner-dashboard/sales/prospects";
@@ -25,9 +29,15 @@ export async function enrichProspectAction(prospectId: string) {
     if (error instanceof PlatformOwnerForbiddenError) {
       return { success: false as const, error: "Acceso denegado" };
     }
-    if (error instanceof Error) {
+    if (error instanceof Error && error.message === "Prospecto no encontrado") {
       return { success: false as const, error: error.message };
     }
-    return { success: false as const, error: "Error inesperado" };
+    if (error instanceof Error && error.message === "No se puede enriquecer un prospecto archivado") {
+      return { success: false as const, error: error.message };
+    }
+    if (error instanceof OpenAiEnrichmentError) {
+      return { success: false as const, error: ENRICHMENT_FAILURE_MESSAGE };
+    }
+    return { success: false as const, error: ENRICHMENT_FAILURE_MESSAGE };
   }
 }

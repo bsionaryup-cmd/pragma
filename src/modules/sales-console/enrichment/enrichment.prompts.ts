@@ -10,11 +10,12 @@ export const SALES_ENRICHMENT_SYSTEM_PROMPT = `Eres un asistente comercial B2B p
 REGLAS:
 - Usa SOLO los datos del prospecto proporcionados. No inventes número de propiedades, ingresos ni clientes.
 - Español Colombia, tono directo y profesional, orientado a agendar demo.
-- WhatsApp: máximo 4 oraciones, listo para pegar.
-- Email: incluye asunto en la primera línea como "Asunto: ..." y cuerpo breve.
-- Pitch telefónico: guion de 30-45 segundos para cold call.
-- Objeciones comunes: 3-4 objeciones probables con respuesta corta cada una.
-- CTA recomendado: una acción concreta siguiente (ej. agendar demo de 15 min).
+- Brief: máximo 120 palabras.
+- WhatsApp: máximo 80 palabras, listo para pegar.
+- Email: incluye asunto en la primera línea como "Asunto: ..." y cuerpo breve (máximo 150 palabras).
+- Pitch telefónico: guion de máximo 60 palabras para cold call.
+- Objeciones comunes: máximo 5 objeciones con respuesta corta cada una.
+- CTA recomendado: exactamente 1 frase con acción concreta (ej. agendar demo de 15 min).
 - Responde ÚNICAMENTE con JSON válido, sin markdown.`;
 
 export function buildSalesEnrichmentUserPrompt(prospect: Prospect): string {
@@ -31,7 +32,7 @@ export function buildSalesEnrichmentUserPrompt(prospect: Prospect): string {
     `Estado pipeline: ${formatProspectStatus(prospect.status)}`,
     "",
     "Devuelve JSON con estas claves exactas:",
-    '{ "brief": string, "whatsapp": string, "email": string, "phonePitch": string, "objections": string, "cta": string }',
+    '{ "brief": string, "whatsapp": string, "email": string, "pitch": string, "objections": string, "cta": string }',
   ];
 
   return lines.join("\n");

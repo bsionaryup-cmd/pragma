@@ -2,7 +2,7 @@ export type ProspectEnrichmentContent = {
   brief: string;
   whatsapp: string;
   email: string;
-  phonePitch: string;
+  pitch: string;
   objections: string;
   cta: string;
 };
