@@ -8,6 +8,8 @@ import {
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
+import { sumConfirmedReservationRevenue } from "@/lib/finance/confirmed-reservation-revenue";
+import { todayPrismaDate } from "@/lib/dates";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { addCalendarDaysToKey, dateKeyToPrismaDate, todayDateKeyInTimezone } from "@/lib/dates";
 import { startOfDay } from "@/lib/helpers/date";
@@ -36,6 +38,7 @@ import {
   type TodayPanelCounts,
 } from "@/services/dashboard/dashboard.service";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
+import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 
@@ -107,8 +110,44 @@ function monthBounds(reference = new Date()) {
   return monthBoundsInTimezone(reference);
 }
 
-function sumDecimal(rows: { totalAmount: { toString(): string } }[]): number {
-  return rows.reduce((acc, row) => acc + Number(row.totalAmount), 0);
+const ACCOUNTING_RESERVATION_STATUSES: ReservationStatus[] = [
+  ReservationStatus.CONFIRMED,
+  ReservationStatus.CHECKED_IN,
+  ReservationStatus.CHECKOUT_TODAY,
+  ReservationStatus.CHECKED_OUT,
+];
+
+const financeRevenueReservationSelect = {
+  id: true,
+  totalAmount: true,
+  platform: true,
+  icalUid: true,
+  reservationCode: true,
+  checkIn: true,
+  paymentStatus: true,
+} as const;
+
+async function sumFinanceAlignedReservationRevenue(
+  reservations: Array<{
+    id: string;
+    totalAmount: { toString(): string } | unknown;
+    platform: import("@prisma/client").BookingPlatform;
+    icalUid: string | null;
+    reservationCode: string | null;
+    checkIn: Date;
+    paymentStatus: import("@prisma/client").PaymentStatus;
+  }>,
+  today: Date,
+): Promise<number> {
+  if (reservations.length === 0) return 0;
+  const revenueSourcesByReservationId = await loadReservationRevenueSourcesByReservationId(
+    reservations.map((reservation) => reservation.id),
+  );
+  return sumConfirmedReservationRevenue(
+    reservations,
+    revenueSourcesByReservationId,
+    today,
+  );
 }
 
 function computeOccupancyFromReservations(
@@ -142,6 +181,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     addCalendarDaysToKey(todayDateKeyInTimezone(), 2),
   );
   const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds();
+  const financeToday = todayPrismaDate();
 
   const [
     activeProperties,
@@ -160,6 +200,8 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     ttlockConnected,
     monthReservations,
     prevMonthReservations,
+    currentMonthRevenueReservations,
+    previousMonthRevenueReservations,
     recentReservations,
     recentTasks,
     portfolioCapacity,
@@ -271,6 +313,24 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     }),
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: { in: ACCOUNTING_RESERVATION_STATUSES },
+          checkIn: { gte: start, lte: end },
+        }),
+      ),
+      select: financeRevenueReservationSelect,
+    }),
+    db.reservation.findMany({
+      where: withVisibleReservationsFilter(
+        mergeReservationScope(scope, {
+          status: { in: ACCOUNTING_RESERVATION_STATUSES },
+          checkIn: { gte: prevStart, lte: prevEnd },
+        }),
+      ),
+      select: financeRevenueReservationSelect,
+    }),
+    db.reservation.findMany({
+      where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {}),
       ),
       orderBy: { createdAt: "desc" },
@@ -346,10 +406,13 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     getManualFinanceInRange(prevStart, prevEnd, scope),
   ]);
 
-  const monthlyRevenue =
-    sumDecimal(monthReservations) + currentManual.incomeTotal;
-  const prevMonthlyRevenue =
-    sumDecimal(prevMonthReservations) + previousManual.incomeTotal;
+  const [currentReservationRevenue, previousReservationRevenue] = await Promise.all([
+    sumFinanceAlignedReservationRevenue(currentMonthRevenueReservations, financeToday),
+    sumFinanceAlignedReservationRevenue(previousMonthRevenueReservations, financeToday),
+  ]);
+
+  const monthlyRevenue = currentReservationRevenue + currentManual.incomeTotal;
+  const prevMonthlyRevenue = previousReservationRevenue + previousManual.incomeTotal;
   const revenueTrend =
     prevMonthlyRevenue > 0
       ? Math.round(((monthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100)

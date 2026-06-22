@@ -1,18 +1,23 @@
 import type { Prisma } from "@prisma/client";
 import { BillingPlanCode, BillingSubscriptionStatus } from "@prisma/client";
 import { db } from "@/lib/db";
-import { calculateSubscriptionAmount, getPlanDefinition } from "@/modules/billing/domain/plan-catalog";
+import { calculateSubscriptionAmount } from "@/modules/billing/domain/plan-catalog";
 import {
   parseBillingAccountMetadata,
   resolveBillablePropertyCount,
 } from "@/modules/billing/domain/subscription-property-count";
 import { getTenantTrialRetrialPolicy } from "@/lib/billing/trial-eligibility";
 
-import { PLATFORM_EPAYCO_ORG_NAME } from "@/modules/billing/services/epayco-platform.service";
 import { reconcileOutstandingSubscriptionPayments } from "@/modules/billing/services/billing-subscription-reconcile.service";
-
-const PLATFORM_WOMPI_ORG_NAME = "PRAGMA Platform (Wompi)";
-const PLATFORM_INTERNAL_ORG_NAMES = [PLATFORM_WOMPI_ORG_NAME, PLATFORM_EPAYCO_ORG_NAME];
+import {
+  loadOwnerCommercialScope,
+  ownerCommercialBillingAccountWhere,
+  ownerCommercialBillingInvoiceWhere,
+  ownerCommercialOrganizationWhere,
+  ownerCommercialPropertyWhere,
+  ownerCommercialReservationWhere,
+  ownerCommercialUserWhere,
+} from "@/services/platform/owner-dashboard-scope";
 
 export type OwnerClientSortField =
   | "createdAt"
@@ -158,8 +163,10 @@ export async function listOwnerClients(
   const skip = (page - 1) * pageSize;
   const sortBy = query.sortBy ?? "createdAt";
   const sortDir = query.sortDir ?? "desc";
+  const scope = await loadOwnerCommercialScope(db);
 
   const where: Prisma.OrganizationWhereInput = {
+    ...ownerCommercialOrganizationWhere(scope),
     ...(query.status && query.status !== "ALL" ? { status: query.status } : {}),
     ...(query.search
       ? {
@@ -183,9 +190,6 @@ export async function listOwnerClients(
     ...(query.billingStatus && query.billingStatus !== "ALL"
       ? { billingAccount: { status: query.billingStatus } }
       : {}),
-    // Internal platform org must not appear as a commercial tenant.
-    name: { notIn: PLATFORM_INTERNAL_ORG_NAMES },
-    deletedAt: null,
   };
 
   const [organizations, total] = await Promise.all([
@@ -488,19 +492,8 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
   const now = new Date();
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-  const platformOrg = await db.organization.findFirst({
-    where: { name: PLATFORM_WOMPI_ORG_NAME },
-    select: { id: true },
-  });
-  const platformOrgId = platformOrg?.id;
-
-  const billingAccountExclusion = platformOrgId
-    ? { organizationId: { not: platformOrgId } }
-    : {};
-  const propertyExclusion = platformOrgId
-    ? { organizationId: { not: platformOrgId } }
-    : {};
+  const scope = await loadOwnerCommercialScope(db);
+  const commercialOrgWhere = ownerCommercialOrganizationWhere(scope);
 
   const [
     totalTenants,
@@ -528,58 +521,71 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     upcomingBillingAccounts,
     recentPaidInvoices,
   ] = await Promise.all([
+    db.organization.count({ where: commercialOrgWhere }),
     db.organization.count({
-      where: { name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
-    }),
-    db.organization.count({
-      where: { status: "ACTIVE", name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
+      where: { ...commercialOrgWhere, status: "ACTIVE" },
     }),
     db.organization.count({
-      where: { status: "SUSPENDED", name: { notIn: PLATFORM_INTERNAL_ORG_NAMES }, deletedAt: null },
+      where: { ...commercialOrgWhere, status: "SUSPENDED" },
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.TRIAL, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.TRIAL,
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.ACTIVE,
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.PAST_DUE, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.PAST_DUE,
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.LOCKED, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.LOCKED,
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.CANCELED, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.CANCELED,
+      }),
     }),
     db.billingAccount.count({
-      where: {
+      where: ownerCommercialBillingAccountWhere(scope, {
         status: BillingSubscriptionStatus.TRIAL,
         trialEndsAt: { lte: in7Days, gte: now },
-        ...billingAccountExclusion,
-      },
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "STARTER", ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.ACTIVE,
+        plan: "STARTER",
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "PRO", ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.ACTIVE,
+        plan: "PRO",
+      }),
     }),
     db.billingAccount.count({
-      where: { status: BillingSubscriptionStatus.ACTIVE, plan: "SCALE", ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.ACTIVE,
+        plan: "SCALE",
+      }),
     }),
-    db.property.count({ where: propertyExclusion }),
-    db.user.count({ where: { deletedAt: null } }),
+    db.property.count({ where: ownerCommercialPropertyWhere(scope) }),
+    db.user.count({ where: ownerCommercialUserWhere(scope) }),
     db.reservation.count({
-      where: {
-        status: { not: "CANCELLED" },
-        ...(platformOrgId
-          ? { property: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialReservationWhere(scope),
     }),
     db.billingAccount.findMany({
-      where: { status: BillingSubscriptionStatus.ACTIVE, ...billingAccountExclusion },
+      where: ownerCommercialBillingAccountWhere(scope, {
+        status: BillingSubscriptionStatus.ACTIVE,
+      }),
       select: {
         plan: true,
         metadata: true,
@@ -596,22 +602,12 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       },
     }),
     db.billingInvoice.aggregate({
-      where: {
-        status: "OPEN",
-        ...(platformOrgId
-          ? { account: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialBillingInvoiceWhere(scope, { status: "OPEN" }),
       _sum: { amount: true },
       _count: { _all: true },
     }),
     db.billingInvoice.findMany({
-      where: {
-        status: "OPEN",
-        ...(platformOrgId
-          ? { account: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialBillingInvoiceWhere(scope, { status: "OPEN" }),
       orderBy: { dueAt: "asc" },
       take: 15,
       include: {
@@ -623,40 +619,32 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       },
     }),
     db.billingInvoice.aggregate({
-      where: { status: "PAID", paidAt: { gte: thirtyDaysAgo } },
+      where: ownerCommercialBillingInvoiceWhere(scope, {
+        status: "PAID",
+        paidAt: { gte: thirtyDaysAgo },
+      }),
       _sum: { amount: true },
     }),
     db.billingInvoice.aggregate({
-      where: {
-        status: "PAID",
-        ...(platformOrgId
-          ? { account: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialBillingInvoiceWhere(scope, { status: "PAID" }),
       _sum: { amount: true },
     }),
     db.reservation.aggregate({
-      where: {
-        status: { not: "CANCELLED" },
-        ...(platformOrgId
-          ? { property: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialReservationWhere(scope),
       _sum: { totalAmount: true },
     }),
     db.billingAccount.groupBy({
       by: ["status"],
-      where: Object.keys(billingAccountExclusion).length ? billingAccountExclusion : undefined,
+      where: ownerCommercialBillingAccountWhere(scope),
       _count: { _all: true },
     }),
     db.billingAccount.findMany({
-      where: {
+      where: ownerCommercialBillingAccountWhere(scope, {
         OR: [
           { currentPeriodEnd: { lte: in7Days, gte: now } },
           { trialEndsAt: { lte: in7Days, gte: now } },
         ],
-        ...billingAccountExclusion,
-      },
+      }),
       include: {
         organization: {
           select: {
@@ -675,12 +663,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       take: 12,
     }),
     db.billingInvoice.findMany({
-      where: {
-        status: "PAID",
-        ...(platformOrgId
-          ? { account: { organizationId: { not: platformOrgId } } }
-          : {}),
-      },
+      where: ownerCommercialBillingInvoiceWhere(scope, { status: "PAID" }),
       orderBy: { paidAt: "desc" },
       take: 12,
       include: {
