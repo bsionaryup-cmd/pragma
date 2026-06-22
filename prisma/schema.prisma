@@ -102,6 +102,7 @@ model User {
   salesQuotesCreated     SalesQuote[] @relation("SalesQuoteCreator")
   salesDiscountCodesCreated SalesDiscountCode[] @relation("SalesDiscountCodeCreator")
   salesQuoteEvents       SalesQuoteEvent[] @relation("SalesQuoteEventActor")
+  prospectsCreated       Prospect[] @relation("ProspectCreator")
   airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
   reservationActivitySeen          ReservationActivitySeen[]
   inboxAiDraftsCreated             InboxAiDraft[] @relation("InboxAiDraftCreator")
@@ -1624,6 +1625,65 @@ model SalesQuoteEvent {
 
   @@index([quoteId, createdAt])
   @@map("sales_quote_events")
+}
+
+// ─── Sales Console — Outbound CRM (platform owner only) ───
+// Distinct from SalesQuote (SaaS offers) and Lead (inbound landing).
+
+enum ProspectStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  DEMO_BOOKED
+  PROPOSAL
+  CUSTOMER
+  LOST
+}
+
+enum ProspectSource {
+  GOOGLE_MAPS
+  AIRBNB
+  INSTAGRAM
+  LINKEDIN
+  MANUAL
+}
+
+enum ProspectSegment {
+  SHORT_TERM_OPERATOR
+  PROPERTY_MANAGER
+  CO_HOST
+  INVESTOR
+  HOTEL
+  OTHER
+}
+
+model Prospect {
+  id                  String           @id @default(cuid())
+  companyName         String
+  phone               String?
+  website             String?
+  instagram           String?
+  city                String?
+  estimatedProperties Int?
+  score               Int?
+  status              ProspectStatus   @default(NEW)
+  source              ProspectSource
+  segment             ProspectSegment
+  notes               String?
+  archived            Boolean          @default(false)
+  createdById         String
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  createdBy User @relation("ProspectCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([city])
+  @@index([score])
+  @@index([source])
+  @@index([archived])
+  @@index([companyName])
+  @@map("prospects")
 }
 
 // ─── Airbnb Email Ingestion Layer (incremental / fallback) ───
