@@ -116,7 +116,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleCopyPhone() {
-    if (!current.phone) {
+    if (!current?.phone) {
       toast.error("Este prospecto no tiene teléfono");
       return;
     }
@@ -128,7 +128,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleOpenWebsite() {
-    if (!current.website) {
+    if (!current?.website) {
       toast.error("Este prospecto no tiene sitio web");
       return;
     }
@@ -142,6 +142,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleOpenWhatsApp() {
+    if (!current) return;
     const link = buildWhatsAppLinkWithMessage(
       current.phone,
       current.outreachMessage ?? "",
@@ -154,7 +155,7 @@ export function ProspectingLeadDrawer({
     run(async () => {
       await patchLead({
         activity: { type: "CONTACT_WHATSAPP" },
-        status: current.status === "NEW" ? "CONTACTED" : current.status,
+        status: current!.status === "NEW" ? "CONTACTED" : current!.status,
       });
     });
   }
@@ -167,6 +168,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleSaveFollowUp() {
+    if (!current) return;
     run(async () => {
       await patchLead({
         nextFollowUpDate: followUpDraft
@@ -186,6 +188,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleGenerateOutreach() {
+    if (!current) return;
     run(async () => {
       const response = await fetch(`/api/prospecting/leads/${current.id}/outreach`, {
         method: "POST",
@@ -206,6 +209,7 @@ export function ProspectingLeadDrawer({
   }
 
   function handleGenerateInsights() {
+    if (!current) return;
     run(async () => {
       const response = await fetch(`/api/prospecting/leads/${current.id}/insights`, {
         method: "POST",
