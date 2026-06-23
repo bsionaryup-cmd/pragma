@@ -3,6 +3,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Prisma, ProspectingLead } from "@prisma/client";
 import { db } from "@/lib/db";
+import { computeProspectingScore } from "@/lib/prospecting/prospecting-score";
 import type {
   ProspectingActivityEntry,
   ProspectingActivityType,
@@ -24,7 +25,7 @@ function parseActivityLog(value: Prisma.JsonValue): ProspectingActivityEntry[] {
 }
 
 export function serializeProspectingLeadDetail(row: ProspectingLead): ProspectingLeadDetail {
-  return {
+  const base = {
     id: row.id,
     businessName: row.businessName,
     phone: row.phone,
@@ -50,6 +51,26 @@ export function serializeProspectingLeadDetail(row: ProspectingLead): Prospectin
     activityLog: parseActivityLog(row.activityLog),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+
+  const scored = computeProspectingScore({
+    phone: base.phone,
+    website: base.website,
+    rating: base.rating,
+    reviews: base.reviews,
+    listingsCount: base.listingsCount,
+    category: base.category,
+    leadType: base.leadType,
+    potentialPragmaFit: base.potentialPragmaFit,
+    estimatedSophistication: base.estimatedSophistication,
+    status: base.status,
+  });
+
+  return {
+    ...base,
+    prospectingScore: scored.score,
+    priority: scored.priority,
+    airbnbScore: scored.airbnbScore,
   };
 }
 

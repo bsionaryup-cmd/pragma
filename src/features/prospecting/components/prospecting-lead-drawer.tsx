@@ -11,6 +11,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,7 +30,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { buildWhatsAppLinkWithMessage } from "@/lib/prospecting/whatsapp-link";
+import { runQuickContactFlow } from "@/features/prospecting/lib/quick-contact";
+import {
+  PRIORITY_BADGE_CLASS,
+  PRIORITY_LABELS,
+} from "@/lib/prospecting/prospecting-score";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
 import {
   PROSPECTING_FIT_LABELS,
@@ -115,16 +120,23 @@ export function ProspectingLeadDrawer({
     });
   }
 
-  function handleCopyPhone() {
-    if (!current?.phone) {
-      toast.error("Este prospecto no tiene teléfono");
+  function handleQuickContact() {
+    if (!current) return;
+    run(async () => {
+      const updated = await runQuickContactFlow(current, openAiConfigured);
+      setCurrent(updated);
+      onUpdated(updated);
+      toast.success("Mensaje copiado · WhatsApp abierto");
+    });
+  }
+
+  function handleCopyMessage() {
+    if (!current?.outreachMessage?.trim()) {
+      toast.error("Genera un mensaje primero");
       return;
     }
-    void navigator.clipboard.writeText(current.phone);
-    toast.success("Teléfono copiado");
-    run(async () => {
-      await patchLead({ activity: { type: "PHONE_COPIED" } });
-    });
+    void navigator.clipboard.writeText(current.outreachMessage);
+    toast.success("Mensaje copiado");
   }
 
   function handleOpenWebsite() {
@@ -138,25 +150,6 @@ export function ProspectingLeadDrawer({
     window.open(href, "_blank", "noopener,noreferrer");
     run(async () => {
       await patchLead({ activity: { type: "CONTACT_WEBSITE" } });
-    });
-  }
-
-  function handleOpenWhatsApp() {
-    if (!current) return;
-    const link = buildWhatsAppLinkWithMessage(
-      current.phone,
-      current.outreachMessage ?? "",
-    );
-    if (!link) {
-      toast.error("Teléfono inválido para WhatsApp");
-      return;
-    }
-    window.open(link, "_blank", "noopener,noreferrer");
-    run(async () => {
-      await patchLead({
-        activity: { type: "CONTACT_WHATSAPP" },
-        status: current!.status === "NEW" ? "CONTACTED" : current!.status,
-      });
     });
   }
 
@@ -183,7 +176,6 @@ export function ProspectingLeadDrawer({
   function handleStatusChange(status: string) {
     run(async () => {
       await patchLead({ status });
-      toast.success("Estado actualizado");
     });
   }
 
@@ -195,7 +187,6 @@ export function ProspectingLeadDrawer({
       });
       const payload = (await response.json()) as {
         success?: boolean;
-        message?: string;
         lead?: ProspectingLeadRow;
         error?: string;
       };
@@ -204,7 +195,7 @@ export function ProspectingLeadDrawer({
       }
       setCurrent(payload.lead);
       onUpdated(payload.lead);
-      toast.success("Mensaje generado");
+      toast.success("Mensaje listo");
     });
   }
 
@@ -217,7 +208,6 @@ export function ProspectingLeadDrawer({
       const payload = (await response.json()) as {
         success?: boolean;
         lead?: ProspectingLeadRow;
-        reasoning?: string;
         error?: string;
       };
       if (!response.ok || !payload.success || !payload.lead) {
@@ -225,7 +215,7 @@ export function ProspectingLeadDrawer({
       }
       setCurrent(payload.lead);
       onUpdated(payload.lead);
-      toast.success("Clasificación actualizada");
+      toast.success("Score actualizado");
     });
   }
 
@@ -233,215 +223,182 @@ export function ProspectingLeadDrawer({
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <SheetHeader className="border-b border-border px-5 py-4 text-left">
-          <SheetTitle className="pr-8 text-base">{current.businessName}</SheetTitle>
+          <div className="flex flex-wrap items-center gap-2 pr-8">
+            <Badge variant="outline" className={PRIORITY_BADGE_CLASS[current.priority]}>
+              {current.priority}
+            </Badge>
+            <span className="text-xs font-semibold tabular-nums">
+              Score {current.prospectingScore}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {PRIORITY_LABELS[current.priority]}
+            </span>
+          </div>
+          <SheetTitle className="mt-2 text-base">{current.businessName}</SheetTitle>
           <SheetDescription>
-            {SOURCE_LABELS[current.source] ?? current.source}
-            {current.category ? ` · ${current.category}` : ""}
+            {current.phone ?? "Sin teléfono"}
+            {current.website ? ` · ${current.website}` : ""}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          <section className="space-y-2">
-            <Label>Estado</Label>
-            <Select
-              value={current.status}
-              disabled={pending}
-              onValueChange={handleStatusChange}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROSPECTING_LEAD_STATUSES.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {PROSPECTING_STATUS_LABELS[status]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </section>
-
-          <section className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start gap-2"
-              disabled={pending || !current.website}
-              onClick={handleOpenWebsite}
-            >
-              <ExternalLink className="h-4 w-4" />
-              Sitio web
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start gap-2"
-              disabled={pending || !current.phone}
-              onClick={handleCopyPhone}
-            >
-              <Copy className="h-4 w-4" />
-              Copiar teléfono
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="col-span-2 justify-start gap-2"
-              disabled={pending || !current.phone}
-              onClick={handleOpenWhatsApp}
-            >
+        <div className="border-b border-border px-5 py-3">
+          <Button
+            type="button"
+            className="w-full gap-2"
+            disabled={pending || !current.phone}
+            onClick={handleQuickContact}
+          >
+            {pending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
               <MessageCircle className="h-4 w-4" />
-              Abrir WhatsApp
-            </Button>
-          </section>
+            )}
+            Contactar por WhatsApp
+          </Button>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Genera (si falta), copia y abre WhatsApp en un solo paso
+          </p>
+        </div>
 
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <section className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <Label>Mensaje de contacto</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2"
-                disabled={pending || !openAiConfigured}
-                onClick={handleGenerateOutreach}
-              >
-                {pending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
-                )}
-                {current.outreachMessage ? "Regenerar" : "Generar"}
-              </Button>
+              <Label className="text-xs">Mensaje</Label>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={pending || !current.outreachMessage}
+                  onClick={handleCopyMessage}
+                >
+                  <Copy className="mr-1 h-3 w-3" />
+                  Copiar
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={pending || !openAiConfigured}
+                  onClick={handleGenerateOutreach}
+                >
+                  <Sparkles className="mr-1 h-3 w-3" />
+                  {current.outreachMessage ? "Nuevo" : "Generar"}
+                </Button>
+              </div>
             </div>
-            {!openAiConfigured ? (
-              <p className="text-xs text-muted-foreground">
-                Configura OPENAI_API_KEY para generar mensajes de descubrimiento.
-              </p>
-            ) : null}
             <Textarea
-              rows={5}
+              rows={4}
               value={current.outreachMessage ?? ""}
               readOnly
-              placeholder="Genera un mensaje natural para iniciar conversación (sin pitch de ventas)."
+              placeholder={
+                openAiConfigured
+                  ? "Pulsa Contactar o Generar para crear el mensaje."
+                  : "Configura OPENAI_API_KEY para mensajes automáticos."
+              }
               className="resize-none text-sm"
             />
           </section>
 
-          <section className="space-y-2">
+          <section className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Estado</Label>
+              <Select
+                value={current.status}
+                disabled={pending}
+                onValueChange={handleStatusChange}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROSPECTING_LEAD_STATUSES.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {PROSPECTING_STATUS_LABELS[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Seguimiento</Label>
+              <Input
+                type="date"
+                className="h-9"
+                value={followUpDraft}
+                disabled={pending}
+                onChange={(e) => setFollowUpDraft(e.target.value)}
+                onBlur={handleSaveFollowUp}
+              />
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
             <div className="flex items-center justify-between gap-2">
-              <Label>Clasificación IA</Label>
+              <span className="font-medium text-foreground">Inteligencia</span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 gap-1.5 px-2"
+                className="h-7 px-2"
                 disabled={pending || !openAiConfigured}
                 onClick={handleGenerateInsights}
               >
-                {pending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5" />
-                )}
-                Clasificar
+                <Sparkles className="mr-1 h-3 w-3" />
+                Actualizar
               </Button>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-              <p>
-                <span className="text-muted-foreground">Tipo:</span>{" "}
-                {current.leadType
-                  ? PROSPECTING_LEAD_TYPE_LABELS[current.leadType]
-                  : "—"}
-              </p>
-              <p className="mt-1">
-                <span className="text-muted-foreground">Sofisticación:</span>{" "}
-                {current.estimatedSophistication
-                  ? PROSPECTING_FIT_LABELS[current.estimatedSophistication]
-                  : "—"}
-              </p>
-              <p className="mt-1">
-                <span className="text-muted-foreground">Fit PRAGMA:</span>{" "}
-                {current.potentialPragmaFit
-                  ? PROSPECTING_FIT_LABELS[current.potentialPragmaFit]
-                  : "—"}
-              </p>
-            </div>
+            <p className="mt-2">
+              Tipo:{" "}
+              {current.leadType ? PROSPECTING_LEAD_TYPE_LABELS[current.leadType] : "—"}
+            </p>
+            <p>
+              Fit:{" "}
+              {current.potentialPragmaFit
+                ? PROSPECTING_FIT_LABELS[current.potentialPragmaFit]
+                : "—"}
+              {current.airbnbScore
+                ? ` · Airbnb ${PROSPECTING_FIT_LABELS[current.airbnbScore]}`
+                : ""}
+            </p>
+            <p className="text-muted-foreground">
+              {SOURCE_LABELS[current.source] ?? current.source}
+              {current.category ? ` · ${current.category}` : ""}
+            </p>
+            {current.website ? (
+              <Button
+                type="button"
+                variant="link"
+                className="mt-1 h-auto p-0 text-xs"
+                onClick={handleOpenWebsite}
+              >
+                <ExternalLink className="mr-1 h-3 w-3" />
+                Abrir sitio web
+              </Button>
+            ) : null}
           </section>
 
           <section className="space-y-2">
-            <Label className="flex items-center gap-1.5">
+            <Label className="flex items-center gap-1.5 text-xs">
               <StickyNote className="h-3.5 w-3.5" />
               Notas
             </Label>
             <Textarea
-              rows={4}
+              rows={3}
               value={notesDraft}
               disabled={pending}
               onChange={(e) => setNotesDraft(e.target.value)}
-              placeholder="Registra lo que aprendiste en la conversación…"
+              onBlur={handleSaveNotes}
+              placeholder="¿Qué respondió? ¿Cuál es su dolor operativo?"
             />
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={pending}
-              onClick={handleSaveNotes}
-            >
-              Guardar notas
-            </Button>
           </section>
 
-          <section className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1 text-sm">
-              <p className="text-muted-foreground">Último contacto</p>
-              <p>{formatDate(current.lastContactDate)}</p>
-            </div>
-            <div className="space-y-1 text-sm">
-              <p className="text-muted-foreground">Seguimientos</p>
-              <p>{current.followUpCount}</p>
-            </div>
-          </section>
-
-          <section className="space-y-2">
-            <Label className="flex items-center gap-1.5">
-              <CalendarClock className="h-3.5 w-3.5" />
-              Próximo seguimiento
-            </Label>
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                value={followUpDraft}
-                disabled={pending}
-                onChange={(e) => setFollowUpDraft(e.target.value)}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={pending}
-                onClick={handleSaveFollowUp}
-              >
-                Guardar
-              </Button>
-            </div>
-          </section>
-
-          {current.activityLog.length > 0 ? (
-            <section className="space-y-2">
-              <Label>Historial</Label>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                {[...current.activityLog].reverse().slice(0, 12).map((entry) => (
-                  <li key={entry.id} className="rounded-md border border-border px-3 py-2">
-                    <p className="text-foreground/90">{entry.summary}</p>
-                    <p className="mt-1">{formatDate(entry.at)}</p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+            <p>Último contacto: {formatDate(current.lastContactDate)}</p>
+            <p>Seguimientos: {current.followUpCount}</p>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

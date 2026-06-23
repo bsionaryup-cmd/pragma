@@ -4,6 +4,7 @@ import type {
   ProspectingLeadStatus,
   ProspectingLeadType,
 } from "@prisma/client";
+import type { ProspectingPriority } from "@/lib/prospecting/prospecting-score";
 
 export type ProspectingActivityType =
   | "STATUS_CHANGE"
@@ -45,6 +46,9 @@ export type ProspectingLeadDetail = {
   leadType: ProspectingLeadType | null;
   estimatedSophistication: ProspectingFitLevel | null;
   potentialPragmaFit: ProspectingFitLevel | null;
+  prospectingScore: number;
+  priority: ProspectingPriority;
+  airbnbScore: ProspectingFitLevel | null;
   activityLog: ProspectingActivityEntry[];
   createdAt: string;
   updatedAt: string;

@@ -1,34 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Search, Target } from "lucide-react";
+import { Flame, Loader2, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { ProspectingLeadCard } from "@/features/prospecting/components/prospecting-lead-card";
 import { ProspectingLeadDrawer } from "@/features/prospecting/components/prospecting-lead-drawer";
+import { runQuickContactFlow } from "@/features/prospecting/lib/quick-contact";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
-import { PROSPECTING_STATUS_LABELS } from "@/services/prospecting/prospecting-crm.types";
 import { toast } from "sonner";
 
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLL_ATTEMPTS = 200;
-
-const SOURCE_LABELS: Record<string, string> = {
-  GOOGLE_MAPS: "Google Maps",
-  AIRBNB: "Airbnb",
-  INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook",
-  BOOKING: "Booking",
-  LINKEDIN: "LinkedIn",
-};
 
 type ProspectingViewProps = {
   initialLeads: ProspectingLeadRow[];
@@ -54,12 +38,18 @@ export function ProspectingView({
   const [leads, setLeads] = useState(initialLeads);
   const [selectedLead, setSelectedLead] = useState<ProspectingLeadRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [contactingId, setContactingId] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [pendingPage, startPageChange] = useTransition();
 
-  const busy = searching || pendingPage;
+  const busy = searching || pendingPage || contactingId !== null;
+
+  const hotCount = useMemo(
+    () => leads.filter((lead) => lead.priority === "HOT").length,
+    [leads],
+  );
 
   function clearPollTimeout() {
     if (pollTimeoutRef.current) {
@@ -85,6 +75,29 @@ export function ProspectingView({
       const suffix = params.toString() ? `?${params.toString()}` : "";
       router.push(`/prospecting${suffix}`);
     });
+  }
+
+  function openLead(lead: ProspectingLeadRow) {
+    setSelectedLead(lead);
+    setDrawerOpen(true);
+  }
+
+  function updateLeadInList(updated: ProspectingLeadRow) {
+    setLeads((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    setSelectedLead((prev) => (prev?.id === updated.id ? updated : prev));
+  }
+
+  async function handleQuickContact(lead: ProspectingLeadRow) {
+    setContactingId(lead.id);
+    try {
+      const updated = await runQuickContactFlow(lead, openAiConfigured);
+      updateLeadInList(updated);
+      toast.success("Mensaje copiado · WhatsApp abierto");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo contactar");
+    } finally {
+      setContactingId(null);
+    }
   }
 
   async function pollImport(runId: string) {
@@ -197,7 +210,7 @@ export function ProspectingView({
               id="prospecting-query"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="administración airbnb medellín"
+              placeholder="property management medellín"
               disabled={busy}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -223,79 +236,52 @@ export function ProspectingView({
         </div>
         {!apifyConfigured ? (
           <p className="mt-3 text-xs text-muted-foreground">
-            Configura <code className="text-[11px]">APIFY_TOKEN</code> en el servidor para
-            habilitar la búsqueda con Apify.
+            Configura <code className="text-[11px]">APIFY_TOKEN</code> en el servidor.
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            Busca administradores de propiedades, co-hosts o gestores Airbnb — no apartamentos
-            turísticos individuales. Ejemplos:{" "}
-            <span className="text-foreground/80">
-              administración airbnb medellín, property management medellín, co-host airbnb medellín
-            </span>
-            . La búsqueda se ejecuta en segundo plano y evita duplicados por nombre, teléfono y
-            sitio web.
+            Prioriza property managers y co-hosts. Un clic en{" "}
+            <span className="text-foreground/80">Contactar</span> genera el mensaje, lo copia y abre
+            WhatsApp.
           </p>
         )}
       </section>
 
       <section className="rounded-2xl border border-border bg-card shadow-pragma-soft">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">Prospectos</h2>
+            <h2 className="text-sm font-semibold text-foreground">Pipeline</h2>
           </div>
-          <p className="text-xs text-muted-foreground">{total} en total</p>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {hotCount > 0 ? (
+              <span className="inline-flex items-center gap-1 font-medium text-orange-600 dark:text-orange-300">
+                <Flame className="h-3.5 w-3.5" />
+                {hotCount} HOT
+              </span>
+            ) : null}
+            <span>{total} en total</span>
+          </div>
         </div>
 
         {leads.length === 0 ? (
           <div className="px-4 py-12 text-center sm:px-5">
             <p className="text-sm font-medium text-foreground">Sin prospectos todavía</p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Busca empresas en Google Maps para empezar a construir tu pipeline comercial.
+              Busca empresas para empezar. Los leads HOT aparecen primero.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Teléfono</TableHead>
-                  <TableHead>Fit</TableHead>
-                  <TableHead>Seguimiento</TableHead>
-                  <TableHead>Fuente</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {leads.map((lead) => (
-                  <TableRow
-                    key={lead.id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setSelectedLead(lead);
-                      setDrawerOpen(true);
-                    }}
-                  >
-                    <TableCell className="max-w-[220px] font-medium">
-                      <span className="line-clamp-2">{lead.businessName}</span>
-                    </TableCell>
-                    <TableCell>{PROSPECTING_STATUS_LABELS[lead.status]}</TableCell>
-                    <TableCell>{lead.phone ?? "—"}</TableCell>
-                    <TableCell>
-                      {lead.potentialPragmaFit ? lead.potentialPragmaFit : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {lead.nextFollowUpDate
-                        ? new Date(lead.nextFollowUpDate).toLocaleDateString("es-CO")
-                        : "—"}
-                    </TableCell>
-                    <TableCell>{SOURCE_LABELS[lead.source] ?? lead.source}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+            {leads.map((lead) => (
+              <ProspectingLeadCard
+                key={lead.id}
+                lead={lead}
+                busy={contactingId === lead.id}
+                onOpen={openLead}
+                onQuickContact={(item) => void handleQuickContact(item)}
+              />
+            ))}
           </div>
         )}
 
@@ -336,10 +322,7 @@ export function ProspectingView({
           setDrawerOpen(false);
           setSelectedLead(null);
         }}
-        onUpdated={(updated) => {
-          setLeads((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
-          setSelectedLead(updated);
-        }}
+        onUpdated={updateLeadInList}
       />
     </div>
   );

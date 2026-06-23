@@ -45,14 +45,21 @@ export async function listProspectingLeads(input: {
     db.prospectingLead.count({ where }),
     db.prospectingLead.findMany({
       where,
-      orderBy: [{ nextFollowUpDate: "asc" }, { createdAt: "desc" }],
+      orderBy: { createdAt: "desc" },
       skip,
       take: pageSize,
     }),
   ]);
 
+  const items = rows.map(serializeLead).sort((a, b) => {
+    if (b.prospectingScore !== a.prospectingScore) {
+      return b.prospectingScore - a.prospectingScore;
+    }
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   return {
-    items: rows.map(serializeLead),
+    items,
     page,
     pageSize,
     total,
