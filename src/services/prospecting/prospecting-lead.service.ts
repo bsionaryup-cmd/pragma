@@ -11,6 +11,8 @@ export type ProspectingLeadRow = {
   businessName: string;
   phone: string | null;
   website: string | null;
+  email: string | null;
+  address: string | null;
   rating: number | null;
   reviews: number | null;
   category: string | null;
@@ -32,6 +34,8 @@ function serializeLead(row: ProspectingLead): ProspectingLeadRow {
     businessName: row.businessName,
     phone: row.phone,
     website: row.website,
+    email: row.email,
+    address: row.address,
     rating: row.rating,
     reviews: row.reviews,
     category: row.category,

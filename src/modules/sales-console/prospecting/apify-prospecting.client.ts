@@ -50,7 +50,9 @@ function resolveApifyToken(): string {
 }
 
 function resolveGoogleMapsActorId(): string {
-  const raw = process.env.APIFY_GOOGLE_MAPS_ACTOR_ID?.trim();
+  const raw =
+    process.env.APIFY_GOOGLE_MAPS_ACTOR?.trim() ||
+    process.env.APIFY_GOOGLE_MAPS_ACTOR_ID?.trim();
   if (!raw) return DEFAULT_GOOGLE_MAPS_ACTOR_ID;
   return raw.includes("/") ? raw.replace("/", "~") : raw;
 }

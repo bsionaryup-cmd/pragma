@@ -18,6 +18,20 @@ describe("apify normalizeLead", () => {
     assert.equal(lead.businessName, "Urban Stays");
     assert.equal(lead.source, "GOOGLE_MAPS");
     assert.equal(lead.reviews, 12);
+    assert.equal(lead.website, "https://urban.example");
+  });
+
+  it("does not treat Google Maps listing URLs as business websites", () => {
+    const lead = normalizeGoogleMapsItem({
+      title: "Vacation Loft",
+      url: "https://www.google.com/maps/search/?api=1&query=Vacation%20Loft",
+      address: "Laureles, Medellín",
+      categoryName: "Departamento",
+    });
+
+    assert.ok(lead);
+    assert.equal(lead.website, null);
+    assert.equal(lead.address, "Laureles, Medellín");
   });
 
   it("builds stable dedup keys", () => {

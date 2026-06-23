@@ -29,6 +29,24 @@ function pickInteger(item: Record<string, unknown>, keys: string[]): number | nu
   return Math.max(0, Math.floor(value));
 }
 
+function isGoogleMapsUrl(value: string): boolean {
+  try {
+    const host = new URL(value.startsWith("http") ? value : `https://${value}`).hostname
+      .toLowerCase();
+    return host === "google.com" || host.endsWith(".google.com");
+  } catch {
+    return value.toLowerCase().includes("google.com/maps");
+  }
+}
+
+function pickWebsite(item: Record<string, unknown>): string | null {
+  for (const key of ["website", "webSite", "companyWebsite"]) {
+    const value = pickString(item, [key]);
+    if (value && !isGoogleMapsUrl(value)) return value;
+  }
+  return null;
+}
+
 export function normalizeProviderItem(
   item: Record<string, unknown>,
   source: ProspectingLeadSourceValue,
@@ -38,10 +56,10 @@ export function normalizeProviderItem(
 
   return {
     businessName,
-    phone: pickString(item, ["phone", "phoneUnformatted"]),
-    website: pickString(item, ["website", "url"]),
-    email: pickString(item, ["email"]),
-    address: pickString(item, ["address", "street", "fullAddress"]),
+    phone: pickString(item, ["phone", "phoneUnformatted", "phoneNumber"]),
+    website: pickWebsite(item),
+    email: pickString(item, ["email", "emails"]),
+    address: pickString(item, ["address", "street", "fullAddress", "formattedAddress"]),
     rating: pickNumber(item, ["totalScore", "rating", "stars"]),
     reviews: pickInteger(item, ["reviewsCount", "reviews", "reviewCount"]),
     category: pickString(item, ["categoryName", "category", "type"]),

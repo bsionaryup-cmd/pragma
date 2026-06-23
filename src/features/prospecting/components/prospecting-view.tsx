@@ -185,7 +185,7 @@ export function ProspectingView({
               id="prospecting-query"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="apartamentos turísticos Medellín"
+              placeholder="administración airbnb medellín"
               disabled={busy}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -216,8 +216,13 @@ export function ProspectingView({
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            La búsqueda se ejecuta en segundo plano. Los resultados se guardan por organización,
-            evitando duplicados por nombre, teléfono y sitio web.
+            Busca administradores de propiedades, co-hosts o gestores Airbnb — no apartamentos
+            turísticos individuales. Ejemplos:{" "}
+            <span className="text-foreground/80">
+              administración airbnb medellín, property management medellín, co-host airbnb medellín
+            </span>
+            . La búsqueda se ejecuta en segundo plano y evita duplicados por nombre, teléfono y
+            sitio web.
           </p>
         )}
       </section>
@@ -246,6 +251,8 @@ export function ProspectingView({
                   <TableHead>Empresa</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Sitio web</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Dirección</TableHead>
                   <TableHead>Rating</TableHead>
                   <TableHead>Reseñas</TableHead>
                   <TableHead>Categoría</TableHead>
@@ -267,13 +274,20 @@ export function ProspectingView({
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="text-primary hover:underline"
+                          className="max-w-[180px] truncate text-primary hover:underline"
+                          title={lead.website}
                         >
                           {lead.website}
                         </a>
                       ) : (
                         "—"
                       )}
+                    </TableCell>
+                    <TableCell className="max-w-[160px] truncate" title={lead.email ?? undefined}>
+                      {lead.email ?? "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={lead.address ?? undefined}>
+                      {lead.address ?? "—"}
                     </TableCell>
                     <TableCell>{lead.rating ?? "—"}</TableCell>
                     <TableCell>{lead.reviews ?? "—"}</TableCell>
