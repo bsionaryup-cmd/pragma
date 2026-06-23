@@ -2,23 +2,15 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import type { ProspectingLead, ProspectingLeadSource } from "@prisma/client";
+import {
+  serializeProspectingLeadDetail,
+} from "@/services/prospecting/prospecting-crm.service";
+import type { ProspectingLeadDetail } from "@/services/prospecting/prospecting-crm.types";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 
-export type ProspectingLeadRow = {
-  id: string;
-  businessName: string;
-  phone: string | null;
-  website: string | null;
-  email: string | null;
-  address: string | null;
-  rating: number | null;
-  reviews: number | null;
-  category: string | null;
-  source: ProspectingLeadSource;
-  createdAt: string;
-};
+export type ProspectingLeadRow = ProspectingLeadDetail;
 
 export type ListProspectingLeadsResult = {
   items: ProspectingLeadRow[];
@@ -29,25 +21,14 @@ export type ListProspectingLeadsResult = {
 };
 
 function serializeLead(row: ProspectingLead): ProspectingLeadRow {
-  return {
-    id: row.id,
-    businessName: row.businessName,
-    phone: row.phone,
-    website: row.website,
-    email: row.email,
-    address: row.address,
-    rating: row.rating,
-    reviews: row.reviews,
-    category: row.category,
-    source: row.source,
-    createdAt: row.createdAt.toISOString(),
-  };
+  return serializeProspectingLeadDetail(row);
 }
 
 export async function listProspectingLeads(input: {
   organizationId: string;
   page?: number;
   pageSize?: number;
+  status?: ProspectingLead["status"];
 }): Promise<ListProspectingLeadsResult> {
   const page = Math.max(1, Math.floor(input.page ?? 1));
   const pageSize = Math.min(
@@ -55,12 +36,16 @@ export async function listProspectingLeads(input: {
     Math.max(1, Math.floor(input.pageSize ?? DEFAULT_PAGE_SIZE)),
   );
   const skip = (page - 1) * pageSize;
+  const where = {
+    organizationId: input.organizationId,
+    ...(input.status ? { status: input.status } : {}),
+  };
 
   const [total, rows] = await Promise.all([
-    db.prospectingLead.count({ where: { organizationId: input.organizationId } }),
+    db.prospectingLead.count({ where }),
     db.prospectingLead.findMany({
-      where: { organizationId: input.organizationId },
-      orderBy: { createdAt: "desc" },
+      where,
+      orderBy: [{ nextFollowUpDate: "asc" }, { createdAt: "desc" }],
       skip,
       take: pageSize,
     }),
@@ -74,3 +59,15 @@ export async function listProspectingLeads(input: {
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
+
+export async function getProspectingLeadRow(
+  organizationId: string,
+  leadId: string,
+): Promise<ProspectingLeadRow | null> {
+  const row = await db.prospectingLead.findFirst({
+    where: { id: leadId, organizationId },
+  });
+  return row ? serializeLead(row) : null;
+}
+
+export type { ProspectingLeadSource };

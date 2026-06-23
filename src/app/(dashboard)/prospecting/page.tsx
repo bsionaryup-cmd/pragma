@@ -4,6 +4,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { ProspectingView } from "@/features/prospecting/components/prospecting-view";
 import { requirePermission } from "@/lib/auth";
 import { isApifyConfigured } from "@/lib/apify/apify-client";
+import { isOpenAiEnrichmentConfigured } from "@/modules/sales-console/enrichment/openai-sales.client";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { listProspectingLeads } from "@/services/prospecting/prospecting-lead.service";
 
@@ -38,8 +39,8 @@ export default async function ProspectingPage({ searchParams }: ProspectingPageP
             Prospecting
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-foreground/75">
-            Busca empresas con Apify, normaliza los datos y construye tu base comercial por
-            organización.
+            Descubre leads, inicia conversaciones por WhatsApp, registra notas y avanza el pipeline
+            comercial sin salir de Prospecting.
           </p>
         </header>
 
@@ -49,6 +50,7 @@ export default async function ProspectingPage({ searchParams }: ProspectingPageP
           totalPages={result.totalPages}
           total={result.total}
           apifyConfigured={isApifyConfigured()}
+          openAiConfigured={isOpenAiEnrichmentConfigured()}
         />
       </div>
     </ModuleShellFlow>

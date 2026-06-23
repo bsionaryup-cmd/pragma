@@ -13,7 +13,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ProspectingLeadDrawer } from "@/features/prospecting/components/prospecting-lead-drawer";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
+import { PROSPECTING_STATUS_LABELS } from "@/services/prospecting/prospecting-crm.types";
 import { toast } from "sonner";
 
 const POLL_INTERVAL_MS = 3000;
@@ -34,6 +36,7 @@ type ProspectingViewProps = {
   totalPages: number;
   total: number;
   apifyConfigured: boolean;
+  openAiConfigured: boolean;
 };
 
 export function ProspectingView({
@@ -42,10 +45,15 @@ export function ProspectingView({
   totalPages,
   total,
   apifyConfigured,
+  openAiConfigured,
 }: ProspectingViewProps) {
   const router = useRouter();
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollAttemptsRef = useRef(0);
+
+  const [leads, setLeads] = useState(initialLeads);
+  const [selectedLead, setSelectedLead] = useState<ProspectingLeadRow | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -59,6 +67,10 @@ export function ProspectingView({
       pollTimeoutRef.current = null;
     }
   }
+
+  useEffect(() => {
+    setLeads(initialLeads);
+  }, [initialLeads]);
 
   useEffect(() => {
     return () => {
@@ -236,7 +248,7 @@ export function ProspectingView({
           <p className="text-xs text-muted-foreground">{total} en total</p>
         </div>
 
-        {initialLeads.length === 0 ? (
+        {leads.length === 0 ? (
           <div className="px-4 py-12 text-center sm:px-5">
             <p className="text-sm font-medium text-foreground">Sin prospectos todavía</p>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -249,49 +261,36 @@ export function ProspectingView({
               <TableHeader>
                 <TableRow>
                   <TableHead>Empresa</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead>Teléfono</TableHead>
-                  <TableHead>Sitio web</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Dirección</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Reseñas</TableHead>
-                  <TableHead>Categoría</TableHead>
+                  <TableHead>Fit</TableHead>
+                  <TableHead>Seguimiento</TableHead>
                   <TableHead>Fuente</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {initialLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.businessName}</TableCell>
+                {leads.map((lead) => (
+                  <TableRow
+                    key={lead.id}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setSelectedLead(lead);
+                      setDrawerOpen(true);
+                    }}
+                  >
+                    <TableCell className="max-w-[220px] font-medium">
+                      <span className="line-clamp-2">{lead.businessName}</span>
+                    </TableCell>
+                    <TableCell>{PROSPECTING_STATUS_LABELS[lead.status]}</TableCell>
                     <TableCell>{lead.phone ?? "—"}</TableCell>
                     <TableCell>
-                      {lead.website ? (
-                        <a
-                          href={
-                            lead.website.startsWith("http")
-                              ? lead.website
-                              : `https://${lead.website}`
-                          }
-                          target="_blank"
-                          rel="noreferrer"
-                          className="max-w-[180px] truncate text-primary hover:underline"
-                          title={lead.website}
-                        >
-                          {lead.website}
-                        </a>
-                      ) : (
-                        "—"
-                      )}
+                      {lead.potentialPragmaFit ? lead.potentialPragmaFit : "—"}
                     </TableCell>
-                    <TableCell className="max-w-[160px] truncate" title={lead.email ?? undefined}>
-                      {lead.email ?? "—"}
+                    <TableCell>
+                      {lead.nextFollowUpDate
+                        ? new Date(lead.nextFollowUpDate).toLocaleDateString("es-CO")
+                        : "—"}
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={lead.address ?? undefined}>
-                      {lead.address ?? "—"}
-                    </TableCell>
-                    <TableCell>{lead.rating ?? "—"}</TableCell>
-                    <TableCell>{lead.reviews ?? "—"}</TableCell>
-                    <TableCell>{lead.category ?? "—"}</TableCell>
                     <TableCell>{SOURCE_LABELS[lead.source] ?? lead.source}</TableCell>
                   </TableRow>
                 ))}
@@ -328,6 +327,20 @@ export function ProspectingView({
           </div>
         ) : null}
       </section>
+
+      <ProspectingLeadDrawer
+        lead={selectedLead}
+        open={drawerOpen}
+        openAiConfigured={openAiConfigured}
+        onClose={() => {
+          setDrawerOpen(false);
+          setSelectedLead(null);
+        }}
+        onUpdated={(updated) => {
+          setLeads((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+          setSelectedLead(updated);
+        }}
+      />
     </div>
   );
 }

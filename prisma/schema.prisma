@@ -1668,25 +1668,67 @@ enum ProspectingLeadSource {
   LINKEDIN
 }
 
+enum ProspectingLeadStatus {
+  NEW
+  CONTACTED
+  RESPONDED
+  INTERESTED
+  FOLLOW_UP
+  DEMO
+  CUSTOMER
+  NOT_INTERESTED
+  ARCHIVED
+}
+
+enum ProspectingLeadType {
+  PROPERTY_MANAGER
+  CO_HOST
+  HOST
+  HOTEL
+  HOSTEL
+  VACATION_RENTAL_OPERATOR
+  UNKNOWN
+}
+
+enum ProspectingFitLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
 model ProspectingLead {
-  id             String                @id @default(cuid())
-  organizationId String
-  businessName   String
-  phone          String?
-  website        String?
-  email          String?
-  address        String?
-  rating         Float?
-  reviews        Int?
-  category       String?
-  source         ProspectingLeadSource
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  id                      String                  @id @default(cuid())
+  organizationId          String
+  businessName            String
+  phone                   String?
+  website                 String?
+  email                   String?
+  address                 String?
+  city                    String?
+  hostUrl                 String?
+  listingsCount           Int?
+  rating                  Float?
+  reviews                 Int?
+  category                String?
+  source                  ProspectingLeadSource
+  status                  ProspectingLeadStatus   @default(NEW)
+  notes                   String?
+  lastContactDate         DateTime?
+  nextFollowUpDate        DateTime?
+  followUpCount           Int                     @default(0)
+  outreachMessage         String?
+  leadType                ProspectingLeadType?
+  estimatedSophistication ProspectingFitLevel?
+  potentialPragmaFit      ProspectingFitLevel?
+  activityLog             Json                    @default("[]")
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([organizationId, businessName])
+  @@index([organizationId, status])
   @@index([source])
   @@map("prospecting_leads")
 }
