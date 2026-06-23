@@ -26,7 +26,8 @@ export type NavIconName =
   | "key-round"
   | "credit-card"
   | "list-checks"
-  | "bell";
+  | "bell"
+  | "scan-search";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -94,6 +95,13 @@ const integrationsNavItem: NavItem = {
   labelKey: "nav.integrations",
   href: "/integrations",
   icon: "ribbon",
+  permission: "integrations:read",
+};
+
+const prospectingNavItem: NavItem = {
+  labelKey: "nav.prospecting",
+  href: "/prospecting",
+  icon: "scan-search",
   permission: "integrations:read",
 };
 
@@ -343,6 +351,10 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(integrationsNavItem, role, plan)) {
     modules.push(navLinkModule(integrationsNavItem));
+  }
+
+  if (navLinkAllowed(prospectingNavItem, role, plan)) {
+    modules.push(navLinkModule(prospectingNavItem));
   }
 
   if (navLinkAllowed(accessCodesNavItem, role, plan)) {

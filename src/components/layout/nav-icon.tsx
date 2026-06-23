@@ -12,6 +12,7 @@ import {
   MessageCircle,
   LineChart,
   Ribbon,
+  ScanSearch,
   Settings,
   Wallet,
   type LucideIcon,
@@ -32,6 +33,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   "credit-card": CreditCard,
   wallet: Wallet,
   settings: Settings,
+  "scan-search": ScanSearch,
 };
 
 type NavIconProps = {

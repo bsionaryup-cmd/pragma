@@ -46,6 +46,7 @@ model Organization {
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
   inboxAiDrafts          InboxAiDraft[]
+  prospectingLeads       ProspectingLead[]
 
   @@map("organizations")
 }
@@ -1655,6 +1656,39 @@ enum ProspectSegment {
   INVESTOR
   HOTEL
   OTHER
+}
+
+// Tenant-scoped business leads from Apify prospecting (distinct from landing `Lead` captures).
+enum ProspectingLeadSource {
+  GOOGLE_MAPS
+  AIRBNB
+  INSTAGRAM
+  FACEBOOK
+  BOOKING
+  LINKEDIN
+}
+
+model ProspectingLead {
+  id             String                @id @default(cuid())
+  organizationId String
+  businessName   String
+  phone          String?
+  website        String?
+  email          String?
+  address        String?
+  rating         Float?
+  reviews        Int?
+  category       String?
+  source         ProspectingLeadSource
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, businessName])
+  @@index([source])
+  @@map("prospecting_leads")
 }
 
 model Prospect {

@@ -36,6 +36,7 @@ export const es = {
     revenue: "Tarifas",
     smartAccess: "Códigos de acceso",
     integrations: "Integraciones",
+    prospecting: "Prospecting",
     integrationsOverview: "Resumen",
     integrationsAirbnb: "Airbnb",
     integrationsPriceLabs: "PriceLabs · API",
