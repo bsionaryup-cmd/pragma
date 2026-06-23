@@ -4,14 +4,12 @@ import { ExternalLink, MessageCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  PRIORITY_BADGE_CLASS,
-  PRIORITY_LABELS,
-} from "@/lib/prospecting/prospecting-score";
+  FOLLOW_UP_URGENCY_CLASS,
+  FOLLOW_UP_URGENCY_LABELS,
+} from "@/lib/prospecting/prospecting-intelligence";
+import { PRIORITY_BADGE_CLASS } from "@/lib/prospecting/prospecting-score";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
-import {
-  PROSPECTING_FIT_LABELS,
-  PROSPECTING_STATUS_LABELS,
-} from "@/services/prospecting/prospecting-crm.types";
+import { PROSPECTING_STATUS_LABELS } from "@/services/prospecting/prospecting-crm.types";
 
 type ProspectingLeadCardProps = {
   lead: ProspectingLeadRow;
@@ -48,14 +46,8 @@ export function ProspectingLeadCard({
   const canContact = Boolean(lead.phone?.trim());
 
   return (
-    <article
-      className="rounded-xl border border-border bg-card p-4 shadow-pragma-soft transition-colors hover:border-primary/30"
-    >
-      <button
-        type="button"
-        className="w-full text-left"
-        onClick={() => onOpen(lead)}
-      >
+    <article className="rounded-xl border border-border bg-card p-4 shadow-pragma-soft transition-colors hover:border-primary/30">
+      <button type="button" className="w-full text-left" onClick={() => onOpen(lead)}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <h3 className="line-clamp-2 text-sm font-semibold text-foreground">
@@ -76,19 +68,33 @@ export function ProspectingLeadCard({
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+        <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
           <Badge variant="secondary" className="font-normal">
             {PROSPECTING_STATUS_LABELS[lead.status]}
           </Badge>
-          {lead.potentialPragmaFit ? (
-            <Badge variant="outline" className="font-normal">
-              Fit {PROSPECTING_FIT_LABELS[lead.potentialPragmaFit]}
+          {lead.followUpUrgency ? (
+            <Badge variant="outline" className={FOLLOW_UP_URGENCY_CLASS[lead.followUpUrgency]}>
+              {FOLLOW_UP_URGENCY_LABELS[lead.followUpUrgency]}
             </Badge>
           ) : null}
-          <span className="text-muted-foreground">
-            Último: {formatShortDate(lead.lastContactDate)}
-          </span>
+          <span className="text-muted-foreground">Último: {formatShortDate(lead.lastContactDate)}</span>
         </div>
+
+        {lead.scoreReasons.length > 0 ? (
+          <div className="mt-3 rounded-lg border border-border/80 bg-muted/20 px-2.5 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              ¿Por qué este lead?
+            </p>
+            <ul className="mt-1 space-y-0.5 text-xs text-foreground/85">
+              {lead.scoreReasons.map((reason) => (
+                <li key={reason} className="flex gap-1.5">
+                  <span className="text-primary">·</span>
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </button>
 
       <div className="mt-3 flex gap-2">

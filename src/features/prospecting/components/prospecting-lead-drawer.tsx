@@ -2,9 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
-  CalendarClock,
   Copy,
-  ExternalLink,
   Loader2,
   MessageCircle,
   Sparkles,
@@ -32,8 +30,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { runQuickContactFlow } from "@/features/prospecting/lib/quick-contact";
 import {
+  FOLLOW_UP_URGENCY_CLASS,
+  FOLLOW_UP_URGENCY_LABELS,
+} from "@/lib/prospecting/prospecting-intelligence";
+import {
   PRIORITY_BADGE_CLASS,
-  PRIORITY_LABELS,
 } from "@/lib/prospecting/prospecting-score";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
 import {
@@ -42,15 +43,6 @@ import {
   PROSPECTING_LEAD_TYPE_LABELS,
   PROSPECTING_STATUS_LABELS,
 } from "@/services/prospecting/prospecting-crm.types";
-
-const SOURCE_LABELS: Record<string, string> = {
-  GOOGLE_MAPS: "Google Maps",
-  AIRBNB: "Airbnb",
-  INSTAGRAM: "Instagram",
-  FACEBOOK: "Facebook",
-  BOOKING: "Booking",
-  LINKEDIN: "LinkedIn",
-};
 
 type ProspectingLeadDrawerProps = {
   lead: ProspectingLeadRow | null;
@@ -139,20 +131,6 @@ export function ProspectingLeadDrawer({
     toast.success("Mensaje copiado");
   }
 
-  function handleOpenWebsite() {
-    if (!current?.website) {
-      toast.error("Este prospecto no tiene sitio web");
-      return;
-    }
-    const href = current.website.startsWith("http")
-      ? current.website
-      : `https://${current.website}`;
-    window.open(href, "_blank", "noopener,noreferrer");
-    run(async () => {
-      await patchLead({ activity: { type: "CONTACT_WEBSITE" } });
-    });
-  }
-
   function handleSaveNotes() {
     run(async () => {
       await patchLead({ notes: notesDraft.trim() || null });
@@ -225,14 +203,16 @@ export function ProspectingLeadDrawer({
         <SheetHeader className="border-b border-border px-5 py-4 text-left">
           <div className="flex flex-wrap items-center gap-2 pr-8">
             <Badge variant="outline" className={PRIORITY_BADGE_CLASS[current.priority]}>
-              {current.priority}
+              {current.priority} · {current.prospectingScore}
             </Badge>
-            <span className="text-xs font-semibold tabular-nums">
-              Score {current.prospectingScore}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {PRIORITY_LABELS[current.priority]}
-            </span>
+            {current.followUpUrgency ? (
+              <Badge
+                variant="outline"
+                className={FOLLOW_UP_URGENCY_CLASS[current.followUpUrgency]}
+              >
+                {FOLLOW_UP_URGENCY_LABELS[current.followUpUrgency]}
+              </Badge>
+            ) : null}
           </div>
           <SheetTitle className="mt-2 text-base">{current.businessName}</SheetTitle>
           <SheetDescription>
@@ -302,6 +282,24 @@ export function ProspectingLeadDrawer({
             />
           </section>
 
+          <section className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
+            <p className="font-medium text-foreground">Guía de conversación</p>
+            <p className="mt-2 text-muted-foreground">Posibles dolores operativos:</p>
+            <ul className="mt-1 list-inside list-disc space-y-0.5 text-foreground/90">
+              {current.conversationGuide.likelyPainPoints.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
+            <p className="mt-3 text-muted-foreground">Primera pregunta sugerida:</p>
+            <p className="mt-1 text-sm text-foreground">
+              {current.conversationGuide.recommendedFirstQuestion}
+            </p>
+            <p className="mt-3 text-muted-foreground">Seguimiento recomendado:</p>
+            <p className="mt-1 text-sm text-foreground/90">
+              {current.conversationGuide.recommendedFollowUp}
+            </p>
+          </section>
+
           <section className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Estado</Label>
@@ -335,50 +333,25 @@ export function ProspectingLeadDrawer({
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground">Inteligencia</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2"
-                disabled={pending || !openAiConfigured}
-                onClick={handleGenerateInsights}
-              >
-                <Sparkles className="mr-1 h-3 w-3" />
-                Actualizar
-              </Button>
-            </div>
-            <p className="mt-2">
-              Tipo:{" "}
-              {current.leadType ? PROSPECTING_LEAD_TYPE_LABELS[current.leadType] : "—"}
-            </p>
-            <p>
-              Fit:{" "}
+          {current.leadType || current.potentialPragmaFit ? (
+            <p className="text-xs text-muted-foreground">
+              {current.leadType ? PROSPECTING_LEAD_TYPE_LABELS[current.leadType] : ""}
               {current.potentialPragmaFit
-                ? PROSPECTING_FIT_LABELS[current.potentialPragmaFit]
-                : "—"}
-              {current.airbnbScore
-                ? ` · Airbnb ${PROSPECTING_FIT_LABELS[current.airbnbScore]}`
+                ? ` · Fit ${PROSPECTING_FIT_LABELS[current.potentialPragmaFit]}`
                 : ""}
+              {openAiConfigured ? (
+                <Button
+                  type="button"
+                  variant="link"
+                  className="ml-1 h-auto p-0 text-xs"
+                  disabled={pending}
+                  onClick={handleGenerateInsights}
+                >
+                  Actualizar con IA
+                </Button>
+              ) : null}
             </p>
-            <p className="text-muted-foreground">
-              {SOURCE_LABELS[current.source] ?? current.source}
-              {current.category ? ` · ${current.category}` : ""}
-            </p>
-            {current.website ? (
-              <Button
-                type="button"
-                variant="link"
-                className="mt-1 h-auto p-0 text-xs"
-                onClick={handleOpenWebsite}
-              >
-                <ExternalLink className="mr-1 h-3 w-3" />
-                Abrir sitio web
-              </Button>
-            ) : null}
-          </section>
+          ) : null}
 
           <section className="space-y-2">
             <Label className="flex items-center gap-1.5 text-xs">

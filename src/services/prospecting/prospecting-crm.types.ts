@@ -5,6 +5,8 @@ import type {
   ProspectingLeadType,
 } from "@prisma/client";
 import type { ProspectingPriority } from "@/lib/prospecting/prospecting-score";
+import type { ConversationGuide } from "@/lib/prospecting/prospecting-conversation-guide";
+import type { FollowUpUrgency } from "@/lib/prospecting/prospecting-intelligence";
 
 export type ProspectingActivityType =
   | "STATUS_CHANGE"
@@ -49,6 +51,9 @@ export type ProspectingLeadDetail = {
   prospectingScore: number;
   priority: ProspectingPriority;
   airbnbScore: ProspectingFitLevel | null;
+  scoreReasons: string[];
+  followUpUrgency: FollowUpUrgency | null;
+  conversationGuide: ConversationGuide;
   activityLog: ProspectingActivityEntry[];
   createdAt: string;
   updatedAt: string;

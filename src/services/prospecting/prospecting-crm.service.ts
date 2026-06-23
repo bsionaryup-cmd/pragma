@@ -3,6 +3,15 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Prisma, ProspectingLead } from "@prisma/client";
 import { db } from "@/lib/db";
+import {
+  buildConversationGuide,
+  type ConversationGuide,
+} from "@/lib/prospecting/prospecting-conversation-guide";
+import {
+  buildLeadScoreReasons,
+  getFollowUpUrgency,
+  type FollowUpUrgency,
+} from "@/lib/prospecting/prospecting-intelligence";
 import { computeProspectingScore } from "@/lib/prospecting/prospecting-score";
 import type {
   ProspectingActivityEntry,
@@ -66,11 +75,32 @@ export function serializeProspectingLeadDetail(row: ProspectingLead): Prospectin
     status: base.status,
   });
 
+  const intelligence = {
+    phone: base.phone,
+    website: base.website,
+    rating: base.rating,
+    reviews: base.reviews,
+    listingsCount: base.listingsCount,
+    category: base.category,
+    leadType: base.leadType,
+    potentialPragmaFit: base.potentialPragmaFit,
+    estimatedSophistication: base.estimatedSophistication,
+    airbnbScore: scored.airbnbScore,
+    status: base.status,
+    priority: scored.priority,
+    outreachMessage: base.outreachMessage,
+    nextFollowUpDate: base.nextFollowUpDate,
+    prospectingScore: scored.score,
+  };
+
   return {
     ...base,
     prospectingScore: scored.score,
     priority: scored.priority,
     airbnbScore: scored.airbnbScore,
+    scoreReasons: buildLeadScoreReasons(intelligence),
+    followUpUrgency: getFollowUpUrgency(base.nextFollowUpDate),
+    conversationGuide: buildConversationGuide(intelligence),
   };
 }
 

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Flame, Loader2, Search, Target } from "lucide-react";
+import { Flame, Loader2, PhoneCall, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProspectingContactNextList } from "@/features/prospecting/components/prospecting-contact-next-list";
 import { ProspectingLeadCard } from "@/features/prospecting/components/prospecting-lead-card";
 import { ProspectingLeadDrawer } from "@/features/prospecting/components/prospecting-lead-drawer";
 import { runQuickContactFlow } from "@/features/prospecting/lib/quick-contact";
@@ -16,6 +17,7 @@ const MAX_POLL_ATTEMPTS = 200;
 
 type ProspectingViewProps = {
   initialLeads: ProspectingLeadRow[];
+  contactNextLeads: ProspectingLeadRow[];
   page: number;
   totalPages: number;
   total: number;
@@ -25,6 +27,7 @@ type ProspectingViewProps = {
 
 export function ProspectingView({
   initialLeads,
+  contactNextLeads,
   page,
   totalPages,
   total,
@@ -36,6 +39,7 @@ export function ProspectingView({
   const pollAttemptsRef = useRef(0);
 
   const [leads, setLeads] = useState(initialLeads);
+  const [contactQueue, setContactQueue] = useState(contactNextLeads);
   const [selectedLead, setSelectedLead] = useState<ProspectingLeadRow | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [contactingId, setContactingId] = useState<string | null>(null);
@@ -60,7 +64,8 @@ export function ProspectingView({
 
   useEffect(() => {
     setLeads(initialLeads);
-  }, [initialLeads]);
+    setContactQueue(contactNextLeads);
+  }, [initialLeads, contactNextLeads]);
 
   useEffect(() => {
     return () => {
@@ -84,6 +89,12 @@ export function ProspectingView({
 
   function updateLeadInList(updated: ProspectingLeadRow) {
     setLeads((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+    setContactQueue((prev) => {
+      const next = prev.map((row) => (row.id === updated.id ? updated : row));
+      return next.some((r) => r.id === updated.id)
+        ? next.sort((a, b) => b.prospectingScore - a.prospectingScore)
+        : prev;
+    });
     setSelectedLead((prev) => (prev?.id === updated.id ? updated : prev));
   }
 
@@ -245,6 +256,20 @@ export function ProspectingView({
             WhatsApp.
           </p>
         )}
+      </section>
+
+      <section className="rounded-2xl border border-primary/20 bg-card shadow-pragma-soft">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
+          <PhoneCall className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Contactar ahora</h2>
+          <span className="text-xs text-muted-foreground">— tu cola de trabajo</span>
+        </div>
+        <ProspectingContactNextList
+          leads={contactQueue}
+          busyId={contactingId}
+          onOpen={openLead}
+          onQuickContact={(item) => void handleQuickContact(item)}
+        />
       </section>
 
       <section className="rounded-2xl border border-border bg-card shadow-pragma-soft">
