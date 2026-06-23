@@ -1,7 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import { Loader2, Search, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,9 @@ import {
 } from "@/components/ui/table";
 import type { ProspectingLeadRow } from "@/services/prospecting/prospecting-lead.service";
 import { toast } from "sonner";
+
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 200;
 
 const SOURCE_LABELS: Record<string, string> = {
   GOOGLE_MAPS: "Google Maps",
@@ -41,11 +44,27 @@ export function ProspectingView({
   apifyConfigured,
 }: ProspectingViewProps) {
   const router = useRouter();
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollAttemptsRef = useRef(0);
+
   const [query, setQuery] = useState("");
-  const [searching, startSearch] = useTransition();
+  const [searching, setSearching] = useState(false);
   const [pendingPage, startPageChange] = useTransition();
 
   const busy = searching || pendingPage;
+
+  function clearPollTimeout() {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearPollTimeout();
+    };
+  }, []);
 
   function goToPage(nextPage: number) {
     startPageChange(() => {
@@ -56,7 +75,57 @@ export function ProspectingView({
     });
   }
 
-  function handleSearch() {
+  async function pollImport(runId: string) {
+    pollAttemptsRef.current += 1;
+
+    if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+      setSearching(false);
+      toast.error("La búsqueda expiró. Intenta de nuevo.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/prospecting/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        status?: string;
+        total?: number;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.success) {
+        setSearching(false);
+        toast.error(payload.error ?? "No se pudo completar la búsqueda");
+        return;
+      }
+
+      if (payload.status === "RUNNING") {
+        pollTimeoutRef.current = setTimeout(() => {
+          void pollImport(runId);
+        }, POLL_INTERVAL_MS);
+        return;
+      }
+
+      setSearching(false);
+      const imported = payload.total ?? 0;
+      toast.success(
+        imported
+          ? `Se importaron ${imported} prospecto${imported === 1 ? "" : "s"}`
+          : "Búsqueda completada sin prospectos nuevos",
+      );
+      router.refresh();
+    } catch {
+      setSearching(false);
+      toast.error("Error de red al importar prospectos");
+    }
+  }
+
+  async function handleSearch() {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       toast.error("Escribe al menos 2 caracteres para buscar");
@@ -68,35 +137,40 @@ export function ProspectingView({
       return;
     }
 
-    startSearch(async () => {
-      try {
-        const response = await fetch("/api/prospecting/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: trimmed }),
-        });
+    clearPollTimeout();
+    pollAttemptsRef.current = 0;
+    setSearching(true);
 
-        const payload = (await response.json()) as {
-          success?: boolean;
-          total?: number;
-          error?: string;
-        };
+    try {
+      const response = await fetch("/api/prospecting/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: trimmed }),
+      });
 
-        if (!response.ok || !payload.success) {
-          toast.error(payload.error ?? "No se pudo completar la búsqueda");
-          return;
-        }
+      const payload = (await response.json()) as {
+        success?: boolean;
+        runId?: string;
+        error?: string;
+      };
 
-        toast.success(
-          payload.total
-            ? `Se importaron ${payload.total} prospecto${payload.total === 1 ? "" : "s"}`
-            : "Búsqueda completada sin prospectos nuevos",
-        );
-        router.refresh();
-      } catch {
-        toast.error("Error de red al buscar prospectos");
+      if (response.status === 429) {
+        setSearching(false);
+        toast.error(payload.error ?? "Demasiadas búsquedas. Espera un momento.");
+        return;
       }
-    });
+
+      if (!response.ok || !payload.success || !payload.runId) {
+        setSearching(false);
+        toast.error(payload.error ?? "No se pudo iniciar la búsqueda");
+        return;
+      }
+
+      await pollImport(payload.runId);
+    } catch {
+      setSearching(false);
+      toast.error("Error de red al buscar prospectos");
+    }
   }
 
   return (
@@ -116,7 +190,7 @@ export function ProspectingView({
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  handleSearch();
+                  void handleSearch();
                 }
               }}
             />
@@ -125,14 +199,14 @@ export function ProspectingView({
             type="button"
             className="gap-2"
             disabled={busy}
-            onClick={() => handleSearch()}
+            onClick={() => void handleSearch()}
           >
             {searching ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Search className="h-4 w-4" />
             )}
-            Buscar
+            {searching ? "Buscando…" : "Buscar"}
           </Button>
         </div>
         {!apifyConfigured ? (
@@ -142,8 +216,8 @@ export function ProspectingView({
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            Los resultados se normalizan y se guardan por organización, evitando duplicados por
-            nombre, teléfono y sitio web.
+            La búsqueda se ejecuta en segundo plano. Los resultados se guardan por organización,
+            evitando duplicados por nombre, teléfono y sitio web.
           </p>
         )}
       </section>
@@ -186,7 +260,11 @@ export function ProspectingView({
                     <TableCell>
                       {lead.website ? (
                         <a
-                          href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`}
+                          href={
+                            lead.website.startsWith("http")
+                              ? lead.website
+                              : `https://${lead.website}`
+                          }
                           target="_blank"
                           rel="noreferrer"
                           className="text-primary hover:underline"

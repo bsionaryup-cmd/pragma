@@ -40,7 +40,9 @@ type ApifyDatasetItemsResponse = {
 };
 
 function resolveApifyToken(): string {
-  const token = process.env.APIFY_API_TOKEN?.trim();
+  const token =
+    process.env.APIFY_TOKEN?.trim() ||
+    process.env.APIFY_API_TOKEN?.trim();
   if (!token) {
     throw new Error("APIFY_API_TOKEN no está configurado");
   }
@@ -111,7 +113,9 @@ function normalizeRunStatus(value: string | undefined): ApifyRunStatus {
 }
 
 export function isApifyProspectingConfigured(): boolean {
-  return Boolean(process.env.APIFY_API_TOKEN?.trim());
+  return Boolean(
+    process.env.APIFY_TOKEN?.trim() || process.env.APIFY_API_TOKEN?.trim(),
+  );
 }
 
 /** Start a Google Maps actor run on Apify. Returns the run id for client polling. */
