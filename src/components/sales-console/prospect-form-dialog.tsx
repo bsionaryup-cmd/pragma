@@ -1,7 +1,7 @@
 "use client";
 
-import { Copy, Sparkles } from "lucide-react";
-import { useState, useTransition } from "react";
+import { Copy, ExternalLink, AtSign, MessageCircle, Phone, Sparkles } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
 import {
   createProspectAction,
   updateProspectAction,
@@ -21,6 +21,8 @@ import {
 } from "@/features/sales-console/types/prospect";
 import type { ProspectEnrichmentContent } from "@/modules/sales-console/enrichment/enrichment.types";
 import { copyTextToClipboard } from "@/lib/copy-to-clipboard";
+import { resolveStageOutreachTemplate } from "@/lib/prospecting/stage-outreach-templates";
+import { buildWhatsAppLinkWithMessage } from "@/lib/prospecting/whatsapp-link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -71,11 +73,36 @@ export function ProspectFormDialog({
   const [enrichmentContent, setEnrichmentContent] = useState<ProspectEnrichmentContent | null>(
     null,
   );
+  const [outreachMessage, setOutreachMessage] = useState("");
   const [values, setValues] = useState<ProspectFormValues>(() =>
     mode === "edit" && prospect
       ? prospectToFormValues(prospect)
       : emptyProspectFormValues(),
   );
+
+  useEffect(() => {
+    if (!open) return;
+    if (mode === "edit" && prospect) {
+      setValues(prospectToFormValues(prospect));
+      setOutreachMessage(
+        resolveStageOutreachTemplate(prospect.status, prospect.companyName),
+      );
+      setEnrichmentContent(null);
+      return;
+    }
+    setValues(emptyProspectFormValues());
+    setOutreachMessage("");
+    setEnrichmentContent(null);
+  }, [open, mode, prospect]);
+
+  useEffect(() => {
+    if (mode !== "edit" || !open) return;
+    setOutreachMessage((current) =>
+      current.trim()
+        ? current
+        : resolveStageOutreachTemplate(values.status, values.companyName),
+    );
+  }, [values.status, values.companyName, mode, open]);
 
   function updateField<K extends keyof ProspectFormValues>(
     key: K,
@@ -128,12 +155,69 @@ export function ProspectFormDialog({
 
       setValues((current) => ({ ...current, notes: result.notes }));
       setEnrichmentContent(result.content);
+      if (result.content.whatsapp?.trim()) {
+        setOutreachMessage(result.content.whatsapp.trim());
+      }
       toast.success("Material comercial generado");
       onSuccess();
     } finally {
       setEnriching(false);
     }
   }
+
+  function resolveContactMessage() {
+    return (
+      enrichmentContent?.whatsapp?.trim() ||
+      outreachMessage.trim() ||
+      resolveStageOutreachTemplate(values.status, values.companyName)
+    );
+  }
+
+  function handleWhatsAppContact() {
+    const message = resolveContactMessage();
+    const link = buildWhatsAppLinkWithMessage(values.phone, message);
+    if (!link) {
+      toast.error("Agrega un teléfono válido para contactar por WhatsApp.");
+      return;
+    }
+
+    window.open(link, "_blank", "noopener,noreferrer");
+
+    if (mode === "edit" && prospect && values.status === "NEW") {
+      startTransition(async () => {
+        const result = await updateProspectAction({
+          id: prospect.id,
+          companyName: values.companyName,
+          phone: values.phone || null,
+          website: values.website || null,
+          instagram: values.instagram || null,
+          city: values.city || null,
+          segment: values.segment,
+          source: values.source,
+          notes: values.notes || null,
+          status: "CONTACTED",
+        });
+        if (result.success) {
+          setValues((current) => ({ ...current, status: "CONTACTED" }));
+          onSuccess();
+        }
+      });
+    }
+  }
+
+  function normalizeExternalUrl(raw: string | null | undefined): string | null {
+    const value = raw?.trim();
+    if (!value) return null;
+    if (/^https?:\/\//i.test(value)) return value;
+    return `https://${value}`;
+  }
+
+  const websiteUrl = normalizeExternalUrl(values.website);
+  const instagramUrl = values.instagram?.trim()
+    ? values.instagram.trim().startsWith("http")
+      ? values.instagram.trim()
+      : `https://instagram.com/${values.instagram.replace(/^@/, "")}`
+    : null;
 
   const busy = pending || enriching;
 
@@ -152,6 +236,45 @@ export function ProspectFormDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === "edit" ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-muted/20 p-2">
+              <Button
+                type="button"
+                size="sm"
+                className="gap-1.5"
+                disabled={busy}
+                onClick={handleWhatsAppContact}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </Button>
+              {websiteUrl ? (
+                <Button type="button" size="sm" variant="outline" className="gap-1.5" asChild>
+                  <a href={websiteUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Web
+                  </a>
+                </Button>
+              ) : null}
+              {instagramUrl ? (
+                <Button type="button" size="sm" variant="outline" className="gap-1.5" asChild>
+                  <a href={instagramUrl} target="_blank" rel="noreferrer">
+                    <AtSign className="h-3.5 w-3.5" />
+                    Instagram
+                  </a>
+                </Button>
+              ) : null}
+              {values.phone ? (
+                <Button type="button" size="sm" variant="outline" className="gap-1.5" asChild>
+                  <a href={`tel:${values.phone}`}>
+                    <Phone className="h-3.5 w-3.5" />
+                    Llamar
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="prospect-company">Nombre de empresa *</Label>
             <Input
@@ -257,13 +380,30 @@ export function ProspectFormDialog({
             </div>
           ) : null}
 
+          {mode === "edit" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="prospect-outreach">Mensaje para contacto</Label>
+              <textarea
+                id="prospect-outreach"
+                value={outreachMessage}
+                onChange={(event) => setOutreachMessage(event.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm leading-relaxed dark:bg-card"
+                placeholder="Plantilla editable según etapa del pipeline."
+              />
+              <p className="text-xs text-muted-foreground">
+                Se usa al contactar por WhatsApp. Puedes ajustarla por etapa comercial.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="prospect-notes">Notas</Label>
             <textarea
               id="prospect-notes"
               value={values.notes}
               onChange={(event) => updateField("notes", event.target.value)}
-              rows={8}
+              rows={5}
               className="w-full rounded-xl border border-input bg-white px-3 py-2 font-mono text-xs leading-relaxed dark:bg-card"
               placeholder={
                 mode === "edit"

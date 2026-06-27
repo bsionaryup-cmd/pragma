@@ -158,9 +158,11 @@ type ReservationDetailPanelProps = {
   refreshAfterDelete?: boolean;
 };
 
-function formatReservationCode(reservation: ReservationDetailItem): string {
-  if (reservation.icalUid?.trim()) return reservation.icalUid.trim();
-  return reservation.id;
+function formatReservationCode(reservation: ReservationDetailItem): string | null {
+  if (reservation.platform === "AIRBNB") {
+    return reservation.icalUid?.trim() || null;
+  }
+  return null;
 }
 
 function formatCreatedAt(iso: string): string {
@@ -346,7 +348,6 @@ export function ReservationDetailPanel({
   const registration = reservation.guestRegistration;
   const registrationProgress = reservation.guestRegistrationProgress;
   const accessCode = reservation.accessCode;
-  const reservationCode = formatReservationCode(reservation);
   const registrationDueSoon = isGuestRegistrationDueSoon({
     checkIn: reservation.checkIn,
     guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
@@ -367,8 +368,9 @@ export function ReservationDetailPanel({
   const allowManualEdit = canWrite && properties.length > 0 && reservation.platform !== "AIRBNB";
   const displayReservationId =
     reservation.platform === "AIRBNB"
-      ? emailEnrichment?.reservationCodeFromEmail?.trim() || reservationCode
-      : reservationCode;
+      ? emailEnrichment?.reservationCodeFromEmail?.trim() ||
+        formatReservationCode(reservation)
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -708,9 +710,11 @@ export function ReservationDetailPanel({
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
-            <p className="max-w-[140px] truncate text-[10px] text-muted-foreground">
-              {displayReservationId}
-            </p>
+            {displayReservationId ? (
+              <p className="max-w-[140px] truncate text-[10px] text-muted-foreground">
+                {displayReservationId}
+              </p>
+            ) : null}
             {allowManualEdit || (allowDelete && !editing) ? (
               <div className="flex items-center gap-1">
               {allowManualEdit ? (

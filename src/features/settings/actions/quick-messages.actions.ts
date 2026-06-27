@@ -40,7 +40,7 @@ export async function saveQuickMessagesSettingsAction(
       ...parsed,
     } as QuickMessageSettingsForm);
     revalidatePath("/settings");
-    revalidatePath("/reservations");
+    revalidatePath("/properties");
     revalidatePath("/novedades");
     revalidatePath("/calendar");
     return { success: true as const, fields };

@@ -58,6 +58,9 @@ export type SmartAccessItem = {
   } | null;
   lockMapped: boolean;
   integrationConnected: boolean;
+  lockBatteryLevel: number | null;
+  lockOnlineState: "ONLINE" | "OFFLINE" | "UNKNOWN";
+  lockAlias: string | null;
 };
 
 export type SmartAccessOverview = {
@@ -183,7 +186,14 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
           propertyType: true,
           checkInTime: true,
           checkOutTime: true,
-          propertyLock: { select: { id: true } },
+          propertyLock: {
+            select: {
+              id: true,
+              batteryLevel: true,
+              onlineState: true,
+              alias: true,
+            },
+          },
         },
       },
       guests: {
@@ -290,6 +300,10 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         : null,
       lockMapped,
       integrationConnected,
+      lockBatteryLevel: reservation.property.propertyLock?.batteryLevel ?? null,
+      lockOnlineState:
+        reservation.property.propertyLock?.onlineState ?? "UNKNOWN",
+      lockAlias: reservation.property.propertyLock?.alias ?? null,
     };
   });
 

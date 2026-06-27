@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { Archive, ArchiveRestore, FileUp, Globe, Pencil, Plus, Search, Sparkles } from "lucide-react";
+import { Archive, ArchiveRestore, AtSign, ExternalLink, FileUp, Globe, MessageCircle, Pencil, Plus, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   archiveProspectAction,
@@ -31,6 +31,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { buildWhatsAppLink } from "@/lib/prospecting/whatsapp-link";
 
 const ALL_CITIES = "ALL";
 
@@ -217,8 +218,8 @@ export function ProspectsView({
             <TableRow>
               <TableHead>Empresa</TableHead>
               <TableHead>Teléfono</TableHead>
-              <TableHead>Sitio web</TableHead>
-              <TableHead>Instagram</TableHead>
+              <TableHead>Contacto</TableHead>
+              <TableHead className="hidden lg:table-cell">Instagram</TableHead>
               <TableHead>Propiedades</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -274,20 +275,65 @@ export function ProspectsView({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{prospect.phone ?? "—"}</TableCell>
                   <TableCell>
-                    {prospect.website ? (
-                      <a
-                        href={prospect.website}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate text-pragma-electric hover:underline"
-                      >
-                        {prospect.website.replace(/^https?:\/\//, "")}
-                      </a>
-                    ) : (
-                      "—"
-                    )}
+                    <div className="flex items-center gap-1">
+                      {buildWhatsAppLink(prospect.phone) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="WhatsApp"
+                          asChild
+                        >
+                          <a
+                            href={buildWhatsAppLink(prospect.phone)!}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : null}
+                      {prospect.website ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Sitio web"
+                          asChild
+                        >
+                          <a href={prospect.website} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : null}
+                      {prospect.instagram ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label="Instagram"
+                          asChild
+                        >
+                          <a
+                            href={
+                              prospect.instagram.startsWith("http")
+                                ? prospect.instagram
+                                : `https://instagram.com/${prospect.instagram.replace(/^@/, "")}`
+                            }
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <AtSign className="h-4 w-4" />
+                          </a>
+                        </Button>
+                      ) : null}
+                      {!prospect.phone && !prospect.website && !prospect.instagram ? "—" : null}
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-muted-foreground hidden lg:table-cell">
                     {prospect.instagram ?? "—"}
                   </TableCell>
                   <TableCell className="tabular-nums">

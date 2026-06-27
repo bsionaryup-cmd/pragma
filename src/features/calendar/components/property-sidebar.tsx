@@ -24,11 +24,6 @@ const rowStyle: React.CSSProperties = {
   boxSizing: "border-box",
 };
 
-function formatPropertyRef(id: string): string {
-  const compact = id.replace(/[^a-zA-Z0-9]/g, "");
-  return compact.slice(-6) || id.slice(0, 6);
-}
-
 type PropertySidebarVariant = "full" | "compact";
 
 type PropertySidebarProps = {
@@ -122,18 +117,6 @@ function PropertySidebarItem({
               )}
             >
               {property.name}
-            </p>
-          ) : null}
-          {viewSettings.showIdentificationNumber ? (
-            <p
-              className={cn(
-                "truncate text-[10px] font-normal leading-tight tabular-nums text-[var(--cal-text-muted)]",
-                (viewSettings.showInternalName ||
-                  (viewSettings.showIdentificationNumber && unit !== "—")) &&
-                  "mt-0.5",
-              )}
-            >
-              {formatPropertyRef(property.id)}
             </p>
           ) : null}
         </div>

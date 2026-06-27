@@ -691,8 +691,8 @@ export async function syncListings(): Promise<
     for (const property of properties) {
       await upsertPropertyPriceLabsSync({
         propertyId: property.id,
-        listingId: property.id,
-        syncStatus: PropertyPriceLabsSyncStatus.SYNCED,
+        listingId: "",
+        syncStatus: PropertyPriceLabsSyncStatus.PENDING,
         baseRateAtSync: property.baseRate
           ? Number.parseFloat(property.baseRate.toString())
           : null,

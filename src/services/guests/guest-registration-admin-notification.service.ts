@@ -65,7 +65,13 @@ export async function notifyAdminGuestRegistrationCompleted(
     const recipients = parsePropertyNotificationEmails(
       reservation.property.notificationEmails,
     );
-    if (recipients.length === 0) return;
+    if (recipients.length === 0) {
+      await recordAdminNotificationError(
+        reservationId,
+        "Configura notificationEmails en la propiedad para recibir el registro completado.",
+      );
+      return;
+    }
 
     const owner =
       reservation.guests.find((guest) => guest.isReservationOwner) ??

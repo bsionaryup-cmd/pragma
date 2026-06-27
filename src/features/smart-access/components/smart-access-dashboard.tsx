@@ -174,6 +174,19 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                           </span>
                           {formatStayDate(item.checkIn)} – {formatStayDate(item.checkOut)}
                         </p>
+                        {item.lockMapped ? (
+                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                            {item.lockAlias ? `${item.lockAlias} · ` : null}
+                            {item.lockOnlineState === "ONLINE"
+                              ? "En línea"
+                              : item.lockOnlineState === "OFFLINE"
+                                ? "Fuera de línea"
+                                : "Estado desconocido"}
+                            {item.lockBatteryLevel != null
+                              ? ` · Batería ${item.lockBatteryLevel}%`
+                              : null}
+                          </p>
+                        ) : null}
                       </div>
 
                       {hasCode ? (

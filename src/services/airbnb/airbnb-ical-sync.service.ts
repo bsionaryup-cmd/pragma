@@ -23,7 +23,7 @@ import {
 } from "@/services/airbnb/airbnb-ical-orphan.service";
 import { purgeGhostReservations } from "@/services/reservations/ghost-reservation.service";
 import { retryUnlinkedAuditsForProperty } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
-import { normalizeIcalGuestNameFromSummary, isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { normalizeIcalGuestNameFromSummary } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import {
@@ -93,48 +93,7 @@ async function findReservationByIcalUid(
   });
 }
 
-function buildIcalSyncReservationUpdate(
-  payload: {
-    guestName: string;
-    guestFirstName: string;
-    guestLastName: string | null;
-    checkIn: Date;
-    checkOut: Date;
-    status: ReservationStatus;
-    platform: BookingPlatform;
-  },
-  existing: {
-    guestName: string;
-    guestRegistrationCompletedAt: Date | null;
-  },
-) {
-  if (existing.guestRegistrationCompletedAt) {
-    return {
-      checkIn: payload.checkIn,
-      checkOut: payload.checkOut,
-      status: payload.status,
-      platform: payload.platform,
-    };
-  }
-
-  const preserveEnrichedGuestName =
-    !isPlaceholderGuestName(existing.guestName) &&
-    isPlaceholderGuestName(payload.guestName);
-
-  return {
-    ...(preserveEnrichedGuestName
-      ? {}
-      : {
-          guestName: payload.guestName,
-          guestFirstName: payload.guestFirstName,
-          guestLastName: payload.guestLastName,
-        }),
-    checkIn: payload.checkIn,
-    checkOut: payload.checkOut,
-    status: payload.status,
-    platform: payload.platform,
-  };
-}
+import { buildIcalSyncReservationUpdate } from "@/services/airbnb/ical-guest-name-sync";
 
 export type PropertyIcalSyncResult = {
   propertyId: string;
