@@ -6,15 +6,15 @@
     },
     {
       "path": "/api/cron/airbnb-ical-sync",
-      "schedule": "*/30 * * * *"
+      "schedule": "15 6 * * *"
     },
     {
       "path": "/api/cron/airbnb-email-enrichment-retry",
-      "schedule": "15,45 * * * *"
+      "schedule": "30 6 * * *"
     },
     {
       "path": "/api/cron/airbnb-email-inbound-reconcile",
-      "schedule": "5,35 * * * *"
+      "schedule": "35 6 * * *"
     },
     {
       "path": "/api/cron/guest-payment-reconcile",

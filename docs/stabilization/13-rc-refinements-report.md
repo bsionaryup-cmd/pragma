@@ -13,7 +13,7 @@ All nine Release Candidate refinements were audited and implemented with **minim
 | # | Refinement | Status | Key change |
 |---|------------|--------|------------|
 | 1 | Centralized message management | ✓ | `/settings?tab=messages` hub; org-wide apply to active properties |
-| 2 | Enrichment name preservation + sync latency | ✓ | iCal never overwrites real names; crons increased |
+| 2 | Enrichment name preservation + sync latency | ✓ | iCal never overwrites real names; cron frequency limited by Vercel Hobby (daily) — client auto-sync + Resend webhook remain real-time paths |
 | 3 | Calendar consistency | ✓ | Completed stays hide platform icon; same muted styling |
 | 4 | Prospecting UX | ✓ | WhatsApp one-click, stage templates, compact actions |
 | 5 | Lead detail layout | ✓ | Action bar, editable outreach, reduced scroll |
