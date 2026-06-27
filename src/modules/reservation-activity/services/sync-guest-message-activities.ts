@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ReservationActivityType, type Prisma } from "@prisma/client";
+import { ReservationActivityType, AirbnbEmailMatchMethod, type Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { buildEmailBody } from "@/modules/airbnb-email/parsing/extractors";
 import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
@@ -216,6 +216,22 @@ export async function relinkUnlinkedGuestMessageAudits(
       listingAmbiguous: propertyResolution.ambiguous,
     });
     if (!match.reservationId) continue;
+
+    if (
+      match.method === AirbnbEmailMatchMethod.NONE ||
+      match.confidence < 0.88
+    ) {
+      continue;
+    }
+
+    const reservation = await db.reservation.findFirst({
+      where: {
+        id: match.reservationId,
+        property: { organizationId: scope.organizationId },
+      },
+      select: { id: true },
+    });
+    if (!reservation) continue;
 
     await db.emailIngestionAudit.update({
       where: { id: audit.id },

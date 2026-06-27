@@ -1,24 +1,16 @@
 import Link from "next/link";
-import type { TaskStatus } from "@prisma/client";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { TaskCompleteCheckbox } from "@/features/tasks/components/task-complete-checkbox";
 import { TaskItemActions } from "@/features/tasks/components/task-item-actions";
 import { hasPermission } from "@/lib/auth";
+import type { TaskListRow } from "@/services/tasks/task.service";
 import type { AppUserRole } from "@/types/auth";
 import { formatDateTime } from "@/lib/helpers/date";
 import { cn } from "@/lib/utils";
 
-type TaskRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  createdAt: Date;
-};
-
 type TasksViewProps = {
-  tasks: TaskRow[];
+  tasks: TaskListRow[];
   role: AppUserRole;
 };
 
@@ -49,13 +41,14 @@ export function TasksView({ tasks, role }: TasksViewProps) {
           <ul className="divide-y rounded-xl border border-border bg-card">
             {tasks.map((task) => {
               const completed = task.status === "COMPLETED";
+              const readOnlyEmailTask = task.source === "email";
               return (
                 <li
                   key={task.id}
                   className="flex items-start gap-3 px-4 py-3 sm:gap-4 sm:px-5"
                 >
                   <div className="pt-0.5">
-                    {canWrite ? (
+                    {canWrite && !readOnlyEmailTask ? (
                       <TaskCompleteCheckbox taskId={task.id} status={task.status} />
                     ) : (
                       <input
@@ -77,6 +70,11 @@ export function TasksView({ tasks, role }: TasksViewProps) {
                     >
                       {task.title}
                     </p>
+                    {readOnlyEmailTask ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Generada desde correo Airbnb
+                      </p>
+                    ) : null}
                     {task.description?.trim() ? (
                       <p
                         className={cn(
@@ -96,7 +94,7 @@ export function TasksView({ tasks, role }: TasksViewProps) {
                       Creada {formatDateTime(task.createdAt)}
                     </p>
                   </div>
-                  {canWrite ? (
+                  {canWrite && !readOnlyEmailTask ? (
                     <TaskItemActions taskId={task.id} taskTitle={task.title} />
                   ) : null}
                 </li>

@@ -50,10 +50,17 @@ export function applyMatchPolicy(
     tier === "high" &&
     base.confidence >= 0.9;
 
+  /** Matcher assigns 0.88 only for unique property+ical date overlap (reservation-matcher). */
+  const listingDatesUniqueOverlap =
+    base.method === AirbnbEmailMatchMethod.LISTING_DATES &&
+    base.confidence >= 0.88 &&
+    base.confidence < CONFIDENCE_HIGH_THRESHOLD;
+
   const allowReservationEnrichment =
     Boolean(base.reservationId) &&
     (base.method === AirbnbEmailMatchMethod.CONFIRMATION_CODE ||
       listingDatesWithCode ||
+      listingDatesUniqueOverlap ||
       listingDatesHighConfidence ||
       listingContextualWithCode ||
       icalContextualWithCode ||

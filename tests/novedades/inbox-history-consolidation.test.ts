@@ -87,6 +87,45 @@ describe("inbox history consolidation", () => {
     assert.equal(plan.stats.consultaAirbnbAfterUnmatched, 1);
   });
 
+  it("does not absorb inquiry when multiple reservations overlap dates on property", () => {
+    const plan = planInboxHistoryConsolidation({
+      inquiries: [
+        {
+          pendingActivityId: "inq-3",
+          propertyId: "prop-801",
+          propertyHint: null,
+          createdAt: "2026-06-10T10:00:00.000Z",
+          guestName: "Consulta Airbnb",
+          dateRangeLabel: "25–30 jun 2026",
+          subject: "Consulta sobre Loft",
+          narrative: "Hola",
+          content: "Hola",
+        },
+      ],
+      reservations: [
+        {
+          reservationId: "res-a",
+          propertyId: "prop-801",
+          guestName: "Guest A",
+          checkIn: "2026-06-25",
+          checkOut: "2026-06-30",
+          createdAt: "2026-06-01T10:00:00.000Z",
+        },
+        {
+          reservationId: "res-b",
+          propertyId: "prop-801",
+          guestName: "Guest B",
+          checkIn: "2026-06-26",
+          checkOut: "2026-06-29",
+          createdAt: "2026-06-02T10:00:00.000Z",
+        },
+      ],
+    });
+
+    assert.equal(plan.stats.absorbedCount, 0);
+    assert.equal(plan.unmatchedInquiryIds.length, 1);
+  });
+
   it("resolves property id from inquiry subject when pending row lacks propertyId", () => {
     const propertyId = resolveInquiryPropertyIdFromHints({
       subject:

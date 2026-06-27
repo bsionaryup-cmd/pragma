@@ -19,32 +19,40 @@ type DashboardBannersProps = {
 
 /** Billing/onboarding banners — streamed so module pages paint first. */
 export async function DashboardBanners({ user }: DashboardBannersProps) {
-  const role = user.role as AppUserRole;
-  const isAdmin = hasPermission(role, "billing:manage");
-  const needsTrialSetup = userNeedsOnboarding(user);
-  const [billingAccess, billingAccount] = await Promise.all([
-    getBillingAccessSnapshot(),
-    getBillingAccountSafe(),
-  ]);
-  const showTrialBanner =
-    !needsTrialSetup &&
-    billingAccess.status === BillingSubscriptionStatus.TRIAL &&
-    !billingAccess.locked;
-  const expiryNotice = !isAdmin
-    ? buildSubscriptionExpiryNotice(billingAccess, billingAccount)
-    : null;
+  try {
+    const role = user.role as AppUserRole;
+    const isAdmin = hasPermission(role, "billing:manage");
+    const needsTrialSetup = userNeedsOnboarding(user);
+    const [billingAccess, billingAccount] = await Promise.all([
+      getBillingAccessSnapshot(),
+      getBillingAccountSafe(),
+    ]);
+    const showTrialBanner =
+      !needsTrialSetup &&
+      billingAccess.status === BillingSubscriptionStatus.TRIAL &&
+      !billingAccess.locked;
+    const expiryNotice = !isAdmin
+      ? buildSubscriptionExpiryNotice(billingAccess, billingAccount)
+      : null;
 
-  return (
-    <>
-      {needsTrialSetup && isAdmin ? <StartTrialBanner /> : null}
-      {showTrialBanner ? (
-        <TrialBanner
-          trialEndsAt={billingAccess.trialEndsAt}
-          isAdmin={isAdmin}
-        />
-      ) : null}
-      {expiryNotice ? <SubscriptionExpiryNoticeBanner notice={expiryNotice} /> : null}
-      <BillingLockBanner access={billingAccess} isAdmin={isAdmin} />
-    </>
-  );
+    return (
+      <>
+        {needsTrialSetup && isAdmin ? <StartTrialBanner /> : null}
+        {showTrialBanner ? (
+          <TrialBanner
+            trialEndsAt={billingAccess.trialEndsAt}
+            isAdmin={isAdmin}
+          />
+        ) : null}
+        {expiryNotice ? <SubscriptionExpiryNoticeBanner notice={expiryNotice} /> : null}
+        <BillingLockBanner access={billingAccess} isAdmin={isAdmin} />
+      </>
+    );
+  } catch (error) {
+    console.error(
+      "[DashboardBanners]",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 }

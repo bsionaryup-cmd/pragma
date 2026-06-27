@@ -21,6 +21,36 @@ export function isReservationEventKind(kind: AirbnbEmailEventKind): boolean {
   return RESERVATION_EVENT_KINDS.has(kind);
 }
 
+export async function applyEmailCancellationForMatchedReservation(input: {
+  eventKind: AirbnbEmailEventKind;
+  reservationId: string;
+  auditId: string;
+  tx?: Prisma.TransactionClient;
+}): Promise<boolean> {
+  if (input.eventKind !== AirbnbEmailEventKind.CANCELED) return false;
+
+  const dbClient = input.tx ?? db;
+  const reservation = await dbClient.reservation.findUnique({
+    where: { id: input.reservationId },
+    select: { status: true },
+  });
+
+  if (!reservation || !shouldApplyEmailCancellation(reservation.status)) {
+    return false;
+  }
+
+  await dbClient.reservation.update({
+    where: { id: input.reservationId },
+    data: { status: ReservationStatus.CANCELLED },
+  });
+  airbnbEmailLog.info("reservation_cancelled_from_email", {
+    auditId: input.auditId,
+    reservationId: input.reservationId,
+    previousStatus: reservation.status,
+  });
+  return true;
+}
+
 export async function persistReservationEmailEvent(input: {
   auditId: string;
   eventKind: AirbnbEmailEventKind;

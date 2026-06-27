@@ -12,13 +12,14 @@ import {
 
 export async function getBillingEpaycoCheckoutSession(
   invoiceId: string,
+  billingAccountId: string,
 ): Promise<{ ok: true; session: GuestEpaycoCheckoutSession } | { ok: false; message: string }> {
   if (!(await isPlatformEpaycoConfigured())) {
     return { ok: false, message: "ePayco no está configurado para suscripciones" };
   }
 
-  const invoice = await db.billingInvoice.findUnique({
-    where: { id: invoiceId },
+  const invoice = await db.billingInvoice.findFirst({
+    where: { id: invoiceId, billingAccountId },
     select: {
       id: true,
       amount: true,

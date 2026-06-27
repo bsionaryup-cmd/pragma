@@ -122,6 +122,7 @@ export const PROTECTED_DASHBOARD_PREFIXES = [
   "/panel",
   "/calendar",
   "/reservations",
+  "/novedades",
   "/properties",
   "/finance",
   "/revenue",

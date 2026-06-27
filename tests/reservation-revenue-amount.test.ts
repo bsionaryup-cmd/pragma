@@ -97,4 +97,12 @@ describe("resolveReservationRevenueAmount", () => {
     );
     assert.equal(amount, 366508.17);
   });
+
+  it("falls back to stored totalAmount when email exists but payout is unparseable", () => {
+    const amount = resolveReservationRevenueAmount({
+      totalAmount: 333422,
+      emailHtml: "<html>confirmed reservation</html>",
+    });
+    assert.equal(amount, 333422);
+  });
 });

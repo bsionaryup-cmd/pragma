@@ -339,9 +339,9 @@ export function planInboxHistoryConsolidation(input: {
     }
 
     if (!best) {
-      for (const reservation of candidates) {
-        if (matchedReservationIds.has(reservation.reservationId)) continue;
-        if (
+      const dateOverlapping = candidates.filter((reservation) => {
+        if (matchedReservationIds.has(reservation.reservationId)) return false;
+        return (
           inquiryDateRangeOverlapsReservation({
             dateRangeLabel: inquiry.dateRangeLabel,
             checkIn: reservation.checkIn,
@@ -352,17 +352,17 @@ export function planInboxHistoryConsolidation(input: {
             reservationCreatedAt: reservation.createdAt,
             checkIn: reservation.checkIn,
           })
-        ) {
-          best = { reservation, reason: "property_dates" };
-          break;
-        }
+        );
+      });
+      if (dateOverlapping.length === 1) {
+        best = { reservation: dateOverlapping[0]!, reason: "property_dates" };
       }
     }
 
     if (!best && isGenericInboxGuestLabel(inquiry.guestName)) {
-      for (const reservation of candidates) {
-        if (matchedReservationIds.has(reservation.reservationId)) continue;
-        if (
+      const timingOverlapping = candidates.filter((reservation) => {
+        if (matchedReservationIds.has(reservation.reservationId)) return false;
+        return (
           inquiryTimingPlausibleForReservation({
             inquiryCreatedAt: inquiry.createdAt,
             reservationCreatedAt: reservation.createdAt,
@@ -373,10 +373,10 @@ export function planInboxHistoryConsolidation(input: {
             checkIn: reservation.checkIn,
             checkOut: reservation.checkOut,
           })
-        ) {
-          best = { reservation, reason: "property_timing" };
-          break;
-        }
+        );
+      });
+      if (timingOverlapping.length === 1) {
+        best = { reservation: timingOverlapping[0]!, reason: "property_timing" };
       }
     }
 

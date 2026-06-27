@@ -11,6 +11,25 @@ export async function POST(
   request: Request,
   { params }: TTLockWebhookRouteProps,
 ) {
+  const webhookSecret = process.env.TTLOCK_WEBHOOK_SECRET?.trim();
+  if (process.env.NODE_ENV === "production") {
+    if (!webhookSecret) {
+      return NextResponse.json(
+        { error: "TTLock webhook no configurado" },
+        { status: 503 },
+      );
+    }
+    const auth = request.headers.get("authorization");
+    if (auth !== `Bearer ${webhookSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else if (webhookSecret) {
+    const auth = request.headers.get("authorization");
+    if (auth !== `Bearer ${webhookSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const { organizationId } = await params;
   const rawBody = await request.text();
 

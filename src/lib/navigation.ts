@@ -98,13 +98,6 @@ const integrationsNavItem: NavItem = {
   permission: "integrations:read",
 };
 
-const prospectingNavItem: NavItem = {
-  labelKey: "nav.prospecting",
-  href: "/prospecting",
-  icon: "scan-search",
-  permission: "integrations:read",
-};
-
 const calendarNavItem: NavItem = {
   labelKey: "nav.calendar",
   href: "/calendar",
@@ -351,10 +344,6 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(integrationsNavItem, role, plan)) {
     modules.push(navLinkModule(integrationsNavItem));
-  }
-
-  if (navLinkAllowed(prospectingNavItem, role, plan)) {
-    modules.push(navLinkModule(prospectingNavItem));
   }
 
   if (navLinkAllowed(accessCodesNavItem, role, plan)) {

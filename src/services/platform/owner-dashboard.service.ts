@@ -10,6 +10,10 @@ import { getTenantTrialRetrialPolicy } from "@/lib/billing/trial-eligibility";
 
 import { reconcileOutstandingSubscriptionPayments } from "@/modules/billing/services/billing-subscription-reconcile.service";
 import {
+  loadReservationRevenueSourcesByReservationId,
+  resolveReservationFinanceRevenueForDisplay,
+} from "@/services/finance/reservation-revenue-context.service";
+import {
   loadOwnerCommercialScope,
   ownerCommercialBillingAccountWhere,
   ownerCommercialBillingInvoiceWhere,
@@ -18,6 +22,34 @@ import {
   ownerCommercialReservationWhere,
   ownerCommercialUserWhere,
 } from "@/services/platform/owner-dashboard-scope";
+
+async function sumOwnerCommercialReservationRevenue(
+  scope: Awaited<ReturnType<typeof loadOwnerCommercialScope>>,
+): Promise<number> {
+  const reservations = await db.reservation.findMany({
+    where: ownerCommercialReservationWhere(scope),
+    select: {
+      id: true,
+      totalAmount: true,
+      platform: true,
+      icalUid: true,
+      reservationCode: true,
+    },
+  });
+  if (reservations.length === 0) return 0;
+  const revenueSources = await loadReservationRevenueSourcesByReservationId(
+    reservations.map((row) => row.id),
+  );
+  return reservations.reduce(
+    (sum, reservation) =>
+      sum +
+      resolveReservationFinanceRevenueForDisplay(
+        reservation,
+        revenueSources.get(reservation.id),
+      ),
+    0,
+  );
+}
 
 export type OwnerClientSortField =
   | "createdAt"
@@ -270,26 +302,37 @@ export async function listOwnerClients(
     );
   }
 
-  const revenueByProperty = orgIds.length
-    ? await db.reservation.groupBy({
-        by: ["propertyId"],
-        where: {
-          property: { organizationId: { in: orgIds } },
-          status: { not: "CANCELLED" },
-        },
-        _sum: { totalAmount: true },
-      })
-    : [];
-
   const revenueByOrg = new Map<string, number>();
-  for (const row of revenueByProperty) {
-    const prop = propertyOrgMap.find((p) => p.id === row.propertyId);
-    if (!prop?.organizationId) continue;
-    revenueByOrg.set(
-      prop.organizationId,
-      (revenueByOrg.get(prop.organizationId) ?? 0) +
-        Number(row._sum.totalAmount ?? 0),
+  if (orgIds.length > 0) {
+    const revenueReservations = await db.reservation.findMany({
+      where: {
+        property: { organizationId: { in: orgIds } },
+        status: { not: "CANCELLED" },
+      },
+      select: {
+        id: true,
+        totalAmount: true,
+        platform: true,
+        icalUid: true,
+        reservationCode: true,
+        property: { select: { organizationId: true } },
+      },
+    });
+    const revenueSources = await loadReservationRevenueSourcesByReservationId(
+      revenueReservations.map((row) => row.id),
     );
+    for (const reservation of revenueReservations) {
+      const orgId = reservation.property.organizationId;
+      if (!orgId) continue;
+      revenueByOrg.set(
+        orgId,
+        (revenueByOrg.get(orgId) ?? 0) +
+          resolveReservationFinanceRevenueForDisplay(
+            reservation,
+            revenueSources.get(reservation.id),
+          ),
+      );
+    }
   }
 
   let items: OwnerClientRow[] = organizations.map((org) => {
@@ -516,7 +559,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     openInvoicesList,
     paid30dAgg,
     paidAllTimeAgg,
-    reservationRevenueAgg,
+    platformReservationRevenueCop,
     statusGroups,
     upcomingBillingAccounts,
     recentPaidInvoices,
@@ -629,10 +672,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
       where: ownerCommercialBillingInvoiceWhere(scope, { status: "PAID" }),
       _sum: { amount: true },
     }),
-    db.reservation.aggregate({
-      where: ownerCommercialReservationWhere(scope),
-      _sum: { totalAmount: true },
-    }),
+    sumOwnerCommercialReservationRevenue(scope),
     db.billingAccount.groupBy({
       by: ["status"],
       where: ownerCommercialBillingAccountWhere(scope),
@@ -710,7 +750,7 @@ export async function getOwnerDashboardSnapshot(): Promise<OwnerDashboardSnapsho
     openInvoicesCount: openInvoicesAgg._count._all,
     paidRevenue30dCop: Number(paid30dAgg._sum.amount ?? 0),
     paidRevenueAllTimeCop: Number(paidAllTimeAgg._sum.amount ?? 0),
-    platformReservationRevenueCop: Number(reservationRevenueAgg._sum.totalAmount ?? 0),
+    platformReservationRevenueCop,
   };
 
   return {

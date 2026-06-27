@@ -162,9 +162,12 @@ export function resolveReservationRevenueAmount(input: {
     readNumber(merged.hostPayoutAmount) ?? readNumber(merged.netPayout);
   if (fromHostPayout != null) return fromHostPayout;
 
-  if (hadEmailSources(sources)) return 0;
-
   const stored = readNumber(input.totalAmount);
+  if (hadEmailSources(sources)) {
+    if (stored != null) return stored;
+    return 0;
+  }
+
   if (stored != null) return stored;
 
   return readHostRevenueFromJson(merged) ?? 0;

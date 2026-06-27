@@ -122,7 +122,7 @@ describe("enrichment policy (pilot)", () => {
     assert.equal(match.allowReservationEnrichment, true);
   });
 
-  it("no enrich sin código en email", () => {
+  it("no enrich sin código en email a 0.82", () => {
     const match = applyMatchPolicy(
       {
         reservationId: "r1",
@@ -134,6 +134,20 @@ describe("enrichment policy (pilot)", () => {
       { hasConfirmationCodeInEmail: false },
     );
     assert.equal(match.allowReservationEnrichment, false);
+  });
+
+  it("permite enrich en LISTING_DATES único (0.88) sin código HM", () => {
+    const match = applyMatchPolicy(
+      {
+        reservationId: "r1",
+        propertyId: "p1",
+        organizationId: "o1",
+        method: AirbnbEmailMatchMethod.LISTING_DATES,
+        confidence: 0.88,
+      },
+      { hasConfirmationCodeInEmail: false },
+    );
+    assert.equal(match.allowReservationEnrichment, true);
   });
 });
 

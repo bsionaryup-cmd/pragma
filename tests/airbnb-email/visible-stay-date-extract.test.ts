@@ -10,9 +10,9 @@ import {
 
 describe("visible stay date extract", () => {
   it("parsea vie, 19 jun y mar, 23 jun a ISO", () => {
-    assert.equal(normalizeVisibleStayDate("vie, 19 jun"), "2026-06-19");
-    assert.equal(normalizeVisibleStayDate("mar, 23 jun"), "2026-06-23");
-    assert.equal(normalizeVisibleStayDate("19 jun"), "2026-06-19");
+    assert.equal(normalizeVisibleStayDate("vie, 19 jun", { referenceYear: 2026 }), "2026-06-19");
+    assert.equal(normalizeVisibleStayDate("mar, 23 jun", { referenceYear: 2026 }), "2026-06-23");
+    assert.equal(normalizeVisibleStayDate("19 jun", { referenceYear: 2026 }), "2026-06-19");
     assert.equal(normalizeVisibleStayDate("23 de junio de 2026"), "2026-06-23");
   });
 
@@ -36,8 +36,8 @@ describe("visible stay date extract", () => {
 
   it("structured extract usa fechas visibles sin listing scoring", () => {
     const structured = extractStructuredAirbnbFields(`
-      <p>vie, 19 jun</p>
-      <p>mar, 23 jun</p>
+      <p>19 de junio de 2026</p>
+      <p>23 de junio de 2026</p>
       <img alt="Loft amplio 4P con Vista Panorámica | Laureles Top" />
     `);
     assert.equal(structured.checkIn, "2026-06-19");
@@ -50,8 +50,8 @@ describe("visible stay date extract", () => {
       body: "Código HM4SPXSTS2",
       html: `
         <table>
-          <tr><td>Check-in</td><td>vie, 19 jun</td></tr>
-          <tr><td>Check-out</td><td>mar, 23 jun</td></tr>
+          <tr><td>Check-in</td><td>19 de junio de 2026</td></tr>
+          <tr><td>Check-out</td><td>23 de junio de 2026</td></tr>
         </table>
       `,
     });

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/ui/page-header";
+import { formatDate } from "@/lib/helpers/date";
 
 type BillingDashboardProps = {
   data: BillingDashboardDto;
@@ -51,9 +52,9 @@ const STATUS_LABELS: Record<string, string> = {
   PAID: "Pagada",
 };
 
-function formatDate(iso: string | null) {
+function formatBillingDate(iso: string | null) {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString("es-CO", { dateStyle: "medium" });
+  return formatDate(iso);
 }
 
 function formatAmount(amount: string | number, currency: string) {
@@ -92,7 +93,7 @@ export function BillingDashboard({
   const canSelectPlan = account.status !== "ACTIVE";
   const needsActivation = account.status !== "ACTIVE";
   const planName = getPlanDefinition(account.plan as BillingPlanCode).name;
-  const trialEnd = formatDate(account.trialEndsAt);
+  const trialEnd = formatBillingDate(account.trialEndsAt);
 
   const payInvoice = (invoiceId: string) => {
     startTransition(async () => {
@@ -328,7 +329,7 @@ export function BillingDashboard({
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium">
-                          {formatDate(inv.paidAt ?? inv.dueAt)}
+                          {formatBillingDate(inv.paidAt ?? inv.dueAt)}
                         </p>
                         <p className="truncate text-xs text-muted-foreground">
                           {inv.description ?? "Suscripción PRAGMA"}

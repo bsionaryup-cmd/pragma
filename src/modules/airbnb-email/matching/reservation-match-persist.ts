@@ -4,11 +4,12 @@ import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { db } from "@/lib/db";
 import { invalidateLivePmsCaches } from "@/lib/live-pms-refresh";
 import { applySafeReservationEnrichment, mergeEnrichedFieldsForEmailEvent } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
-import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
-import { refreshAuditSignalsFromRaw } from "@/modules/airbnb-email/repair/refresh-audit-signals-from-raw";
 import {
+  applyEmailCancellationForMatchedReservation,
   isReservationEventKind,
 } from "@/modules/airbnb-email/domains/reservation-event.domain";
+import { toPersistedMatchMethod } from "@/modules/airbnb-email/lib/match-method-persistence";
+import { refreshAuditSignalsFromRaw } from "@/modules/airbnb-email/repair/refresh-audit-signals-from-raw";
 import type {
   ExtractedReservationSignals,
   ReservationMatchResult,
@@ -196,6 +197,7 @@ export async function persistReservationMatchLinkage(
           signals,
           eventKind: input.eventKind,
           mode: "reservation",
+          tx,
         });
         const metadataFields = buildStructuredMetadataFields(signals);
         const enrichedFields = mergeEnrichedFieldsForEmailEvent({
@@ -243,7 +245,16 @@ export async function persistReservationMatchLinkage(
           auditId: input.auditId,
           reservationId: input.match.reservationId,
           eventKind: input.eventKind,
-          enrichedFieldCount: enrichedFieldKeys.length,
+          enrichedFieldKeys: enrichedFieldKeys.length,
+        });
+      }
+
+      if (input.match.reservationId) {
+        await applyEmailCancellationForMatchedReservation({
+          eventKind: input.eventKind,
+          reservationId: input.match.reservationId,
+          auditId: input.auditId,
+          tx,
         });
       }
 

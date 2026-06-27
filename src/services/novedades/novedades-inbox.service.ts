@@ -24,6 +24,10 @@ import {
   buildInboxHistoryConsolidationContext,
 } from "@/services/novedades/inbox-history-consolidation.service";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import {
+  loadReservationRevenueSourcesByReservationId,
+  resolveReservationFinanceRevenueForDisplay,
+} from "@/services/finance/reservation-revenue-context.service";
 import { detectInboxMessageIntent, inboxIntentLabel } from "@/services/inbox-ai/inbox-intent.service";
 
 function feedKindToTimelineKind(kind: OperationalFeedKind): NovedadesTimelineKind {
@@ -84,7 +88,7 @@ export async function listNovedadesInboxItems(
   if (grouped.length === 0) return [];
 
   const reservationIds = grouped.map((group) => group.reservationId);
-  const [reservations, enrichedNames] = await Promise.all([
+  const [reservations, enrichedNames, revenueSourcesByReservationId] = await Promise.all([
     db.reservation.findMany({
       where: mergeReservationScope(scope, { id: { in: reservationIds } }),
       select: {
@@ -94,9 +98,11 @@ export async function listNovedadesInboxItems(
         reservationCode: true,
         totalAmount: true,
         currency: true,
+        icalUid: true,
       },
     }),
     getAirbnbEnrichedGuestNameByReservationIds(reservationIds),
+    loadReservationRevenueSourcesByReservationId(reservationIds),
   ]);
   const reservationById = new Map(reservations.map((row) => [row.id, row]));
 
@@ -115,7 +121,13 @@ export async function listNovedadesInboxItems(
       (latestEvent ? previewNarrative(latestEvent, guestName) : "Sin actividad reciente");
 
     const reservationAmount = reservation
-      ? formatPayoutAmount(Number(reservation.totalAmount), reservation.currency)
+      ? formatPayoutAmount(
+          resolveReservationFinanceRevenueForDisplay(
+            reservation,
+            revenueSourcesByReservationId.get(reservation.id),
+          ),
+          reservation.currency,
+        )
       : null;
 
     const latestKind = latestEvent ? feedKindToTimelineKind(latestEvent.kind) : null;

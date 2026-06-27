@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { AirbnbEmailEventKind } from "@prisma/client";
+import { AirbnbEmailEventKind, AirbnbEmailMatchMethod } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { resolveAuthoritativeHostPayout } from "@/lib/finance/resolve-authoritative-host-payout";
 import { db } from "@/lib/db";
@@ -283,7 +283,9 @@ export async function applySafeReservationEnrichment(input: {
   signals: ExtractedReservationSignals;
   eventKind?: AirbnbEmailEventKind;
   mode?: SafeEnrichmentMode;
+  tx?: Prisma.TransactionClient;
 }): Promise<Record<string, string | number>> {
+  const dbClient = input.tx ?? db;
   const mode = input.mode ?? "reservation";
 
   if (!input.match.allowReservationEnrichment || !input.match.reservationId) {
@@ -308,7 +310,7 @@ export async function applySafeReservationEnrichment(input: {
     return {};
   }
 
-  const reservation = await db.reservation.findUnique({
+  const reservation = await dbClient.reservation.findUnique({
     where: { id: input.match.reservationId },
     select: {
       reservationCode: true,
@@ -446,7 +448,7 @@ export async function applySafeReservationEnrichment(input: {
     return {};
   }
 
-  await db.reservation.update({
+  await dbClient.reservation.update({
     where: { id: input.match.reservationId },
     data: updates,
   });

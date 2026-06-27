@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { useMounted } from "@/hooks/use-mounted";
 
 const STORAGE_KEY = "pragma-sidebar-collapsed";
 
@@ -34,11 +35,13 @@ function emitCollapsedChange() {
 }
 
 export function useSidebarCollapsed() {
-  const collapsed = useSyncExternalStore(
+  const storedCollapsed = useSyncExternalStore(
     subscribe,
     readCollapsed,
     () => false,
   );
+  const mounted = useMounted();
+  const collapsed = mounted ? storedCollapsed : false;
 
   const toggle = useCallback(() => {
     const next = !readCollapsed();
@@ -50,5 +53,5 @@ export function useSidebarCollapsed() {
     emitCollapsedChange();
   }, []);
 
-  return { collapsed, toggle, ready: true };
+  return { collapsed, toggle, ready: mounted };
 }

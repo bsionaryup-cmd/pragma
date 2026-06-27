@@ -8,8 +8,26 @@ import {
 } from "@/lib/finance/reservation-finance-trace";
 import {
   buildReservationRevenueSourcesFromEmailEvent,
+  resolveFinanceReservationRevenueAmount,
   type ReservationRevenueSources,
 } from "@/lib/finance/reservation-revenue-amount";
+import type { BookingPlatform } from "@prisma/client";
+
+export type ReservationFinanceRevenueRow = {
+  id: string;
+  totalAmount: unknown;
+  platform: BookingPlatform;
+  icalUid: string | null;
+  reservationCode: string | null;
+};
+
+/** Monto contable alineado con Finanzas y Panel. */
+export function resolveReservationFinanceRevenueForDisplay(
+  reservation: ReservationFinanceRevenueRow,
+  sources?: ReservationRevenueSources | null,
+): number {
+  return resolveFinanceReservationRevenueAmount(reservation, sources ?? undefined);
+}
 
 function readRawEmail(value: unknown): FinanceRevenueEmailRawEmail | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;

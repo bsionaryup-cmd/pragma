@@ -36,6 +36,11 @@ import {
   novedadesStayStageLabel,
 } from "@/services/novedades/novedades-stay-stage";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import {
+  loadReservationRevenueSourcesByReservationId,
+  resolveReservationFinanceRevenueForDisplay,
+} from "@/services/finance/reservation-revenue-context.service";
+import { formatPayoutAmount } from "@/services/novedades/operational-feed.present";
 import { buildGuestRegistrationUrl } from "@/services/guests/guest-registration.service";
 import {
   buildQuickMessageDataFromReservation,
@@ -45,7 +50,6 @@ import {
 import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 import type { QuickMessageType } from "@/lib/reservations/quick-messages";
 import { quickMessageButtonLabel } from "@/lib/reservations/quick-message-templates";
-import { formatPayoutAmount } from "@/services/novedades/operational-feed.present";
 import {
   buildAbsorbedInquiryTimelineEntry,
 } from "@/services/novedades/inbox-history-consolidation";
@@ -343,6 +347,7 @@ export async function buildNovedadesReservationDetail(
       reservationCode: true,
       totalAmount: true,
       currency: true,
+      icalUid: true,
       createdAt: true,
       updatedAt: true,
       guestRegistrationToken: true,
@@ -372,6 +377,8 @@ export async function buildNovedadesReservationDetail(
   if (!reservation) return null;
 
   const enrichedNames = await getAirbnbEnrichedGuestNameByReservationIds([reservationId]);
+  const revenueSourcesByReservationId =
+    await loadReservationRevenueSourcesByReservationId([reservationId]);
   const displayGuestName = resolveNovedadesGuestName({
     guestName: reservation.guestName,
     confirmationCode: reservation.reservationCode,
@@ -392,7 +399,10 @@ export async function buildNovedadesReservationDetail(
     null;
 
   const totalAmountLabel = formatPayoutAmount(
-    Number(reservation.totalAmount),
+    resolveReservationFinanceRevenueForDisplay(
+      reservation,
+      revenueSourcesByReservationId.get(reservation.id),
+    ),
     reservation.currency,
   );
 
@@ -430,7 +440,7 @@ export async function buildNovedadesReservationDetail(
     accessCode,
   };
 
-  const [feedCards, accessCredentials, accessEvents, tasks, rawInquiries] = await Promise.all([
+  const [feedCards, accessCredentials, accessEvents, tasks, emailTasks, rawInquiries] = await Promise.all([
     listOperationalFeedCardsForReservation(scope, reservationId),
     db.accessCredential.findMany({
       where: { reservationId },
@@ -463,6 +473,18 @@ export async function buildNovedadesReservationDetail(
         type: true,
         createdAt: true,
         completedAt: true,
+      },
+    }),
+    db.airbnbEmailTask.findMany({
+      where: { reservationId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        kind: true,
+        createdAt: true,
       },
     }),
     listNovedadesUnlinkedInquiryItems(scope, 40),
@@ -592,6 +614,19 @@ export async function buildNovedadesReservationDetail(
         timeLabel: formatTimeLabel(task.completedAt),
       });
     }
+  }
+
+  for (const emailTask of emailTasks) {
+    const narrative = emailTask.description?.trim() || emailTask.title;
+    taskEntries.push({
+      id: `email-task:${emailTask.id}`,
+      kind: "TASK",
+      title: "Acción del correo Airbnb",
+      narrative: `${emailTask.title} — ${TASK_STATUS_LABELS[emailTask.status] ?? emailTask.status.toLowerCase()}. ${narrative}`,
+      priority: emailTask.status === "PENDING" ? "attention" : "normal",
+      createdAt: emailTask.createdAt.toISOString(),
+      timeLabel: formatTimeLabel(emailTask.createdAt),
+    });
   }
 
   const entries = dedupeTimelineEntries([

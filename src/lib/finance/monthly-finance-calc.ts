@@ -11,9 +11,10 @@ import {
   isReservationIncomePending,
 } from "@/lib/finance/reservation-income-status";
 import {
-  resolveReservationRevenueAmount,
+  resolveFinanceReservationRevenueAmount,
   type ReservationRevenueSources,
 } from "@/lib/finance/reservation-revenue-amount";
+import type { BookingPlatform } from "@prisma/client";
 
 const OCCUPANCY_STATUSES: ReservationStatus[] = [
   ReservationStatus.CONFIRMED,
@@ -30,6 +31,9 @@ export type MonthlyFinanceReservationRow = {
   checkOut: Date;
   totalAmount: unknown;
   paymentStatus: PaymentStatus;
+  platform: BookingPlatform;
+  icalUid: string | null;
+  reservationCode: string | null;
 };
 
 export type MonthlyFinancePropertyRow = {
@@ -96,16 +100,15 @@ export function computeMonthlyFinancePropertyMetric(
 
     if (!checkInFallsInMonth(reservation.checkIn, startKey, endKey)) continue;
 
-    const amount = resolveReservationRevenueAmount({
-      totalAmount: reservation.totalAmount,
-      enrichedFields: revenueSourcesByReservationId.get(reservation.id)
-        ?.enrichedFields,
-      payloadSignals: revenueSourcesByReservationId.get(reservation.id)
-        ?.payloadSignals,
-      emailMatchBlob: revenueSourcesByReservationId.get(reservation.id)
-        ?.emailMatchBlob,
-      payoutNet: revenueSourcesByReservationId.get(reservation.id)?.payoutNet,
-    });
+    const amount = resolveFinanceReservationRevenueAmount(
+      {
+        totalAmount: reservation.totalAmount,
+        platform: reservation.platform,
+        icalUid: reservation.icalUid,
+        reservationCode: reservation.reservationCode,
+      },
+      revenueSourcesByReservationId.get(reservation.id),
+    );
 
     if (
       isReservationIncomeConfirmed(

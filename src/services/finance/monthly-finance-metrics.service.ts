@@ -93,6 +93,9 @@ export async function recalculateMonthlyFinanceMetrics(
         checkOut: true,
         totalAmount: true,
         paymentStatus: true,
+        platform: true,
+        icalUid: true,
+        reservationCode: true,
       },
     }),
   ]);

@@ -32,10 +32,12 @@ export function formatDateTime(
   const value = typeof date === "string" ? new Date(date) : date;
 
   if (options) {
-    return new Intl.DateTimeFormat("es-CO", {
+    const formatted = new Intl.DateTimeFormat("es-CO", {
       timeZone: DEFAULT_TIMEZONE,
       ...options,
     }).format(value);
+    // Node (SSR) and browsers may emit different narrow spaces in es-CO.
+    return formatted.replace(/\u00a0|\u202f/g, " ");
   }
 
   const parts = new Intl.DateTimeFormat("es-CO", {

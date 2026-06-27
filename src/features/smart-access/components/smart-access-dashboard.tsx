@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { PageHeader } from "@/components/ui/page-header";
 import { getAccessStageBadgeClass } from "@/lib/ui/status-badge-styles";
+import { formatDate } from "@/lib/helpers/date";
 import { cn } from "@/lib/utils";
 
 type SmartAccessDashboardProps = {
@@ -28,11 +29,8 @@ type SmartAccessDashboardProps = {
   canManage: boolean;
 };
 
-function formatDate(iso: string) {
-  return new Date(iso + "T12:00:00").toLocaleDateString("es-CO", {
-    day: "numeric",
-    month: "short",
-  });
+function formatStayDate(iso: string) {
+  return formatDate(new Date(`${iso}T12:00:00`));
 }
 
 function credentialIsActive(status: AccessCredentialStatus) {
@@ -174,7 +172,7 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                           <span className="mx-1" aria-hidden>
                             ·
                           </span>
-                          {formatDate(item.checkIn)} – {formatDate(item.checkOut)}
+                          {formatStayDate(item.checkIn)} – {formatStayDate(item.checkOut)}
                         </p>
                       </div>
 
