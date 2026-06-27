@@ -34,6 +34,7 @@ import { purgeGhostReservationsThrottled } from "@/services/reservations/ghost-r
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
+import { resolveCalendarBarStatus } from "@/features/calendar/lib/calendar-bar-status";
 import { schedulePriceLabsCalendarRefreshIfStale } from "@/services/integrations/pricelabs/pricelabs-refresh";
 
 async function loadCalendarProperties(scope: TenantDataScope) {
@@ -48,6 +49,7 @@ async function loadCalendarProperties(scope: TenantDataScope) {
     coverImageUrl: true,
     baseRate: true,
     cleaningFee: true,
+    maxGuests: true,
   } as const;
   const propertyFilter = mergePropertyScope(scope, {
     status: PropertyStatus.ACTIVE,
@@ -119,6 +121,7 @@ function mapCalendarProperty(
     propertyType: p.propertyType,
     status: p.status,
     coverImageUrl: p.coverImageUrl,
+    maxGuests: p.maxGuests,
     pricing:
       pl || p.baseRate
         ? {
@@ -271,7 +274,7 @@ export async function getCalendarData(anchorKey: string): Promise<CalendarDataDt
       guestName: resolvedGuestName,
       checkIn: prismaDateToKey(r.checkIn),
       checkOut: prismaDateToKey(r.checkOut),
-      status: r.status,
+      status: resolveCalendarBarStatus(r.status, r.checkIn, r.checkOut),
       totalAmount: r.totalAmount.toString(),
       currency: r.currency,
       platform: r.platform,

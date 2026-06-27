@@ -31,6 +31,8 @@ export type CalendarPropertyDto = {
   propertyType: PropertyType;
   status: PropertyStatus;
   coverImageUrl: string | null;
+  /** Configured maximum guest capacity from Property.maxGuests. */
+  maxGuests: number;
   pricing: CalendarPropertyPricingDto | null;
   dailyPricesByDate: Record<string, CalendarDayPricingDto>;
   /** Tarifa de aseo (solo se suma en reservas con presupuesto). */

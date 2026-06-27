@@ -52,13 +52,12 @@ function ReservationBarComponent({
         className={cn(getReservationBarShellClasses(visualState), roundStart, roundEnd)}
       />
       <span className={getReservationStickyNameClasses(visualState)}>
-        {visualState !== "checked_out" ? (
-          <PlatformIcon
-            platform={reservation.platform}
-            size="xs"
-            className="shrink-0 opacity-90"
-          />
-        ) : null}
+        <PlatformIcon
+          platform={reservation.platform}
+          size="xs"
+          framed={false}
+          className="shrink-0 opacity-90"
+        />
         <span className="truncate">{reservation.guestName}</span>
       </span>
     </button>

@@ -37,6 +37,7 @@ import {
   isStayRangeAvailable,
 } from "@/features/calendar/lib/stay-availability";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { resolveCalendarBarStatus } from "@/features/calendar/lib/calendar-bar-status";
 import { groupReservationsByProperty } from "@/features/calendar/lib/reservation-span";
 import type {
   CalendarDataDto,
@@ -633,13 +634,19 @@ export function MultiCalendar({
   function inboxToCalendarBar(
     reservation: ReservationInboxItem,
   ): CalendarReservationDto {
+    const checkIn = reservation.checkIn;
+    const checkOut = reservation.checkOut;
     return {
       id: reservation.id,
       propertyId: reservation.property.id,
       guestName: reservation.guestName,
-      checkIn: reservation.checkIn,
-      checkOut: reservation.checkOut,
-      status: reservation.status,
+      checkIn,
+      checkOut,
+      status: resolveCalendarBarStatus(
+        reservation.status,
+        new Date(`${checkIn}T12:00:00`),
+        new Date(`${checkOut}T12:00:00`),
+      ),
       totalAmount: reservation.totalAmount,
       currency: reservation.currency,
       platform: reservation.platform,

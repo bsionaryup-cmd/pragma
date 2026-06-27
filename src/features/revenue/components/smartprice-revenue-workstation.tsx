@@ -597,7 +597,7 @@ export function SmartpriceRevenueWorkstation({
 }: SmartpriceRevenueWorkstationProps) {
   const { t } = useI18n();
   const canEdit = canEditPrices && !billingLocked;
-  const [anomaliesOnly, setAnomaliesOnly] = useState(true);
+  const [anomaliesOnly, setAnomaliesOnly] = useState(false);
 
   const visibleProperties = useMemo(() => {
     let list = properties;

@@ -13,6 +13,7 @@ import {
   formatCalendarUnitDisplay,
   resolveCalendarUnitLabel,
 } from "@/features/calendar/lib/property-unit";
+import { formatPropertyCapacityLabel } from "@/features/calendar/lib/property-capacity";
 import type { CalendarViewSettings } from "@/features/calendar/lib/calendar-view-settings";
 import type { CalendarPropertyDto } from "@/features/calendar/types/calendar.types";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,30 @@ const rowStyle: React.CSSProperties = {
   maxHeight: CALENDAR_ROW_HEIGHT,
   boxSizing: "border-box",
 };
+
+function PropertyCapacityIndicator({
+  maxGuests,
+  compact = false,
+}: {
+  maxGuests: number | null | undefined;
+  compact?: boolean;
+}) {
+  const label = formatPropertyCapacityLabel(maxGuests);
+  if (!label) return null;
+
+  return (
+    <p
+      className={cn(
+        "inline-flex items-center gap-0.5 font-medium tabular-nums leading-none text-[var(--cal-text-secondary)]",
+        compact ? "text-[9px]" : "text-[11px]",
+      )}
+      title={`Capacidad máxima: ${maxGuests} huéspedes`}
+    >
+      <span aria-hidden>👤</span>
+      <span>{label}</span>
+    </p>
+  );
+}
 
 type PropertySidebarVariant = "full" | "compact";
 
@@ -36,6 +61,17 @@ type PropertySidebarProps = {
   variant?: PropertySidebarVariant;
 };
 
+function resolvePropertyTitle(
+  property: CalendarPropertyDto,
+  viewSettings: CalendarViewSettings,
+  unitLabel: string,
+): string {
+  if (viewSettings.showIdentificationNumber && unitLabel !== "—") {
+    return unitLabel;
+  }
+  return property.name;
+}
+
 function PropertySidebarItem({
   property,
   viewSettings,
@@ -47,52 +83,43 @@ function PropertySidebarItem({
 }) {
   const unit = formatCalendarUnitDisplay(resolveCalendarUnitLabel(property));
   const compact = variant === "compact";
+  const title = resolvePropertyTitle(property, viewSettings, unit);
+  const showUnitAsTitle =
+    viewSettings.showIdentificationNumber && unit !== "—";
+  const showNameSubtitle =
+    viewSettings.showInternalName && (showUnitAsTitle || !compact);
 
   if (compact) {
     return (
       <div
         className="flex items-center justify-center border-b border-[var(--cal-row-divider)] px-1 transition-colors"
         style={rowStyle}
-        title={property.name}
+        title={`${property.name} · ${formatPropertyCapacityLabel(property.maxGuests) || ""}`}
       >
-        <div className="min-w-0 text-center leading-tight">
-          {unit !== "—" ? (
-            <p className="truncate text-[13px] font-bold tabular-nums tracking-tight text-[var(--cal-text-day)]">
-              {unit}
-            </p>
-          ) : (
-            <p className="line-clamp-2 text-[10px] font-semibold text-[var(--cal-text-day)]">
-              {property.name}
-            </p>
-          )}
-          {viewSettings.showInternalName && unit !== "—" ? (
-            <p className="mt-0.5 line-clamp-2 text-[9px] font-normal text-[var(--cal-text-muted)]">
-              {property.name}
-            </p>
-          ) : null}
+        <div className="flex min-w-0 flex-col items-center justify-center gap-0.5 leading-tight">
+          <p className="truncate text-[13px] font-bold tabular-nums tracking-tight text-[var(--cal-text-day)]">
+            {showUnitAsTitle ? unit : property.name}
+          </p>
+          <PropertyCapacityIndicator maxGuests={property.maxGuests} compact />
         </div>
       </div>
     );
   }
 
-  const hasTextContent =
-    viewSettings.showInternalName ||
-    viewSettings.showIdentificationNumber;
-
   return (
     <div
-      className="flex items-center gap-3 border-b border-[var(--cal-row-divider)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
+      className="flex items-center gap-2.5 overflow-visible border-b border-[var(--cal-row-divider)] px-3 transition-colors hover:bg-[var(--cal-bg-hover)]"
       style={rowStyle}
     >
       {viewSettings.showImage ? (
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[var(--cal-bg-thumbnail)]">
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md bg-[var(--cal-bg-thumbnail)]">
           {property.coverImageUrl ? (
             <Image
               src={property.coverImageUrl}
               alt={property.name}
               fill
               className="object-cover"
-              sizes="48px"
+              sizes="44px"
               loading="lazy"
             />
           ) : (
@@ -102,25 +129,17 @@ function PropertySidebarItem({
           )}
         </div>
       ) : null}
-      {hasTextContent ? (
-        <div className="min-w-0 flex-1 text-center sm:text-start">
-          {viewSettings.showIdentificationNumber && unit !== "—" ? (
-            <p className="truncate text-[15px] font-bold tabular-nums leading-tight tracking-tight text-[var(--cal-text-day)]">
-              {unit}
-            </p>
-          ) : null}
-          {viewSettings.showInternalName ? (
-            <p
-              className={cn(
-                "truncate text-[11px] font-normal leading-tight text-[var(--cal-text-secondary)]",
-                viewSettings.showIdentificationNumber && unit !== "—" && "mt-0.5",
-              )}
-            >
-              {property.name}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
+        <p className="truncate text-[14px] font-semibold leading-tight tracking-tight text-[var(--cal-text-day)]">
+          {title}
+        </p>
+        <PropertyCapacityIndicator maxGuests={property.maxGuests} />
+        {showNameSubtitle ? (
+          <p className="truncate text-[10px] font-normal leading-tight text-[var(--cal-text-muted)]">
+            {property.name}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
