@@ -110,3 +110,18 @@ export function buildHistoricalBackfillIcalUid(confirmationCode: string): string
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/** Whether an Airbnb iCal reservation missing from the live feed should be marked CANCELLED. */
+export function shouldCancelStaleIcalReservation(input: {
+  icalUid: string;
+  seenInFeed: boolean;
+  status: string;
+  checkOut: Date;
+  today: Date;
+}): boolean {
+  if (input.seenInFeed) return false;
+  if (isHistoricalBackfillUid(input.icalUid)) return false;
+  if (input.status === "CHECKED_OUT" || input.status === "CANCELLED") return false;
+  if (input.checkOut <= input.today) return false;
+  return true;
+}

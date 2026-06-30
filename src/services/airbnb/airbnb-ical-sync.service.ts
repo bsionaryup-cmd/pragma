@@ -7,14 +7,14 @@ import {
   isAirbnbBlockedSummary,
   parseIcsFeed,
 } from "@/services/airbnb/ical-parser";
-import { dateKeyToPrismaDate } from "@/lib/dates";
+import { dateKeyToPrismaDate, todayPrismaDate } from "@/lib/dates";
 import {
   activePropertiesWithIcalFilter,
   canSyncAirbnbIcalImport,
   guardActiveIcalImportUrl,
   hasActiveAirbnbIcalImport,
   isPragmaExportedUid,
-  isHistoricalBackfillUid,
+  shouldCancelStaleIcalReservation,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
 import {
@@ -457,25 +457,38 @@ export async function syncPropertyIcalCalendarInner(
         propertyId: property.id,
         platform: BookingPlatform.AIRBNB,
         icalUid: { not: null },
-        status: { not: ReservationStatus.CANCELLED },
+        status: {
+          notIn: [ReservationStatus.CANCELLED, ReservationStatus.CHECKED_OUT],
+        },
       },
-      select: { id: true, icalUid: true },
+      select: { id: true, icalUid: true, checkOut: true, status: true },
     });
 
+    const today = todayPrismaDate();
+
     for (const row of stale) {
-      if (row.icalUid && !seenUids.has(row.icalUid)) {
-        if (isHistoricalBackfillUid(row.icalUid)) continue;
-        await db.reservation.update({
-          where: { id: row.id },
-          data: { status: ReservationStatus.CANCELLED },
-        });
-        await emitBookingCancelled({
-          reservationId: row.id,
-          propertyId: property.id,
-          ownerId,
-        });
-        cancelled += 1;
+      if (
+        !row.icalUid ||
+        !shouldCancelStaleIcalReservation({
+          icalUid: row.icalUid,
+          seenInFeed: seenUids.has(row.icalUid),
+          status: row.status,
+          checkOut: row.checkOut,
+          today,
+        })
+      ) {
+        continue;
       }
+      await db.reservation.update({
+        where: { id: row.id },
+        data: { status: ReservationStatus.CANCELLED },
+      });
+      await emitBookingCancelled({
+        reservationId: row.id,
+        propertyId: property.id,
+        ownerId,
+      });
+      cancelled += 1;
     }
 
     await db.property.update({

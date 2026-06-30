@@ -9,8 +9,6 @@ import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
 import { db } from "@/lib/db";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import { mergeReservationScope } from "@/lib/platform/tenant-data-scope";
-import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
-
 function isGhostReservation(input: {
   platform: BookingPlatform;
   icalUid: string | null;
@@ -36,8 +34,9 @@ function isGhostReservation(input: {
 }
 
 /**
- * Elimina reservas que no son directas, importadas de Airbnb con iCal, o sincronizadas.
- * También borra imports cancelados/huérfanos que ya no existen en el calendario real.
+ * Detecta reservas huérfanas (imports Airbnb cancelados/sin iCal activo).
+ * Las reservas son registros permanentes: nunca se eliminan automáticamente.
+ * La visibilidad en calendario/finanzas la controla `withVisibleReservationsFilter`.
  */
 export async function purgeGhostReservations(
   scope: TenantDataScope,
@@ -91,27 +90,12 @@ export async function purgeGhostReservations(
 
   if (ghostIds.length === 0) return 0;
 
-  const affectedPropertyIds = [
-    ...new Set(
-      candidates
-        .filter((row) => ghostIds.includes(row.id))
-        .map((row) => row.propertyId),
-    ),
-  ];
-
-  const deleted = await db.reservation.deleteMany({
-    where: { id: { in: ghostIds } },
+  icalSyncLog.info("ghost_reservations_detected", {
+    count: ghostIds.length,
+    automaticDeletion: false,
   });
 
-  if (deleted.count > 0) {
-    icalSyncLog.info("ghost_reservations_purged", {
-      count: deleted.count,
-      propertyCount: affectedPropertyIds.length,
-    });
-    await Promise.all(affectedPropertyIds.map((id) => touchPropertyIcalExport(id)));
-  }
-
-  return deleted.count;
+  return 0;
 }
 
 const PURGE_THROTTLE_MS = 5 * 60 * 1000;
