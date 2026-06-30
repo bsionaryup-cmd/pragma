@@ -25,6 +25,7 @@ import { purgeGhostReservations } from "@/services/reservations/ghost-reservatio
 import { retryUnlinkedAuditsForProperty } from "@/modules/airbnb-email/matching/unlinked-email-enrichment-retry";
 import { normalizeIcalGuestNameFromSummary } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
 import { icalSyncLog } from "@/lib/airbnb/ical-sync-logger";
+import { perfLog } from "@/lib/perf-log";
 import { normalizeIcalUrl } from "@/services/airbnb/airbnb-import.service";
 import {
   ensureGuestRegistrationForReservation,
@@ -39,6 +40,11 @@ import {
 import { findOverlappingReservation } from "@/services/reservations/reservation-conflicts";
 import { deriveReservationStatusFromDates } from "@/services/reservations/reservation-status";
 import { db } from "@/lib/db";
+import {
+  buildIcalSyncReservationUpdate,
+  reservationMatchesIcalSyncUpdate,
+  type IcalSyncReservationRow,
+} from "@/services/airbnb/ical-guest-name-sync";
 
 const FETCH_HEADERS = {
   "User-Agent": "PRAGMA-PMS/1.0 (iCal sync)",
@@ -76,24 +82,33 @@ async function withSyncLock<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function findReservationByIcalUid(
+async function loadReservationsByIcalUid(
   propertyId: string,
-  icalUid: string,
-) {
-  return db.reservation.findFirst({
-    where: { propertyId, icalUid },
+): Promise<Map<string, IcalSyncReservationRow & { id: string }>> {
+  const rows = await db.reservation.findMany({
+    where: { propertyId, icalUid: { not: null } },
     select: {
       id: true,
+      icalUid: true,
       checkIn: true,
       checkOut: true,
       status: true,
       guestRegistrationCompletedAt: true,
       guestName: true,
+      guestFirstName: true,
+      guestLastName: true,
+      platform: true,
     },
   });
-}
 
-import { buildIcalSyncReservationUpdate } from "@/services/airbnb/ical-guest-name-sync";
+  const byUid = new Map<string, IcalSyncReservationRow & { id: string }>();
+  for (const row of rows) {
+    if (row.icalUid) {
+      byUid.set(row.icalUid, row);
+    }
+  }
+  return byUid;
+}
 
 export type PropertyIcalSyncResult = {
   propertyId: string;
@@ -297,6 +312,8 @@ export async function syncPropertyIcalCalendarInner(
       eventsParsed,
     });
 
+    const reservationByUid = await loadReservationsByIcalUid(property.id);
+
     for (const event of events) {
       if (isPragmaExportedUid(event.uid)) {
         echoSkipped += 1;
@@ -320,7 +337,7 @@ export async function syncPropertyIcalCalendarInner(
         checkOutTime: property.checkOutTime,
       });
 
-      const existing = await findReservationByIcalUid(property.id, event.uid);
+      const existing = reservationByUid.get(event.uid) ?? null;
 
       const guestFirstName = blocked
         ? "Bloqueo"
@@ -344,10 +361,34 @@ export async function syncPropertyIcalCalendarInner(
         const datesChanged =
           existing.checkIn.getTime() !== checkIn.getTime() ||
           existing.checkOut.getTime() !== checkOut.getTime();
+        const updateData = buildIcalSyncReservationUpdate(payload, existing);
+
+        if (reservationMatchesIcalSyncUpdate(existing, updateData)) {
+          if (!blocked && isGuestRegistrationEligibleStatus(status)) {
+            await ensureGuestRegistrationForReservation(existing.id);
+          }
+          continue;
+        }
 
         await db.reservation.update({
           where: { id: existing.id },
-          data: buildIcalSyncReservationUpdate(payload, existing),
+          data: updateData,
+        });
+        reservationByUid.set(event.uid, {
+          ...existing,
+          ...updateData,
+          guestFirstName:
+            "guestFirstName" in updateData && updateData.guestFirstName !== undefined
+              ? updateData.guestFirstName
+              : existing.guestFirstName,
+          guestLastName:
+            "guestLastName" in updateData && updateData.guestLastName !== undefined
+              ? updateData.guestLastName
+              : existing.guestLastName,
+          guestName:
+            "guestName" in updateData && updateData.guestName !== undefined
+              ? updateData.guestName
+              : existing.guestName,
         });
         if (!blocked && isGuestRegistrationEligibleStatus(status)) {
           await ensureGuestRegistrationForReservation(existing.id);
@@ -388,27 +429,47 @@ export async function syncPropertyIcalCalendarInner(
 
       if (overlap) {
         if (overlap.icalUid === event.uid) {
-          const overlapRow = await db.reservation.findUnique({
-            where: { id: overlap.id },
-            select: {
-              guestName: true,
-              guestRegistrationCompletedAt: true,
-            },
-          });
-          await db.reservation.update({
-            where: { id: overlap.id },
-            data: buildIcalSyncReservationUpdate(
-              payload,
-              overlapRow ?? {
-                guestName: overlap.guestName,
-                guestRegistrationCompletedAt: null,
-              },
-            ),
-          });
+          const overlapRow =
+            reservationByUid.get(event.uid) ??
+            ({
+              id: overlap.id,
+              guestName: overlap.guestName,
+              guestFirstName: overlap.guestName.split(/\s+/)[0] ?? overlap.guestName,
+              guestLastName: overlap.guestName.split(/\s+/).slice(1).join(" ") || null,
+              guestRegistrationCompletedAt: null,
+              checkIn,
+              checkOut,
+              status,
+              platform: BookingPlatform.AIRBNB,
+            } satisfies IcalSyncReservationRow & { id: string });
+          const updateData = buildIcalSyncReservationUpdate(payload, overlapRow);
+
+          if (!reservationMatchesIcalSyncUpdate(overlapRow, updateData)) {
+            await db.reservation.update({
+              where: { id: overlap.id },
+              data: updateData,
+            });
+            reservationByUid.set(event.uid, {
+              ...overlapRow,
+              ...updateData,
+              guestFirstName:
+                "guestFirstName" in updateData && updateData.guestFirstName !== undefined
+                  ? updateData.guestFirstName
+                  : overlapRow.guestFirstName,
+              guestLastName:
+                "guestLastName" in updateData && updateData.guestLastName !== undefined
+                  ? updateData.guestLastName
+                  : overlapRow.guestLastName,
+              guestName:
+                "guestName" in updateData && updateData.guestName !== undefined
+                  ? updateData.guestName
+                  : overlapRow.guestName,
+            });
+            updated += 1;
+          }
           if (!blocked && isGuestRegistrationEligibleStatus(status)) {
             await ensureGuestRegistrationForReservation(overlap.id);
           }
-          updated += 1;
         } else {
           skipped += 1;
           icalSyncLog.info("overlap_skipped", {
@@ -432,6 +493,17 @@ export async function syncPropertyIcalCalendarInner(
             ? "Sincronizado desde iCal Airbnb (bloqueo)"
             : "Sincronizado desde iCal Airbnb",
         },
+      });
+      reservationByUid.set(event.uid, {
+        id: createdReservation.id,
+        checkIn,
+        checkOut,
+        status,
+        guestName,
+        guestFirstName,
+        guestLastName,
+        guestRegistrationCompletedAt: null,
+        platform: BookingPlatform.AIRBNB,
       });
       icalSyncLog.info("placeholder_reservation_created", {
         propertyId: property.id,
@@ -509,6 +581,15 @@ export async function syncPropertyIcalCalendarInner(
       cancelled,
       skipped,
       echoSkipped,
+      eventsParsed,
+      fetchMs,
+    });
+    perfLog("ical_sync_property_done", {
+      propertyId: property.id,
+      created,
+      updated,
+      cancelled,
+      skipped,
       eventsParsed,
       fetchMs,
     });
