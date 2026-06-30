@@ -1,0 +1,259 @@
+{
+  "auditedAt": "2026-06-30T01:21:32.372Z",
+  "csvPath": "C:\\Users\\R160\\Downloads\\reservations.csv",
+  "csvSource": "Airbnb host export (authoritative reference)",
+  "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+  "summary": {
+    "csvTotal": 33,
+    "csvActive": 31,
+    "csvCancelled": 2,
+    "pragmaTotal": 42,
+    "matched": 30,
+    "missing": 0,
+    "mismatches": 1,
+    "pendingEnrichment": 2,
+    "fullyEnriched": 32,
+    "extraAirbnbNotInCsv": 1
+  },
+  "missing": [],
+  "mismatches": [
+    {
+      "code": "HM4SPXSTS2",
+      "id": "cmqzxuhaa000288tyzp46y4hv",
+      "guest": "Karla Durán",
+      "dbGuest": "Karla Durán",
+      "unit": "804",
+      "checkIn": "2026-06-18",
+      "checkOut": "2026-06-23",
+      "csvRevenue": 1023779.89,
+      "dbRevenue": 1023779.89,
+      "issues": [
+        "CHECKIN_MISMATCH"
+      ],
+      "enriched": true
+    }
+  ],
+  "matched": [
+    {
+      "code": "HMQDRNFBZW",
+      "id": "cmqegpzvl000404ifzh990xtf",
+      "guest": "Miguel Castro",
+      "enriched": true
+    },
+    {
+      "code": "HMYZ3KQAHS",
+      "id": "cmqk996el000004jpl0fgd27k",
+      "guest": "Mariana Gomez",
+      "enriched": true
+    },
+    {
+      "code": "HM3QAQ54KY",
+      "id": "cmqhmapfl000004ldie2uqoh7",
+      "guest": "Carolina Dcroz Ruiz",
+      "enriched": true
+    },
+    {
+      "code": "HMY2B9XMTW",
+      "id": "cmqegpzue000204iffd78tkxk",
+      "guest": "Daniel Mesa Herrera",
+      "enriched": true
+    },
+    {
+      "code": "HMT2SW2RA9",
+      "id": "cmqegpzso000004if34la52oo",
+      "guest": "Alexander Roblero",
+      "enriched": true
+    },
+    {
+      "code": "HMNWHJBYH5",
+      "id": "cmqzv96m0000404l84wj4rxkn",
+      "guest": "Chanelva Alidikromo",
+      "enriched": true
+    },
+    {
+      "code": "HMSKKZ24XB",
+      "id": "cmqzykaas0000nctyx2exse67",
+      "guest": "Maria Narvaez",
+      "enriched": true
+    },
+    {
+      "code": "HMZMZBDTKN",
+      "id": "cmqzxuhlv000488ty37j993aa",
+      "guest": "Jairo Tapia",
+      "enriched": true
+    },
+    {
+      "code": "HMJDFHKS4R",
+      "id": "cmqzxuhfy000388tynxy1euxm",
+      "guest": "Roberto Gonzalez Morales",
+      "enriched": true
+    },
+    {
+      "code": "HMCNCARK3K",
+      "id": "cmqzxugyy000088tyuerv8tsw",
+      "guest": "Yuly Correa",
+      "enriched": true
+    },
+    {
+      "code": "HMYZWPD95M",
+      "id": "cmqzxuh4n000188tyhbyou6bm",
+      "guest": "Milena Mercedes Barrero Cortes",
+      "enriched": true
+    },
+    {
+      "code": "HMC9WMN3KX",
+      "id": "cmqzykagy0001nctyo1lcrufh",
+      "guest": "Rosanna Henriquez Ogando",
+      "enriched": true
+    },
+    {
+      "code": "HMTCKJWZXX",
+      "id": "cmqzykan40002ncty0p8dh232",
+      "guest": "Glady Santos",
+      "enriched": true
+    },
+    {
+      "code": "HMETWQJB4E",
+      "id": "cmpwmt5ld000050ty37kh2kgj",
+      "guest": "Victoria Isabel Posada Ortiz",
+      "enriched": true
+    },
+    {
+      "code": "HM2Q22N43X",
+      "id": "cmprywbkr000f0otye98wgfte",
+      "guest": "Jorge Sánchez",
+      "enriched": true
+    },
+    {
+      "code": "HM4Z8HZBAE",
+      "id": "cmprywbh1000e0otyw9o7xcwo",
+      "guest": "Jose Bohorquez",
+      "enriched": true
+    },
+    {
+      "code": "HMDHJKB4SY",
+      "id": "cmprywbdc000d0otyqbhzkt1e",
+      "guest": "Maribel Estefany Moran Cordova",
+      "enriched": true
+    },
+    {
+      "code": "HM8JKYCJRF",
+      "id": "cmprywb9m000c0otyakbzs0vp",
+      "guest": "Elkin Tangarife",
+      "enriched": true
+    },
+    {
+      "code": "HMWSFDEWWK",
+      "id": "cmprywb5w000b0otywjqh6emw",
+      "guest": "Catalina Montenegro",
+      "enriched": true
+    },
+    {
+      "code": "HMPQSA4RBP",
+      "id": "cmprywb26000a0otyskz2movv",
+      "guest": "Felipe Suarez",
+      "enriched": true
+    },
+    {
+      "code": "HMKPTXZAZR",
+      "id": "cmprywayh00090otymb9dd2rs",
+      "guest": "Sebastian Castillo Giraldo",
+      "enriched": true
+    },
+    {
+      "code": "HMARYZDKYY",
+      "id": "cmprywaut00080otynm6zegq6",
+      "guest": "Andres Castillo",
+      "enriched": true
+    },
+    {
+      "code": "HM4EK4FZW5",
+      "id": "cmprywar300070otyztwqiitf",
+      "guest": "Edison Davila Davila Caza",
+      "enriched": true
+    },
+    {
+      "code": "HMXYZRE25H",
+      "id": "cmprywand00060otyyyazz8fl",
+      "guest": "John Fredy Barbosa Salgado",
+      "enriched": true
+    },
+    {
+      "code": "HMTZTQJJ44",
+      "id": "cmprywajn00050otyxzr95vhr",
+      "guest": "Aracelys De Oro Castro",
+      "enriched": true
+    },
+    {
+      "code": "HMHKPNFSY2",
+      "id": "cmprywafy00040oty5dcnvtun",
+      "guest": "Enyibelis Estefani Herrera Colina",
+      "enriched": true
+    },
+    {
+      "code": "HMXKSMQD24",
+      "id": "cmprywabb00030otycyhs5dg3",
+      "guest": "Jorge Avila",
+      "enriched": true
+    },
+    {
+      "code": "HM2FWYFC5C",
+      "id": "cmprywa6u00020otyl6y6u8ya",
+      "guest": "Cristopher Quintero Vergara",
+      "enriched": true
+    },
+    {
+      "code": "HMPRTN9RE4",
+      "id": "cmprywa3200010oty7jm1nvf7",
+      "guest": "Eder Hernández",
+      "enriched": true
+    },
+    {
+      "code": "HMZXH3MMRD",
+      "id": "cmpryw9z700000oty7kddizcl",
+      "guest": "Maria Camila Cruz Rubio",
+      "enriched": true
+    }
+  ],
+  "cancelledInCsvOnly": [
+    {
+      "code": "HMKPMK44QR",
+      "guest": "Mai",
+      "reason": "Cancelled on Airbnb — not in PRAGMA (expected)"
+    },
+    {
+      "code": "HMJB23BNSQ",
+      "guest": "Leidy",
+      "reason": "Cancelled on Airbnb — not in PRAGMA (expected)"
+    }
+  ],
+  "pendingEnrichment": [
+    {
+      "id": "cmqzv95v5000204l8qv3kgonl",
+      "guest": "Huésped Airbnb",
+      "code": null,
+      "unit": "802",
+      "checkIn": "2026-06-27",
+      "checkOut": "2026-06-30",
+      "amount": "0",
+      "emailEvents": 0
+    },
+    {
+      "id": "cmqzv96n4000604l8dbkm7u4y",
+      "guest": "Huésped Airbnb",
+      "code": null,
+      "unit": "801",
+      "checkIn": "2026-07-16",
+      "checkOut": "2026-07-20",
+      "amount": "0",
+      "emailEvents": 0
+    }
+  ],
+  "recoveryActions": [],
+  "enrichActions": [],
+  "integrityGuards": {
+    "ghostPurgeDeletes": false,
+    "staleIcalPastStayProtection": true,
+    "historicalPrefixProtection": true
+  }
+}
