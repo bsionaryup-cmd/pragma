@@ -1,5 +1,5 @@
 {
-  "auditedAt": "2026-06-30T01:21:32.372Z",
+  "auditedAt": "2026-06-30T02:02:48.913Z",
   "csvPath": "C:\\Users\\R160\\Downloads\\reservations.csv",
   "csvSource": "Airbnb host export (authoritative reference)",
   "organizationId": "cmplxfg0a000105jrs0gqtwyc",
@@ -11,9 +11,9 @@
     "matched": 30,
     "missing": 0,
     "mismatches": 1,
-    "pendingEnrichment": 2,
-    "fullyEnriched": 32,
-    "extraAirbnbNotInCsv": 1
+    "pendingEnrichment": 1,
+    "fullyEnriched": 33,
+    "extraAirbnbNotInCsv": 2
   },
   "missing": [],
   "mismatches": [
@@ -235,16 +235,6 @@
       "unit": "802",
       "checkIn": "2026-06-27",
       "checkOut": "2026-06-30",
-      "amount": "0",
-      "emailEvents": 0
-    },
-    {
-      "id": "cmqzv96n4000604l8dbkm7u4y",
-      "guest": "Huésped Airbnb",
-      "code": null,
-      "unit": "801",
-      "checkIn": "2026-07-16",
-      "checkOut": "2026-07-20",
       "amount": "0",
       "emailEvents": 0
     }

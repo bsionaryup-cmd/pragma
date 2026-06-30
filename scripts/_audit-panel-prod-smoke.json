@@ -1,0 +1,19 @@
+{
+  "base": "https://www.pragmapms.com",
+  "checks": [
+    {
+      "step": "panel-sections",
+      "hasTodaySection": true,
+      "hasAttention": true,
+      "hasUpcoming": true,
+      "hasActivity": true,
+      "hasFinance": true
+    },
+    {
+      "step": "mobile",
+      "mobileOverflow": false
+    }
+  ],
+  "issues": [],
+  "pass": true
+}
