@@ -24,13 +24,9 @@ import {
 } from "@/lib/platform/tenant-data-scope";
 import type { Locale } from "@/i18n/types";
 import {
-  getCurrentStays,
+  getCommandCenterPanelReservationLists,
   getPanelCounts,
-  getTodayArrivals,
-  getTodayDepartures,
   getTodayPanelCounts,
-  getUpcomingArrivals,
-  getUpcomingDepartures,
   toPanelReservationRow,
   sortPanelRowsByCheckIn,
   sortPanelRowsByCheckOut,
@@ -188,11 +184,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     totalPropertyCount,
     checkedInReservations,
     counts,
-    arrivalsRaw,
-    departuresRaw,
-    currentRaw,
-    todayArrivalsRaw,
-    todayDeparturesRaw,
+    panelLists,
     todayCounts,
     pendingCleaning,
     propertiesWithStaleSync,
@@ -227,11 +219,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       },
     }),
     getPanelCounts(scope),
-    getUpcomingArrivals(scope, 8),
-    getUpcomingDepartures(scope, 8),
-    getCurrentStays(scope, 8),
-    getTodayArrivals(scope, 8),
-    getTodayDepartures(scope, 8),
+    getCommandCenterPanelReservationLists(scope, 8),
     getTodayPanelCounts(scope),
     db.task.count({
       where: {
@@ -400,6 +388,14 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     prevStart,
     prevEnd,
   );
+
+  const {
+    arrivals: arrivalsRaw,
+    departures: departuresRaw,
+    currentStays: currentRaw,
+    todayArrivals: todayArrivalsRaw,
+    todayDepartures: todayDeparturesRaw,
+  } = panelLists;
 
   const [currentManual, previousManual] = await Promise.all([
     getManualFinanceInRange(start, end, scope),

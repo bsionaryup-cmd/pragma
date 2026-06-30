@@ -18,6 +18,7 @@ import {
   createReservation,
   deleteReservation,
   getReservationForInbox,
+  getReservationMutationContext,
   OtaReservationDeleteError,
   updateReservation,
 } from "@/services/reservations/reservation.service";
@@ -124,7 +125,7 @@ export async function updateReservationAction(
   await requirePermission("reservations:write");
   await assertBillingUnlocked();
   const parsed = reservationEditSchema.parse(data);
-  const existing = await getReservationForInbox(id);
+  const existing = await getReservationMutationContext(id);
   if (!existing) {
     return { success: false as const, error: "Reserva no encontrada" };
   }
@@ -172,7 +173,7 @@ export async function updateReservationAction(
 export async function deleteReservationAction(id: string) {
   await requirePermission("reservations:delete");
   await assertBillingUnlocked();
-  const existing = await getReservationForInbox(id);
+  const existing = await getReservationMutationContext(id);
   if (!existing) {
     return { success: false as const, error: "Reserva no encontrada" };
   }

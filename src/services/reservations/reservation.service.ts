@@ -401,6 +401,27 @@ function toDetailItem(
 }
 
 /** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
+export async function getReservationMutationContext(id: string) {
+  const scope = await requireTenantDataScope();
+  const row = await db.reservation.findFirst({
+    where: mergeReservationScope(scope, { id }),
+    select: {
+      id: true,
+      platform: true,
+      checkIn: true,
+      checkOut: true,
+    },
+  });
+  if (!row) return null;
+  return {
+    id: row.id,
+    platform: row.platform,
+    checkIn: prismaDateToKey(row.checkIn),
+    checkOut: prismaDateToKey(row.checkOut),
+  };
+}
+
+/** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
 export async function getReservationForInbox(
   id: string,
 ): Promise<ReservationDetailItem | null> {

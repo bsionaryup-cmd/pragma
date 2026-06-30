@@ -121,6 +121,59 @@ type PanelReservationWithPrimaryGuest = PanelReservation & {
   airbnbEnrichmentGuestCount: number | null;
 };
 
+async function loadPanelReservationEnrichmentMaps(reservationIds: string[]) {
+  if (reservationIds.length === 0) {
+    return {
+      primaryGuestNameByReservation: new Map<string, string>(),
+      airbnbGuestNameByReservation: new Map<string, string>(),
+      airbnbGuestCountByReservation: new Map<string, number>(),
+    };
+  }
+
+  const uniqueIds = [...new Set(reservationIds)];
+  const [primaryGuests, guestByReservation, countByReservation] = await Promise.all([
+    db.reservationGuest.findMany({
+      where: {
+        OR: [{ isReservationOwner: true }, { isPrimary: true }],
+        reservationId: { in: uniqueIds },
+      },
+      orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
+      select: {
+        reservationId: true,
+        fullName: true,
+      },
+    }),
+    getAirbnbEnrichedGuestNameByReservationIds(uniqueIds),
+    getAirbnbEnrichedGuestCountByReservationIds(uniqueIds),
+  ]);
+
+  const primaryGuestNameByReservation = new Map<string, string>();
+  for (const guest of primaryGuests) {
+    if (primaryGuestNameByReservation.has(guest.reservationId)) continue;
+    primaryGuestNameByReservation.set(guest.reservationId, guest.fullName);
+  }
+
+  return {
+    primaryGuestNameByReservation,
+    airbnbGuestNameByReservation: guestByReservation,
+    airbnbGuestCountByReservation: countByReservation,
+  };
+}
+
+function attachPanelReservationEnrichmentFromMaps<T extends { id: string }>(
+  reservations: T[],
+  maps: Awaited<ReturnType<typeof loadPanelReservationEnrichmentMaps>>,
+) {
+  return reservations.map((reservation) => ({
+    ...reservation,
+    primaryGuestName: maps.primaryGuestNameByReservation.get(reservation.id) ?? null,
+    airbnbEnrichmentGuestName:
+      maps.airbnbGuestNameByReservation.get(reservation.id) ?? null,
+    airbnbEnrichmentGuestCount:
+      maps.airbnbGuestCountByReservation.get(reservation.id) ?? null,
+  }));
+}
+
 async function attachPanelReservationEnrichment<T extends { id: string }>(
   reservations: T[],
 ): Promise<
@@ -134,36 +187,10 @@ async function attachPanelReservationEnrichment<T extends { id: string }>(
 > {
   if (reservations.length === 0) return [];
 
-  const reservationIds = reservations.map((reservation) => reservation.id);
-  const [primaryGuests, guestByReservation, countByReservation] =
-    await Promise.all([
-      db.reservationGuest.findMany({
-        where: {
-          OR: [{ isReservationOwner: true }, { isPrimary: true }],
-          reservationId: { in: reservationIds },
-        },
-        orderBy: [{ isReservationOwner: "desc" }, { isPrimary: "desc" }],
-        select: {
-          reservationId: true,
-          fullName: true,
-        },
-      }),
-      getAirbnbEnrichedGuestNameByReservationIds(reservationIds),
-      getAirbnbEnrichedGuestCountByReservationIds(reservationIds),
-    ]);
-
-  const nameByReservation = new Map<string, string>();
-  for (const guest of primaryGuests) {
-    if (nameByReservation.has(guest.reservationId)) continue;
-    nameByReservation.set(guest.reservationId, guest.fullName);
-  }
-
-  return reservations.map((reservation) => ({
-    ...reservation,
-    primaryGuestName: nameByReservation.get(reservation.id) ?? null,
-    airbnbEnrichmentGuestName: guestByReservation.get(reservation.id) ?? null,
-    airbnbEnrichmentGuestCount: countByReservation.get(reservation.id) ?? null,
-  }));
+  const maps = await loadPanelReservationEnrichmentMaps(
+    reservations.map((reservation) => reservation.id),
+  );
+  return attachPanelReservationEnrichmentFromMaps(reservations, maps);
 }
 
 function readPriceLabsListingName(meta: unknown): string | null {
@@ -387,4 +414,87 @@ export async function getTodayDepartures(scope: TenantDataScope, limit = 8) {
     take: limit,
   });
   return attachPanelReservationEnrichment(reservations);
+}
+
+/** Single enrichment batch for command center panel lists (5 lists → 1 enrichment pass). */
+export async function getCommandCenterPanelReservationLists(
+  scope: TenantDataScope,
+  limit = 8,
+) {
+  const today = startOfDay();
+  const weekAhead = addCalendarDays(today, 7);
+
+  const [arrivals, departures, current, todayArrivals, todayDepartures] =
+    await Promise.all([
+      db.reservation.findMany({
+        where: withVisibleReservationsFilter(
+          mergeReservationScope(scope, {
+            checkIn: { gte: today, lte: weekAhead },
+            status: ReservationStatus.CONFIRMED,
+          }),
+        ),
+        include: panelReservationInclude,
+        orderBy: { checkIn: "asc" },
+        take: limit,
+      }),
+      db.reservation.findMany({
+        where: withVisibleReservationsFilter(
+          mergeReservationScope(scope, {
+            checkOut: { gte: today, lte: weekAhead },
+            status: {
+              in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
+            },
+          }),
+        ),
+        include: panelReservationInclude,
+        orderBy: { checkOut: "asc" },
+        take: limit,
+      }),
+      db.reservation.findMany({
+        where: withVisibleReservationsFilter(
+          mergeReservationScope(scope, {
+            status: ReservationStatus.CHECKED_IN,
+          }),
+        ),
+        include: panelReservationInclude,
+        orderBy: { checkOut: "asc" },
+        take: limit,
+      }),
+      db.reservation.findMany({
+        where: withVisibleReservationsFilter(
+          mergeReservationScope(scope, {
+            checkIn: today,
+            status: { not: ReservationStatus.CANCELLED },
+          }),
+        ),
+        include: panelReservationInclude,
+        orderBy: { checkIn: "asc" },
+        take: limit,
+      }),
+      db.reservation.findMany({
+        where: withVisibleReservationsFilter(
+          mergeReservationScope(scope, {
+            checkOut: today,
+            status: { not: ReservationStatus.CANCELLED },
+          }),
+        ),
+        include: panelReservationInclude,
+        orderBy: { checkOut: "asc" },
+        take: limit,
+      }),
+    ]);
+
+  const maps = await loadPanelReservationEnrichmentMaps(
+    [...arrivals, ...departures, ...current, ...todayArrivals, ...todayDepartures].map(
+      (reservation) => reservation.id,
+    ),
+  );
+
+  return {
+    arrivals: attachPanelReservationEnrichmentFromMaps(arrivals, maps),
+    departures: attachPanelReservationEnrichmentFromMaps(departures, maps),
+    currentStays: attachPanelReservationEnrichmentFromMaps(current, maps),
+    todayArrivals: attachPanelReservationEnrichmentFromMaps(todayArrivals, maps),
+    todayDepartures: attachPanelReservationEnrichmentFromMaps(todayDepartures, maps),
+  };
 }
