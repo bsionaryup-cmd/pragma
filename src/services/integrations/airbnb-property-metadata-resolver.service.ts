@@ -195,15 +195,32 @@ async function resolveByNormalizedPropertyName(input: {
   return null;
 }
 
+export function propertyIcalUrlContainsRoomId(
+  icalUrl: string | null | undefined,
+  roomId: string,
+): boolean {
+  const id = roomId.trim();
+  if (!id || !/^\d+$/.test(id)) return false;
+  if (!icalUrl?.trim()) return false;
+  return icalUrl.includes(`/ical/${id}.ics`);
+}
+
 async function resolveByAirbnbRoomIdOnProperty(input: {
   organizationId: string;
   airbnbRoomId: string;
 }): Promise<PropertyMetadataResolution | null> {
+  const roomId = input.airbnbRoomId.trim();
+  const lookupOr: Array<{ airbnbRoomId: string } | { icalUrl: { contains: string } }> =
+    [{ airbnbRoomId: roomId }];
+  if (/^\d+$/.test(roomId)) {
+    lookupOr.push({ icalUrl: { contains: `/ical/${roomId}.ics` } });
+  }
+
   const rows = await db.property.findMany({
     where: {
       organizationId: input.organizationId,
       status: PropertyStatus.ACTIVE,
-      airbnbRoomId: input.airbnbRoomId,
+      OR: lookupOr,
     },
     select: { id: true },
   });
@@ -412,6 +429,42 @@ async function resolveRoomIdToProperty(input: {
   return null;
 }
 
+async function tryResolveByNumericRoomIds(input: {
+  organizationId: string;
+  primaryRoomId: string | null;
+  numericId: string | null;
+}): Promise<PropertyMetadataResolution | null> {
+  for (const roomId of collectNumericRoomIdCandidates(
+    input.primaryRoomId,
+    input.numericId,
+  )) {
+    const resolved = await resolveRoomIdToProperty({
+      organizationId: input.organizationId,
+      roomId,
+    });
+    if (resolved?.propertyId) return resolved;
+    if (resolved?.ambiguous) return resolved;
+  }
+
+  return null;
+}
+
+export function collectNumericRoomIdCandidates(
+  primaryRoomId: string | null | undefined,
+  numericId: string | null | undefined,
+): string[] {
+  return [
+    ...new Set(
+      [primaryRoomId, numericId]
+        .filter(
+          (id): id is string =>
+            Boolean(id?.trim() && /^\d+$/.test(id.trim())),
+        )
+        .map((id) => id.trim()),
+    ),
+  ];
+}
+
 export async function resolvePropertyFromKnownMetadata(input: {
   organizationId: string;
   explicitPropertyId?: string | null;
@@ -458,6 +511,24 @@ export async function resolvePropertyFromKnownMetadata(input: {
         organizationId: input.organizationId,
         reason: "ambiguous_normalized_property_name",
       });
+      const fromRoom = await tryResolveByNumericRoomIds({
+        organizationId: input.organizationId,
+        primaryRoomId: input.airbnbRoomId?.trim() ?? null,
+        numericId: input.airbnbRoomIdNumeric?.trim() ?? null,
+      });
+      if (fromRoom?.propertyId) {
+        logPropertyMappingFound({
+          organizationId: input.organizationId,
+          propertyId: fromRoom.propertyId,
+          method: fromRoom.method,
+          airbnbRoomId: fromRoom.airbnbRoomId,
+          note: "ambiguous_name_numeric_room_id_fallback",
+        });
+        return fromRoom;
+      }
+      if (fromRoom?.ambiguous) {
+        return fromRoom;
+      }
       return byNormalizedName;
     }
   }
