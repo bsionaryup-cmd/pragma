@@ -1,7 +1,7 @@
 # OCP Phase 1 — Financial Consistency (Read Path)
 
 **Date:** 2026-06-17  
-**State:** CERTIFIED → FROZEN (pending commit SHA)  
+**State:** FROZEN · **Commit:** `3f459f6`
 **Baseline:** `docs/ocp/baselines/financial-consistency-read-20260617.md`
 
 ---

@@ -27,7 +27,7 @@ OPEN → IN_PROGRESS → CERTIFIED → FROZEN → CLOSED
 
 | Domain | SSOT | State | Commit | Notes |
 |--------|------|-------|--------|-------|
-| **Financial revenue (read)** | `resolveFinanceReservationRevenueAmount` | FROZEN | _pending commit_ | OCP Phase 1 — see `docs/ocp/phases/PHASE-1-FINANCIAL-CONSISTENCY.md` |
+| **Financial revenue (read)** | `resolveFinanceReservationRevenueAmount` | FROZEN | `3f459f6` | OCP Phase 1 CLOSED — `docs/ocp/phases/PHASE-1-FINANCIAL-CONSISTENCY.md` |
 | **Financial revenue (write)** | `applySafeReservationEnrichment` / `pickReservationAmount` | OPEN | — | Phase 6; fallbackGross 0/11 en pilot (medido Fase 1) |
 | **Reservation holder** | `reservation.guestName` + enrichment policy | OPEN | — | OCP Phase 2 — código local, sin certificar |
 | **Guest registration capacity** | `getGuestRegistrationMaxCapacity` | OPEN | — | OCP Phase 3 |
@@ -71,11 +71,12 @@ Trabajo ejecutado bajo el protocolo anterior (pre-OCP) vs requisitos actuales:
 
 Cuando cada dominio llegue a FROZEN, listar aquí con SHA:
 
-### Financial revenue (read) — pending
+### Financial revenue (read) — FROZEN `3f459f6`
 
 - `src/lib/finance/reservation-revenue-amount.ts` (SSOT — no tocar sin reopen)
 - `src/services/finance/reservation-revenue-context.service.ts`
-- Consumidores migrados en owner-dashboard, property, operational-feed, inbox-context
+- Consumidores: `owner-dashboard.service.ts`, `property.service.ts`, `operational-feed.mappers.ts`, `inbox-context.engine.ts`
+- Rollback: `git revert 3f459f6`
 
 ### Reservation holder — pending
 
