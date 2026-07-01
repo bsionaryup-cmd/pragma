@@ -687,21 +687,29 @@ export function ReservationDetailPanel({
                 reservation.platform === "AIRBNB" &&
                   emailEnrichment?.hostPayoutAmount != null
                   ? emailEnrichment.hostPayoutAmount
-                  : reservation.platform === "AIRBNB" &&
-                      emailEnrichment?.guestTotalPaid != null
-                    ? emailEnrichment.guestTotalPaid
-                    : Number(reservation.totalAmount),
+                  : Number(reservation.totalAmount),
                 (reservation.platform === "AIRBNB"
                   ? emailEnrichment?.metadataCurrency
                   : null) ?? reservation.currency,
               )}
-              {reservation.platform === "AIRBNB" &&
-              emailEnrichment?.hostPayoutAmount != null ? (
+              {reservation.platform === "AIRBNB" ? (
                 <span className="ml-1 text-xs font-normal text-muted-foreground">
                   ingreso anfitrión
                 </span>
               ) : null}
             </p>
+            {reservation.platform === "AIRBNB" &&
+            emailEnrichment?.guestTotalPaid != null &&
+            emailEnrichment.guestTotalPaid !==
+              (emailEnrichment.hostPayoutAmount ?? Number(reservation.totalAmount)) ? (
+              <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                Pagado por huésped:{" "}
+                {formatCurrency(
+                  emailEnrichment.guestTotalPaid,
+                  emailEnrichment.metadataCurrency ?? reservation.currency,
+                )}
+              </p>
+            ) : null}
             <p className="mt-1 truncate text-[11px] text-muted-foreground">
               {propertyLabel}
               {reservation.createdAt
