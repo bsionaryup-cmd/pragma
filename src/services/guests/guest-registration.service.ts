@@ -350,20 +350,12 @@ async function finalizeGuestRegistration(
     );
   }
 
-  const registeredCount = guests.filter(
-    (guest) => guest.status !== ReservationGuestStatus.PENDING_REGISTRATION,
-  ).length;
-
   await db.$transaction(async (tx) => {
     await tx.reservation.update({
       where: { id: reservationId },
       data: {
-        guestName: owner.fullName,
-        guestFirstName: owner.firstName,
-        guestLastName: owner.lastName,
         guestEmail: owner.email,
         guestPhone: owner.phone,
-        adults: Math.max(1, registeredCount),
         guestRegistrationCompletedAt: new Date(),
       },
     });
@@ -750,9 +742,6 @@ export async function registerGuestStep(
       await tx.reservation.update({
         where: { id: reservation.id },
         data: {
-          guestName: fullName,
-          guestFirstName: firstName,
-          guestLastName: lastName,
           guestEmail: parsed.email?.trim() || null,
           guestPhone: parsed.phone?.trim() || null,
         },
@@ -906,7 +895,6 @@ export async function submitGuestRegistration(
   }
 
   const primary = parsed.guests[0];
-  const primaryFullName = `${primary.firstName.trim()} ${primary.lastName.trim()}`;
 
   await db.$transaction(async (tx) => {
     await tx.reservationGuest.deleteMany({
@@ -934,12 +922,8 @@ export async function submitGuestRegistration(
     await tx.reservation.update({
       where: { id: reservation.id },
       data: {
-        guestName: primaryFullName,
-        guestFirstName: primary.firstName.trim(),
-        guestLastName: primary.lastName.trim(),
         guestEmail: primary.email?.trim() || null,
         guestPhone: primary.phone?.trim() || null,
-        adults: Math.max(1, parsed.guests.length),
         guestRegistrationCompletedAt: new Date(),
       },
     });
