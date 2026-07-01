@@ -44,7 +44,7 @@ describe("guest name extraction", () => {
 describe("extractReservationSignals metadata", () => {
   it("prioriza subject sobre body degradado", () => {
     const signals = extractReservationSignals({
-      subject: "Fwd: Reserva confirmada: Karla Durán llega el 19 jun.",
+      subject: "Fwd: Reserva confirmada: Karla Durán llega el 19 jun 2026.",
       body: "El viajero ha pagado\nCódigo HM4SPXSTS2",
       html: `<a href="https://airbnb.com.co/h/urbanova803">Itinerario</a>
              <a href="https://www.airbnb.com/rooms/1659842170040094387">Ver</a>`,
