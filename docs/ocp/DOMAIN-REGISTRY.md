@@ -1,9 +1,8 @@
 # OCP Domain Registry
 
 **Last updated:** 2026-06-17  
-**Protocol:** `docs/OCP-MASTER-EXECUTION-PROTOCOL.md`
-
-Estado canónico de dominios certificables. Un dominio no avanza de estado sin los 18 puntos del entregable OCP.
+**Protocol:** `docs/OCP-MASTER-EXECUTION-PROTOCOL.md`  
+**Global certification:** `docs/ocp/GLOBAL-CERTIFICATION.md`
 
 ---
 
@@ -13,77 +12,55 @@ Estado canónico de dominios certificables. Un dominio no avanza de estado sin l
 OPEN → IN_PROGRESS → CERTIFIED → FROZEN → CLOSED
 ```
 
-| State | Meaning |
-|-------|---------|
-| **OPEN** | Identificado; sin baseline |
-| **IN_PROGRESS** | Baseline registrado; trabajo activo |
-| **CERTIFIED** | Fases A–H PASS; commit pendiente o hecho |
-| **FROZEN** | Commit certificado; archivos protegidos |
-| **CLOSED** | Replay + deploy aprobado + registro final |
-
 ---
 
-## Domain inventory
+## Domain inventory (OCP consistency program)
 
 | Domain | SSOT | State | Commit | Notes |
 |--------|------|-------|--------|-------|
-| **Financial revenue (read)** | `resolveFinanceReservationRevenueAmount` | FROZEN | `3f459f6` | OCP Phase 1 CLOSED — `docs/ocp/phases/PHASE-1-FINANCIAL-CONSISTENCY.md` |
-| **Financial revenue (write)** | `applySafeReservationEnrichment` / `pickReservationAmount` | OPEN | — | Phase 6; fallbackGross 0/11 en pilot (medido Fase 1) |
-| **Reservation holder** | `reservation.guestName` + enrichment policy | OPEN | — | OCP Phase 2 — código local, sin certificar |
-| **Guest registration capacity** | `getGuestRegistrationMaxCapacity` | OPEN | — | OCP Phase 3 |
-| **Reservation detail UI (finance display)** | Panel + enrichment service | OPEN | — | OCP Phase 5 |
-| **Default messages** | `default-message-templates.ts` | OPEN | — | OCP Phase 4 |
-| **Match / enrichment pipeline** | `applySafeReservationEnrichment` | FROZEN | `6cb5d90` | Dennis room-id fix |
-| **iCal sync** | `airbnb-ical-sync.service.ts` | CLOSED | prior stabilization | Ver `docs/stabilization/` |
-| **Performance / CPU** | stabilization RC | CLOSED | `3d256a3` | Ver perf reports |
+| **Financial revenue (read)** | `resolveFinanceReservationRevenueAmount` | FROZEN | `3f459f6` | Phase 1 |
+| **Reservation holder** | `reservation.guestName` + enrichment policy | FROZEN | `dce36b2` | Phase 2 |
+| **Guest registration capacity** | `getGuestRegistrationMaxCapacity` | FROZEN | `ccb0371` | Phase 3 |
+| **Default messages** | `default-message-templates.ts` | FROZEN | `9dfef50` | Phase 4 — audit only |
+| **UI financial (detail)** | `reservation-detail-panel.tsx` | FROZEN | `484ea67` | Phase 5 |
+| **Fallback write (gross)** | `pickReservationAmount` | FROZEN | `fc61e87` | Phase 6 — MAINTAIN |
+| **Match / enrichment pipeline** | `applySafeReservationEnrichment` | FROZEN | `6cb5d90` | Prior release |
+| **iCal sync** | `airbnb-ical-sync.service.ts` | CLOSED | prior | stabilization |
+| **Performance / CPU** | stabilization RC | CLOSED | `3d256a3` | stabilization |
+
+**Deploy (Phase 10):** OPEN — awaiting owner localhost approval
 
 ---
 
-## Gap analysis — consistency release vs OCP v1.0
+## Protected files
 
-Trabajo ejecutado bajo el protocolo anterior (pre-OCP) vs requisitos actuales:
+### Phase 1 — `3f459f6` (do not modify)
 
-| OCP requirement | Previous execution | Gap |
-|-----------------|-------------------|-----|
-| Baseline before edits | No registrado | **BLOCKER** para FROZEN/CLOSED |
-| Per-domain commit (Fase J) | 0 commits; cambios unstaged | **BLOCKER** |
-| 18-point deliverable per domain | Informe consolidado único | Split por dominio requerido |
-| Deploy = owner approval only | Deploy automático ejecutado | Alinear política; prod ya tiene `dpl_2pZbjmFCpzqggu9rNVoLSD7C84Wb` |
-| Benchmark before/after | No medido | Requerido para CERTIFIED |
-| Rollback per phase | No documentado | Añadir SHA + archivos por dominio |
-| Domain state registry | Declaración verbal | Este archivo |
-| Observable behavior preserved | Sí, salvo reglas 6–7 explícitas | Documentar en comparación antes/después |
-
----
-
-## Recommended closure order (retroactive OCP compliance)
-
-1. **Financial revenue (read)** — baseline grep consumidores → commit → FROZEN  
-2. **Reservation holder** — baseline + tests → commit → FROZEN  
-3. **Guest registration capacity** — baseline + tests → commit → FROZEN  
-4. **Reservation detail UI** — smoke + commit → FROZEN  
-5. **Financial revenue (write)** — `scripts/_audit-fallback-gross-readonly.mjs` → decisión documentada → OPEN o patch mínimo  
-6. **Default messages** — auditoría cerrada → CLOSED sin código si PASS  
-
----
-
-## Protected files (pending FROZEN commits)
-
-Cuando cada dominio llegue a FROZEN, listar aquí con SHA:
-
-### Financial revenue (read) — FROZEN `3f459f6`
-
-- `src/lib/finance/reservation-revenue-amount.ts` (SSOT — no tocar sin reopen)
+- `src/lib/finance/reservation-revenue-amount.ts`
 - `src/services/finance/reservation-revenue-context.service.ts`
-- Consumidores: `owner-dashboard.service.ts`, `property.service.ts`, `operational-feed.mappers.ts`, `inbox-context.engine.ts`
-- Rollback: `git revert 3f459f6`
+- Consumers: owner-dashboard, property, operational-feed, inbox-context
 
-### Reservation holder — pending
+### Phase 2 — `dce36b2`
 
-- `src/services/guests/guest-registration.service.ts`
-- `src/modules/airbnb-email/domains/safe-reservation-enrichment.ts` (read-only policy)
+- `src/services/guests/guest-registration.service.ts` (holder fields)
 
-### Guest registration capacity — pending
+### Phase 3 — `ccb0371`
 
 - `src/lib/guest-registration/guest-registration-capacity.ts`
-- `tests/guests/guest-registration-capacity.test.ts`
+
+### Phase 5 — `484ea67`
+
+- `src/features/reservations/components/reservation-detail-panel.tsx`
+
+---
+
+## Rollback per phase
+
+| Phase | Revert |
+|-------|--------|
+| 1 | `git revert 3f459f6` |
+| 2 | `git revert dce36b2` |
+| 3 | `git revert ccb0371` |
+| 4 | `git revert 9dfef50` |
+| 5 | `git revert 484ea67` |
+| 6–9 docs | `git revert fc61e87` |
