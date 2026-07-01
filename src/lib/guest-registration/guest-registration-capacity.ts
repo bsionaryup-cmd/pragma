@@ -35,7 +35,7 @@ export function getGuestRegistrationOccupancyBase(input: {
     Math.max(0, input.infants);
 
   if (input.registeredCount != null && input.registeredCount > totalCurrent) {
-    return input.registeredCount;
+    return totalCurrent > 0 ? totalCurrent : 1;
   }
 
   return Math.max(1, totalCurrent);
@@ -88,39 +88,10 @@ function getReservationRegistrationLimit(
   return limit;
 }
 
-function hasKnownReservationGuestLimit(
-  input: GuestRegistrationCapacityInput,
-  limit: number,
-): boolean {
-  if (!isDefaultReservationOccupancy(input.adults, input.children, input.infants)) {
-    return true;
-  }
-  if ((input.enrichedAdultCount ?? 0) + (input.enrichedChildCount ?? 0) > 0) {
-    return true;
-  }
-  if (input.guestCountTotal != null && input.guestCountTotal > 0) return true;
-  return limit > 1;
-}
-
 export function getGuestRegistrationMaxCapacity(
   input: GuestRegistrationCapacityInput,
 ): number {
   const limit = getReservationRegistrationLimit(input);
-
-  const guestDataIncomplete = !isReservationGuestDataComplete({
-    platform: input.platform,
-    adults: input.adults,
-    children: input.children,
-    infants: input.infants,
-    guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
-  });
-
-  // Solo antes de conocer ocupación real: techo temporal = capacidad del alojamiento.
-  if (guestDataIncomplete && !hasKnownReservationGuestLimit(input, limit)) {
-    const propertyCap = Math.max(1, input.propertyMaxGuests ?? 1);
-    return Math.max(limit, propertyCap);
-  }
-
   return Math.max(1, limit);
 }
 
