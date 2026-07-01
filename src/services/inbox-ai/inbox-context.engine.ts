@@ -19,6 +19,10 @@ import {
 import { listOperationalFeedCardsForReservation } from "@/services/novedades/operational-feed.service";
 import { formatPayoutAmount } from "@/services/novedades/operational-feed.present";
 import {
+  loadReservationRevenueSourcesByReservationId,
+  resolveReservationFinanceRevenueForDisplay,
+} from "@/services/finance/reservation-revenue-context.service";
+import {
   detectNovedadesStayStage,
   novedadesStayStageLabel,
 } from "@/services/novedades/novedades-stay-stage";
@@ -58,6 +62,7 @@ export async function buildInboxAiContext(
       status: true,
       platform: true,
       reservationCode: true,
+      icalUid: true,
       totalAmount: true,
       currency: true,
       paymentStatus: true,
@@ -90,7 +95,8 @@ export async function buildInboxAiContext(
 
   if (!reservation) return null;
 
-  const [enrichedNames, feedCards, accessCredentials, tasks] = await Promise.all([
+  const [enrichedNames, feedCards, accessCredentials, tasks, revenueSources] =
+    await Promise.all([
     getAirbnbEnrichedGuestNameByReservationIds([reservationId]),
     listOperationalFeedCardsForReservation(scope, reservationId),
     db.accessCredential.findMany({
@@ -115,6 +121,7 @@ export async function buildInboxAiContext(
         dueDate: true,
       },
     }),
+    loadReservationRevenueSourcesByReservationId([reservationId]),
   ]);
 
   const displayGuestName = resolveNovedadesGuestName({
@@ -179,7 +186,10 @@ export async function buildInboxAiContext(
     children: reservation.children,
     infants: reservation.infants,
     totalAmountLabel: formatPayoutAmount(
-      Number(reservation.totalAmount),
+      resolveReservationFinanceRevenueForDisplay(
+        reservation,
+        revenueSources.get(reservationId),
+      ),
       reservation.currency,
     ),
     paymentStatus: reservation.paymentStatus,

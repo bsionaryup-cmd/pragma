@@ -6,6 +6,10 @@ import {
 } from "@prisma/client";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { prismaDateToKey } from "@/lib/dates";
+import {
+  buildReservationRevenueSourcesFromEmailEvent,
+  resolveFinanceReservationRevenueAmount,
+} from "@/lib/finance/reservation-revenue-amount";
 import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
 import { isCancellationFeedEligible } from "@/lib/reservations/reservation-cancellation-policy";
 import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
@@ -26,6 +30,8 @@ export const reservationSelect = {
   status: true,
   totalAmount: true,
   currency: true,
+  platform: true,
+  icalUid: true,
   adults: true,
   children: true,
   infants: true,
@@ -42,6 +48,8 @@ type ReservationRow = {
   status: ReservationStatus;
   totalAmount: unknown;
   currency: string;
+  platform: import("@prisma/client").BookingPlatform;
+  icalUid: string | null;
   adults: number;
   children: number;
   infants: number;
@@ -488,10 +496,23 @@ export function mapEmailEvent(row: {
       }),
     });
     const guestLine = formatGuestCountLine(guestCounts);
-    const amount =
-      row.reservation?.totalAmount != null
-        ? Number(row.reservation.totalAmount.toString())
-        : null;
+    const amount = row.reservation
+      ? (() => {
+          const sources = buildReservationRevenueSourcesFromEmailEvent({
+            enrichedFields: row.enrichedFields,
+            payload: row.payload,
+            confirmationCode:
+              row.reservation.reservationCode ?? row.confirmationCode,
+            checkIn: prismaDateToKey(row.reservation.checkIn),
+            checkOut: prismaDateToKey(row.reservation.checkOut),
+          });
+          const resolved = resolveFinanceReservationRevenueAmount(
+            row.reservation,
+            sources,
+          );
+          return resolved > 0 ? resolved : null;
+        })()
+      : null;
 
     return buildOperationalCard({
       id: `email-event:${row.id}`,

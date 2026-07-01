@@ -14,6 +14,10 @@ import {
   computeMonthOccupancyPercent,
   sumMonthRevenue,
 } from "@/features/properties/lib/property-stats";
+import {
+  loadReservationRevenueSourcesByReservationId,
+  resolveReservationFinanceRevenueForDisplay,
+} from "@/services/finance/reservation-revenue-context.service";
 import { startOfDay } from "@/lib/helpers/date";
 import type {
   PropertyDetailDto,
@@ -224,6 +228,7 @@ export async function listPropertiesForGrid(
       totalAmount: true,
       icalUid: true,
       platform: true,
+      reservationCode: true,
     },
     orderBy: { checkIn: "asc" },
   });
@@ -325,6 +330,7 @@ export async function getPropertyDetail(
       totalAmount: true,
       icalUid: true,
       platform: true,
+      reservationCode: true,
     },
   });
   const allRelevantReservations = [
@@ -347,6 +353,10 @@ export async function getPropertyDetail(
     ...reservation,
     airbnbEnrichmentGuestName: airbnbGuestByReservation.get(reservation.id) ?? null,
   }));
+
+  const monthRevenueSources = await loadReservationRevenueSourcesByReservationId(
+    enrichedAllMonthReservations.map((reservation) => reservation.id),
+  );
 
   const grid = mapPropertyRow(
     {
@@ -396,7 +406,22 @@ export async function getPropertyDetail(
     ).map(toUpcomingReservation),
     pendingTasks,
     monthRevenue: String(
-      sumMonthRevenue(enrichedAllMonthReservations, monthStart, monthEnd),
+      sumMonthRevenue(
+        enrichedAllMonthReservations,
+        monthStart,
+        monthEnd,
+        (reservation) =>
+          resolveReservationFinanceRevenueForDisplay(
+            {
+              id: reservation.id!,
+              totalAmount: reservation.totalAmount,
+              platform: reservation.platform!,
+              icalUid: reservation.icalUid ?? null,
+              reservationCode: reservation.reservationCode ?? null,
+            },
+            monthRevenueSources.get(reservation.id!),
+          ),
+      ),
     ),
     createdAt: property.createdAt.toISOString(),
     notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),

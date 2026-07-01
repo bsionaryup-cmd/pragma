@@ -23,6 +23,39 @@ import {
   ownerCommercialUserWhere,
 } from "@/services/platform/owner-dashboard-scope";
 
+async function sumOrganizationReservationRevenue(
+  organizationId: string,
+): Promise<number> {
+  const reservations = await db.reservation.findMany({
+    where: {
+      property: { organizationId },
+      status: { not: "CANCELLED" },
+    },
+    select: {
+      id: true,
+      totalAmount: true,
+      platform: true,
+      icalUid: true,
+      reservationCode: true,
+      checkIn: true,
+      checkOut: true,
+    },
+  });
+  if (reservations.length === 0) return 0;
+  const revenueSources = await loadReservationRevenueSourcesByReservationId(
+    reservations.map((row) => row.id),
+  );
+  return reservations.reduce(
+    (sum, reservation) =>
+      sum +
+      resolveReservationFinanceRevenueForDisplay(
+        reservation,
+        revenueSources.get(reservation.id),
+      ),
+    0,
+  );
+}
+
 async function sumOwnerCommercialReservationRevenue(
   scope: Awaited<ReturnType<typeof loadOwnerCommercialScope>>,
 ): Promise<number> {
@@ -464,13 +497,7 @@ export async function getOwnerClientDetail(organizationId: string) {
     },
   });
 
-  const revenueAgg = await db.reservation.aggregate({
-    where: {
-      property: { organizationId },
-      status: { not: "CANCELLED" },
-    },
-    _sum: { totalAmount: true },
-  });
+  const reservationRevenueCop = await sumOrganizationReservationRevenue(organizationId);
 
   const recentActivity = await db.platformAuditLog.findMany({
     where: { targetTenantId: organizationId },
@@ -494,7 +521,7 @@ export async function getOwnerClientDetail(organizationId: string) {
     propertyCount: org._count.properties,
     userCount: org._count.users,
     reservationCount,
-    reservationRevenueCop: Number(revenueAgg._sum.totalAmount ?? 0),
+    reservationRevenueCop,
     billing: org.billingAccount
       ? {
           plan: org.billingAccount.plan,

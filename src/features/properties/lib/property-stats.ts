@@ -2,10 +2,14 @@ import type { ReservationStatus } from "@prisma/client";
 import { startOfDay } from "@/lib/helpers/date";
 
 type ReservationSlice = {
+  id?: string;
   checkIn: Date;
   checkOut: Date;
   status: ReservationStatus;
   totalAmount?: { toString(): string };
+  platform?: import("@prisma/client").BookingPlatform;
+  icalUid?: string | null;
+  reservationCode?: string | null;
 };
 
 export function computeMonthOccupancyPercent(
@@ -41,6 +45,7 @@ export function sumMonthRevenue(
   reservations: ReservationSlice[],
   monthStart: Date,
   monthEnd: Date,
+  resolveAmount?: (reservation: ReservationSlice) => number,
 ): number {
   let total = 0;
 
@@ -48,6 +53,10 @@ export function sumMonthRevenue(
     if (reservation.status === "CANCELLED") continue;
     const checkIn = startOfDay(reservation.checkIn);
     if (checkIn < monthStart || checkIn > monthEnd) continue;
+    if (resolveAmount) {
+      total += resolveAmount(reservation);
+      continue;
+    }
     if (reservation.totalAmount) {
       total += Number(reservation.totalAmount.toString());
     }

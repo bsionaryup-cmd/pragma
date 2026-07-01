@@ -274,6 +274,8 @@ describe("reservation cancellation feed", () => {
     status: ReservationStatus.CONFIRMED,
     totalAmount: 450000,
     currency: "COP",
+    platform: "AIRBNB" as const,
+    icalUid: "ical-1",
     adults: 2,
     children: 0,
     infants: 0,
