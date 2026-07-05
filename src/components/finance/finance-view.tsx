@@ -25,7 +25,6 @@ import { formatPanelDate } from "@/lib/helpers/date";
 import type { FinanceOverview } from "@/services/finance/finance.service";
 import { cn } from "@/lib/utils";
 import { ManualFinanceRowActions } from "@/components/finance/manual-finance-row-actions";
-import { FinanceMonthlyOccupancyHistoryTable } from "@/components/finance/finance-monthly-occupancy-history-table";
 import { FinancePlanningSection } from "@/components/finance/finance-planning-section";
 
 type FinanceViewProps = {
@@ -86,21 +85,13 @@ function FinanceSecondaryMetrics({
       value: `${monthlyOccupancy.occupancyPct}%`,
     },
     {
-      label: t("finance.forecast.projected"),
-      value: monthlyOccupancy.projectedRevenueFormatted,
-    },
-    {
       label: t("finance.profitability.margin"),
       value: `${profitability.margin}%`,
-    },
-    {
-      label: t("finance.profitability.avgProperty"),
-      value: profitability.avgPerProperty.toLocaleString(),
     },
   ];
 
   return (
-    <section className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <section className="mb-4 grid grid-cols-2 gap-2 sm:max-w-md">
       {items.map((item) => (
         <div
           key={item.label}
@@ -112,6 +103,62 @@ function FinanceSecondaryMetrics({
           <p className="mt-0.5 text-sm font-semibold tabular-nums">{item.value}</p>
         </div>
       ))}
+    </section>
+  );
+}
+
+function FinanceChannelSummary({ data }: { data: FinanceOverview }) {
+  const { t } = useI18n();
+  const { channelSummary } = data;
+
+  const rows = [
+    {
+      label: t("finance.channel.airbnb"),
+      amount: channelSummary.airbnbRevenueFormatted,
+      count: channelSummary.airbnbReservations,
+      countLabel: t("finance.channel.airbnbReservations"),
+    },
+    {
+      label: t("finance.channel.direct"),
+      amount: channelSummary.directRevenueFormatted,
+      count: channelSummary.directReservations,
+      countLabel: t("finance.channel.directReservations"),
+    },
+    {
+      label: t("finance.channel.total"),
+      amount: channelSummary.totalRevenueFormatted,
+      count: channelSummary.totalReservations,
+      countLabel: t("finance.channel.totalReservations"),
+      emphasized: true,
+    },
+  ];
+
+  return (
+    <section className="mb-4 rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-4 py-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {t("finance.channel.title")}
+        </p>
+      </div>
+      <div className="grid gap-px bg-border sm:grid-cols-3">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className={cn(
+              "bg-card px-4 py-3",
+              row.emphasized && "bg-muted/20",
+            )}
+          >
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {row.label}
+            </p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{row.amount}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {row.count} {row.countLabel}
+            </p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -299,24 +346,20 @@ export function FinanceView({
 
         <FinanceSecondaryMetrics data={data} />
 
+        <FinanceChannelSummary data={data} />
+
         <SectionCard
           title={t("finance.annualSummaryTitle", { year: data.chartYear })}
           description={t("finance.annualSummaryDescription")}
           className="mb-5"
         >
-          <div className="space-y-4 p-4 sm:p-5">
+          <div className="p-4 sm:p-5">
             <FinanceYearlyOverviewChart
               months={data.yearlyChart}
               year={data.chartYear}
               locale={locale}
               selectedMonthIndex={selectedMonthIndex}
             />
-            <div className="border-t border-border pt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {t("finance.monthlyOccupancy.historyTitle")}
-              </p>
-              <FinanceMonthlyOccupancyHistoryTable data={data} embedded />
-            </div>
           </div>
         </SectionCard>
 

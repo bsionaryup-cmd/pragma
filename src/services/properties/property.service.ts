@@ -174,6 +174,7 @@ function mapPropertyRow(
       monthReservations,
       monthStart,
       monthEnd,
+      property.status,
     ),
   };
 }

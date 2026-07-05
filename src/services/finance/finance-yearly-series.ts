@@ -1,17 +1,14 @@
 import {
-  PropertyStatus,
   ReservationStatus,
 } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { todayPrismaDate, toReservationDateKey } from "@/lib/dates";
-import { clampPercent } from "@/lib/format-currency";
 import { db } from "@/lib/db";
 import {
   checkInFallsInMonth,
   calendarDateFallsInMonth,
   financeMonthBounds,
   financeYearBounds,
-  reservationNightsInMonth,
   reservationOverlapsMonth,
 } from "@/lib/finance/finance-month-attribution";
 import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
@@ -20,13 +17,15 @@ import {
   isReservationIncomeConfirmed,
   isReservationIncomePending,
 } from "@/lib/finance/reservation-income-status";
-import { mergePropertyScope, mergeReservationScope } from "@/lib/platform/tenant-data-scope";
+import { mergeReservationScope } from "@/lib/platform/tenant-data-scope";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
 import {
   listManualExpensesInRange,
   listOtherIncomesInRange,
 } from "@/services/finance/finance-prisma-guard";
+import { listMonthKeysForYear } from "@/lib/finance/monthly-finance-month-keys";
 import { partitionOtherIncomes } from "@/lib/finance/other-income-policy";
+import { loadMonthlyFinanceAggregates } from "@/services/finance/monthly-finance-metrics.service";
 
 export const FINANCE_YEAR_MONTH_LABELS = [
   "Ene",
@@ -80,7 +79,7 @@ export async function buildFinanceYearlySeries(
 
   const yearEndKey = toReservationDateKey(yearEnd);
 
-  const [reservations, cancelled, manualExpenses, manualIncomes, activeProperties] =
+  const [reservations, cancelled, manualExpenses, manualIncomes] =
     await Promise.all([
       db.reservation.findMany({
         where: withVisibleReservationsFilter(
@@ -114,9 +113,6 @@ export async function buildFinanceYearlySeries(
       }),
       listManualExpensesInRange(yearStart, yearEnd, scope),
       listOtherIncomesInRange(yearStart, yearEnd, scope),
-      db.property.count({
-        where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
-      }),
     ]);
 
   const revenueSourcesByReservationId =
@@ -139,15 +135,10 @@ export async function buildFinanceYearlySeries(
     let revenue = 0;
     let pendingRevenue = 0;
     let expenses = 0;
-    let bookedNights = 0;
     let paidReservations = 0;
     let pendingReservations = 0;
 
     for (const r of reservations) {
-      if (reservationOverlapsMonth(r.checkIn, r.checkOut, startKey, endKey)) {
-        bookedNights += reservationNightsInMonth(r.checkIn, r.checkOut, startKey, endKey);
-      }
-
       if (!checkInFallsInMonth(r.checkIn, startKey, endKey)) continue;
 
       const amount = resolveFinanceReservationRevenueAmount(
@@ -184,12 +175,7 @@ export async function buildFinanceYearlySeries(
       reservationOverlapsMonth(r.checkIn, r.checkOut, startKey, endKey),
     ).length;
 
-    const capacityNights =
-      activeProperties > 0 ? activeProperties * daysInMonth : 0;
-    const occupancy =
-      capacityNights > 0
-        ? clampPercent((bookedNights / capacityNights) * 100)
-        : 0;
+    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
 
     return {
       monthIndex,
@@ -197,7 +183,8 @@ export async function buildFinanceYearlySeries(
       revenue: Math.round(revenue),
       pendingRevenue: Math.round(pendingRevenue),
       expenses: Math.round(expenses),
-      occupancy,
+      occupancy: 0,
+      monthKey,
       paidReservations,
       pendingReservations,
       cancellations,
@@ -205,10 +192,20 @@ export async function buildFinanceYearlySeries(
     };
   });
 
+  const occupancyAggregates = await loadMonthlyFinanceAggregates(
+    scope,
+    listMonthKeysForYear(year),
+  );
+
+  const months = buckets.map(({ monthKey, ...monthPoint }) => ({
+    ...monthPoint,
+    occupancy: occupancyAggregates.get(monthKey)?.occupancyPct ?? 0,
+  }));
+
   return {
-    months: buckets,
+    months,
     yearToDateRevenue: Math.round(
-      buckets.filter((m) => !m.isFuture).reduce((sum, m) => sum + m.revenue, 0),
+      months.filter((m) => !m.isFuture).reduce((sum, m) => sum + m.revenue, 0),
     ),
   };
 }

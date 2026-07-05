@@ -34,6 +34,8 @@ import {
   type TodayPanelCounts,
 } from "@/services/dashboard/dashboard.service";
 import { getManualFinanceInRange } from "@/services/finance/finance-manual-totals";
+import { monthKeyFromParts } from "@/lib/finance/monthly-finance-month-keys";
+import { loadMonthlyFinanceAggregates } from "@/services/finance/monthly-finance-metrics.service";
 import { loadReservationRevenueSourcesByReservationId } from "@/services/finance/reservation-revenue-context.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
@@ -146,38 +148,19 @@ async function sumFinanceAlignedReservationRevenue(
   );
 }
 
-function computeOccupancyFromReservations(
-  reservations: { checkIn: Date; checkOut: Date }[],
-  activeProperties: number,
-  daysInMonth: number,
-  rangeStart: Date,
-  rangeEnd: Date,
-): number {
-  if (activeProperties <= 0 || daysInMonth <= 0) return 0;
-
-  let occupiedNights = 0;
-  for (const reservation of reservations) {
-    const start = reservation.checkIn > rangeStart ? reservation.checkIn : rangeStart;
-    const end = reservation.checkOut < rangeEnd ? reservation.checkOut : rangeEnd;
-    const nights = Math.max(
-      0,
-      Math.ceil((end.getTime() - start.getTime()) / 86_400_000),
-    );
-    occupiedNights += nights;
-  }
-
-  const capacity = activeProperties * daysInMonth;
-  return clampPercent((occupiedNights / capacity) * 100);
-}
-
 export async function getCommandCenterData(locale: Locale = "es"): Promise<CommandCenterData> {
   const scope = await requireTenantDataScope();
   const today = startOfDay();
   const registrationDueBy = dateKeyToPrismaDate(
     addCalendarDaysToKey(todayDateKeyInTimezone(), 2),
   );
-  const { start, end, prevStart, prevEnd, daysInMonth } = monthBounds();
+  const { start, end, prevStart, prevEnd, year, month } = monthBounds();
   const financeToday = todayPrismaDate();
+  const currentMonthKey = monthKeyFromParts(year, month);
+  const previousMonthKey = monthKeyFromParts(
+    month === 1 ? year - 1 : year,
+    month === 1 ? 12 : month - 1,
+  );
 
   const [
     activeProperties,
@@ -190,13 +173,12 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     propertiesWithStaleSync,
     pendingGuestRegistration,
     ttlockConnected,
-    monthReservations,
-    prevMonthReservations,
     currentMonthRevenueReservations,
     previousMonthRevenueReservations,
     recentReservations,
     recentTasks,
     portfolioCapacity,
+    occupancyAggregates,
   ] = await Promise.all([
     db.property.count({
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
@@ -268,40 +250,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     db.reservation.findMany({
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
-          status: {
-            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-          },
-          checkIn: { lte: end },
-          checkOut: { gte: start },
-        }),
-      ),
-      select: {
-        totalAmount: true,
-        checkIn: true,
-        checkOut: true,
-        property: { select: { cleaningFee: true } },
-      },
-    }),
-    db.reservation.findMany({
-      where: withVisibleReservationsFilter(
-        mergeReservationScope(scope, {
-          status: {
-            in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
-          },
-          checkIn: { lte: prevEnd },
-          checkOut: { gte: prevStart },
-        }),
-      ),
-      select: {
-        totalAmount: true,
-        checkIn: true,
-        checkOut: true,
-        property: { select: { cleaningFee: true } },
-      },
-    }),
-    db.reservation.findMany({
-      where: withVisibleReservationsFilter(
-        mergeReservationScope(scope, {
           status: { in: ACCOUNTING_RESERVATION_STATUSES },
           checkIn: { gte: start, lte: end },
         }),
@@ -350,6 +298,7 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
       _sum: { maxGuests: true },
     }),
+    loadMonthlyFinanceAggregates(scope, [currentMonthKey, previousMonthKey]),
   ]);
 
   const guestsCurrent = checkedInReservations.reduce(
@@ -374,20 +323,10 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       ? clampPercent((occupiedProperties / activeProperties) * 100)
       : 0;
 
-  const occupancyMonthly = computeOccupancyFromReservations(
-    monthReservations,
-    activeProperties,
-    daysInMonth,
-    start,
-    end,
-  );
-  const occupancyMonthlyPrev = computeOccupancyFromReservations(
-    prevMonthReservations,
-    activeProperties,
-    daysInMonth,
-    prevStart,
-    prevEnd,
-  );
+  const currentOccupancyAggregate = occupancyAggregates.get(currentMonthKey);
+  const previousOccupancyAggregate = occupancyAggregates.get(previousMonthKey);
+  const occupancyMonthly = currentOccupancyAggregate?.occupancyPct ?? 0;
+  const occupancyMonthlyPrev = previousOccupancyAggregate?.occupancyPct ?? 0;
 
   const {
     arrivals: arrivalsRaw,

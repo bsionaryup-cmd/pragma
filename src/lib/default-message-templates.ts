@@ -15,6 +15,17 @@ export const QUICK_MESSAGE_TYPE_ORDER = [
 
 export type QuickMessageType = (typeof QUICK_MESSAGE_TYPE_ORDER)[number];
 
+/** Subset shown in reservation quick-copy UI (templates remain available in settings). */
+export const QUICK_MESSAGE_UI_ORDER = [
+  "WELCOME",
+  "REGISTRATION",
+  "ACCESS",
+  "FOLLOW_UP",
+  "CHECKOUT",
+] as const satisfies readonly QuickMessageType[];
+
+export type QuickMessageUiType = (typeof QUICK_MESSAGE_UI_ORDER)[number];
+
 export const DEFAULT_MESSAGE_TITLES: Record<QuickMessageType, string> = {
   WELCOME: "Reserva confirmada",
   REGISTRATION: "Registro de huéspedes",
@@ -33,6 +44,14 @@ export const DEFAULT_MESSAGE_BUTTON_LABELS: Record<QuickMessageType, string> = {
   HOUSE_RULES: "⚠️ Reglas importantes",
   CHECKOUT: "👋 Recordatorio de salida",
   REVIEW: "⭐ Agradecimiento y reseña",
+};
+
+export const QUICK_MESSAGE_UI_BUTTON_LABELS: Record<QuickMessageUiType, string> = {
+  WELCOME: "✅ Reserva confirmada",
+  REGISTRATION: "📋 Llegada + Link de registro",
+  ACCESS: "🔐 Código de acceso",
+  FOLLOW_UP: "📞 Seguimiento",
+  CHECKOUT: "👋 Check-out",
 };
 
 export const DEFAULT_MESSAGE_TEMPLATES: Record<QuickMessageType, string> = {
@@ -157,6 +176,10 @@ export function getDefaultMessageTitle(type: QuickMessageType): string {
 
 export function getQuickMessageButtonLabel(type: QuickMessageType): string {
   return DEFAULT_MESSAGE_BUTTON_LABELS[type];
+}
+
+export function getQuickMessageUiButtonLabel(type: QuickMessageUiType): string {
+  return QUICK_MESSAGE_UI_BUTTON_LABELS[type];
 }
 
 /** Rellena el formulario de personalización con las plantillas oficiales. */

@@ -32,6 +32,10 @@ import {
 import { loadMonthlyFinanceAggregates } from "@/services/finance/monthly-finance-metrics.service";
 import { loadFinancePlanningSnapshot } from "@/services/finance/finance-planning.service";
 import type { FinancePlanningSnapshot } from "@/lib/finance/finance-planning-types";
+import {
+  computeChannelRevenueSummary,
+  type ChannelRevenueSummary,
+} from "@/lib/finance/channel-revenue-summary";
 import type { Locale } from "@/i18n/types";
 
 export type FinanceKpis = {
@@ -136,6 +140,11 @@ export type FinanceOverview = {
     avgPerReservation: number;
   };
   topProperties: TopPropertyRow[];
+  channelSummary: ChannelRevenueSummary & {
+    airbnbRevenueFormatted: string;
+    directRevenueFormatted: string;
+    totalRevenueFormatted: string;
+  };
 };
 
 function monthBounds(reference = new Date()) {
@@ -397,6 +406,32 @@ export async function getFinanceOverview(
     topProperties.sort((a, b) => b.revenue - a.revenue);
   }
 
+  const channelSummaryBase = computeChannelRevenueSummary({
+    reservationRows: paidReservations.map((r) => ({
+      platform: r.platform,
+      amount: revenueForReservation(r, enrichmentByReservationId),
+    })),
+    manualIncomeTotal: manualIncomeTotal,
+  });
+  const channelSummary = {
+    ...channelSummaryBase,
+    airbnbRevenueFormatted: formatMoney(
+      channelSummaryBase.airbnbRevenue,
+      undefined,
+      locale,
+    ),
+    directRevenueFormatted: formatMoney(
+      channelSummaryBase.directRevenue,
+      undefined,
+      locale,
+    ),
+    totalRevenueFormatted: formatMoney(
+      channelSummaryBase.totalRevenue,
+      undefined,
+      locale,
+    ),
+  };
+
   const incomeEventCount = paidReservations.length + manualIncomes.length;
   const avgPerProperty =
     activeProperties > 0 ? Math.round(revenue / activeProperties) : 0;
@@ -520,6 +555,7 @@ export async function getFinanceOverview(
       projectedRevenueFormatted: formatMoney(projectedRevenue, undefined, locale),
       history: monthlyOccupancyHistory,
     },
+    channelSummary,
     planning,
   };
 }

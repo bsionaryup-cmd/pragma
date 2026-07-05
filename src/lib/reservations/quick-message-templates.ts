@@ -1,8 +1,11 @@
 import {
   getDefaultMessageTitle,
   getQuickMessageButtonLabel,
+  getQuickMessageUiButtonLabel,
   QUICK_MESSAGE_TYPE_ORDER,
+  QUICK_MESSAGE_UI_ORDER,
   type QuickMessageType,
+  type QuickMessageUiType,
 } from "@/lib/default-message-templates";
 import { formatStayRange } from "@/features/reservations/lib/reservation-dates";
 import { formatAccessCode } from "@/lib/access-code";
@@ -11,6 +14,7 @@ import type { QuickMessageData } from "@/lib/reservations/quick-messages";
 import { quickMessageLabel } from "@/lib/reservations/quick-messages";
 
 export const QUICK_MESSAGE_TYPES: QuickMessageType[] = [...QUICK_MESSAGE_TYPE_ORDER];
+export const QUICK_MESSAGE_UI_TYPES: QuickMessageUiType[] = [...QUICK_MESSAGE_UI_ORDER];
 
 export type QuickMessageTemplates = Partial<Record<QuickMessageType, string>>;
 
@@ -202,6 +206,10 @@ export function quickMessageFieldLabel(type: QuickMessageType): string {
 
 export function quickMessageButtonLabel(type: QuickMessageType): string {
   return getQuickMessageButtonLabel(type);
+}
+
+export function quickMessageUiButtonLabel(type: QuickMessageUiType): string {
+  return getQuickMessageUiButtonLabel(type);
 }
 
 export const QUICK_MESSAGE_TEMPLATE_HINT =

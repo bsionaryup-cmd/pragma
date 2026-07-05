@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import {
   buildQuickMessageDataFromReservation,
-  quickMessageButtonLabel,
-  QUICK_MESSAGE_TYPES,
+  quickMessageUiButtonLabel,
+  QUICK_MESSAGE_UI_TYPES,
 } from "@/lib/reservations/quick-message-templates";
 import { buildQuickMessage } from "@/lib/reservations/quick-messages";
 
@@ -51,7 +51,7 @@ export function ReservationQuickMessages({
     [reservation, registrationLink, accessCode],
   );
 
-  async function copyMessage(type: (typeof QUICK_MESSAGE_TYPES)[number]) {
+  async function copyMessage(type: (typeof QUICK_MESSAGE_UI_TYPES)[number]) {
     const text = buildQuickMessage(
       type,
       messageData,
@@ -62,7 +62,7 @@ export function ReservationQuickMessages({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {QUICK_MESSAGE_TYPES.map((type) => (
+      {QUICK_MESSAGE_UI_TYPES.map((type) => (
         <button
           key={type}
           type="button"
@@ -71,7 +71,7 @@ export function ReservationQuickMessages({
             void copyMessage(type);
           }}
         >
-          {quickMessageButtonLabel(type)}
+          {quickMessageUiButtonLabel(type)}
         </button>
       ))}
     </div>

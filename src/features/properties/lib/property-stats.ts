@@ -1,5 +1,17 @@
 import type { ReservationStatus } from "@prisma/client";
-import { startOfDay } from "@/lib/helpers/date";
+import { PropertyStatus, ReservationStatus as Status } from "@prisma/client";
+import { calculateOccupancy } from "@/lib/finance/calculate-occupancy";
+import {
+  financeMonthBounds,
+  reservationNightsInMonth,
+} from "@/lib/finance/finance-month-attribution";
+
+const OCCUPANCY_STATUSES: ReservationStatus[] = [
+  Status.CONFIRMED,
+  Status.CHECKED_IN,
+  Status.CHECKOUT_TODAY,
+  Status.CHECKED_OUT,
+];
 
 type ReservationSlice = {
   id?: string;
@@ -12,33 +24,46 @@ type ReservationSlice = {
   reservationCode?: string | null;
 };
 
+/** Finance-aligned occupancy for a single property in a calendar month. */
 export function computeMonthOccupancyPercent(
   reservations: ReservationSlice[],
   monthStart: Date,
-  monthEnd: Date,
+  _monthEnd: Date,
+  propertyStatus: PropertyStatus = PropertyStatus.ACTIVE,
 ): number {
-  const daysInMonth = monthEnd.getDate();
-  if (daysInMonth <= 0) return 0;
+  if (propertyStatus !== PropertyStatus.ACTIVE) return 0;
 
+  const { startKey, endKey, daysInMonth } = financeMonthBounds(
+    monthStart.getFullYear(),
+    monthStart.getMonth(),
+  );
+
+  let blockedNights = 0;
   let occupiedNights = 0;
 
   for (const reservation of reservations) {
-    if (reservation.status === "CANCELLED") continue;
+    if (reservation.status === Status.BLOCKED) {
+      blockedNights += reservationNightsInMonth(
+        reservation.checkIn,
+        reservation.checkOut,
+        startKey,
+        endKey,
+      );
+      continue;
+    }
 
-    const checkIn = startOfDay(reservation.checkIn);
-    const checkOut = startOfDay(reservation.checkOut);
-    const visibleStart = checkIn < monthStart ? monthStart : checkIn;
-    const visibleEnd = checkOut > monthEnd ? monthEnd : checkOut;
+    if (!OCCUPANCY_STATUSES.includes(reservation.status)) continue;
 
-    if (visibleEnd <= visibleStart) continue;
-
-    const nights = Math.round(
-      (visibleEnd.getTime() - visibleStart.getTime()) / (1000 * 60 * 60 * 24),
+    occupiedNights += reservationNightsInMonth(
+      reservation.checkIn,
+      reservation.checkOut,
+      startKey,
+      endKey,
     );
-    occupiedNights += nights;
   }
 
-  return Math.min(100, Math.round((occupiedNights / daysInMonth) * 100));
+  const availableNights = Math.max(0, daysInMonth - blockedNights);
+  return calculateOccupancy({ occupiedNights, availableNights });
 }
 
 export function sumMonthRevenue(
@@ -51,7 +76,7 @@ export function sumMonthRevenue(
 
   for (const reservation of reservations) {
     if (reservation.status === "CANCELLED") continue;
-    const checkIn = startOfDay(reservation.checkIn);
+    const checkIn = reservation.checkIn;
     if (checkIn < monthStart || checkIn > monthEnd) continue;
     if (resolveAmount) {
       total += resolveAmount(reservation);

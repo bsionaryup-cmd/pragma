@@ -272,6 +272,15 @@ export const es = {
         invalidGoal: "Ingresa una meta de utilidad válida.",
       },
     },
+    channel: {
+      title: "Ingresos por canal",
+      airbnb: "Ingresos Airbnb",
+      airbnbReservations: "reservas Airbnb",
+      direct: "Ingresos Directos",
+      directReservations: "reservas directas",
+      total: "Total",
+      totalReservations: "reservas totales",
+    },
     flows: {
       revenue: "Detalle de ingresos",
       expenses: "Detalle de gastos",

@@ -1,5 +1,5 @@
 import { PropertyStatus, ReservationStatus, PaymentStatus } from "@prisma/client";
-import { clampPercent } from "@/lib/format-currency";
+import { calculateOccupancy } from "@/lib/finance/calculate-occupancy";
 import {
   checkInFallsInMonth,
   financeMonthBounds,
@@ -134,10 +134,7 @@ export function computeMonthlyFinancePropertyMetric(
   }
 
   const availableNights = Math.max(0, daysInMonth - blockedNights);
-  const occupancyPct =
-    availableNights > 0
-      ? clampPercent((occupiedNights / availableNights) * 100)
-      : 0;
+  const occupancyPct = calculateOccupancy({ occupiedNights, availableNights });
 
   return {
     propertyId: property.id,
@@ -167,10 +164,7 @@ export function aggregateMonthlyFinanceMetrics(
     (sum, row) => sum + row.projectedRevenue,
     0,
   );
-  const occupancyPct =
-    availableNights > 0
-      ? clampPercent((occupiedNights / availableNights) * 100)
-      : 0;
+  const occupancyPct = calculateOccupancy({ occupiedNights, availableNights });
 
   return {
     availableNights,

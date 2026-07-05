@@ -286,6 +286,15 @@ export const en = {
       avgProperty: "Avg income / property",
       avgReservation: "Avg income / reservation",
     },
+    channel: {
+      title: "Revenue by channel",
+      airbnb: "Airbnb revenue",
+      airbnbReservations: "Airbnb reservations",
+      direct: "Direct revenue",
+      directReservations: "direct reservations",
+      total: "Total",
+      totalReservations: "total reservations",
+    },
     topProperties: {
       title: "Top properties",
       property: "Property",
