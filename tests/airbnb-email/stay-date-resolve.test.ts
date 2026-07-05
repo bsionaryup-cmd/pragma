@@ -57,4 +57,27 @@ describe("stay-date-resolve", () => {
       true,
     );
   });
+
+  it("corrige fechas implausibles del email con única reserva iCal alineada", () => {
+    const icalPlaceholder = {
+      checkIn: new Date("2026-07-04T00:00:00.000Z"),
+      checkOut: new Date("2026-07-07T00:00:00.000Z"),
+    };
+    const badEmailCheckIn = new Date("2026-07-07T12:00:00.000Z");
+    const badEmailCheckOut = new Date("2027-07-04T12:00:00.000Z");
+    const resolved = inferStayDatesFromPropertyCandidates(
+      badEmailCheckIn,
+      badEmailCheckOut,
+      [icalPlaceholder],
+    );
+    assert.equal(resolved.inferredCheckOutFromIcal, true);
+    assert.equal(
+      resolved.checkIn?.toISOString(),
+      icalPlaceholder.checkIn.toISOString(),
+    );
+    assert.equal(
+      resolved.checkOut?.toISOString(),
+      icalPlaceholder.checkOut.toISOString(),
+    );
+  });
 });

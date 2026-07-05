@@ -82,6 +82,16 @@ export function stayDatesOverlap(
   return checkInWithinSlack(candidate.checkIn, emailCheckIn, slackDays);
 }
 
+function nightsBetween(start: Date, end: Date): number {
+  return Math.round((end.getTime() - start.getTime()) / DAY_MS);
+}
+
+/** Email stay spans that are invalid or implausible (bad HTML parse) — prefer iCal when unique. */
+function isImplausibleEmailStay(checkIn: Date, checkOut: Date): boolean {
+  if (checkOut.getTime() <= checkIn.getTime()) return true;
+  return nightsBetween(checkIn, checkOut) > 60;
+}
+
 export function inferStayDatesFromPropertyCandidates(
   parsedCheckIn: Date | null,
   parsedCheckOut: Date | null,
@@ -92,6 +102,18 @@ export function inferStayDatesFromPropertyCandidates(
   inferredCheckOutFromIcal: boolean;
 } {
   if (parsedCheckIn && parsedCheckOut) {
+    if (isImplausibleEmailStay(parsedCheckIn, parsedCheckOut)) {
+      const aligned = candidates.filter((c) =>
+        checkInWithinSlack(c.checkIn, parsedCheckIn),
+      );
+      if (aligned.length === 1) {
+        return {
+          checkIn: aligned[0]!.checkIn,
+          checkOut: aligned[0]!.checkOut,
+          inferredCheckOutFromIcal: true,
+        };
+      }
+    }
     return {
       checkIn: parsedCheckIn,
       checkOut: parsedCheckOut,

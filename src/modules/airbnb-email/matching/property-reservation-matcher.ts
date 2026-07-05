@@ -265,7 +265,14 @@ function collectRejectedBecause(input: {
   if (row.dateOverlap < MIN_DATE_OVERLAP_FOR_SAFE) {
     reasons.push("dateOverlap_below_threshold");
   }
-  if (hasGuestSignal && row.guestScore < MIN_NORMALIZED_GUEST_SCORE) {
+  const placeholderAwaitingEnrichment =
+    Boolean(input.emailConfirmationCode?.trim()) &&
+    isPlaceholderGuestName(row.candidate.guestName);
+  if (
+    hasGuestSignal &&
+    row.guestScore < MIN_NORMALIZED_GUEST_SCORE &&
+    !placeholderAwaitingEnrichment
+  ) {
     reasons.push("guestScore_below_threshold");
   }
   if (!hasGuestSignal && row.guestScore > 0 && row.guestScore < MIN_NORMALIZED_GUEST_SCORE) {
