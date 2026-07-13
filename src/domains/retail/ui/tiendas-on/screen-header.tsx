@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Network, Printer } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -31,12 +31,7 @@ export function TiendasOnScreenHeader({
         <span className="text-lg font-medium text-[#2d3748]">{title}</span>
       </Link>
       <div className="ml-auto flex items-center gap-3 text-[#718096]">
-        {rightSlot ?? (
-          <>
-            <Printer className="size-5" />
-            <Network className="size-5" />
-          </>
-        )}
+        {rightSlot}
       </div>
     </header>
   );

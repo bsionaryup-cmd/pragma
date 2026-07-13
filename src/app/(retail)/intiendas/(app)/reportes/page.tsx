@@ -48,7 +48,7 @@ export default async function RetailReportsPage() {
           <TiendasOnTable>
             <TiendasOnTableHead>
               <TiendasOnTh>Fecha</TiendasOnTh>
-              <TiendasOnTh>Orden</TiendasOnTh>
+              <TiendasOnTh>Pedido</TiendasOnTh>
               <TiendasOnTh>Proveedor</TiendasOnTh>
               <TiendasOnTh>Total</TiendasOnTh>
             </TiendasOnTableHead>

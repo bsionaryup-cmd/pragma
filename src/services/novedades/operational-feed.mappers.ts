@@ -10,9 +10,7 @@ import {
   buildReservationRevenueSourcesFromEmailEvent,
   resolveFinanceReservationRevenueAmount,
 } from "@/lib/finance/reservation-revenue-amount";
-import { resolveReservationGuestCounts } from "@/lib/reservations/display-guest-count";
 import { isCancellationFeedEligible } from "@/lib/reservations/reservation-cancellation-policy";
-import { extractGuestCountsFromReservationEmailEvent } from "@/services/reservations/airbnb-display-guest-count.service";
 import {
   buildOperationalCard,
   formatGuestCountLine,
@@ -486,15 +484,11 @@ export function mapEmailEvent(row: {
   }
 
   if (row.eventKind === AirbnbEmailEventKind.CONFIRMED) {
-    const guestCounts = resolveReservationGuestCounts({
+    const guestCounts = {
       adults: row.reservation?.adults ?? 1,
       children: row.reservation?.children ?? 0,
       infants: row.reservation?.infants ?? 0,
-      enrichment: extractGuestCountsFromReservationEmailEvent({
-        enrichedFields: row.enrichedFields,
-        payload: row.payload,
-      }),
-    });
+    };
     const guestLine = formatGuestCountLine(guestCounts);
     const amount = row.reservation
       ? (() => {

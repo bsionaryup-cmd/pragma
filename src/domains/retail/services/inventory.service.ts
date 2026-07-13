@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { InventoryChangeInput } from "../types";
+import { enqueueStockChanged } from "@/domains/retail-intelligence/services/outbox.publisher";
 
 export function listMovements(storeId: string, productId?: string) {
   return db.retailInventoryMovement.findMany({
@@ -33,7 +34,7 @@ async function changeStock(
       where: { id: product.id },
       data: { stock: { increment: quantity } },
     });
-    return tx.retailInventoryMovement.create({
+    const movement = await tx.retailInventoryMovement.create({
       data: {
         storeId,
         productId: product.id,
@@ -47,6 +48,8 @@ async function changeStock(
       },
       include: { product: true },
     });
+    await enqueueStockChanged(tx, storeId, product.id, "STOCK_ADJUSTED", movement.id);
+    return movement;
   });
 }
 

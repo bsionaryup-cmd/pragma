@@ -65,18 +65,28 @@ async function resolveEnrichmentSignalsFromAudit(
   );
 }
 
+async function loadAuditSourceEventAt(auditId: string): Promise<Date | null> {
+  const audit = await db.emailIngestionAudit.findUnique({
+    where: { id: auditId },
+    select: { createdAt: true },
+  });
+  return audit?.createdAt ?? null;
+}
+
 export async function reapplyReservationEnrichmentFromAudit(
   input: PersistReservationMatchInput,
 ): Promise<PersistReservationMatchResult | null> {
   if (!input.match.reservationId || !input.match.allowReservationEnrichment) return null;
   const persistedMatchMethod = toPersistedMatchMethod(input.match.method);
   const signals = await resolveEnrichmentSignalsFromAudit(input.auditId, input.signals);
+  const sourceEventAt = await loadAuditSourceEventAt(input.auditId);
 
   const reservationEnrichedFields = await applySafeReservationEnrichment({
     match: input.match,
     signals,
     eventKind: input.eventKind,
     mode: "reservation",
+    sourceEventAt,
   });
   const metadataFields = buildStructuredMetadataFields(signals);
   const enrichedFields = mergeEnrichedFieldsForEmailEvent({
@@ -173,6 +183,7 @@ export async function persistReservationMatchLinkage(
       input.auditId,
       input.signals,
     );
+    const sourceEventAt = await loadAuditSourceEventAt(input.auditId);
     const result = await db.$transaction(async (tx) => {
       await tx.emailIngestionAudit.update({
         where: { id: input.auditId },
@@ -198,6 +209,7 @@ export async function persistReservationMatchLinkage(
           eventKind: input.eventKind,
           mode: "reservation",
           tx,
+          sourceEventAt,
         });
         const metadataFields = buildStructuredMetadataFields(signals);
         const enrichedFields = mergeEnrichedFieldsForEmailEvent({

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { SupplierInput, SupplierProductInput } from "../types";
+import { enqueueSupplierUpdated } from "@/domains/retail-intelligence/services/outbox.publisher";
 
 export function listSuppliers(storeId: string) {
   return db.retailSupplier.findMany({
@@ -21,10 +22,12 @@ export async function updateSupplier(storeId: string, id: string, input: Partial
     where: { id, storeId, deletedAt: null },
   });
   if (!supplier) throw new Error("Proveedor no encontrado");
-  return db.retailSupplier.update({
+  const updated = await db.retailSupplier.update({
     where: { id },
     data: { ...input, name: input.name?.trim() },
   });
+  await enqueueSupplierUpdated(db, storeId, id);
+  return updated;
 }
 
 export async function softDeleteSupplier(storeId: string, id: string) {

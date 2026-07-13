@@ -25,8 +25,8 @@ export async function CashGateBanner({
               Abre caja para usar {moduleLabel}
             </p>
             <p className="mt-1 text-base text-amber-900/80">
-              Puedes consultar inventario, productos y reportes. Ventas, compras y
-              movimientos requieren caja abierta.
+              Puedes consultar inventario, productos y reportes. Ventas, compras,
+              pedidos y movimientos requieren caja abierta para operar.
             </p>
           </div>
         </div>

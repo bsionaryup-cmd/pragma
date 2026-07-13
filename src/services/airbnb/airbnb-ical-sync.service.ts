@@ -14,6 +14,7 @@ import {
   guardActiveIcalImportUrl,
   hasActiveAirbnbIcalImport,
   isPragmaExportedUid,
+  isSuspiciousEmptyBookableIcalFeed,
   shouldCancelStaleIcalReservation,
   sleep,
 } from "@/lib/airbnb/ical-sync-utils";
@@ -537,36 +538,52 @@ export async function syncPropertyIcalCalendarInner(
     });
 
     const today = todayPrismaDate();
-
-    for (const row of stale) {
-      if (
-        !row.icalUid ||
-        !shouldCancelStaleIcalReservation({
+    const bookableEventCount = seenUids.size;
+    const staleCancelCandidates = stale.filter(
+      (row) =>
+        !!row.icalUid &&
+        shouldCancelStaleIcalReservation({
           icalUid: row.icalUid,
           seenInFeed: seenUids.has(row.icalUid),
           status: row.status,
           checkOut: row.checkOut,
           today,
-        })
-      ) {
-        continue;
-      }
-      await db.reservation.update({
-        where: { id: row.id },
-        data: { status: ReservationStatus.CANCELLED },
-      });
-      await emitBookingCancelled({
-        reservationId: row.id,
+        }),
+    );
+    const suspiciousEmptyFeed = isSuspiciousEmptyBookableIcalFeed({
+      bookableEventCount,
+      staleCancelCandidateCount: staleCancelCandidates.length,
+    });
+
+    if (suspiciousEmptyFeed) {
+      icalSyncLog.error("stale_cancel_aborted_empty_bookable_feed", {
         propertyId: property.id,
-        ownerId,
+        propertyName: property.name,
+        eventsParsed,
+        bookableEventCount,
+        staleCancelCandidateCount: staleCancelCandidates.length,
       });
-      cancelled += 1;
+    } else {
+      for (const row of staleCancelCandidates) {
+        await db.reservation.update({
+          where: { id: row.id },
+          data: { status: ReservationStatus.CANCELLED },
+        });
+        await emitBookingCancelled({
+          reservationId: row.id,
+          propertyId: property.id,
+          ownerId,
+        });
+        cancelled += 1;
+      }
     }
 
-    await db.property.update({
-      where: { id: property.id },
-      data: { lastIcalSyncedAt: new Date() },
-    });
+    if (!suspiciousEmptyFeed) {
+      await db.property.update({
+        where: { id: property.id },
+        data: { lastIcalSyncedAt: new Date() },
+      });
+    }
 
     await purgeGhostReservations({
       userId: ownerId,

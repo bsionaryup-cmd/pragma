@@ -49,7 +49,7 @@ export async function getProductsData() {
   const [products, categories, suppliers] = await Promise.all([
     db.retailProduct.findMany({
       where: { storeId: store.id, deletedAt: null },
-      orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
+      orderBy: { name: "asc" },
       include: { category: { select: { name: true } }, primarySupplier: { select: { id: true, name: true } } },
     }),
     db.retailCategory.findMany({
@@ -131,7 +131,11 @@ export async function getPurchasesData() {
     }),
   ]);
   return {
-    orders: orders.map((o) => ({ ...o, totalCost: money(o.totalCost) })),
+    orders: orders.map((o) => ({
+      ...o,
+      totalCost: money(o.totalCost),
+      aiGenerated: o.aiGenerated,
+    })),
     suggestions: suggestions.map((s) => ({
       ...s,
       estimatedCost: money(s.estimatedCost),
@@ -205,6 +209,36 @@ export async function getSettingsData() {
       sessions: r.sessions.map((s) => ({ ...s, openingAmount: money(s.openingAmount) })),
     })),
   };
+}
+
+export async function getSuspendedSalesData() {
+  const { store } = await requireRetailContext();
+  const sales = await db.retailSale.findMany({
+    where: { storeId: store.id, status: "SUSPENDED" },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    include: {
+      customer: { select: { id: true, name: true, documentId: true } },
+      items: true,
+    },
+  });
+  return sales.map((sale) => ({
+    id: sale.id,
+    code: sale.code,
+    customerId: sale.customerId,
+    customerName: sale.customer?.name ?? "Cliente Rápido",
+    discount: money(sale.discount),
+    total: money(sale.total),
+    note: sale.note,
+    createdAt: sale.createdAt,
+    items: sale.items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: money(item.unitPrice),
+      lineTotal: money(item.lineTotal),
+    })),
+  }));
 }
 
 export async function getCashSummaryData() {
@@ -306,9 +340,8 @@ export async function getCashSummaryData() {
 
 export async function getStatisticsData() {
   const { store } = await requireRetailContext();
-  const start = new Date();
-  start.setDate(start.getDate() - 30);
-  start.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayInTimezone();
+  const start = new Date(todayStart.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const [sales, purchases, topProducts] = await Promise.all([
     db.retailSale.aggregate({

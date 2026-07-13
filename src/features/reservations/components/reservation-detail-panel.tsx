@@ -59,7 +59,7 @@ import {
   holdDepositPercentLabel,
 } from "@/lib/reservations/reservation-hold-display";
 import { formatPropertyLabel, formatPropertyUnit } from "@/lib/property-display";
-import { isOtaImportedReservation } from "@/lib/reservations/reservation-ota";
+import { isOtaImportedReservation, DIRECT_RESERVATION_DELETE_CONFIRM_MESSAGE } from "@/lib/reservations/reservation-ota";
 import { isPaymentLinkEligibleReservation } from "@/lib/reservations/reservation-payment-links";
 import { buildAccessCodeGuestMessage } from "@/lib/access-code-guest-message";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
@@ -437,10 +437,14 @@ export function ReservationDetailPanel({
   ];
 
   async function handleDelete() {
-    if (!confirm("¿Eliminar esta reserva?")) return;
+    if (!confirm(DIRECT_RESERVATION_DELETE_CONFIRM_MESSAGE)) return;
     setDeleting(true);
     try {
-      await deleteReservationAction(reservation.id);
+      const result = await deleteReservationAction(reservation.id);
+      if (!result.success) {
+        toast.error(result.error ?? "No se pudo eliminar");
+        return;
+      }
       toast.success("Reserva eliminada");
       onDeleted(reservation.id);
       onClose();
@@ -666,20 +670,9 @@ export function ReservationDetailPanel({
               </span>
               <span className="inline-flex items-center gap-1">
                 <User className="h-3.5 w-3.5" aria-hidden />
-                {reservation.platform === "AIRBNB" &&
-                emailEnrichment?.guestCountTotal != null ? (
-                  <>
-                    {emailEnrichment.adultCount ?? 0} adultos
-                    {(emailEnrichment.childCount ?? 0) > 0
-                      ? `, ${emailEnrichment.childCount} niños`
-                      : ""}
-                  </>
-                ) : (
-                  <>
-                    {reservation.adults} adultos
-                    {reservation.children > 0 ? `, ${reservation.children} niños` : ""}
-                  </>
-                )}
+                {reservation.adults} adultos
+                {reservation.children > 0 ? `, ${reservation.children} niños` : ""}
+                {reservation.infants > 0 ? `, ${reservation.infants} bebés` : ""}
               </span>
             </p>
             <p className="mt-1.5 text-sm font-semibold tabular-nums text-foreground">

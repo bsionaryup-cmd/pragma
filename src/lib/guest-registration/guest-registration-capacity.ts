@@ -7,8 +7,11 @@ export type GuestRegistrationCapacityInput = {
   children: number;
   infants: number;
   propertyMaxGuests?: number | null;
+  /** @deprecated Reservation is the SSOT; ignored. */
   guestCountTotal?: number | null;
+  /** @deprecated Reservation is the SSOT; ignored. */
   enrichedAdultCount?: number | null;
+  /** @deprecated Reservation is the SSOT; ignored. */
   enrichedChildCount?: number | null;
   guestRegistrationCompletedAt?: Date | null;
   registeredCount?: number;
@@ -19,15 +22,10 @@ export function getGuestRegistrationOccupancyBase(input: {
   adults: number;
   children: number;
   infants: number;
-  guestCountTotal?: number | null;
   registeredCount?: number;
 }): number {
   const base = Math.max(0, input.adults) + Math.max(0, input.children);
   if (base > 0) return base;
-
-  if (input.guestCountTotal != null && input.guestCountTotal > 0) {
-    return input.guestCountTotal;
-  }
 
   const totalCurrent =
     Math.max(0, input.adults) +
@@ -58,34 +56,12 @@ export function isReservationGuestDataComplete(input: {
 function getReservationRegistrationLimit(
   input: GuestRegistrationCapacityInput,
 ): number {
-  const fromReservation = Math.max(0, input.adults) + Math.max(0, input.children);
-  const fromEnrichedBreakdown =
-    Math.max(0, input.enrichedAdultCount ?? 0) +
-    Math.max(0, input.enrichedChildCount ?? 0);
-
-  if (fromEnrichedBreakdown > 0) {
-    return Math.max(fromEnrichedBreakdown, fromReservation);
-  }
-
-  let limit = getGuestRegistrationOccupancyBase({
+  return getGuestRegistrationOccupancyBase({
     adults: input.adults,
     children: input.children,
     infants: input.infants,
-    guestCountTotal: input.guestCountTotal,
     registeredCount: input.registeredCount,
   });
-
-  // Airbnb iCal 1/0/0: usar total enriquecido del correo, no la capacidad del alojamiento.
-  if (
-    input.platform === BookingPlatform.AIRBNB &&
-    isDefaultReservationOccupancy(input.adults, input.children, input.infants) &&
-    input.guestCountTotal != null &&
-    input.guestCountTotal > limit
-  ) {
-    limit = input.guestCountTotal;
-  }
-
-  return limit;
 }
 
 export function getGuestRegistrationMaxCapacity(

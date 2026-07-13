@@ -20,10 +20,12 @@ export default async function RetailSuppliersPage() {
   return (
     <TiendasOnScreen title="Proveedores" backHref="/intiendas/inventario">
       <TiendasOnActionBar>
-        <p className="text-base text-[#718096]">{suppliers.length} proveedores</p>
+        <p className="text-base text-[#718096]">
+          {suppliers.length} proveedores · alimentan Pedidos e Inventory Intelligence
+        </p>
       </TiendasOnActionBar>
 
-      <div className="grid gap-4 p-4 xl:grid-cols-[1fr_340px]">
+      <div className="grid gap-4 p-4 xl:grid-cols-[1fr_360px]">
         <TiendasOnTable>
           <TiendasOnTableHead>
             <TiendasOnTh className="text-base">Proveedor</TiendasOnTh>
@@ -38,10 +40,16 @@ export default async function RetailSuppliersPage() {
                 <TiendasOnTd className="text-base">
                   <p>{supplier.contactName || "—"}</p>
                   <p className="text-sm text-[#94a3b8]">
-                    {supplier.phone || supplier.email || "Sin contacto"}
+                    WA: {supplier.whatsapp || supplier.phone || "—"}
+                  </p>
+                  <p className="text-sm text-[#94a3b8]">{supplier.email || "Sin correo"}</p>
+                </TiendasOnTd>
+                <TiendasOnTd className="text-base">
+                  <p>{supplier.leadTimeDays} días promedio</p>
+                  <p className="text-sm text-[#94a3b8]">
+                    {supplier.usualDeliveryDows || "Sin días habituales"}
                   </p>
                 </TiendasOnTd>
-                <TiendasOnTd className="text-base">{supplier.leadTimeDays} días</TiendasOnTd>
                 <TiendasOnTd>
                   <details>
                     <summary className="cursor-pointer text-base text-pragma-electric">Editar</summary>
@@ -49,6 +57,7 @@ export default async function RetailSuppliersPage() {
                       <input type="hidden" name="id" value={supplier.id} />
                       <input name="name" defaultValue={supplier.name} required className="h-9 w-full rounded border px-2 text-sm" />
                       <input name="contactName" defaultValue={supplier.contactName ?? ""} placeholder="Contacto" className="h-9 w-full rounded border px-2 text-sm" />
+                      <input name="whatsapp" defaultValue={supplier.whatsapp ?? ""} placeholder="WhatsApp" className="h-9 w-full rounded border px-2 text-sm" />
                       <input name="phone" defaultValue={supplier.phone ?? ""} placeholder="Teléfono" className="h-9 w-full rounded border px-2 text-sm" />
                       <input name="email" defaultValue={supplier.email ?? ""} placeholder="Correo" className="h-9 w-full rounded border px-2 text-sm" />
                       <select name="leadTimeDays" defaultValue={String(supplier.leadTimeDays)} className="h-9 w-full rounded border px-2 text-sm">
@@ -56,6 +65,19 @@ export default async function RetailSuppliersPage() {
                           <option key={d} value={d}>{d === 0 ? "Mismo día" : `${d} días`}</option>
                         ))}
                       </select>
+                      <input
+                        name="usualDeliveryDows"
+                        defaultValue={supplier.usualDeliveryDows ?? ""}
+                        placeholder="Días habituales (ej. Lun,Mié,Vie)"
+                        className="h-9 w-full rounded border px-2 text-sm"
+                      />
+                      <textarea
+                        name="notes"
+                        defaultValue={supplier.notes ?? ""}
+                        placeholder="Observaciones"
+                        rows={2}
+                        className="w-full rounded border px-2 py-1 text-sm"
+                      />
                       <TiendasOnPrimaryButton type="submit" className="h-9 w-full text-sm">Guardar</TiendasOnPrimaryButton>
                     </form>
                   </details>
@@ -74,16 +96,28 @@ export default async function RetailSuppliersPage() {
           <form action={createSupplierAction} className="space-y-3">
             <input name="name" placeholder="Nombre comercial" required className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base" />
             <input name="contactName" placeholder="Persona de contacto" className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base" />
+            <input name="whatsapp" type="tel" placeholder="WhatsApp" className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base" />
             <input name="phone" type="tel" placeholder="Teléfono" className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base" />
             <input name="email" type="email" placeholder="Correo" className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base" />
             <label className="block text-sm text-[#718096]">
-              Días de entrega
+              Tiempo promedio de entrega
               <select name="leadTimeDays" defaultValue="3" className="mt-1 h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base">
                 {LEAD_OPTIONS.map((d) => (
                   <option key={d} value={d}>{d === 0 ? "Mismo día" : `${d} días`}</option>
                 ))}
               </select>
             </label>
+            <input
+              name="usualDeliveryDows"
+              placeholder="Días habituales (ej. Lun,Mié,Vie)"
+              className="h-11 w-full rounded-md border border-[#c5ced8] px-3 text-base"
+            />
+            <textarea
+              name="notes"
+              placeholder="Observaciones"
+              rows={2}
+              className="w-full rounded-md border border-[#c5ced8] px-3 py-2 text-base"
+            />
             <TiendasOnPrimaryButton type="submit" className="w-full text-base">
               Guardar proveedor
             </TiendasOnPrimaryButton>

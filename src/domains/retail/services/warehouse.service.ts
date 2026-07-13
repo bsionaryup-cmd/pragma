@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { enqueueStockChanged } from "@/domains/retail-intelligence/services/outbox.publisher";
 
 export async function ensureDefaultWarehouse(storeId: string) {
   const existing = await db.retailWarehouse.findFirst({
@@ -134,6 +135,8 @@ export async function transferStock(input: {
         createdByUserId: input.userId,
       },
     });
+
+    await enqueueStockChanged(tx, input.storeId, product.id, "STOCK_TRANSFERRED");
 
     return { ok: true as const };
   });

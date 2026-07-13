@@ -29,8 +29,10 @@ export type SupplierInput = {
   name: string;
   contactName?: string | null;
   phone?: string | null;
+  whatsapp?: string | null;
   email?: string | null;
   leadTimeDays?: number;
+  usualDeliveryDows?: string | null;
   notes?: string | null;
 };
 

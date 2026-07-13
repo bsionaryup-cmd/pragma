@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, Network } from "lucide-react";
+import { LogOut } from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
@@ -55,12 +55,12 @@ export function TiendasOnHub({
           <span className="rounded bg-pragma-electric px-2.5 py-1 text-[11px] font-bold uppercase text-white">
             PRAGMA
           </span>
-          <Network className="size-5 text-pragma-electric" />
           <ClerkSignOutButton
             redirectUrl="/intiendas/login"
             variant="ghost"
             className="h-8 w-8 p-0 text-[#5a6f85] hover:text-pragma-electric"
           >
+            <span className="sr-only">Cerrar sesión</span>
             <LogOut className="size-5" />
           </ClerkSignOutButton>
         </div>

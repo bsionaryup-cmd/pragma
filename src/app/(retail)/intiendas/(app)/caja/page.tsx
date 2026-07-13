@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { HelpCircle, Receipt, ShoppingBag, Wallet } from "lucide-react";
+import { Receipt, ShoppingBag, Wallet } from "lucide-react";
 import { closeCashAction } from "@/domains/retail/actions/retail.actions";
 import { getCashSummaryData } from "@/domains/retail/services/retail-ui.service";
 import {
@@ -19,7 +19,6 @@ export default async function RetailCashSummaryPage() {
           title={data.registerName}
           accent="amber"
           icon={<Wallet className="size-5 text-[#d69e2e]" />}
-          action={<HelpCircle className="size-4 text-[#94a3b8]" />}
         >
           <TiendasOnSummaryRow label="Usuario" value={data.userName} />
           <TiendasOnSummaryRow
@@ -63,7 +62,6 @@ export default async function RetailCashSummaryPage() {
             title="Compras"
             accent="rose"
             icon={<ShoppingBag className="size-5 text-red-500" />}
-            action={<HelpCircle className="size-4 text-[#94a3b8]" />}
           >
             <TiendasOnSummaryRow
               label="Compras en Efectivo"

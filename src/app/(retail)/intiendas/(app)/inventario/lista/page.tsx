@@ -34,7 +34,7 @@ export default async function RetailProductsListPage() {
           <TiendasOnTableHead>
             <TiendasOnTh className="text-base">Producto</TiendasOnTh>
             <TiendasOnTh className="text-base">Precio</TiendasOnTh>
-            <TiendasOnTh className="text-base">Stock</TiendasOnTh>
+            <TiendasOnTh className="text-base">Existencia</TiendasOnTh>
             <TiendasOnTh className="text-base">Mín / Ideal</TiendasOnTh>
             <TiendasOnTh className="text-base">Acciones</TiendasOnTh>
           </TiendasOnTableHead>
@@ -97,7 +97,7 @@ export default async function RetailProductsListPage() {
                           <input name="minStock" type="number" defaultValue={product.minStock} className="h-9 rounded border px-2" />
                           <input name="idealStock" type="number" defaultValue={product.idealStock} className="h-9 rounded border px-2" />
                         </div>
-                        <input name="imageUrl" defaultValue={product.imageUrl ?? ""} placeholder="URL foto" className="h-9 w-full rounded border px-2" />
+                          <input name="imageUrl" defaultValue={product.imageUrl ?? ""} placeholder="URL foto" className="h-9 w-full rounded border px-2" />
                         <select name="categoryId" defaultValue={product.categoryId ?? ""} className="h-9 w-full rounded border px-2">
                           <option value="">Sin categoría</option>
                           {categories.map((c) => (
@@ -110,9 +110,6 @@ export default async function RetailProductsListPage() {
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}
                         </select>
-                        <label className="flex items-center gap-2">
-                          <input type="checkbox" name="isFavorite" defaultChecked={product.isFavorite} /> Favorito
-                        </label>
                         <TiendasOnPrimaryButton type="submit" className="h-9 w-full text-sm">Guardar</TiendasOnPrimaryButton>
                       </form>
                     </details>
@@ -153,12 +150,9 @@ export default async function RetailProductsListPage() {
                 <input name="cost" type="number" min="0" step="0.01" placeholder="Costo" className="h-11 rounded border px-3 text-base" />
                 <input name="price" type="number" min="0" step="0.01" placeholder="Precio" required className="h-11 rounded border px-3 text-base" />
                 <input name="stock" type="number" placeholder="Existencia" className="h-11 rounded border px-3 text-base" />
-                <input name="minStock" type="number" placeholder="Stock mínimo" className="h-11 rounded border px-3 text-base" />
-                <input name="idealStock" type="number" placeholder="Stock ideal" className="h-11 rounded border px-3 text-base" />
+                <input name="minStock" type="number" placeholder="Existencia mínima" className="h-11 rounded border px-3 text-base" />
+                <input name="idealStock" type="number" placeholder="Existencia ideal" className="h-11 rounded border px-3 text-base" />
               </div>
-              <label className="flex items-center gap-2 text-base">
-                <input type="checkbox" name="isFavorite" /> Favorito en POS
-              </label>
               <TiendasOnPrimaryButton type="submit" className="w-full text-base">
                 Guardar producto
               </TiendasOnPrimaryButton>

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { generatePurchaseCode } from "../lib/codes";
 import { roundMoney } from "../lib/money";
 import type { PurchaseOrderInput, ReceivePurchaseItemInput } from "../types";
+import { enqueuePurchaseReceived } from "@/domains/retail-intelligence/services/outbox.publisher";
 
 export function listOrders(storeId: string) {
   return db.retailPurchaseOrder.findMany({
@@ -16,7 +17,7 @@ export async function getOrder(storeId: string, id: string) {
     where: { id, storeId },
     include: { supplier: true, items: { include: { product: true } } },
   });
-  if (!order) throw new Error("Orden de compra no encontrada");
+  if (!order) throw new Error("Pedido de compra no encontrado");
   return order;
 }
 
@@ -71,7 +72,7 @@ export async function approveOrder(storeId: string, id: string) {
   const order = await db.retailPurchaseOrder.findFirst({
     where: { id, storeId, status: { in: ["DRAFT", "SUGGESTED"] } },
   });
-  if (!order) throw new Error("La orden no se puede aprobar");
+  if (!order) throw new Error("El pedido no se puede aprobar");
   return db.retailPurchaseOrder.update({
     where: { id },
     data: { status: "APPROVED" },
@@ -89,7 +90,7 @@ export async function receiveOrder(
       where: { id, storeId, status: { in: ["APPROVED", "SENT"] } },
       include: { items: true },
     });
-    if (!order) throw new Error("La orden no está disponible para recepción");
+    if (!order) throw new Error("El pedido no está disponible para recepción");
     const quantities = new Map(receivedItems?.map((item) => [item.itemId, item.receivedQuantity]));
 
     for (const item of order.items) {
@@ -135,6 +136,10 @@ export async function receiveOrder(
         data: { lastPurchaseAt: new Date() },
       });
     }
+    const productIds = order.items
+      .map((item) => item.productId)
+      .filter(Boolean) as string[];
+    await enqueuePurchaseReceived(tx, storeId, order.id, order.supplierId, productIds);
     return tx.retailPurchaseOrder.update({
       where: { id: order.id },
       data: { status: "RECEIVED", receivedAt: new Date() },
@@ -147,7 +152,7 @@ export async function cancelOrder(storeId: string, id: string) {
   const order = await db.retailPurchaseOrder.findFirst({
     where: { id, storeId, status: { notIn: ["RECEIVED", "CANCELLED"] } },
   });
-  if (!order) throw new Error("La orden no se puede cancelar");
+  if (!order) throw new Error("El pedido no se puede cancelar");
   return db.retailPurchaseOrder.update({
     where: { id },
     data: { status: "CANCELLED" },

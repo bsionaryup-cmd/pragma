@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   isHistoricalBackfillUid,
+  isSuspiciousEmptyBookableIcalFeed,
   shouldCancelStaleIcalReservation,
 } from "@/lib/airbnb/ical-sync-utils";
 
@@ -73,6 +74,30 @@ describe("reservation integrity — iCal stale cancellation guard", () => {
         status: "CONFIRMED",
         checkOut: pastCheckOut,
         today,
+      }),
+      false,
+    );
+  });
+
+  it("aborts mass-cancel when feed has zero bookable events but local futures exist", () => {
+    assert.equal(
+      isSuspiciousEmptyBookableIcalFeed({
+        bookableEventCount: 0,
+        staleCancelCandidateCount: 3,
+      }),
+      true,
+    );
+    assert.equal(
+      isSuspiciousEmptyBookableIcalFeed({
+        bookableEventCount: 0,
+        staleCancelCandidateCount: 0,
+      }),
+      false,
+    );
+    assert.equal(
+      isSuspiciousEmptyBookableIcalFeed({
+        bookableEventCount: 2,
+        staleCancelCandidateCount: 1,
       }),
       false,
     );

@@ -396,6 +396,7 @@ export async function generateInboxAiDraftText(input: {
           { role: "user", content: userPrompt },
         ],
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

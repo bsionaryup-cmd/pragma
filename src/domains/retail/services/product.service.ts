@@ -1,4 +1,9 @@
 import { db } from "@/lib/db";
+import { enqueueStockChanged } from "@/domains/retail-intelligence/services/outbox.publisher";
+import {
+  assertStoreOwnedCategory,
+  assertStoreOwnedSupplier,
+} from "@/domains/retail/lib/store-owned";
 import type { ProductInput } from "../types";
 
 const productInclude = {
@@ -46,6 +51,12 @@ export async function getProduct(storeId: string, id: string) {
 export async function createProduct(storeId: string, input: ProductInput, userId?: string) {
   if (!input.name.trim()) throw new Error("El nombre es obligatorio");
   const stock = Math.max(0, Math.trunc(input.stock ?? 0));
+  const categoryId = await assertStoreOwnedCategory(storeId, input.categoryId);
+  const primarySupplierId = await assertStoreOwnedSupplier(storeId, input.primarySupplierId);
+  const secondarySupplierId = await assertStoreOwnedSupplier(
+    storeId,
+    input.secondarySupplierId,
+  );
 
   return db.$transaction(async (tx) => {
     const product = await tx.retailProduct.create({
@@ -55,6 +66,9 @@ export async function createProduct(storeId: string, input: ProductInput, userId
         name: input.name.trim(),
         sku: input.sku?.trim() || null,
         barcode: input.barcode?.trim() || null,
+        categoryId,
+        primarySupplierId,
+        secondarySupplierId,
         cost: input.cost ?? 0,
         price: input.price ?? 0,
         stock,
@@ -81,7 +95,19 @@ export async function updateProduct(storeId: string, id: string, input: Partial<
   await getProduct(storeId, id);
   const data = { ...input };
   delete data.stock;
-  return db.retailProduct.update({
+  if (data.categoryId !== undefined) {
+    data.categoryId = await assertStoreOwnedCategory(storeId, data.categoryId);
+  }
+  if (data.primarySupplierId !== undefined) {
+    data.primarySupplierId = await assertStoreOwnedSupplier(storeId, data.primarySupplierId);
+  }
+  if (data.secondarySupplierId !== undefined) {
+    data.secondarySupplierId = await assertStoreOwnedSupplier(
+      storeId,
+      data.secondarySupplierId,
+    );
+  }
+  const updated = await db.retailProduct.update({
     where: { id },
     data: {
       ...data,
@@ -90,6 +116,8 @@ export async function updateProduct(storeId: string, id: string, input: Partial<
       barcode: data.barcode === undefined ? undefined : data.barcode?.trim() || null,
     },
   });
+  await enqueueStockChanged(db, storeId, id, "PRODUCT_UPDATED");
+  return updated;
 }
 
 export async function softDeleteProduct(storeId: string, id: string) {
@@ -128,6 +156,7 @@ export async function adjustStock(
         createdByUserId: userId,
       },
     });
+    await enqueueStockChanged(tx, storeId, productId, "STOCK_ADJUSTED");
     return updated;
   });
 }

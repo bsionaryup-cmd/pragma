@@ -1,6 +1,11 @@
 import { CashGateBanner, hasOpenCash } from "@/domains/retail/ui/tiendas-on/cash-gate";
 import { requireRetailContext } from "@/domains/retail/auth/require-retail-context";
-import { getCustomersData, getProductsData, getSettingsData } from "@/domains/retail/services/retail-ui.service";
+import {
+  getCustomersData,
+  getProductsData,
+  getSettingsData,
+  getSuspendedSalesData,
+} from "@/domains/retail/services/retail-ui.service";
 import { TiendasOnPos } from "@/domains/retail/ui/tiendas-on/pos";
 import { TiendasOnScreen } from "@/domains/retail/ui/tiendas-on/screen-shell";
 
@@ -15,10 +20,11 @@ export default async function RetailSalesPage() {
     );
   }
 
-  const [{ products }, customers, settings] = await Promise.all([
+  const [{ products }, customers, settings, suspendedSales] = await Promise.all([
     getProductsData(),
     getCustomersData(),
     getSettingsData(),
+    getSuspendedSalesData(),
   ]);
   const openSession = settings.registers.flatMap((register) => register.sessions)[0];
 
@@ -30,7 +36,7 @@ export default async function RetailSalesPage() {
         price: product.price,
         stock: product.stock,
         barcode: product.barcode,
-        isFavorite: product.isFavorite,
+        sku: product.sku,
         imageUrl: product.imageUrl,
       }))}
       customers={customers.map((customer) => ({
@@ -39,6 +45,7 @@ export default async function RetailSalesPage() {
         creditBalance: customer.creditBalance,
         documentId: customer.documentId,
       }))}
+      suspendedSales={suspendedSales}
       cashSessionId={openSession?.id}
       storeCode={ctx.store.id.slice(-8).toUpperCase()}
     />

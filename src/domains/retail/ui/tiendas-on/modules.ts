@@ -1,9 +1,9 @@
 import {
   BarChart3,
+  ClipboardList,
   FileText,
   LineChart,
   Package,
-  Receipt,
   Settings,
   ShoppingBag,
   ShoppingCart,
@@ -14,6 +14,7 @@ import {
 export const INTIENDAS_MODULES = [
   { id: "ventas", label: "Ventas", href: "/intiendas/ventas", icon: ShoppingCart },
   { id: "compras", label: "Compras", href: "/intiendas/compras", icon: ShoppingBag },
+  { id: "pedidos", label: "Centro de Abastecimiento", href: "/intiendas/pedidos", icon: ClipboardList },
   { id: "clientes", label: "Clientes", href: "/intiendas/clientes", icon: Users },
   { id: "caja", label: "Resumen de caja", href: "/intiendas/caja", icon: Wallet },
   { id: "movimientos", label: "Movimientos", href: "/intiendas/movimientos", icon: LineChart },
@@ -23,4 +24,4 @@ export const INTIENDAS_MODULES = [
   { id: "configuracion", label: "Configuración", href: "/intiendas/configuracion", icon: Settings },
 ] as const;
 
-export const INTIENDAS_VERSION = "1.0.0";
+export const INTIENDAS_VERSION = "1.2.1";

@@ -53,6 +53,24 @@ export async function enforceTenantDashboardAccess(
     if (org?.status === OrganizationStatus.SUSPENDED) {
       redirect("/account-suspended");
     }
+
+    // Retail-only orgs must not enter PMS dashboards (shared Organization model).
+    const [retailStore, propertyCount] = await Promise.all([
+      db.retailStore.findFirst({
+        where: {
+          organizationId: user.organizationId,
+          deletedAt: null,
+          status: "ACTIVE",
+        },
+        select: { id: true },
+      }),
+      db.property.count({
+        where: { organizationId: user.organizationId },
+      }),
+    ]);
+    if (retailStore && propertyCount === 0) {
+      redirect("/intiendas/dashboard");
+    }
   }
 
   return buildTenantContext(user);

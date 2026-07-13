@@ -15,7 +15,7 @@ export default async function RetailInventoryAdjustPage() {
       <TiendasOnTable>
         <TiendasOnTableHead>
           <TiendasOnTh className="text-base">Producto</TiendasOnTh>
-          <TiendasOnTh className="text-base">Stock actual</TiendasOnTh>
+            <TiendasOnTh className="text-base">Existencia actual</TiendasOnTh>
           <TiendasOnTh className="text-base">Ajuste (+/-)</TiendasOnTh>
         </TiendasOnTableHead>
         <tbody>

@@ -125,3 +125,15 @@ export function shouldCancelStaleIcalReservation(input: {
   if (input.checkOut <= input.today) return false;
   return true;
 }
+
+/**
+ * Guard against mass-cancel when the feed has zero bookable VEVENTs
+ * (empty calendar, blocks-only, or parse yielding no reserved stays)
+ * while future Airbnb reservations still exist locally.
+ */
+export function isSuspiciousEmptyBookableIcalFeed(input: {
+  bookableEventCount: number;
+  staleCancelCandidateCount: number;
+}): boolean {
+  return input.bookableEventCount === 0 && input.staleCancelCandidateCount > 0;
+}

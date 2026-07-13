@@ -2,6 +2,10 @@ import { db } from "@/lib/db";
 import { generateSaleCode } from "../lib/codes";
 import { roundMoney } from "../lib/money";
 import type { SaleInput } from "../types";
+import {
+  enqueueSaleCancelled,
+  enqueueSaleCompleted,
+} from "@/domains/retail-intelligence/services/outbox.publisher";
 
 function validateItems(input: SaleInput) {
   if (!input.items.length) throw new Error("La venta debe incluir productos");
@@ -133,6 +137,17 @@ async function createSaleWithStatus(
           data: { creditBalance: { increment: total } },
         });
       }
+      await enqueueSaleCompleted(
+        tx,
+        storeId,
+        sale.id,
+        items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          unitCost: Number(item.unitCost),
+        })),
+      );
     }
     return sale;
   });
@@ -184,6 +199,12 @@ export async function cancelSale(storeId: string, saleId: string, userId?: strin
           });
         }
       }
+      await enqueueSaleCancelled(
+        tx,
+        storeId,
+        sale.id,
+        sale.items.map((i) => i.productId).filter(Boolean) as string[],
+      );
     }
     return tx.retailSale.update({
       where: { id: sale.id },

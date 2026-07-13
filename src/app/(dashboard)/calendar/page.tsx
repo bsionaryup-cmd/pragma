@@ -44,6 +44,9 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const canManagePayments =
     !billing.locked &&
     hasPermission(auth.role as AppUserRole, "finance:write");
+  const canDelete =
+    !billing.locked &&
+    hasPermission(auth.role as AppUserRole, "reservations:delete");
   const propertyOptions = data.properties.map((property) => ({
     id: property.id,
     name: property.name,
@@ -64,6 +67,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <MultiCalendar
         data={data}
         canWrite={canWrite}
+        canDelete={canDelete}
         canManageGuestRegistration={canManageGuestRegistration}
         canManagePayments={canManagePayments}
         propertyOptions={propertyOptions}

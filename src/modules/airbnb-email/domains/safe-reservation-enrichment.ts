@@ -2,6 +2,10 @@ import type { Prisma } from "@prisma/client";
 import { AirbnbEmailEventKind, AirbnbEmailMatchMethod } from "@prisma/client";
 import { airbnbEmailLog } from "@/lib/airbnb-email/airbnb-email-logger";
 import { resolveAuthoritativeHostPayout } from "@/lib/finance/resolve-authoritative-host-payout";
+import {
+  getLatestAppliedOccupancyEventAt,
+  resolveOccupancyEnrichmentUpdate,
+} from "@/lib/reservations/reservation-occupancy-sync";
 import { db } from "@/lib/db";
 import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
 import { isHostPayoutConsistentWithGuestTotal } from "@/modules/airbnb-email/parsing/reservation-financials-extract";
@@ -284,6 +288,8 @@ export async function applySafeReservationEnrichment(input: {
   eventKind?: AirbnbEmailEventKind;
   mode?: SafeEnrichmentMode;
   tx?: Prisma.TransactionClient;
+  /** Timestamp del correo/audit; evita que eventos viejos sobrescriban ocupación reciente. */
+  sourceEventAt?: Date | null;
 }): Promise<Record<string, string | number>> {
   const dbClient = input.tx ?? db;
   const mode = input.mode ?? "reservation";
@@ -389,42 +395,35 @@ export async function applySafeReservationEnrichment(input: {
         skipped.push("guestPhone");
       }
 
-      const defaultOccupancy =
-        reservation.adults === 1 &&
-        reservation.children === 0 &&
-        reservation.infants === 0;
+      const latestAppliedOccupancyEventAt = await getLatestAppliedOccupancyEventAt(
+        dbClient,
+        input.match.reservationId,
+      );
+      const occupancyResult = resolveOccupancyEnrichmentUpdate({
+        eventKind: input.eventKind,
+        reservation: {
+          adults: reservation.adults,
+          children: reservation.children,
+          infants: reservation.infants,
+        },
+        signals: input.signals,
+        sourceEventAt: input.sourceEventAt,
+        latestAppliedOccupancyEventAt,
+      });
 
-      if (defaultOccupancy) {
-        const adultCount = input.signals.adultCount ?? null;
-        const childCount = input.signals.childCount ?? null;
-        const infantCount = input.signals.infantCount ?? null;
-
-        if (adultCount != null && adultCount > 0) {
-          updates.adults = adultCount;
-          applied.adults = adultCount;
-          if (childCount != null) {
-            updates.children = childCount;
-            applied.children = childCount;
-          }
-          if (infantCount != null) {
-            updates.infants = infantCount;
-            applied.infants = infantCount;
-          }
-        } else {
-          const guestTotal =
-            input.signals.guestCountTotal ??
-            input.signals.guestCount ??
-            null;
-          if (guestTotal != null && guestTotal > 0 && guestTotal !== reservation.adults) {
-            updates.adults = guestTotal;
-            applied.adults = guestTotal;
-          } else if (guestTotal != null) {
-            skipped.push("adults");
-          }
-        }
-      } else {
-        skipped.push("adults");
+      if (occupancyResult.updates.adults != null) {
+        updates.adults = occupancyResult.updates.adults;
+        applied.adults = occupancyResult.applied.adults!;
       }
+      if (occupancyResult.updates.children != null) {
+        updates.children = occupancyResult.updates.children;
+        applied.children = occupancyResult.applied.children!;
+      }
+      if (occupancyResult.updates.infants != null) {
+        updates.infants = occupancyResult.updates.infants;
+        applied.infants = occupancyResult.applied.infants!;
+      }
+      skipped.push(...occupancyResult.skipped);
     } else {
       skipped.push("guestFieldsLocked");
     }

@@ -14,6 +14,12 @@ import {
   updateWarehouse,
 } from "@/domains/retail/services/warehouse.service";
 import type { SaleInput } from "@/domains/retail/types";
+import { enqueueStockChanged } from "@/domains/retail-intelligence/services/outbox.publisher";
+import {
+  assertStoreOwnedCashRegister,
+  assertStoreOwnedCategory,
+  assertStoreOwnedSupplier,
+} from "@/domains/retail/lib/store-owned";
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
 const number = (data: FormData, key: string) => Number(data.get(key) ?? 0);
@@ -33,6 +39,14 @@ export async function createProductAction(data: FormData) {
   const name = text(data, "name");
   if (!name) throw new Error("El nombre del producto es obligatorio.");
   const stock = Math.max(0, Math.trunc(number(data, "stock")));
+  const categoryId = await assertStoreOwnedCategory(
+    store.id,
+    optional(text(data, "categoryId")),
+  );
+  const primarySupplierId = await assertStoreOwnedSupplier(
+    store.id,
+    optional(text(data, "primarySupplierId")),
+  );
   await db.$transaction(async (tx) => {
     const product = await tx.retailProduct.create({
       data: {
@@ -40,15 +54,14 @@ export async function createProductAction(data: FormData) {
         name,
         sku: optional(text(data, "sku")),
         barcode: optional(text(data, "barcode")),
-        categoryId: optional(text(data, "categoryId")),
-        primarySupplierId: optional(text(data, "primarySupplierId")),
+        categoryId,
+        primarySupplierId,
         cost: Math.max(0, number(data, "cost")),
         price: Math.max(0, number(data, "price")),
         stock,
         minStock: Math.max(0, Math.trunc(number(data, "minStock"))),
         idealStock: Math.max(0, Math.trunc(number(data, "idealStock"))),
         imageUrl: optional(text(data, "imageUrl")),
-        isFavorite: data.get("isFavorite") === "on",
       },
     });
     if (stock) {
@@ -72,20 +85,27 @@ export async function updateProductAction(data: FormData) {
   const id = text(data, "id");
   const name = text(data, "name");
   if (!id || !name) throw new Error("Producto e nombre son obligatorios.");
+  const categoryId = await assertStoreOwnedCategory(
+    store.id,
+    optional(text(data, "categoryId")),
+  );
+  const primarySupplierId = await assertStoreOwnedSupplier(
+    store.id,
+    optional(text(data, "primarySupplierId")),
+  );
   await db.retailProduct.update({
     where: { id, storeId: store.id },
     data: {
       name,
       sku: optional(text(data, "sku")),
       barcode: optional(text(data, "barcode")),
-      categoryId: optional(text(data, "categoryId")),
-      primarySupplierId: optional(text(data, "primarySupplierId")),
+      categoryId,
+      primarySupplierId,
       cost: Math.max(0, number(data, "cost")),
       price: Math.max(0, number(data, "price")),
       minStock: Math.max(0, Math.trunc(number(data, "minStock"))),
       idealStock: Math.max(0, Math.trunc(number(data, "idealStock"))),
       imageUrl: optional(text(data, "imageUrl")),
-      isFavorite: data.get("isFavorite") === "on",
     },
   });
   refresh();
@@ -117,7 +137,7 @@ export async function adjustStockAction(data: FormData) {
       where: { id: productId },
       data: { stock: { increment: quantity } },
     });
-    await tx.retailInventoryMovement.create({
+    const movement = await tx.retailInventoryMovement.create({
       data: {
         storeId: context.store.id,
         productId,
@@ -128,6 +148,7 @@ export async function adjustStockAction(data: FormData) {
         createdByUserId: context.userId,
       },
     });
+    await enqueueStockChanged(tx, context.store.id, productId, "STOCK_ADJUSTED", movement.id);
   });
   refresh();
 }
@@ -142,8 +163,11 @@ export async function createSupplierAction(data: FormData) {
       name,
       contactName: optional(text(data, "contactName")),
       phone: optional(text(data, "phone")),
+      whatsapp: optional(text(data, "whatsapp")),
       email: optional(text(data, "email")),
       leadTimeDays: Math.max(0, Math.trunc(number(data, "leadTimeDays"))),
+      usualDeliveryDows: optional(text(data, "usualDeliveryDows")),
+      notes: optional(text(data, "notes")),
     },
   });
   refresh();
@@ -160,10 +184,17 @@ export async function updateSupplierAction(data: FormData) {
       name,
       contactName: optional(text(data, "contactName")),
       phone: optional(text(data, "phone")),
+      whatsapp: optional(text(data, "whatsapp")),
       email: optional(text(data, "email")),
       leadTimeDays: Math.max(0, Math.trunc(number(data, "leadTimeDays"))),
+      usualDeliveryDows: optional(text(data, "usualDeliveryDows")),
+      notes: optional(text(data, "notes")),
     },
   });
+  const { enqueueSupplierUpdated } = await import(
+    "@/domains/retail-intelligence/services/outbox.publisher"
+  );
+  await enqueueSupplierUpdated(db, store.id, id);
   refresh();
 }
 
@@ -265,7 +296,10 @@ export async function createSimplePurchaseAction(data: FormData) {
   const concept = text(data, "concept") || "OTRO";
   const description = text(data, "description");
   const amount = Math.max(0, number(data, "amount"));
-  const supplierId = optional(text(data, "supplierId"));
+  const supplierId = await assertStoreOwnedSupplier(
+    context.store.id,
+    optional(text(data, "supplierId")),
+  );
   const productId = optional(text(data, "productId"));
   const quantity = Math.max(1, Math.trunc(number(data, "quantity") || 1));
   if (!description) throw new Error("Describe la compra.");
@@ -273,7 +307,7 @@ export async function createSimplePurchaseAction(data: FormData) {
 
   if (productId) {
     const unitCost = amount / quantity;
-    await createDraftOrder(
+    const order = await createDraftOrder(
       context.store.id,
       {
         supplierId,
@@ -282,6 +316,8 @@ export async function createSimplePurchaseAction(data: FormData) {
       },
       context.userId,
     );
+    await approveOrder(context.store.id, order.id);
+    await receiveOrder(context.store.id, order.id, undefined, context.userId);
   } else {
     await db.retailPurchaseOrder.create({
       data: {
@@ -395,6 +431,8 @@ export async function openCashAction(data: FormData) {
       data: { storeId: context.store.id, name: "Caja principal" },
     });
     registerId = register.id;
+  } else {
+    registerId = await assertStoreOwnedCashRegister(context.store.id, registerId);
   }
   await db.retailCashSession.create({
     data: {

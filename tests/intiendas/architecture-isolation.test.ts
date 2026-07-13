@@ -24,6 +24,7 @@ const FORBIDDEN_PMS = [
 
 const FORBIDDEN_RETAIL_FROM_PMS = [
   /@\/domains\/retail\b/,
+  /@\/domains\/retail-intelligence\b/,
   /@\/modules\/retail-admin\b/,
   /@\/features\/retail-admin\b/,
   /@\/components\/retail-admin\b/,
@@ -34,6 +35,7 @@ describe("architecture isolation audit", () => {
   it("Retail domain never imports PMS", async () => {
     const roots = [
       path.join(process.cwd(), "src", "domains", "retail"),
+      path.join(process.cwd(), "src", "domains", "retail-intelligence"),
       path.join(process.cwd(), "src", "modules", "retail-admin"),
       path.join(process.cwd(), "src", "features", "retail-admin"),
       path.join(process.cwd(), "src", "components", "retail-admin"),
@@ -93,5 +95,61 @@ describe("architecture isolation audit", () => {
       }
     }
     assert.deepEqual(violations, []);
+  });
+
+  it("POS never imports Inventory Intelligence", async () => {
+    const posPath = path.join(
+      process.cwd(),
+      "src",
+      "domains",
+      "retail",
+      "ui",
+      "tiendas-on",
+      "pos.tsx",
+    );
+    const source = await readFile(posPath, "utf8");
+    assert.equal(/retail-intelligence/.test(source), false);
+    assert.equal(/ai-engine/.test(source), false);
+  });
+
+  it("retail-intelligence never imports PMS or @/domains/retail business modules", async () => {
+    const root = path.join(process.cwd(), "src", "domains", "retail-intelligence");
+    const files = await walk(root);
+    const violations: string[] = [];
+    const forbidden = [
+      /@\/domains\/retail\//,
+      /@\/modules\/(?!qr-mobility|retail-admin|sales-console)/,
+      /@\/services\/(reservations|properties|finance|calendar|airbnb|ttlock|cleaning|guests|novedades)\b/,
+      /@\/app\/\(dashboard\)/,
+    ];
+    for (const file of files) {
+      const source = await readFile(file, "utf8");
+      for (const pattern of forbidden) {
+        if (pattern.test(source)) {
+          violations.push(`${path.relative(process.cwd(), file)} → ${pattern}`);
+        }
+      }
+    }
+    assert.deepEqual(violations, []);
+  });
+
+  it("wired product/cash/purchase actions assert store-owned related IDs", async () => {
+    const source = await readFile(
+      path.join(process.cwd(), "src", "domains", "retail", "actions", "retail.actions.ts"),
+      "utf8",
+    );
+    assert.match(source, /assertStoreOwnedCategory/);
+    assert.match(source, /assertStoreOwnedSupplier/);
+    assert.match(source, /assertStoreOwnedCashRegister/);
+  });
+
+  it("Compras page does not run intelligence engine", async () => {
+    const compras = await readFile(
+      path.join(process.cwd(), "src", "app", "(retail)", "intiendas", "(app)", "compras", "page.tsx"),
+      "utf8",
+    );
+    assert.equal(/analyzeAndSuggestPurchases/.test(compras), false);
+    assert.equal(/retail-intelligence/.test(compras), false);
+    assert.equal(/getPedidosDashboard/.test(compras), false);
   });
 });

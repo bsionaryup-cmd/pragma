@@ -65,6 +65,7 @@ const ReservationDrawer = dynamic(
 type MultiCalendarProps = {
   data: CalendarDataDto;
   canWrite: boolean;
+  canDelete?: boolean;
   canManageGuestRegistration?: boolean;
   canManagePayments?: boolean;
   propertyOptions: PropertyOption[];
@@ -75,6 +76,7 @@ type MultiCalendarProps = {
 export function MultiCalendar({
   data,
   canWrite,
+  canDelete = false,
   canManageGuestRegistration = canWrite,
   canManagePayments = false,
   propertyOptions,
@@ -782,6 +784,7 @@ export function MultiCalendar({
         reservation={drawerMode === "detail" ? selectedReservation : null}
         properties={propertyOptions}
         canWrite={canWrite}
+        canDelete={canDelete}
         canManageGuestRegistration={canManageGuestRegistration}
         canManagePayments={canManagePayments}
         initialCreateValues={createDefaults ?? undefined}

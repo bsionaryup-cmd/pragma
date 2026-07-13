@@ -14,7 +14,6 @@ import {
 } from "@/lib/platform/tenant-data-scope";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
-import { getAirbnbEnrichedGuestCountByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
 
 export type DashboardStats = {
   activeReservations: number;
@@ -118,7 +117,6 @@ export type PanelReservationRow = {
 type PanelReservationWithPrimaryGuest = PanelReservation & {
   primaryGuestName: string | null;
   airbnbEnrichmentGuestName: string | null;
-  airbnbEnrichmentGuestCount: number | null;
 };
 
 async function loadPanelReservationEnrichmentMaps(reservationIds: string[]) {
@@ -126,12 +124,11 @@ async function loadPanelReservationEnrichmentMaps(reservationIds: string[]) {
     return {
       primaryGuestNameByReservation: new Map<string, string>(),
       airbnbGuestNameByReservation: new Map<string, string>(),
-      airbnbGuestCountByReservation: new Map<string, number>(),
     };
   }
 
   const uniqueIds = [...new Set(reservationIds)];
-  const [primaryGuests, guestByReservation, countByReservation] = await Promise.all([
+  const [primaryGuests, guestByReservation] = await Promise.all([
     db.reservationGuest.findMany({
       where: {
         OR: [{ isReservationOwner: true }, { isPrimary: true }],
@@ -144,7 +141,6 @@ async function loadPanelReservationEnrichmentMaps(reservationIds: string[]) {
       },
     }),
     getAirbnbEnrichedGuestNameByReservationIds(uniqueIds),
-    getAirbnbEnrichedGuestCountByReservationIds(uniqueIds),
   ]);
 
   const primaryGuestNameByReservation = new Map<string, string>();
@@ -156,7 +152,6 @@ async function loadPanelReservationEnrichmentMaps(reservationIds: string[]) {
   return {
     primaryGuestNameByReservation,
     airbnbGuestNameByReservation: guestByReservation,
-    airbnbGuestCountByReservation: countByReservation,
   };
 }
 
@@ -169,8 +164,6 @@ function attachPanelReservationEnrichmentFromMaps<T extends { id: string }>(
     primaryGuestName: maps.primaryGuestNameByReservation.get(reservation.id) ?? null,
     airbnbEnrichmentGuestName:
       maps.airbnbGuestNameByReservation.get(reservation.id) ?? null,
-    airbnbEnrichmentGuestCount:
-      maps.airbnbGuestCountByReservation.get(reservation.id) ?? null,
   }));
 }
 
@@ -181,7 +174,6 @@ async function attachPanelReservationEnrichment<T extends { id: string }>(
     T & {
       primaryGuestName: string | null;
       airbnbEnrichmentGuestName: string | null;
-      airbnbEnrichmentGuestCount: number | null;
     }
   >
 > {
@@ -229,7 +221,7 @@ export function toPanelReservationRow(
       primaryGuestName: reservation.primaryGuestName,
       guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
     }),
-    guestTotal: reservation.airbnbEnrichmentGuestCount ?? fallbackGuestTotal,
+    guestTotal: fallbackGuestTotal,
     adults: reservation.adults,
     children: reservation.children,
     infants: reservation.infants,

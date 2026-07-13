@@ -7,6 +7,7 @@ import {
   TiendasOnTh,
 } from "@/domains/retail/ui/tiendas-on/data-display";
 import { formatIntiendasDateTime } from "@/domains/retail/ui/tiendas-on/format";
+import { movementTypeLabel } from "@/domains/retail/ui/tiendas-on/labels";
 import { TiendasOnScreen } from "@/domains/retail/ui/tiendas-on/screen-shell";
 
 export default async function RetailMovementsPage() {
@@ -29,7 +30,7 @@ export default async function RetailMovementsPage() {
               <tr key={row.id}>
                 <TiendasOnTd className="text-base">{formatIntiendasDateTime(row.createdAt)}</TiendasOnTd>
                 <TiendasOnTd className="text-base">{row.product?.name ?? "—"}</TiendasOnTd>
-                <TiendasOnTd className="text-base">{row.type}</TiendasOnTd>
+                <TiendasOnTd className="text-base">{movementTypeLabel(row.type)}</TiendasOnTd>
                 <TiendasOnTd className="text-base">
                   {row.quantity > 0 ? `+${row.quantity}` : row.quantity}
                 </TiendasOnTd>

@@ -37,12 +37,17 @@ export function TiendasOnTh({
 export function TiendasOnTd({
   children,
   className,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLTableCellElement>;
 }) {
   return (
-    <td className={cn("border-t border-[#e2e8f0] px-4 py-3 text-[#4a5568]", className)}>
+    <td
+      className={cn("border-t border-[#e2e8f0] px-4 py-3 text-[#4a5568]", className)}
+      onClick={onClick}
+    >
       {children}
     </td>
   );

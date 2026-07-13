@@ -2324,6 +2324,55 @@ enum RetailSuggestionReason {
   REORDER_CYCLE
 }
 
+enum RetailIntelEventType {
+  SALE_COMPLETED
+  SALE_CANCELLED
+  PURCHASE_RECEIVED
+  STOCK_ADJUSTED
+  STOCK_TRANSFERRED
+  PRODUCT_UPDATED
+  SUPPLIER_UPDATED
+  REFRESH_STORE_PLAN
+}
+
+enum RetailIntelAction {
+  BUY_NOW
+  BUY_SOON
+  WAIT
+  DO_NOT_REORDER
+  SWITCH_SUPPLIER
+  PROMOTE
+  INCREASE_STOCK_TARGET
+  DECREASE_STOCK_TARGET
+  OVERSTOCKED
+  NO_ROTATION
+  HIGH_ROTATION
+  CRITICAL
+  RUNNING_OUT
+}
+
+enum RetailIntelOutboxStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum RetailDispatchChannel {
+  EMAIL
+  PDF
+  WHATSAPP
+  WEB_LINK
+  API
+}
+
+enum RetailIntelPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model RetailStore {
   id             String   @id @default(cuid())
   organizationId String
@@ -2352,6 +2401,14 @@ model RetailStore {
   suggestions       RetailPurchaseSuggestion[]
   auditLogs         RetailAuditLog[]
   warehouses        RetailWarehouse[]
+  demandDays        RetailProductDemandDay[]
+  productIntelProfiles RetailProductIntelProfile[]
+  supplierIntelProfiles RetailSupplierIntelProfile[]
+  intelOutbox       RetailIntelOutbox[]
+  reorderPlans      RetailIntelReorderPlan[]
+  healthScores      RetailStoreHealthScore[]
+  dispatchJobs      RetailOrderDispatchJob[]
+  intelFeedback     RetailIntelFeedback[]
 
   @@unique([organizationId])
   @@index([organizationId])
@@ -2386,10 +2443,13 @@ model RetailSupplier {
   name           String
   contactName    String?
   phone          String?
+  whatsapp       String?
   email          String?
   leadTimeDays   Int      @default(0)
+  usualDeliveryDows String?
   lastPurchaseAt DateTime?
   notes          String?
+  preferredDispatchChannel RetailDispatchChannel?
   status         RetailRecordStatus @default(ACTIVE)
   deletedAt      DateTime?
   createdAt      DateTime @default(now())
@@ -2400,6 +2460,9 @@ model RetailSupplier {
   purchaseOrders   RetailPurchaseOrder[]
   primaryFor       RetailProduct[]         @relation("RetailPrimarySupplier")
   secondaryFor     RetailProduct[]         @relation("RetailSecondarySupplier")
+  intelProfile     RetailSupplierIntelProfile?
+  reorderPlanLines RetailIntelReorderPlanLine[]
+  dispatchJobs     RetailOrderDispatchJob[]
 
   @@index([storeId, status])
   @@index([storeId, name])
@@ -2439,6 +2502,10 @@ model RetailProduct {
   purchaseItems    RetailPurchaseOrderItem[]
   suggestions      RetailPurchaseSuggestion[]
   warehouseStocks  RetailWarehouseStock[]
+  demandDays       RetailProductDemandDay[]
+  intelProfile     RetailProductIntelProfile?
+  reorderPlanLines RetailIntelReorderPlanLine[]
+  intelFeedback    RetailIntelFeedback[]
 
   @@unique([storeId, sku])
   @@unique([storeId, barcode])
@@ -2735,4 +2802,229 @@ model RetailWarehouseStock {
   @@unique([warehouseId, productId])
   @@index([productId])
   @@map("retail_warehouse_stocks")
+}
+
+model RetailProductDemandDay {
+  id        String   @id @default(cuid())
+  storeId   String
+  productId String
+  day       DateTime @db.Date
+  qtySold   Int      @default(0)
+  revenue   Decimal  @default(0) @db.Decimal(14, 2)
+  cost      Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt DateTime @updatedAt
+
+  store   RetailStore   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product RetailProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, day])
+  @@index([storeId, day])
+  @@index([storeId, productId, day])
+  @@map("retail_product_demand_days")
+}
+
+model RetailProductIntelProfile {
+  id                    String   @id @default(cuid())
+  storeId               String
+  productId             String   @unique
+  avgDailySales7        Decimal  @default(0) @db.Decimal(14, 4)
+  avgDailySales14       Decimal  @default(0) @db.Decimal(14, 4)
+  avgDailySales30       Decimal  @default(0) @db.Decimal(14, 4)
+  avgDailySales90       Decimal  @default(0) @db.Decimal(14, 4)
+  avgWeeklySales        Decimal  @default(0) @db.Decimal(14, 4)
+  avgMonthlySales       Decimal  @default(0) @db.Decimal(14, 4)
+  salesByMonthJson      Json?
+  salesByDowJson        Json?
+  demandTrendSlope      Decimal  @default(0) @db.Decimal(14, 6)
+  demandTrend           String   @default("FLAT")
+  daysOfCover           Decimal? @db.Decimal(14, 2)
+  daysToStockoutEst     Int?
+  stockoutDays30        Int      @default(0)
+  grossMarginPct        Decimal  @default(0) @db.Decimal(8, 4)
+  lastCost              Decimal  @default(0) @db.Decimal(14, 2)
+  lastPrice             Decimal  @default(0) @db.Decimal(14, 2)
+  suggestedReorderQty   Int      @default(0)
+  suggestedAction       RetailIntelAction @default(WAIT)
+  priority              RetailIntelPriority @default(LOW)
+  confidence            Decimal  @default(0) @db.Decimal(5, 4)
+  abcClass              String?
+  xyzClass              String?
+  deadStockScore        Decimal  @default(0) @db.Decimal(8, 4)
+  recommendedBuyDate    DateTime?
+  estimatedStockoutDate DateTime?
+  estimatedCoverageDays Int?
+  estimatedCost         Decimal  @default(0) @db.Decimal(14, 2)
+  supplierId            String?
+  computedAt            DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  store   RetailStore   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product RetailProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, suggestedAction])
+  @@index([storeId, priority])
+  @@index([storeId, computedAt])
+  @@map("retail_product_intel_profiles")
+}
+
+model RetailSupplierIntelProfile {
+  id                     String   @id @default(cuid())
+  storeId                String
+  supplierId             String   @unique
+  productCount           Int      @default(0)
+  avgLeadTimeDaysObserved Decimal @default(0) @db.Decimal(8, 2)
+  leadTimeP50            Decimal  @default(0) @db.Decimal(8, 2)
+  leadTimeP90            Decimal  @default(0) @db.Decimal(8, 2)
+  preferredDeliveryDowsJson Json?
+  onTimeRate             Decimal  @default(0) @db.Decimal(5, 4)
+  fillRate               Decimal  @default(0) @db.Decimal(5, 4)
+  orderFrequencyDays     Decimal  @default(0) @db.Decimal(8, 2)
+  lastOrderAt            DateTime?
+  lastOrderTotal         Decimal  @default(0) @db.Decimal(14, 2)
+  avgOrderTotal          Decimal  @default(0) @db.Decimal(14, 2)
+  lifetimePurchaseTotal  Decimal  @default(0) @db.Decimal(14, 2)
+  reliabilityScore       Decimal  @default(0) @db.Decimal(5, 4)
+  computedAt             DateTime @default(now())
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  store    RetailStore    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier RetailSupplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, reliabilityScore])
+  @@index([storeId, computedAt])
+  @@map("retail_supplier_intel_profiles")
+}
+
+model RetailIntelOutbox {
+  id          String   @id @default(cuid())
+  storeId     String
+  type        RetailIntelEventType
+  entityType  String
+  entityId    String?
+  productIds  String[] @default([])
+  payload     Json?
+  status      RetailIntelOutboxStatus @default(PENDING)
+  attempts    Int      @default(0)
+  lastError   String?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  store RetailStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([storeId, status, createdAt])
+  @@index([storeId, type, status])
+  @@map("retail_intel_outbox")
+}
+
+model RetailIntelReorderPlan {
+  id          String   @id @default(cuid())
+  storeId     String
+  version     Int      @default(1)
+  status      String   @default("ACTIVE")
+  lineCount   Int      @default(0)
+  estimatedTotal Decimal @default(0) @db.Decimal(14, 2)
+  computedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store RetailStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  lines RetailIntelReorderPlanLine[]
+
+  @@index([storeId, status])
+  @@index([storeId, computedAt])
+  @@map("retail_intel_reorder_plans")
+}
+
+model RetailIntelReorderPlanLine {
+  id                    String   @id @default(cuid())
+  planId                String
+  storeId               String
+  productId             String
+  supplierId            String?
+  suggestedQty          Int
+  unitCost              Decimal  @default(0) @db.Decimal(14, 2)
+  estimatedCost         Decimal  @default(0) @db.Decimal(14, 2)
+  action                RetailIntelAction
+  priority              RetailIntelPriority @default(MEDIUM)
+  daysOfCover           Decimal? @db.Decimal(14, 2)
+  estimatedStockoutDate DateTime?
+  recommendedBuyDate    DateTime?
+  purchaseOrderId       String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  plan     RetailIntelReorderPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  product  RetailProduct          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier RetailSupplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([storeId, supplierId])
+  @@index([productId])
+  @@map("retail_intel_reorder_plan_lines")
+}
+
+model RetailStoreHealthScore {
+  id               String   @id @default(cuid())
+  storeId          String
+  score            Int      @default(0)
+  inventoryHealth  Int      @default(0)
+  coverageScore    Int      @default(0)
+  criticalCount    Int      @default(0)
+  overstockCount   Int      @default(0)
+  marginScore      Int      @default(0)
+  deadStockCount   Int      @default(0)
+  supplierScore    Int      @default(0)
+  salesTrendScore  Int      @default(0)
+  summaryJson      Json?
+  computedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  store RetailStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId])
+  @@index([storeId, computedAt])
+  @@map("retail_store_health_scores")
+}
+
+model RetailOrderDispatchJob {
+  id              String   @id @default(cuid())
+  storeId         String
+  purchaseOrderId String
+  supplierId      String?
+  channel         RetailDispatchChannel
+  status          String   @default("READY")
+  payloadJson     Json?
+  resultJson      Json?
+  preparedAt      DateTime @default(now())
+  sentAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store    RetailStore     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  supplier RetailSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, status])
+  @@index([purchaseOrderId])
+  @@map("retail_order_dispatch_jobs")
+}
+
+model RetailIntelFeedback {
+  id           String   @id @default(cuid())
+  storeId      String
+  productId    String?
+  suggestionId String?
+  action       String
+  note         String?
+  createdAt    DateTime @default(now())
+
+  store   RetailStore    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product RetailProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, createdAt])
+  @@index([productId])
+  @@map("retail_intel_feedback")
 }

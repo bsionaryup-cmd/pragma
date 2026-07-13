@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260713120000_intiendas_retail_access_plan";
+const PRISMA_SCHEMA_VERSION = "20260713180000_intiendas_supplier_whatsapp_r2";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -69,8 +69,19 @@ function createAndCacheClient(): PrismaClient {
   return client;
 }
 
-function hasRequiredDelegates(client: PrismaClient): boolean {
+function runtimeHasSupplierWhatsapp(client: PrismaClient): boolean {
+  const models = (client as unknown as { _runtimeDataModel?: { models?: Record<string, { fields?: Array<{ name: string }> }> } })
+    ._runtimeDataModel?.models;
+  const fields = models?.RetailSupplier?.fields ?? [];
+  return fields.some((field) => field.name === "whatsapp");
+}
+
+function hasCoreDelegates(client: PrismaClient): boolean {
   return Boolean(client.mobilityAlly) && Boolean(client.retailStore);
+}
+
+function hasIntelDelegates(client: PrismaClient): boolean {
+  return Boolean(client.retailProductIntelProfile) && Boolean(client.retailIntelOutbox);
 }
 
 function getPrismaClient(): PrismaClient {
@@ -96,18 +107,26 @@ function getPrismaClient(): PrismaClient {
 
   let client = globalForPrisma.prisma ?? createAndCacheClient();
 
-  // Tras `prisma generate` + HMR, el singleton puede quedar sin delegados nuevos.
-  if (!hasRequiredDelegates(client)) {
-    console.warn("[db] Reciclando cliente Prisma (faltan modelos Mobility/Retail)…");
+  const needsRecycle =
+    !hasCoreDelegates(client) ||
+    !hasIntelDelegates(client) ||
+    !runtimeHasSupplierWhatsapp(client);
+
+  if (needsRecycle) {
+    console.warn("[db] Reciclando cliente Prisma (delegados/schema incompletos)…");
     globalForPrisma.prisma = undefined;
-    globalForPrisma.pool = undefined;
-    globalForPrisma.prismaSchemaVersion = undefined;
     client = createAndCacheClient();
   }
 
-  if (!hasRequiredDelegates(client)) {
+  if (!hasCoreDelegates(client) || !runtimeHasSupplierWhatsapp(client)) {
     throw new Error(
-      "[db] Prisma Client incompleto. Ejecuta: npm run dev:clean && npx prisma generate && aplica la migración retail.",
+      "[db] Prisma Client desactualizado (falta schema RetailSupplier.whatsapp). Ejecuta: npx prisma generate && npm run dev:clean && npm run dev",
+    );
+  }
+
+  if (!hasIntelDelegates(client)) {
+    console.error(
+      "[db] Faltan delegados Inventory Intelligence. Ejecuta: npx prisma generate && npm run dev:clean",
     );
   }
 

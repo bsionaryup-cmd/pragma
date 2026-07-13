@@ -28,7 +28,6 @@ import {
   getReservationGuestCount,
   type GuestRegistrationCapacityInput,
 } from "@/lib/guest-registration/guest-registration-capacity";
-import { getAirbnbEnrichedGuestCountsByReservationIds } from "@/services/reservations/airbnb-display-guest-count.service";
 
 export class GuestRegistrationError extends Error {
   constructor(message: string) {
@@ -195,24 +194,8 @@ async function resolveGuestRegistrationMaxCapacity(
   reservation: GuestRegistrationCapacityInput & { id: string },
   registeredCount?: number,
 ): Promise<number> {
-  let guestCountTotal: number | null = null;
-  let enrichedAdultCount: number | null = null;
-  let enrichedChildCount: number | null = null;
-  if (reservation.platform === BookingPlatform.AIRBNB) {
-    const enrichment = await getAirbnbEnrichedGuestCountsByReservationIds([
-      reservation.id,
-    ]);
-    const counts = enrichment.get(reservation.id);
-    guestCountTotal = counts?.guestCountTotal ?? null;
-    enrichedAdultCount = counts?.adultCount ?? null;
-    enrichedChildCount = counts?.childCount ?? null;
-  }
-
   return getGuestRegistrationMaxCapacity({
     ...reservation,
-    guestCountTotal,
-    enrichedAdultCount,
-    enrichedChildCount,
     registeredCount,
   });
 }
