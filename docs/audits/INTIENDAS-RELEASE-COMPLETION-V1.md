@@ -89,4 +89,16 @@ FEATURE COMPLETE
 
 **Declaración:** Cursor **no** declara PRODUCTION CERTIFIED / READY FOR COMMERCIAL OPERATION hasta Pilot Checklist PASS del PO.
 
-**Sí procede:** merge a `main`, tag RC, deploy desde `main` para alinear git con el entorno de validación en producción.
+## Git / Deploy alignment (2026-07-13)
+
+| Item | Value |
+|------|-------|
+| Merge | Fast-forward `cursor/apify-prospecting-engine` → `main` (`661f3b7`) |
+| Tag | `v1.0.0-rc.intiendas` |
+| Deploy source | **main** via `vercel --prod` |
+| Alias | https://www.pragmapms.com |
+
+Post-deploy smoke (unauthenticated): `/` 200, `/intiendas/login` 200, `/owner-dashboard/salud` → auth redirect.
+
+**Bloqueo comercial:** Pilot Checklist manual del Product Owner.
+
