@@ -117,9 +117,14 @@ export async function approveSuggestion(
       where: { id: suggestionId, storeId, status: "PENDING" },
     });
     if (!selected) throw new Error("Sugerencia no encontrada");
-    if (!selected.supplierId) throw new Error("Asigna un proveedor antes de aprobar");
     const suggestions = await tx.retailPurchaseSuggestion.findMany({
-      where: { storeId, supplierId: selected.supplierId, status: "PENDING" },
+      where: {
+        storeId,
+        status: "PENDING",
+        ...(selected.supplierId
+          ? { supplierId: selected.supplierId }
+          : { id: selected.id }),
+      },
       include: { product: true },
     });
     const items = suggestions.map((suggestion) => {

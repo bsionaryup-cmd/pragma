@@ -2292,6 +2292,7 @@ enum RetailInventoryMovementType {
   ADJUSTMENT
   RETURN
   LOSS
+  TRANSFER
 }
 
 enum RetailPurchaseOrderStatus {
@@ -2350,6 +2351,7 @@ model RetailStore {
   customerPayments  RetailCustomerPayment[]
   suggestions       RetailPurchaseSuggestion[]
   auditLogs         RetailAuditLog[]
+  warehouses        RetailWarehouse[]
 
   @@unique([organizationId])
   @@index([organizationId])
@@ -2419,6 +2421,7 @@ model RetailProduct {
   stock              Int      @default(0)
   minStock           Int      @default(0)
   idealStock         Int      @default(0)
+  imageUrl           String?
   isFavorite         Boolean  @default(false)
   status             RetailProductStatus @default(ACTIVE)
   deletedAt          DateTime?
@@ -2435,6 +2438,7 @@ model RetailProduct {
   inventoryMoves   RetailInventoryMovement[]
   purchaseItems    RetailPurchaseOrderItem[]
   suggestions      RetailPurchaseSuggestion[]
+  warehouseStocks  RetailWarehouseStock[]
 
   @@unique([storeId, sku])
   @@unique([storeId, barcode])
@@ -2697,4 +2701,38 @@ model RetailAuditLog {
   @@index([storeId, createdAt])
   @@index([entityType, entityId])
   @@map("retail_audit_logs")
+}
+
+model RetailWarehouse {
+  id        String   @id @default(cuid())
+  storeId   String
+  name      String
+  isDefault Boolean  @default(false)
+  status    RetailRecordStatus @default(ACTIVE)
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store  RetailStore            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  stocks RetailWarehouseStock[]
+
+  @@index([storeId, status])
+  @@index([storeId, name])
+  @@index([deletedAt])
+  @@map("retail_warehouses")
+}
+
+model RetailWarehouseStock {
+  id          String   @id @default(cuid())
+  warehouseId String
+  productId   String
+  quantity    Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  warehouse RetailWarehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  product   RetailProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([warehouseId, productId])
+  @@index([productId])
+  @@map("retail_warehouse_stocks")
 }

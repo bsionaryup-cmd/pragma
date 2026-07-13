@@ -2,14 +2,14 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { requireRetailContext } from "@/domains/retail/auth/require-retail-context";
+import { startOfDayInTimezone } from "@/lib/timezone";
 
 const money = (value: { toNumber(): number } | number | null | undefined) =>
   value == null ? 0 : typeof value === "number" ? value : value.toNumber();
 
 export async function getDashboardData() {
   const { store } = await requireRetailContext();
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  const start = startOfDayInTimezone();
   const [sales, critical, suggestions, debt, openCash] = await Promise.all([
     db.retailSale.aggregate({
       where: { storeId: store.id, status: "COMPLETED", createdAt: { gte: start } },
@@ -50,7 +50,7 @@ export async function getProductsData() {
     db.retailProduct.findMany({
       where: { storeId: store.id, deletedAt: null },
       orderBy: [{ isFavorite: "desc" }, { name: "asc" }],
-      include: { category: { select: { name: true } } },
+      include: { category: { select: { name: true } }, primarySupplier: { select: { id: true, name: true } } },
     }),
     db.retailCategory.findMany({
       where: { storeId: store.id, deletedAt: null },
@@ -97,22 +97,55 @@ export async function getCustomersData() {
 
 export async function getPurchasesData() {
   const { store } = await requireRetailContext();
-  const [orders, suggestions] = await Promise.all([
+  const [orders, suggestions, suppliers, products] = await Promise.all([
     db.retailPurchaseOrder.findMany({
       where: { storeId: store.id },
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { supplier: { select: { name: true } }, items: true },
+      include: { supplier: { select: { name: true, leadTimeDays: true } }, items: true },
     }),
     db.retailPurchaseSuggestion.findMany({
       where: { storeId: store.id, status: "PENDING" },
       orderBy: { createdAt: "desc" },
-      include: { product: { select: { name: true, stock: true } } },
+      include: {
+        product: {
+          select: {
+            name: true,
+            stock: true,
+            minStock: true,
+            idealStock: true,
+            primarySupplier: { select: { id: true, name: true, leadTimeDays: true } },
+          },
+        },
+      },
+    }),
+    db.retailSupplier.findMany({
+      where: { storeId: store.id, deletedAt: null, status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, leadTimeDays: true },
+    }),
+    db.retailProduct.findMany({
+      where: { storeId: store.id, deletedAt: null, status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, cost: true, stock: true },
     }),
   ]);
   return {
     orders: orders.map((o) => ({ ...o, totalCost: money(o.totalCost) })),
-    suggestions: suggestions.map((s) => ({ ...s, estimatedCost: money(s.estimatedCost) })),
+    suggestions: suggestions.map((s) => ({
+      ...s,
+      estimatedCost: money(s.estimatedCost),
+      supplierName:
+        s.product.primarySupplier?.name ??
+        suppliers.find((sup) => sup.id === s.supplierId)?.name ??
+        "Sin proveedor",
+      leadTimeDays:
+        s.product.primarySupplier?.leadTimeDays ??
+        suppliers.find((sup) => sup.id === s.supplierId)?.leadTimeDays ??
+        0,
+    })),
+    suppliers,
+    products: products.map((p) => ({ ...p, cost: money(p.cost) })),
   };
 }
 
@@ -184,8 +217,7 @@ export async function getCashSummaryData() {
     include: { register: { select: { id: true, name: true } } },
   });
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = startOfDayInTimezone();
 
   const [cashSales, creditSales, cashPurchases, customerPayments, debt] = await Promise.all([
     db.retailSale.aggregate({

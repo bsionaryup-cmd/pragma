@@ -1,3 +1,5 @@
+import { PRAGMA_TIMEZONE } from "@/lib/timezone";
+
 export function formatIntiendasMoney(value: number, currency = "COP") {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -10,15 +12,18 @@ export function formatIntiendasMoney(value: number, currency = "COP") {
 export function formatIntiendasDate(value: Date | string | null | undefined) {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}/${m}/${d}`;
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: PRAGMA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 export function formatIntiendasDateTime(value: Date | string) {
   const date = value instanceof Date ? value : new Date(value);
   return new Intl.DateTimeFormat("es-CO", {
+    timeZone: PRAGMA_TIMEZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

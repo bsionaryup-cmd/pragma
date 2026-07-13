@@ -16,28 +16,28 @@ function refresh() {
 
 export async function createDraftOrderAction(input: PurchaseOrderInput) {
   const ctx = await requireRetailContext();
-  const result = await createDraftOrder(ctx.storeId, input, ctx.userId);
+  const result = await createDraftOrder(ctx.store.id, input, ctx.userId);
   refresh();
   return result;
 }
 
 export async function approveOrderAction(id: string) {
   const ctx = await requireRetailContext();
-  const result = await approveOrder(ctx.storeId, id);
+  const result = await approveOrder(ctx.store.id, id);
   refresh();
   return result;
 }
 
 export async function receiveOrderAction(id: string, items?: ReceivePurchaseItemInput[]) {
   const ctx = await requireRetailContext();
-  const result = await receiveOrder(ctx.storeId, id, items, ctx.userId);
+  const result = await receiveOrder(ctx.store.id, id, items, ctx.userId);
   refresh();
   return result;
 }
 
 export async function cancelOrderAction(id: string) {
   const ctx = await requireRetailContext();
-  const result = await cancelOrder(ctx.storeId, id);
+  const result = await cancelOrder(ctx.store.id, id);
   refresh();
   return result;
 }

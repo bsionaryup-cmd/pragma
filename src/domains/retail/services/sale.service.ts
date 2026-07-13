@@ -30,6 +30,8 @@ async function createSaleWithStatus(
         where: { id: input.cashSessionId, storeId, status: "OPEN" },
       });
       if (!session) throw new Error("La sesión de caja no está abierta");
+    } else if (status === "COMPLETED") {
+      throw new Error("Debes abrir caja antes de registrar ventas.");
     }
 
     const paymentMethod = input.paymentMethod ?? "CASH";

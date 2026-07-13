@@ -10,10 +10,10 @@ export default async function RetailCustomersPage() {
         customers={customers.map((c) => ({
           id: c.id,
           name: c.name,
-          alias: c.alias,
           documentId: c.documentId,
           phone: c.phone,
           creditBalance: c.creditBalance,
+          creditLimit: c.creditLimit,
           lastPaymentAt: c.lastPaymentAt,
         }))}
       />

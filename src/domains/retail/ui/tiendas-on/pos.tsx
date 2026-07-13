@@ -2,7 +2,6 @@
 
 import {
   Banknote,
-  Coffee,
   FileText,
   Grid3X3,
   House,
@@ -32,6 +31,7 @@ type PosProduct = {
   stock: number;
   barcode: string | null;
   isFavorite: boolean;
+  imageUrl?: string | null;
 };
 type PosCustomer = { id: string; name: string; creditBalance: number; documentId?: string | null };
 type CartLine = PosProduct & { quantity: number };
@@ -146,9 +146,12 @@ export function TiendasOnPos({
         className="h-16 [&_span]:text-2xl [&_span]:font-semibold"
         rightSlot={
           <div className="flex items-center gap-5 text-[#6b7c8f]">
-            <House className="size-6" strokeWidth={1.75} />
-            <Coffee className="size-6" strokeWidth={1.75} />
-            <Grid3X3 className="size-6" strokeWidth={1.75} />
+            <a href="/intiendas/dashboard" aria-label="Inicio" className="hover:text-pragma-electric">
+              <House className="size-6" strokeWidth={1.75} />
+            </a>
+            <a href="/intiendas/dashboard" aria-label="Módulos" className="hover:text-pragma-electric">
+              <Grid3X3 className="size-6" strokeWidth={1.75} />
+            </a>
           </div>
         }
       />

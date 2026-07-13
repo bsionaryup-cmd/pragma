@@ -2,7 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { requireOpenCashSession } from "@/domains/retail/auth/require-open-cash";
 import { requireRetailContext } from "@/domains/retail/auth/require-retail-context";
+import { approveSuggestion, dismissSuggestion } from "@/domains/retail/services/ai-engine.service";
+import { createDraftOrder, receiveOrder, approveOrder } from "@/domains/retail/services/purchase.service";
+import { createSale } from "@/domains/retail/services/sale.service";
+import {
+  createWarehouse,
+  softDeleteWarehouse,
+  transferStock,
+  updateWarehouse,
+} from "@/domains/retail/services/warehouse.service";
 import type { SaleInput } from "@/domains/retail/types";
 
 const text = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
@@ -22,7 +32,7 @@ export async function createProductAction(data: FormData) {
   const { store } = await requireRetailContext();
   const name = text(data, "name");
   if (!name) throw new Error("El nombre del producto es obligatorio.");
-  const stock = Math.trunc(number(data, "stock"));
+  const stock = Math.max(0, Math.trunc(number(data, "stock")));
   await db.$transaction(async (tx) => {
     const product = await tx.retailProduct.create({
       data: {
@@ -31,11 +41,13 @@ export async function createProductAction(data: FormData) {
         sku: optional(text(data, "sku")),
         barcode: optional(text(data, "barcode")),
         categoryId: optional(text(data, "categoryId")),
-        cost: number(data, "cost"),
-        price: number(data, "price"),
+        primarySupplierId: optional(text(data, "primarySupplierId")),
+        cost: Math.max(0, number(data, "cost")),
+        price: Math.max(0, number(data, "price")),
         stock,
-        minStock: Math.trunc(number(data, "minStock")),
-        idealStock: Math.trunc(number(data, "idealStock")),
+        minStock: Math.max(0, Math.trunc(number(data, "minStock"))),
+        idealStock: Math.max(0, Math.trunc(number(data, "idealStock"))),
+        imageUrl: optional(text(data, "imageUrl")),
         isFavorite: data.get("isFavorite") === "on",
       },
     });
@@ -55,21 +67,61 @@ export async function createProductAction(data: FormData) {
   refresh();
 }
 
+export async function updateProductAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  const name = text(data, "name");
+  if (!id || !name) throw new Error("Producto e nombre son obligatorios.");
+  await db.retailProduct.update({
+    where: { id, storeId: store.id },
+    data: {
+      name,
+      sku: optional(text(data, "sku")),
+      barcode: optional(text(data, "barcode")),
+      categoryId: optional(text(data, "categoryId")),
+      primarySupplierId: optional(text(data, "primarySupplierId")),
+      cost: Math.max(0, number(data, "cost")),
+      price: Math.max(0, number(data, "price")),
+      minStock: Math.max(0, Math.trunc(number(data, "minStock"))),
+      idealStock: Math.max(0, Math.trunc(number(data, "idealStock"))),
+      imageUrl: optional(text(data, "imageUrl")),
+      isFavorite: data.get("isFavorite") === "on",
+    },
+  });
+  refresh();
+}
+
+export async function deleteProductAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  if (!id) throw new Error("Producto no válido.");
+  await db.retailProduct.update({
+    where: { id, storeId: store.id },
+    data: { deletedAt: new Date(), status: "INACTIVE" },
+  });
+  refresh();
+}
+
 export async function adjustStockAction(data: FormData) {
   const context = await requireRetailContext();
   const productId = text(data, "productId");
   const quantity = Math.trunc(number(data, "quantity"));
   if (!productId || !quantity) throw new Error("Indica producto y cantidad.");
   await db.$transaction(async (tx) => {
+    const current = await tx.retailProduct.findFirst({
+      where: { id: productId, storeId: context.store.id, deletedAt: null },
+    });
+    if (!current) throw new Error("Producto no encontrado.");
+    if (current.stock + quantity < 0) throw new Error("El stock no puede quedar negativo.");
     const product = await tx.retailProduct.update({
-      where: { id: productId, storeId: context.store.id },
+      where: { id: productId },
       data: { stock: { increment: quantity } },
     });
     await tx.retailInventoryMovement.create({
       data: {
         storeId: context.store.id,
         productId,
-        type: quantity < 0 ? "LOSS" : "ADJUSTMENT",
+        type: text(data, "note") === "Devolución" ? "RETURN" : quantity < 0 ? "LOSS" : "ADJUSTMENT",
         quantity,
         balanceAfter: product.stock,
         note: optional(text(data, "note")),
@@ -97,6 +149,35 @@ export async function createSupplierAction(data: FormData) {
   refresh();
 }
 
+export async function updateSupplierAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  const name = text(data, "name");
+  if (!id || !name) throw new Error("Proveedor e nombre son obligatorios.");
+  await db.retailSupplier.update({
+    where: { id, storeId: store.id },
+    data: {
+      name,
+      contactName: optional(text(data, "contactName")),
+      phone: optional(text(data, "phone")),
+      email: optional(text(data, "email")),
+      leadTimeDays: Math.max(0, Math.trunc(number(data, "leadTimeDays"))),
+    },
+  });
+  refresh();
+}
+
+export async function deleteSupplierAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  if (!id) throw new Error("Proveedor no válido.");
+  await db.retailSupplier.update({
+    where: { id, storeId: store.id },
+    data: { deletedAt: new Date(), status: "INACTIVE" },
+  });
+  refresh();
+}
+
 export async function createCustomerAction(data: FormData) {
   const { store } = await requireRetailContext();
   const name = text(data, "name");
@@ -105,11 +186,38 @@ export async function createCustomerAction(data: FormData) {
     data: {
       storeId: store.id,
       name,
-      alias: optional(text(data, "alias")),
       phone: optional(text(data, "phone")),
       documentId: optional(text(data, "documentId")),
       creditLimit: Math.max(0, number(data, "creditLimit")),
     },
+  });
+  refresh();
+}
+
+export async function updateCustomerAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  const name = text(data, "name");
+  if (!id || !name) throw new Error("Cliente e nombre son obligatorios.");
+  await db.retailCustomer.update({
+    where: { id, storeId: store.id },
+    data: {
+      name,
+      phone: optional(text(data, "phone")),
+      documentId: optional(text(data, "documentId")),
+      creditLimit: Math.max(0, number(data, "creditLimit")),
+    },
+  });
+  refresh();
+}
+
+export async function deleteCustomerAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  const id = text(data, "id");
+  if (!id) throw new Error("Cliente no válido.");
+  await db.retailCustomer.update({
+    where: { id, storeId: store.id },
+    data: { deletedAt: new Date(), status: "INACTIVE" },
   });
   refresh();
 }
@@ -138,100 +246,132 @@ export async function registerCustomerPaymentAction(data: FormData) {
 }
 
 export async function completeSaleAction(input: SaleInput) {
-  const context = await requireRetailContext();
-  if (!input.items.length) throw new Error("Agrega al menos un producto.");
-  const productIds = input.items.map((item) => item.productId);
-  const products = await db.retailProduct.findMany({
-    where: { id: { in: productIds }, storeId: context.store.id, status: "ACTIVE" },
-  });
-  if (products.length !== new Set(productIds).size) throw new Error("Hay productos no disponibles.");
-  const byId = new Map(products.map((p) => [p.id, p]));
-  const subtotal = input.items.reduce((sum, item) => {
-    const product = byId.get(item.productId)!;
-    return sum + Number(product.price) * item.quantity;
-  }, 0);
-  const discount = Number(input.discount ?? 0);
-  const total = Math.max(0, subtotal - discount);
-  const code = `V-${Date.now().toString(36).toUpperCase()}`;
-
-  const sale = await db.$transaction(async (tx) => {
-    const created = await tx.retailSale.create({
-      data: {
-        storeId: context.store.id,
-        code,
-        customerId: input.customerId || null,
-        cashSessionId: input.cashSessionId || null,
-        paymentMethod: input.paymentMethod ?? "CASH",
-        subtotal,
-        discount,
-        total,
-        amountPaid: Number(input.amountPaid ?? total),
-        isCredit: input.paymentMethod === "CREDIT",
-        soldByUserId: context.userId,
-        items: {
-          create: input.items.map((item) => {
-            const product = byId.get(item.productId)!;
-            return {
-              productId: product.id,
-              productName: product.name,
-              quantity: item.quantity,
-              unitPrice: product.price,
-              unitCost: product.cost,
-              lineTotal: Number(product.price) * item.quantity,
-            };
-          }),
-        },
-      },
-    });
-    for (const item of input.items) {
-      const product = await tx.retailProduct.update({
-        where: { id: item.productId, storeId: context.store.id },
-        data: { stock: { decrement: item.quantity } },
-      });
-      await tx.retailInventoryMovement.create({
-        data: {
-          storeId: context.store.id,
-          productId: item.productId,
-          type: "SALE",
-          quantity: -item.quantity,
-          balanceAfter: product.stock,
-          referenceId: created.id,
-          createdByUserId: context.userId,
-        },
-      });
-    }
-    if (input.paymentMethod === "CREDIT" && input.customerId) {
-      await tx.retailCustomer.update({
-        where: { id: input.customerId, storeId: context.store.id },
-        data: { creditBalance: { increment: total } },
-      });
-    }
-    return created;
-  });
+  const context = await requireOpenCashSession();
+  const sale = await createSale(
+    context.store.id,
+    {
+      ...input,
+      cashSessionId: context.cashSession.id,
+      deliveryFee: input.deliveryFee ?? 0,
+    },
+    context.userId,
+  );
   refresh();
   return { id: sale.id, code: sale.code };
 }
 
+export async function createSimplePurchaseAction(data: FormData) {
+  const context = await requireOpenCashSession();
+  const concept = text(data, "concept") || "OTRO";
+  const description = text(data, "description");
+  const amount = Math.max(0, number(data, "amount"));
+  const supplierId = optional(text(data, "supplierId"));
+  const productId = optional(text(data, "productId"));
+  const quantity = Math.max(1, Math.trunc(number(data, "quantity") || 1));
+  if (!description) throw new Error("Describe la compra.");
+  if (amount <= 0) throw new Error("Indica un monto válido.");
+
+  if (productId) {
+    const unitCost = amount / quantity;
+    await createDraftOrder(
+      context.store.id,
+      {
+        supplierId,
+        notes: `${concept}: ${description}`,
+        items: [{ productId, quantity, unitCost }],
+      },
+      context.userId,
+    );
+  } else {
+    await db.retailPurchaseOrder.create({
+      data: {
+        storeId: context.store.id,
+        supplierId,
+        code: `C-${Date.now().toString(36).toUpperCase()}`,
+        status: "RECEIVED",
+        totalCost: amount,
+        notes: `${concept}: ${description}`,
+        createdByUserId: context.userId,
+        receivedAt: new Date(),
+        items: {
+          create: [
+            {
+              productName: description,
+              quantity: 1,
+              unitCost: amount,
+              lineTotal: amount,
+              receivedQuantity: 1,
+            },
+          ],
+        },
+      },
+    });
+  }
+  refresh();
+}
+
 export async function updatePurchaseStatusAction(data: FormData) {
-  const { store } = await requireRetailContext();
+  const context = await requireOpenCashSession();
   const id = text(data, "id");
   const intent = text(data, "intent");
-  await db.retailPurchaseOrder.update({
-    where: { id, storeId: store.id },
-    data: intent === "receive" ? { status: "RECEIVED", receivedAt: new Date() } : { status: "APPROVED" },
-  });
+  if (intent === "receive") {
+    await receiveOrder(context.store.id, id, undefined, context.userId);
+  } else if (intent === "approve") {
+    await approveOrder(context.store.id, id);
+  } else {
+    throw new Error("Acción de compra no válida.");
+  }
   refresh();
 }
 
 export async function resolveSuggestionAction(data: FormData) {
-  const { store } = await requireRetailContext();
-  await db.retailPurchaseSuggestion.update({
-    where: { id: text(data, "id"), storeId: store.id },
-    data: {
-      status: text(data, "intent") === "approve" ? "APPROVED" : "DISMISSED",
-      resolvedAt: new Date(),
-    },
-  });
+  const context = await requireOpenCashSession();
+  const id = text(data, "id");
+  const intent = text(data, "intent");
+  if (intent === "approve") {
+    try {
+      await approveSuggestion(context.store.id, id, context.userId);
+    } catch {
+      // Sin proveedor: crea orden simple DRAFT/APPROVED desde la sugerencia
+      const suggestion = await db.retailPurchaseSuggestion.findFirst({
+        where: { id, storeId: context.store.id, status: "PENDING" },
+        include: { product: true },
+      });
+      if (!suggestion) throw new Error("Sugerencia no encontrada.");
+      await db.$transaction(async (tx) => {
+        const unitCost = Number(suggestion.estimatedCost ?? suggestion.product.cost) /
+          Math.max(1, suggestion.suggestedQty);
+        await tx.retailPurchaseOrder.create({
+          data: {
+            storeId: context.store.id,
+            supplierId: suggestion.supplierId,
+            code: `C-${Date.now().toString(36).toUpperCase()}`,
+            status: "APPROVED",
+            aiGenerated: true,
+            totalCost: Number(suggestion.estimatedCost ?? 0),
+            createdByUserId: context.userId,
+            items: {
+              create: [
+                {
+                  productId: suggestion.productId,
+                  productName: suggestion.product.name,
+                  quantity: suggestion.suggestedQty,
+                  unitCost,
+                  lineTotal: Number(suggestion.estimatedCost ?? unitCost * suggestion.suggestedQty),
+                },
+              ],
+            },
+          },
+        });
+        await tx.retailPurchaseSuggestion.update({
+          where: { id: suggestion.id },
+          data: { status: "APPROVED", resolvedAt: new Date() },
+        });
+      });
+    }
+  } else {
+    await dismissSuggestion(context.store.id, id);
+  }
   refresh();
 }
 
@@ -245,6 +385,10 @@ export async function updateStoreAction(data: FormData) {
 
 export async function openCashAction(data: FormData) {
   const context = await requireRetailContext();
+  const existing = await db.retailCashSession.findFirst({
+    where: { storeId: context.store.id, status: "OPEN" },
+  });
+  if (existing) throw new Error("Ya hay una caja abierta.");
   let registerId = text(data, "registerId");
   if (!registerId) {
     const register = await db.retailCashRegister.create({
@@ -256,7 +400,7 @@ export async function openCashAction(data: FormData) {
     data: {
       storeId: context.store.id,
       registerId,
-      openingAmount: number(data, "openingAmount"),
+      openingAmount: Math.max(0, number(data, "openingAmount")),
       openedByUserId: context.userId,
     },
   });
@@ -272,6 +416,37 @@ export async function closeCashAction(data: FormData) {
       closingAmount: number(data, "closingAmount"),
       closedAt: new Date(),
     },
+  });
+  refresh();
+}
+
+export async function createWarehouseAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  await createWarehouse(store.id, text(data, "name"));
+  refresh();
+}
+
+export async function updateWarehouseAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  await updateWarehouse(store.id, text(data, "id"), text(data, "name"));
+  refresh();
+}
+
+export async function deleteWarehouseAction(data: FormData) {
+  const { store } = await requireRetailContext();
+  await softDeleteWarehouse(store.id, text(data, "id"));
+  refresh();
+}
+
+export async function transferStockAction(data: FormData) {
+  const context = await requireRetailContext();
+  await transferStock({
+    storeId: context.store.id,
+    productId: text(data, "productId"),
+    fromWarehouseId: text(data, "fromWarehouseId"),
+    toWarehouseId: text(data, "toWarehouseId"),
+    quantity: number(data, "quantity"),
+    userId: context.userId,
   });
   refresh();
 }

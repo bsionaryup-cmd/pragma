@@ -1,19 +1,41 @@
-import { PackageOpen } from "lucide-react";
+import { adjustStockAction } from "@/domains/retail/actions/retail.actions";
+import { getProductsData } from "@/domains/retail/services/retail-ui.service";
+import { TiendasOnPrimaryButton } from "@/domains/retail/ui/tiendas-on/controls";
 import { TiendasOnScreen } from "@/domains/retail/ui/tiendas-on/screen-shell";
 
-export default function RetailReturnsPage() {
+export default async function RetailReturnsPage() {
+  const { products } = await getProductsData();
   return (
     <TiendasOnScreen title="Devoluciones" backHref="/intiendas/inventario">
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="relative flex size-28 items-center justify-center">
-          <div className="absolute inset-0 rounded-full border border-[#c5d5e8]/70" />
-          <div className="absolute inset-3 rounded-full border border-[#d5e3f0]/80" />
-          <PackageOpen className="relative size-12 text-[#5a6f85]" strokeWidth={1.35} />
-        </div>
-        <p className="text-2xl font-semibold text-[#3d4a5c]">Devoluciones</p>
-        <p className="max-w-md text-lg text-[#718096]">
-          Registra devoluciones de productos al inventario. Módulo listo para operación diaria.
-        </p>
+      <div className="mx-auto max-w-lg p-4">
+        <section className="rounded-lg border border-[#d5dce6] bg-white p-5">
+          <h2 className="mb-2 text-lg font-semibold text-[#2d3748]">Devolver a inventario</h2>
+          <p className="mb-4 text-base text-[#718096]">
+            Registra unidades que regresan al stock en un solo paso.
+          </p>
+          <form action={adjustStockAction} className="space-y-3">
+            <select name="productId" required className="h-11 w-full rounded-md border px-3 text-base">
+              <option value="">Producto</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · stock {p.stock}
+                </option>
+              ))}
+            </select>
+            <input type="hidden" name="note" value="Devolución" />
+            <input
+              name="quantity"
+              type="number"
+              min="1"
+              required
+              placeholder="Cantidad a devolver"
+              className="h-11 w-full rounded-md border px-3 text-base"
+            />
+            <TiendasOnPrimaryButton type="submit" className="w-full text-base">
+              Registrar devolución
+            </TiendasOnPrimaryButton>
+          </form>
+        </section>
       </div>
     </TiendasOnScreen>
   );
