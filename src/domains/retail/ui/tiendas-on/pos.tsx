@@ -3,13 +3,14 @@
 import {
   Banknote,
   Coffee,
+  FileText,
   Grid3X3,
-  MapPin,
+  House,
   Minus,
-  Package,
   Pause,
   Plus,
-  SlidersHorizontal,
+  Search,
+  ShoppingBag,
   Star,
   User,
   X,
@@ -66,7 +67,6 @@ export function TiendasOnPos({
 
   const subtotal = cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
   const total = Math.max(0, subtotal - discount + delivery);
-
   const selectedCustomer = customers.find((c) => c.id === customerId);
 
   function addProduct(product: PosProduct) {
@@ -143,123 +143,130 @@ export function TiendasOnPos({
     <div className="flex min-h-dvh flex-col bg-[#eef1f4]">
       <TiendasOnScreenHeader
         title="Ventas"
+        className="h-16 [&_span]:text-2xl [&_span]:font-semibold"
         rightSlot={
-          <>
-            <MapPin className="size-5" />
-            <Coffee className="size-5" />
-            <Grid3X3 className="size-5" />
-          </>
+          <div className="flex items-center gap-5 text-[#6b7c8f]">
+            <House className="size-6" strokeWidth={1.75} />
+            <Coffee className="size-6" strokeWidth={1.75} />
+            <Grid3X3 className="size-6" strokeWidth={1.75} />
+          </div>
         }
       />
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(280px,32%)_1fr_minmax(300px,30%)]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(300px,34%)_minmax(280px,1fr)_minmax(300px,28%)]">
         {/* Catálogo */}
-        <section className="flex min-h-0 flex-col border-r border-[#d9dee5] bg-[#f8fafb]">
-          <div className="flex items-center gap-2 border-b border-[#e2e8f0] p-3">
+        <section className="flex min-h-0 flex-col border-r border-[#d9dee5] bg-[#f4f6f8]">
+          <div className="space-y-3 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-5 -translate-y-1/2 text-[#94a3b8]" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar"
+                className="h-12 w-full rounded-lg border border-[#c5ced8] bg-white pl-11 pr-3 text-lg text-[#2d3748] outline-none focus:border-pragma-electric focus:ring-1 focus:ring-pragma-electric/30"
+              />
+            </div>
             <button
               type="button"
-              className="flex size-9 items-center justify-center rounded-md bg-pragma-electric text-white"
-              aria-label="Filtros"
+              onClick={() => setFavoritesOnly((v) => !v)}
+              className={cn(
+                "rounded-md border px-3.5 py-1.5 text-base font-medium",
+                favoritesOnly
+                  ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
+                  : "border-[#c5ced8] bg-white text-[#4a86b8]",
+              )}
             >
-              <SlidersHorizontal className="size-4" />
+              Mis favoritos
             </button>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar"
-              className="h-9 flex-1 rounded-md border border-[#c5ced8] bg-white px-3 text-sm"
-            />
           </div>
-          <button
-            type="button"
-            onClick={() => setFavoritesOnly((v) => !v)}
-            className={cn(
-              "mx-3 mt-3 w-fit rounded-full border px-3 py-1 text-xs",
-              favoritesOnly
-                ? "border-pragma-electric bg-pragma-electric/10 text-pragma-electric"
-                : "border-[#c5ced8] bg-white text-[#4a5568]",
-            )}
-          >
-            Mis favoritos
-          </button>
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-0 overflow-y-auto p-1 sm:grid-cols-3">
+
+          <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-2 gap-0 overflow-y-auto sm:grid-cols-3">
             {visible.map((product) => (
               <button
                 key={product.id}
                 type="button"
                 onClick={() => addProduct(product)}
                 disabled={product.stock <= 0 || pending}
-                className="relative flex min-h-[150px] flex-col border border-[#e2e8f0] bg-white p-2 text-left transition hover:bg-[#f8fbff] disabled:opacity-50"
+                className="relative flex min-h-[168px] flex-col border border-[#e2e8f0] bg-[#eceff2] p-3 text-left transition hover:bg-[#e4e9ef] disabled:opacity-50"
               >
                 {product.isFavorite ? (
-                  <Star className="absolute right-2 top-2 size-4 fill-amber-400 text-amber-400" />
+                  <Star className="absolute right-2.5 top-2.5 size-5 fill-amber-400 text-amber-400" />
                 ) : null}
-                <div className="mx-auto flex size-16 items-center justify-center rounded bg-[#f1f5f9] text-[#94a3b8]">
-                  <Package className="size-8" />
+                <div className="mx-auto flex size-16 items-center justify-center text-[#8a9aab]">
+                  <ShoppingBag className="size-12" strokeWidth={1.25} />
                 </div>
-                <p className="mt-2 line-clamp-2 text-[11px] font-medium uppercase leading-tight text-[#2d3748]">
+                <p className="mt-3 line-clamp-2 text-[15px] font-semibold uppercase leading-snug text-[#2d3748]">
                   {product.name}
                 </p>
-                <p className="mt-1 text-sm font-bold text-[#2d3748]">
+                <p className="mt-auto pt-2 text-lg font-bold text-[#2d3748]">
                   {formatIntiendasMoney(product.price)}
                 </p>
-                <span className="absolute bottom-2 right-2 flex size-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-                  {product.stock}
-                </span>
               </button>
             ))}
+            {!visible.length ? (
+              <p className="col-span-full py-16 text-center text-lg text-[#94a3b8]">
+                Sin productos para mostrar.
+              </p>
+            ) : null}
           </div>
         </section>
 
         {/* Ticket */}
-        <section className="min-h-[240px] overflow-y-auto bg-white p-3 lg:min-h-0">
+        <section className="min-h-[240px] overflow-y-auto bg-white px-3 py-2 lg:min-h-0">
           {cart.map((line) => (
             <div
               key={line.id}
-              className="mb-3 flex items-start gap-3 border-b border-[#edf2f7] pb-3"
+              className="relative mb-2 flex items-start gap-3 border-b border-[#edf2f7] py-4"
             >
-              <div className="flex size-14 shrink-0 items-center justify-center rounded bg-[#f1f5f9]">
-                <Package className="size-6 text-[#94a3b8]" />
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-md bg-[#f1f5f9]">
+                <ShoppingBag className="size-8 text-[#94a3b8]" strokeWidth={1.35} />
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium uppercase text-[#2d3748]">{line.name}</p>
-                  <button
-                    type="button"
-                    onClick={() => changeQuantity(line.id, -line.quantity)}
-                    className="text-[#94a3b8] hover:text-red-500"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-sm text-[#718096]">{formatIntiendasMoney(line.price)}</span>
-                  <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1 pr-6">
+                <p className="text-[15px] font-semibold uppercase leading-snug text-[#2d3748]">
+                  {line.name}
+                </p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <span className="text-base text-[#718096]">
+                    {formatIntiendasMoney(line.price)}
+                  </span>
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => changeQuantity(line.id, -1)}
-                      className="flex size-7 items-center justify-center rounded-full bg-red-500 text-white"
+                      className="flex size-9 items-center justify-center rounded-full bg-[#e53935] text-white shadow-sm"
+                      aria-label="Restar"
                     >
-                      <Minus className="size-4" />
+                      <Minus className="size-5" strokeWidth={2.5} />
                     </button>
-                    <span className="w-6 text-center font-semibold">{line.quantity}</span>
+                    <span className="min-w-6 text-center text-xl font-bold text-[#2d3748]">
+                      {line.quantity}
+                    </span>
                     <button
                       type="button"
                       onClick={() => changeQuantity(line.id, 1)}
-                      className="flex size-7 items-center justify-center rounded-full bg-red-500 text-white"
+                      className="flex size-9 items-center justify-center rounded-full bg-[#e53935] text-white shadow-sm"
+                      aria-label="Sumar"
                     >
-                      <Plus className="size-4" />
+                      <Plus className="size-5" strokeWidth={2.5} />
                     </button>
                   </div>
-                  <span className="text-sm font-semibold text-[#2d3748]">
+                  <span className="text-base font-bold text-[#2d3748]">
                     {formatIntiendasMoney(line.price * line.quantity)}
                   </span>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => changeQuantity(line.id, -line.quantity)}
+                className="absolute right-0 top-3 text-[#94a3b8] hover:text-red-500"
+                aria-label="Quitar"
+              >
+                <X className="size-5" />
+              </button>
             </div>
           ))}
           {!cart.length ? (
-            <p className="py-16 text-center text-sm text-[#94a3b8]">
+            <p className="py-20 text-center text-lg text-[#94a3b8]">
               Selecciona productos del catálogo.
             </p>
           ) : null}
@@ -269,14 +276,14 @@ export function TiendasOnPos({
         <section className="flex min-h-0 flex-col border-l border-[#d9dee5] bg-white">
           <div className="border-b border-[#edf2f7] p-4">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded bg-pragma-electric text-white">
-                <User className="size-5" />
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-md bg-pragma-electric text-white">
+                <User className="size-7" strokeWidth={1.75} />
               </div>
               <div className="min-w-0 flex-1">
                 <select
                   value={customerId}
                   onChange={(e) => setCustomerId(e.target.value)}
-                  className="w-full bg-transparent text-sm font-semibold text-[#2d3748] outline-none"
+                  className="w-full bg-transparent text-lg font-bold text-[#2d3748] outline-none"
                 >
                   <option value="">{QUICK_CUSTOMER.name}</option>
                   {customers.map((customer) => (
@@ -285,25 +292,25 @@ export function TiendasOnPos({
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-[#718096]">
+                <p className="text-base text-[#718096]">
                   {selectedCustomer?.documentId ?? QUICK_CUSTOMER.doc}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 space-y-3 p-4 text-sm">
+          <div className="flex-1 space-y-4 p-4 text-lg">
             <div className="flex items-center justify-between">
               <span className="text-[#718096]">Descuento</span>
               <div className="flex items-center gap-2">
-                <span>{formatIntiendasMoney(discount)}</span>
+                <span className="font-medium text-[#2d3748]">{formatIntiendasMoney(discount)}</span>
                 <button
                   type="button"
                   onClick={() => {
                     const value = window.prompt("Descuento (COP)", String(discount));
                     if (value != null) setDiscount(Math.max(0, Number(value) || 0));
                   }}
-                  className="flex size-6 items-center justify-center rounded bg-pragma-electric text-xs text-white"
+                  className="flex size-7 items-center justify-center rounded bg-pragma-electric text-base font-bold text-white"
                 >
                   +
                 </button>
@@ -311,65 +318,65 @@ export function TiendasOnPos({
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[#718096]">Subtotal</span>
-              <span>{formatIntiendasMoney(subtotal)}</span>
+              <span className="font-medium text-[#2d3748]">{formatIntiendasMoney(subtotal)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-[#718096]">Domicilio</span>
               <div className="flex items-center gap-2">
-                <span>{formatIntiendasMoney(delivery)}</span>
+                <span className="font-medium text-[#2d3748]">{formatIntiendasMoney(delivery)}</span>
                 <button
                   type="button"
                   onClick={() => {
                     const value = window.prompt("Domicilio (COP)", String(delivery));
                     if (value != null) setDelivery(Math.max(0, Number(value) || 0));
                   }}
-                  className="flex size-6 items-center justify-center rounded bg-pragma-electric text-xs text-white"
+                  className="flex size-7 items-center justify-center rounded bg-pragma-electric text-base font-bold text-white"
                 >
                   +
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-between border-t border-[#edf2f7] pt-3 text-base font-bold">
+            <div className="flex items-center justify-between border-t border-[#edf2f7] pt-4 text-2xl font-bold text-[#2d3748]">
               <span>Total</span>
               <span>{formatIntiendasMoney(total)}</span>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-0 bg-pragma-electric text-white">
+          <div className="grid grid-cols-2 bg-pragma-electric text-white">
             <button
               type="button"
               disabled={pending}
               onClick={() => setCart([])}
-              className="flex flex-col items-center gap-1 border-r border-white/20 py-4 text-xs font-semibold hover:bg-pragma-electric/90"
+              className="flex min-h-[92px] flex-col items-center justify-center gap-1.5 border-r border-b border-white/20 px-2 py-3 text-[15px] font-semibold leading-tight hover:bg-pragma-electric/90 disabled:opacity-60"
             >
-              <X className="size-5" />
+              <X className="size-6" strokeWidth={2.25} />
               Limpiar venta
             </button>
             <button
               type="button"
               disabled={pending}
               onClick={() => complete("CREDIT")}
-              className="flex flex-col items-center gap-1 border-r border-white/20 py-4 text-xs font-semibold hover:bg-pragma-electric/90"
+              className="flex min-h-[92px] flex-col items-center justify-center gap-1.5 border-b border-white/20 px-2 py-3 text-[15px] font-semibold leading-tight hover:bg-pragma-electric/90 disabled:opacity-60"
             >
-              <Banknote className="size-5" />
+              <FileText className="size-6" strokeWidth={1.75} />
               Pago a crédito
             </button>
             <button
               type="button"
               disabled={pending}
               onClick={() => complete("CASH")}
-              className="flex flex-col items-center gap-1 border-r border-white/20 py-4 text-xs font-semibold hover:bg-pragma-electric/90"
+              className="flex min-h-[92px] flex-col items-center justify-center gap-1.5 border-r border-white/20 px-2 py-3 text-[15px] font-semibold leading-tight hover:bg-pragma-electric/90 disabled:opacity-60"
             >
-              <Banknote className="size-5" />
+              <Banknote className="size-6" strokeWidth={1.75} />
               Pago de Contado
             </button>
             <button
               type="button"
               disabled={pending}
               onClick={suspend}
-              className="flex flex-col items-center gap-1 py-4 text-xs font-semibold hover:bg-pragma-electric/90"
+              className="flex min-h-[92px] flex-col items-center justify-center gap-1.5 px-2 py-3 text-[15px] font-semibold leading-tight hover:bg-pragma-electric/90 disabled:opacity-60"
             >
-              <Pause className="size-5" />
+              <Pause className="size-6" strokeWidth={1.75} />
               Venta temporal
             </button>
           </div>

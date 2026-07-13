@@ -12,7 +12,7 @@ import { TiendasOnScreen } from "@/domains/retail/ui/tiendas-on/screen-shell";
 export default async function RetailSuppliersPage() {
   const suppliers = await getSuppliersData();
   return (
-    <TiendasOnScreen title="Proveedores" backHref="/intiendas/compras">
+    <TiendasOnScreen title="Proveedores" backHref="/intiendas/inventario">
       <TiendasOnActionBar>
         <p className="text-sm text-[#718096]">{suppliers.length} proveedores registrados</p>
       </TiendasOnActionBar>
