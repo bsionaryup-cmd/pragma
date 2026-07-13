@@ -13,10 +13,21 @@ import { cn } from "@/lib/utils";
 
 const PLATFORM_NAV = [
   { href: OWNER_DASHBOARD_PATH, label: "Resumen", activePrefix: OWNER_DASHBOARD_PATH, exact: true },
+  { href: "/panel", label: "PMS", activePrefix: "/panel" },
   {
     href: "/owner-dashboard/sales/prospects",
     label: "Consola de ventas",
     activePrefix: "/owner-dashboard/sales",
+  },
+  {
+    href: "/owner-dashboard/qr-mobility",
+    label: "QR Mobility",
+    activePrefix: "/owner-dashboard/qr-mobility",
+  },
+  {
+    href: "/owner-dashboard/intiendas",
+    label: "INTIENDAS",
+    activePrefix: "/owner-dashboard/intiendas",
   },
   { href: "/owner-dashboard/support", label: "Soporte", activePrefix: "/owner-dashboard/support" },
 ] as const;

@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260616120000_airbnb_linkage_repair";
+const PRISMA_SCHEMA_VERSION = "20260713120000_intiendas_retail_access_plan";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -62,6 +62,17 @@ async function disconnectAll(): Promise<void> {
   globalForPrisma.prismaSchemaVersion = undefined;
 }
 
+function createAndCacheClient(): PrismaClient {
+  const client = createPrismaClient();
+  globalForPrisma.prisma = client;
+  globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
+  return client;
+}
+
+function hasRequiredDelegates(client: PrismaClient): boolean {
+  return Boolean(client.mobilityAlly) && Boolean(client.retailStore);
+}
+
 function getPrismaClient(): PrismaClient {
   const stale =
     globalForPrisma.prisma &&
@@ -83,12 +94,24 @@ function getPrismaClient(): PrismaClient {
     })();
   }
 
-  if (!globalForPrisma.prisma) {
-    globalForPrisma.prisma = createPrismaClient();
-    globalForPrisma.prismaSchemaVersion = PRISMA_SCHEMA_VERSION;
+  let client = globalForPrisma.prisma ?? createAndCacheClient();
+
+  // Tras `prisma generate` + HMR, el singleton puede quedar sin delegados nuevos.
+  if (!hasRequiredDelegates(client)) {
+    console.warn("[db] Reciclando cliente Prisma (faltan modelos Mobility/Retail)…");
+    globalForPrisma.prisma = undefined;
+    globalForPrisma.pool = undefined;
+    globalForPrisma.prismaSchemaVersion = undefined;
+    client = createAndCacheClient();
   }
 
-  return globalForPrisma.prisma;
+  if (!hasRequiredDelegates(client)) {
+    throw new Error(
+      "[db] Prisma Client incompleto. Ejecuta: npm run dev:clean && npx prisma generate && aplica la migración retail.",
+    );
+  }
+
+  return client;
 }
 
 /** Proxy para que `resetPrismaClient()` invalide el cliente en caliente (dev/HMR). */

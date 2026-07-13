@@ -18,6 +18,7 @@ const isOwnerRoute = createRouteMatcher([
 ]);
 
 const isOwnerLoginRoute = createRouteMatcher([`${OWNER_LOGIN_PATH}(.*)`]);
+const isRetailRoute = createRouteMatcher(["/intiendas(.*)"]);
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -27,6 +28,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/forgot-password",
+  "/intiendas/login",
   `${OWNER_LOGIN_PATH}(.*)`,
   "/account-suspended",
   "/api/webhooks(.*)",
@@ -38,6 +40,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/integrations/ttlock/callback",
   "/api/integrations/ttlock/webhook/(.*)",
   "/guest-registration/(.*)",
+  "/m/(.*)",
   "/offer/(.*)",
   "/landing-product-screenshot-preview",
 ]);
@@ -80,6 +83,16 @@ export default clerkMiddleware(
     }
 
     if (isUnauthorizedPage(request)) {
+      return forwardWithPathname(request, pathname);
+    }
+
+    if (isRetailRoute(request)) {
+      const authState = await auth();
+      if (!authState.userId) {
+        const loginUrl = new URL("/intiendas/login", request.url);
+        loginUrl.searchParams.set("next", pathname);
+        return NextResponse.redirect(loginUrl);
+      }
       return forwardWithPathname(request, pathname);
     }
 

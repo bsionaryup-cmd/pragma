@@ -10,8 +10,10 @@ import {
   LayoutDashboard,
   LogOut,
   Plug,
+  QrCode,
   Settings,
   Shield,
+  Store,
   User,
   Users,
 } from "lucide-react";
@@ -156,6 +158,33 @@ export function OwnerAccountMenu({
             Infraestructura Wompi
           </Link>
         </DropdownMenuItem>
+
+        {onOwnerDashboard ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Productos
+            </DropdownMenuLabel>
+            <DropdownMenuItem asChild>
+              <Link href="/panel" className="cursor-pointer">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                PMS
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/owner-dashboard/qr-mobility" className="cursor-pointer">
+                <QrCode className="mr-2 h-4 w-4" />
+                QR Mobility
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/owner-dashboard/intiendas" className="cursor-pointer">
+                <Store className="mr-2 h-4 w-4" />
+                INTIENDAS
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : null}
 
         {hasOwnOrganization ? (
           <>

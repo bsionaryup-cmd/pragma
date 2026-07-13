@@ -27,6 +27,8 @@ type VerificationReason = "client_trust" | "second_factor";
 type EmailPasswordSignInFormProps = {
   postAuthPath?: string;
   clearStaleSession?: boolean;
+  /** When false, hides the PMS sign-up link (used by INTIENDAS). Default true. */
+  showSignUpLink?: boolean;
 };
 
 function requiresSecondFactor(status: SignInFutureResource["status"]): boolean {
@@ -129,6 +131,7 @@ function verificationDescription(
 export function EmailPasswordSignInForm({
   postAuthPath = DEFAULT_POST_AUTH_PATH,
   clearStaleSession = false,
+  showSignUpLink = true,
 }: EmailPasswordSignInFormProps) {
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() ?? "";
@@ -541,9 +544,10 @@ export function EmailPasswordSignInForm({
   }
 
   const showVerificationStep =
-    !clearStaleSession &&
-    (step === "verification" ||
-      (signIn != null && requiresSecondFactor(signIn.status)));
+    step === "verification" ||
+    (!clearStaleSession &&
+      signIn != null &&
+      requiresSecondFactor(signIn.status));
 
   if (!authBootstrapComplete) {
     return (
@@ -726,12 +730,18 @@ export function EmailPasswordSignInForm({
         {isFetching ? "Ingresando…" : "Iniciar sesión"}
       </Button>
 
-      <p className="text-center text-sm text-muted-foreground">
-        ¿No tienes cuenta?{" "}
-        <Link href="/sign-up" className="font-medium text-pragma-electric hover:underline">
-          Crear cuenta
-        </Link>
-      </p>
+      {showSignUpLink ? (
+        <p className="text-center text-sm text-muted-foreground">
+          ¿No tienes cuenta?{" "}
+          <Link href="/sign-up" className="font-medium text-pragma-electric hover:underline">
+            Crear cuenta
+          </Link>
+        </p>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground">
+          El acceso lo crea el administrador desde el panel Owner.
+        </p>
+      )}
     </form>
   );
 }
