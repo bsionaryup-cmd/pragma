@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireOpenCashSession } from "../auth/require-open-cash";
 import { requireRetailContext } from "../auth/require-retail-context";
 import { cancelSale, createSale, suspendSale } from "../services/sale.service";
+import { scheduleIntelOutboxDrain } from "@/domains/retail-intelligence/services/schedule-drain";
 import type { SaleInput } from "../types";
 
 function refresh() {
@@ -18,6 +19,7 @@ export async function createSaleAction(input: SaleInput) {
     { ...input, cashSessionId: ctx.cashSession.id },
     ctx.userId,
   );
+  scheduleIntelOutboxDrain();
   refresh();
   return result;
 }
@@ -36,6 +38,7 @@ export async function suspendSaleAction(input: SaleInput) {
 export async function cancelSaleAction(id: string) {
   const ctx = await requireRetailContext();
   const result = await cancelSale(ctx.store.id, id, ctx.userId);
+  scheduleIntelOutboxDrain();
   refresh();
   return result;
 }

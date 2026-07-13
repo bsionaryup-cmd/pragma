@@ -15,6 +15,7 @@ import {
 } from "@/domains/retail/services/warehouse.service";
 import type { SaleInput } from "@/domains/retail/types";
 import { enqueueStockChanged } from "@/domains/retail-intelligence/services/outbox.publisher";
+import { scheduleIntelOutboxDrain } from "@/domains/retail-intelligence/services/schedule-drain";
 import {
   assertStoreOwnedCashRegister,
   assertStoreOwnedCategory,
@@ -150,6 +151,7 @@ export async function adjustStockAction(data: FormData) {
     });
     await enqueueStockChanged(tx, context.store.id, productId, "STOCK_ADJUSTED", movement.id);
   });
+  scheduleIntelOutboxDrain();
   refresh();
 }
 
@@ -287,6 +289,7 @@ export async function completeSaleAction(input: SaleInput) {
     },
     context.userId,
   );
+  scheduleIntelOutboxDrain();
   refresh();
   return { id: sale.id, code: sale.code };
 }
@@ -343,6 +346,7 @@ export async function createSimplePurchaseAction(data: FormData) {
       },
     });
   }
+  scheduleIntelOutboxDrain();
   refresh();
 }
 
@@ -352,6 +356,7 @@ export async function updatePurchaseStatusAction(data: FormData) {
   const intent = text(data, "intent");
   if (intent === "receive") {
     await receiveOrder(context.store.id, id, undefined, context.userId);
+    scheduleIntelOutboxDrain();
   } else if (intent === "approve") {
     await approveOrder(context.store.id, id);
   } else {
@@ -486,5 +491,6 @@ export async function transferStockAction(data: FormData) {
     quantity: number(data, "quantity"),
     userId: context.userId,
   });
+  scheduleIntelOutboxDrain();
   refresh();
 }

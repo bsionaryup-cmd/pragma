@@ -10,6 +10,7 @@ import {
   refreshStoreReorderPlan,
 } from "./reorder-engine.service";
 import { recomputeStoreHealthScore } from "./health-score.service";
+import { logIntelObs } from "./observability";
 
 async function markDone(id: string) {
   await db.retailIntelOutbox.update({
@@ -116,6 +117,13 @@ export async function drainIntelOutbox(limit = 100) {
       processed += 1;
     } catch (error) {
       await markFailed(event.id, error, event.attempts + 1);
+      logIntelObs("error", "outbox_event_failed", {
+        eventId: event.id,
+        type: event.type,
+        storeId: event.storeId,
+        attempts: event.attempts + 1,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -125,10 +133,20 @@ export async function drainIntelOutbox(limit = 100) {
       await refreshStoreReorderPlan(storeId);
       await recomputeStoreHealthScore(storeId);
       refreshedStores.push(storeId);
-    } catch {
-      // plan refresh failures should not block drain; next cron retries via stale recompute
+      logIntelObs("info", "store_plan_refreshed", { storeId });
+    } catch (error) {
+      logIntelObs("warn", "store_plan_refresh_failed", {
+        storeId,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
+
+  logIntelObs("info", "outbox_drain_complete", {
+    processed,
+    refreshed: refreshedStores.length,
+    limit,
+  });
 
   return { processed, refreshedStores };
 }

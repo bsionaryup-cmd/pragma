@@ -8,6 +8,8 @@ export {
   enqueueRefreshStorePlan,
 } from "./services/outbox.publisher";
 export { drainIntelOutbox, ensureStoreIntelligence } from "./services/worker.service";
+export { scheduleIntelOutboxDrain } from "./services/schedule-drain";
+export { logIntelObs } from "./services/observability";
 export { getPedidosDashboard } from "./services/read.service";
 export {
   approveIntelOrder,

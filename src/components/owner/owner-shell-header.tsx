@@ -29,6 +29,11 @@ const PLATFORM_NAV = [
     label: "INTIENDAS",
     activePrefix: "/owner-dashboard/intiendas",
   },
+  {
+    href: "/owner-dashboard/salud",
+    label: "Salud",
+    activePrefix: "/owner-dashboard/salud",
+  },
   { href: "/owner-dashboard/support", label: "Soporte", activePrefix: "/owner-dashboard/support" },
 ] as const;
 

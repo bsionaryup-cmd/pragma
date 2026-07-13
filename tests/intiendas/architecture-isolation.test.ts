@@ -143,6 +143,19 @@ describe("architecture isolation audit", () => {
     assert.match(source, /assertStoreOwnedCashRegister/);
   });
 
+  it("wired sale/purchase/stock actions schedule incremental intel drain", async () => {
+    const retailActions = await readFile(
+      path.join(process.cwd(), "src", "domains", "retail", "actions", "retail.actions.ts"),
+      "utf8",
+    );
+    assert.match(retailActions, /scheduleIntelOutboxDrain/);
+    const saleActions = await readFile(
+      path.join(process.cwd(), "src", "domains", "retail", "actions", "sale.actions.ts"),
+      "utf8",
+    );
+    assert.match(saleActions, /scheduleIntelOutboxDrain/);
+  });
+
   it("Compras page does not run intelligence engine", async () => {
     const compras = await readFile(
       path.join(process.cwd(), "src", "app", "(retail)", "intiendas", "(app)", "compras", "page.tsx"),

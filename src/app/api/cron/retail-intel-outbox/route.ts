@@ -1,8 +1,13 @@
+/**
+ * Inventory Intelligence outbox cron — safety net (Hobby: daily).
+ * Primary path: event enqueue + scheduleIntelOutboxDrain() after retail writes.
+ */
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { drainIntelOutbox } from "@/domains/retail-intelligence";
 import { bootstrapStoreIntelligence } from "@/domains/retail-intelligence";
 import { recomputeStoreHealthScore } from "@/domains/retail-intelligence/services/health-score.service";
+import { logIntelObs } from "@/domains/retail-intelligence/services/observability";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,14 +21,12 @@ function isAuthorized(request: Request): boolean {
   return url.searchParams.get("secret") === secret;
 }
 
-/**
- * Inventory Intelligence worker: drain outbox + stale store catch-up.
- * Additive retail cron — does not touch PMS jobs.
- */
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  logIntelObs("info", "cron_retail_intel_start", {});
 
   const drained = await drainIntelOutbox(200);
 
@@ -49,6 +52,11 @@ export async function GET(request: Request) {
       bootstrapped.push(store.id);
     }
   }
+
+  logIntelObs("info", "cron_retail_intel_done", {
+    drained,
+    bootstrapped: bootstrapped.length,
+  });
 
   return NextResponse.json({
     ok: true,
