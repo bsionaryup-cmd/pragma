@@ -15,6 +15,7 @@ describe("PRAGMA INTIENDAS auth routes", () => {
 
     assert.match(proxy, /const isRetailRoute = createRouteMatcher\(\["\/intiendas\(\.\*\)"\]\)/);
     assert.match(proxy, /"\/intiendas\/login"/);
+    assert.match(proxy, /"\/intiendas\/login\/recuperar"/);
     assert.match(proxy, /if \(isRetailRoute\(request\)\)/);
     assert.match(proxy, /new URL\("\/intiendas\/login", request\.url\)/);
   });

@@ -1,18 +1,57 @@
+import Link from "next/link";
+import { BookOpen, Settings, Shield, Wallet } from "lucide-react";
 import { closeCashAction, openCashAction, updateStoreAction } from "@/domains/retail/actions/retail.actions";
 import { getSettingsData } from "@/domains/retail/services/retail-ui.service";
 import { TiendasOnSummaryCard, TiendasOnSummaryRow } from "@/domains/retail/ui/tiendas-on/data-display";
 import { formatIntiendasMoney } from "@/domains/retail/ui/tiendas-on/format";
 import { TiendasOnPrimaryButton } from "@/domains/retail/ui/tiendas-on/controls";
 import { TiendasOnScreen } from "@/domains/retail/ui/tiendas-on/screen-shell";
-import { Settings, Wallet } from "lucide-react";
 
 export default async function RetailSettingsPage() {
   const { store, registers } = await getSettingsData();
-  const open = registers.flatMap((register) => register.sessions.map((session) => ({ register, session })))[0];
+  const open = registers.flatMap((register) =>
+    register.sessions.map((session) => ({ register, session })),
+  )[0];
 
   return (
     <TiendasOnScreen title="Configuración">
       <div className="grid gap-4 p-4 lg:grid-cols-2">
+        <TiendasOnSummaryCard
+          title="Centro de Ayuda"
+          accent="pragma"
+          icon={<BookOpen className="size-5 text-pragma-electric" />}
+          action={
+            <Link href="/intiendas/configuracion/ayuda" className="text-xs text-pragma-electric">
+              Abrir
+            </Link>
+          }
+        >
+          <p className="text-sm text-[#4a5568]">
+            Manual oficial de INTIENDAS: busca por módulo, lee artículos y descarga el PDF.
+          </p>
+          <Link href="/intiendas/configuracion/ayuda" className="mt-3 inline-block">
+            <TiendasOnPrimaryButton type="button">Ir al Centro de Ayuda</TiendasOnPrimaryButton>
+          </Link>
+        </TiendasOnSummaryCard>
+
+        <TiendasOnSummaryCard
+          title="Seguridad"
+          accent="amber"
+          icon={<Shield className="size-5 text-[#d69e2e]" />}
+          action={
+            <Link href="/intiendas/configuracion/seguridad" className="text-xs text-pragma-electric">
+              Abrir
+            </Link>
+          }
+        >
+          <p className="text-sm text-[#4a5568]">
+            Cambia tu contraseña sin depender del administrador.
+          </p>
+          <Link href="/intiendas/configuracion/seguridad" className="mt-3 inline-block">
+            <TiendasOnPrimaryButton type="button">Cambiar contraseña</TiendasOnPrimaryButton>
+          </Link>
+        </TiendasOnSummaryCard>
+
         <TiendasOnSummaryCard
           title="Datos de la tienda"
           accent="pragma"

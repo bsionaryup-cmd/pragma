@@ -24,4 +24,4 @@ export const INTIENDAS_MODULES = [
   { id: "configuracion", label: "Configuración", href: "/intiendas/configuracion", icon: Settings },
 ] as const;
 
-export const INTIENDAS_VERSION = "1.2.2";
+export const INTIENDAS_VERSION = "1.3.0";

@@ -179,6 +179,15 @@ export function RetailPasswordSignInForm({ postAuthPath }: RetailPasswordSignInF
         {isFetching ? "Ingresando…" : "Iniciar sesión"}
       </TiendasOnPrimaryButton>
 
+      <p className="text-center text-sm">
+        <a
+          href={`/intiendas/login/recuperar${email.trim() ? `?email=${encodeURIComponent(email.trim().toLowerCase())}` : ""}`}
+          className="font-medium text-pragma-electric hover:underline"
+        >
+          ¿Olvidaste tu contraseña?
+        </a>
+      </p>
+
       <p className="text-center text-sm text-[#718096]">
         El acceso lo crea el administrador desde el panel Owner.
       </p>
