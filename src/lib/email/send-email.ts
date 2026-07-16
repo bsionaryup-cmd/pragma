@@ -5,12 +5,11 @@ export type SendEmailInput = {
   text?: string;
 };
 
+/** Remitente institucional único para correos automáticos salientes. */
+export const INSTITUTIONAL_EMAIL_FROM = "PRAGMA PMS <noreply@pragmapms.com>";
+
 export function resolveEmailFromAddress(): string {
-  const billingEmail = process.env.PRAGMA_BILLING_EMAIL?.trim();
-  return (
-    process.env.EMAIL_FROM?.trim() ||
-    `PRAGMA Facturación <${billingEmail ?? "facturacion@pragma.co"}>`
-  );
+  return process.env.EMAIL_FROM?.trim() || INSTITUTIONAL_EMAIL_FROM;
 }
 
 /** Production/staging hosts where simulated delivery must never count as sent. */

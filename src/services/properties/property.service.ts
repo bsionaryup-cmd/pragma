@@ -3,6 +3,11 @@ import {
   type PropertyFormValues,
 } from "@/features/properties/schemas/property.schema";
 import { formatNotificationEmailsForForm } from "@/lib/property-notification-emails";
+import {
+  guestRegistrationContactKeyFromFormValue,
+  guestRegistrationContactKeyToFormValue,
+  parseOperationalContacts,
+} from "@/lib/operational-contacts";
 import { mapSmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.mapper";
 import {
   isTTLockIntegrationConnected,
@@ -426,6 +431,17 @@ export async function getPropertyDetail(
     ),
     createdAt: property.createdAt.toISOString(),
     notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),
+    operationalContacts: parseOperationalContacts(property.operationalContacts).map((contact) => ({
+      key: contact.key,
+      name: contact.name,
+      role: contact.role,
+      email: contact.email ?? "",
+      whatsapp: contact.whatsapp ?? "",
+      isActive: contact.isActive,
+    })),
+    guestRegistrationContactKey: guestRegistrationContactKeyToFormValue(
+      property.guestRegistrationContactKey,
+    ),
     receptionWhatsapp: property.receptionWhatsapp ?? "",
     useDefaultQuickMessages: !hasCustomQuickMessageTemplates(
       parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
@@ -505,6 +521,10 @@ function normalizeFormData(data: PropertyFormValues) {
     coverImageUrl: data.coverImageUrl?.trim() || null,
     status: data.status,
     notificationEmails: notificationEmailsFormToJson(data.notificationEmails),
+    operationalContacts: parseOperationalContacts(data.operationalContacts ?? []),
+    guestRegistrationContactKey: guestRegistrationContactKeyFromFormValue(
+      data.guestRegistrationContactKey,
+    ),
     receptionWhatsapp: data.receptionWhatsapp?.trim() || null,
     quickMessageTemplates: quickMessageTemplatesForPrisma(data),
   };

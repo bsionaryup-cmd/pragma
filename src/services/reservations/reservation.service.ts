@@ -50,6 +50,7 @@ import {
 } from "@/lib/reservations/reservation-ota";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
+import { buildGuestRegistrationAdminNotificationStatus } from "@/services/guests/guest-registration-admin-notification.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -107,7 +108,14 @@ type ReservationRow = {
   internalNotes: string | null;
   guestRegistrationToken?: string | null;
   guestRegistrationCompletedAt?: Date | null;
-  property: ReservationInboxItem["property"];
+  guestRegistrationAdminNotifiedAt?: Date | null;
+  guestRegistrationAdminNotificationError?: string | null;
+  guestRegistrationAdminNotificationLog?: unknown;
+  property: ReservationInboxItem["property"] & {
+    notificationEmails?: unknown;
+    operationalContacts?: unknown;
+    guestRegistrationContactKey?: string | null;
+  };
   guests?: ReservationDetailItem["guests"];
   guestRegistration?: ReservationInboxItem["guestRegistration"];
   guestRegistrationProgress?: ReservationInboxItem["guestRegistrationProgress"];
@@ -173,6 +181,23 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       r.guestRegistration?.usedAt ??
       r.guestRegistrationCompletedAt?.toISOString() ??
       null,
+    guestRegistrationAdminNotification:
+      r.guestRegistrationCompletedAt &&
+      "guestRegistrationAdminNotifiedAt" in r
+        ? buildGuestRegistrationAdminNotificationStatus({
+            guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
+            guestRegistrationAdminNotifiedAt:
+              r.guestRegistrationAdminNotifiedAt ?? null,
+            guestRegistrationAdminNotificationError:
+              r.guestRegistrationAdminNotificationError ?? null,
+            guestRegistrationAdminNotificationLog:
+              r.guestRegistrationAdminNotificationLog ?? [],
+            notificationEmails: r.property.notificationEmails ?? [],
+            operationalContacts: r.property.operationalContacts ?? [],
+            guestRegistrationContactKey:
+              r.property.guestRegistrationContactKey ?? null,
+          })
+        : null,
     guestRegistration: r.guestRegistration ?? null,
     guestRegistrationProgress: progress,
     property: {
@@ -600,12 +625,15 @@ export async function createReservation(data: ReservationWizardValues) {
       totalAmount: data.totalAmount,
     });
   } else if (
+    created.platform === BookingPlatform.DIRECT &&
     isGuestRegistrationEligiblePlatform(created.platform) &&
     isGuestRegistrationEligibleStatus(created.status)
   ) {
     await ensureGuestRegistrationForReservation(created.id);
     if (created.guestEmail?.trim()) {
-      await sendGuestRegistrationEmailForReservation(created.id).catch((err) => {
+      await sendGuestRegistrationEmailForReservation(created.id, {
+        triggeredBy: "auto",
+      }).catch((err) => {
         console.warn("[guest-registration-email] No enviado", created.id, err);
       });
     }

@@ -29,6 +29,16 @@ import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-g
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { beforeAccessCredentialPersist } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 
+function scheduleAccessCodeEmail(credentialId: string): void {
+  void import("@/services/integrations/ttlock/ttlock-access-code-email.service")
+    .then(({ scheduleAccessCodeEmailForCredential }) =>
+      scheduleAccessCodeEmailForCredential(credentialId),
+    )
+    .catch((error) => {
+      console.error("[ttlock-access-code-email] schedule failed", credentialId, error);
+    });
+}
+
 /** Combina fecha de reserva (UTC date) + hora local Colombia para TTLock. */
 export function resolveAccessWindow(input: {
   checkIn: Date;
@@ -330,6 +340,9 @@ export async function generateAccessCodeForReservation(
       existing.status === AccessCredentialStatus.SENT)
   ) {
     const code = formatAccessCode(decryptTTLockSecret(existing.codeEncrypted));
+    if (existing.id) {
+      scheduleAccessCodeEmail(existing.id);
+    }
     return {
       ok: true,
       message: "Ya existe un código activo para esta reserva",
@@ -510,6 +523,8 @@ export async function generateAccessCodeForReservation(
     });
   }
 
+  scheduleAccessCodeEmail(credential.id);
+
   return {
     ok: true,
     message: apiMessage ?? "Código generado",
@@ -641,6 +656,8 @@ export async function restoreRevokedAccessCodeForReservation(
       },
     });
   }
+
+  scheduleAccessCodeEmail(credential.id);
 
   return {
     ok: true,

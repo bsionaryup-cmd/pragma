@@ -11,6 +11,7 @@ import {
   resolveFinanceReservationRevenueAmount,
 } from "@/lib/finance/reservation-revenue-amount";
 import { isCancellationFeedEligible } from "@/lib/reservations/reservation-cancellation-policy";
+import { GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER } from "@/lib/guest-registration/guest-registration-admin-notification-log";
 import {
   buildOperationalCard,
   formatGuestCountLine,
@@ -599,6 +600,12 @@ export function mapGuestRegistrationAlert(row: {
   property: { id: string; name: string; unitNumber: string | null; city: string };
 }): OperationalFeedCard | null {
   if (!row.guestRegistrationAdminNotificationError || !row.guestRegistrationCompletedAt) {
+    return null;
+  }
+  if (
+    row.guestRegistrationAdminNotificationError ===
+    GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER
+  ) {
     return null;
   }
 

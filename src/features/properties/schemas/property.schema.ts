@@ -31,6 +31,19 @@ export const propertyFormSchema = z.object({
   status: z.nativeEnum(PropertyStatus),
   /** One email per line in the form; stored as JSON array on the property. */
   notificationEmails: z.string().optional(),
+  operationalContacts: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1),
+        name: z.string().trim().min(1, "Nombre requerido"),
+        role: z.string().trim().min(1, "Cargo requerido"),
+        email: z.string().trim().email("Email inválido").optional().or(z.literal("")),
+        whatsapp: z.string().trim().optional(),
+        isActive: z.boolean(),
+      }),
+    )
+    .optional(),
+  guestRegistrationContactKey: z.string().trim().optional(),
   receptionWhatsapp: z.string().optional(),
   useDefaultQuickMessages: z.boolean().optional(),
   quickMessageWELCOME: z.string().optional(),

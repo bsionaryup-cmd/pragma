@@ -107,6 +107,29 @@ export type ReservationInboxItem = {
   internalNotes: string | null;
   guestRegistrationUrl?: string | null;
   guestRegistrationCompletedAt?: string | null;
+  guestRegistrationAdminNotification?: {
+    completed: boolean;
+    notifiedAt: string | null;
+    error: string | null;
+    recipients: string[];
+    recipientSource?: "operational-contact" | "legacy-notification-emails";
+    selectedContact?: {
+      key: string;
+      name: string;
+      role: string;
+      email: string | null;
+      whatsapp: string | null;
+      isActive: boolean;
+    } | null;
+    attemptCount: number;
+    latestAttempt: {
+      at: string;
+      status: "success" | "partial" | "failed";
+      recipients: string[];
+      error?: string;
+      triggeredBy: "auto" | "manual";
+    } | null;
+  } | null;
   guestRegistration?: ReservationGuestRegistrationDto | null;
   guestRegistrationProgress?: {
     registered: number;

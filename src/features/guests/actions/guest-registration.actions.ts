@@ -24,6 +24,10 @@ import {
   submitGuestRegistration,
 } from "@/services/guests/guest-registration.service";
 import { sendGuestRegistrationEmailForReservation } from "@/services/guests/guest-registration-email.service";
+import { resendAdminGuestRegistrationNotification } from "@/services/guests/guest-registration-admin-notification.service";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { assertReservationInScope } from "@/lib/platform/tenant-access";
+import { requireTenantContext } from "@/lib/platform/tenant-context";
 
 function revalidateGuestRegistrationPaths() {
   revalidatePath("/reservations");
@@ -133,12 +137,48 @@ export async function regenerateGuestRegistrationTokenAction(
 export async function resendGuestRegistrationEmailAction(reservationId: string) {
   try {
     await requireGuestRegistrationPermission();
-    const result = await sendGuestRegistrationEmailForReservation(reservationId);
+    const tenant = await requireTenantContext();
+    const result = await sendGuestRegistrationEmailForReservation(reservationId, {
+      force: true,
+      triggeredBy: "manual",
+      userId: tenant.userId,
+    });
     if (!result.ok) {
       return { success: false as const, error: result.message };
     }
     revalidateGuestRegistrationPaths();
     return { success: true as const };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return {
+      success: false as const,
+      error: toGuestRegistrationActionError(error),
+    };
+  }
+}
+
+export async function resendGuestRegistrationAdminNotificationAction(
+  reservationId: string,
+) {
+  try {
+    await requireGuestRegistrationPermission();
+    const [scope, tenant] = await Promise.all([
+      requireTenantDataScope(),
+      requireTenantContext(),
+    ]);
+    await assertReservationInScope(scope, reservationId);
+
+    const result = await resendAdminGuestRegistrationNotification(
+      reservationId,
+      tenant.userId,
+    );
+    revalidateGuestRegistrationPaths();
+    revalidatePath("/reservations");
+
+    if (!result.ok) {
+      return { success: false as const, error: result.message };
+    }
+    return { success: true as const, message: result.message };
   } catch (error) {
     if (isRedirectError(error)) throw error;
     return {

@@ -183,6 +183,8 @@ model Property {
   status             PropertyStatus @default(ACTIVE)
   currency           String         @default("COP")
   notificationEmails Json           @default("[]")
+  operationalContacts Json          @default("[]")
+  guestRegistrationContactKey String?
   quickMessageTemplates Json?
   receptionWhatsapp  String?
   createdAt          DateTime       @default(now())
@@ -254,8 +256,12 @@ model Reservation {
   icalUid                      String?
   guestRegistrationToken       String?           @unique
   guestRegistrationCompletedAt           DateTime?
+  guestRegistrationInviteSentAt          DateTime?
+  guestRegistrationInviteError           String?
+  guestRegistrationInviteLog             Json              @default("[]")
   guestRegistrationAdminNotifiedAt       DateTime?
   guestRegistrationAdminNotificationError String?
+  guestRegistrationAdminNotificationLog Json              @default("[]")
   createdAt                              DateTime          @default(now())
   updatedAt                              DateTime          @updatedAt
 

@@ -63,6 +63,15 @@ export type PropertyDetailDto = PropertyGridItem & {
   lastIcalSyncedAt: string | null;
   /** Multiline text for the property form (one email per line). */
   notificationEmails: string;
+  operationalContacts: Array<{
+    key: string;
+    name: string;
+    role: string;
+    email: string;
+    whatsapp: string;
+    isActive: boolean;
+  }>;
+  guestRegistrationContactKey: string;
   receptionWhatsapp: string;
   useDefaultQuickMessages: boolean;
   quickMessageWELCOME: string;

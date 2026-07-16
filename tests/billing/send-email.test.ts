@@ -34,13 +34,17 @@ describe("Resend email delivery", () => {
     assert.equal(typeof shouldSimulateEmailDelivery(), "boolean");
   });
 
-  it("uses EMAIL_FROM and PRAGMA_BILLING_EMAIL fallback", async () => {
-    await withEnv(
-      { EMAIL_FROM: undefined, PRAGMA_BILLING_EMAIL: "facturacion@example.com" },
-      () => {
-        assert.match(resolveEmailFromAddress(), /facturacion@example\.com/);
-      },
-    );
+  it("uses EMAIL_FROM when set, otherwise institutional noreply", async () => {
+    await withEnv({ EMAIL_FROM: "Custom <ops@example.com>" }, () => {
+      assert.equal(resolveEmailFromAddress(), "Custom <ops@example.com>");
+    });
+
+    await withEnv({ EMAIL_FROM: undefined, PRAGMA_BILLING_EMAIL: "facturacion@example.com" }, () => {
+      assert.equal(
+        resolveEmailFromAddress(),
+        "PRAGMA PMS <noreply@pragmapms.com>",
+      );
+    });
   });
 
   it("simulates delivery when RESEND_API_KEY is missing outside production", async () => {

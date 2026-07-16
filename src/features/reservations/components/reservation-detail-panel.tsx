@@ -7,6 +7,7 @@ import {
   Moon,
   Pencil,
   RefreshCw,
+  Send,
   Trash2,
   User,
   XCircle,
@@ -18,6 +19,7 @@ import { AccessCodeDisplay } from "@/components/access/access-code-display";
 import {
   generateGuestRegistrationLinkAction,
   regenerateGuestRegistrationTokenAction,
+  resendGuestRegistrationAdminNotificationAction,
   resendGuestRegistrationEmailAction,
   revokeGuestRegistrationTokenAction,
 } from "@/features/guests/actions/guest-registration.actions";
@@ -347,6 +349,7 @@ export function ReservationDetailPanel({
   const registeredGuests = reservation.guests ?? [];
   const registration = reservation.guestRegistration;
   const registrationProgress = reservation.guestRegistrationProgress;
+  const adminNotification = reservation.guestRegistrationAdminNotification;
   const accessCode = reservation.accessCode;
   const registrationDueSoon = isGuestRegistrationDueSoon({
     checkIn: reservation.checkIn,
@@ -525,6 +528,28 @@ export function ReservationDetailPanel({
         return;
       }
       toast.success("Correo de registro reenviado al huésped");
+    });
+  }
+
+  function resendAdminNotification() {
+    if (
+      !confirm(
+        "¿Reenviar el correo de registro completado a administración del edificio?",
+      )
+    ) {
+      return;
+    }
+    startTokenTransition(async () => {
+      const result = await resendGuestRegistrationAdminNotificationAction(
+        reservation.id,
+      );
+      if (!result.success) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(result.message ?? "Correo reenviado a administración");
+      router.refresh();
+      dispatchDashboardDataRefresh();
     });
   }
 
@@ -948,6 +973,85 @@ export function ReservationDetailPanel({
                 </div>
               )}
             </ReservationDetailSection>
+
+            {reservation.guestRegistrationCompletedAt && adminNotification ? (
+              <ReservationDetailSection title="Aviso a administración">
+                <div className="space-y-2 rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">
+                      {adminNotification.notifiedAt
+                        ? "Enviado"
+                        : adminNotification.error
+                          ? "Falló el envío"
+                          : "Pendiente"}
+                    </p>
+                    {adminNotification.notifiedAt ? (
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatDateTimeInBogota(adminNotification.notifiedAt)}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {adminNotification.selectedContact ? (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        Contacto operativo:
+                      </span>{" "}
+                      {adminNotification.selectedContact.role} ·{" "}
+                      {adminNotification.selectedContact.name}
+                    </p>
+                  ) : adminNotification.recipientSource ===
+                    "legacy-notification-emails" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Origen: correos legacy (notificationEmails)
+                    </p>
+                  ) : null}
+
+                  {adminNotification.recipients.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        Destinatarios:
+                      </span>{" "}
+                      {adminNotification.recipients.join(", ")}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-700">
+                      Configura un Contacto Operativo con correo o notificationEmails en la propiedad.
+                    </p>
+                  )}
+
+                  {adminNotification.latestAttempt ? (
+                    <p className="text-xs text-muted-foreground">
+                      Último intento:{" "}
+                      {formatDateTimeInBogota(adminNotification.latestAttempt.at)}
+                      {adminNotification.latestAttempt.triggeredBy === "manual"
+                        ? " · reenvío manual"
+                        : " · automático"}
+                    </p>
+                  ) : null}
+
+                  {adminNotification.error ? (
+                    <p className="text-xs text-destructive">{adminNotification.error}</p>
+                  ) : null}
+
+                  {canManageGuestRegistration ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={resendAdminNotification}
+                      disabled={
+                        isTokenPending || adminNotification.recipients.length === 0
+                      }
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Reenviar a administración
+                    </Button>
+                  ) : null}
+                </div>
+              </ReservationDetailSection>
+            ) : null}
 
             {relatedBlocks.length > 0 ? (
               <ReservationDetailSection title="Bloqueos relacionados">

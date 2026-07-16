@@ -1,0 +1,242 @@
+{
+  "startedAt": "2026-07-16T12:09:28.392Z",
+  "mode": "real",
+  "from": "PRAGMA PMS <noreply@pragmapms.com>",
+  "to": "magvillafuerte@gmail.com",
+  "property": {
+    "id": "cmpmqaeea000004jvytqozsq1",
+    "name": "Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+    "unitNumber": "801",
+    "opsRecipients": [
+      "bsionaryup@gmail.com"
+    ],
+    "opsSource": "operational-contact"
+  },
+  "reservationId": "cmrnguwf20004k0ty1hid4zk5",
+  "registrationUrl": "http://localhost:3000/guest-registration/06c96c2d3e3318ac231a2d3b30e7997ac2199b5a65cd3091",
+  "welcome": {
+    "first": {
+      "ok": true,
+      "message": "Correo de bienvenida enviado",
+      "providerId": "0631694f-3264-491b-a10b-eee66e596645"
+    },
+    "second": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida ya enviado"
+    },
+    "log": [
+      {
+        "at": "2026-07-16T12:09:33.116Z",
+        "status": "success",
+        "recipient": "magvillafuerte@gmail.com",
+        "providerId": "0631694f-3264-491b-a10b-eee66e596645",
+        "triggeredBy": "auto"
+      }
+    ],
+    "resend": {
+      "httpStatus": 200,
+      "id": "0631694f-3264-491b-a10b-eee66e596645",
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "to": [
+        "magvillafuerte@gmail.com"
+      ],
+      "subject": "Registro de huéspedes — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "last_event": "queued",
+      "htmlChecks": {
+        "pragmaBrand": true,
+        "guestRegistrationLink": true,
+        "hasCodePlain": false,
+        "hasMarkdownBoldCode": false
+      }
+    }
+  },
+  "guestRegistration": {
+    "guestRegistrationCompletedAt": "2026-07-16T12:09:35.474Z",
+    "guests": [
+      {
+        "fullName": "FullFlow Titular-68429DEF",
+        "isReservationOwner": true,
+        "email": "magvillafuerte@gmail.com",
+        "status": "REGISTERED"
+      },
+      {
+        "fullName": "FullFlow Acomp-68429DEF",
+        "isReservationOwner": false,
+        "email": null,
+        "status": "REGISTERED"
+      }
+    ]
+  },
+  "adminNotify": {
+    "row": {
+      "guestRegistrationAdminNotifiedAt": "2026-07-16T12:09:38.953Z",
+      "guestRegistrationAdminNotificationError": null,
+      "guestRegistrationAdminNotificationLog": [
+        {
+          "at": "2026-07-16T12:09:38.953Z",
+          "source": "operational-contact",
+          "status": "success",
+          "recipients": [
+            "bsionaryup@gmail.com"
+          ],
+          "providerIds": {
+            "bsionaryup@gmail.com": "d1c3c86f-04c3-4451-993e-7fbfd4303d96"
+          },
+          "triggeredBy": "auto",
+          "selectedContactKey": "administracion"
+        }
+      ]
+    },
+    "log": [
+      {
+        "at": "2026-07-16T12:09:38.953Z",
+        "status": "success",
+        "recipients": [
+          "bsionaryup@gmail.com"
+        ],
+        "providerIds": {
+          "bsionaryup@gmail.com": "d1c3c86f-04c3-4451-993e-7fbfd4303d96"
+        },
+        "triggeredBy": "auto",
+        "source": "operational-contact",
+        "selectedContactKey": "administracion"
+      }
+    ],
+    "resend": {
+      "httpStatus": 200,
+      "id": "d1c3c86f-04c3-4451-993e-7fbfd4303d96",
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "to": [
+        "bsionaryup@gmail.com"
+      ],
+      "subject": "Registro de huéspedes — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "last_event": "sent",
+      "htmlChecks": {
+        "pragmaBrand": true,
+        "guestRegistrationLink": false,
+        "hasCodePlain": false,
+        "hasMarkdownBoldCode": false
+      }
+    }
+  },
+  "ttlock": {
+    "credentialId": "cmrngv1pa0009k0tyr4mjdshk",
+    "status": "SENT",
+    "deliveryStatus": "SENT",
+    "code": "484300#",
+    "ttlockCodeId": null,
+    "dedupe": {
+      "ok": true,
+      "message": "El código ya fue enviado",
+      "skipped": true
+    }
+  },
+  "cleanup": "CANCELLED",
+  "finishedAt": "2026-07-16T12:09:41.244Z",
+  "phases": [
+    {
+      "phase": "7.1 Direct sin correo",
+      "ok": true,
+      "detail": {
+        "reservationId": "cmrnguvgr0000k0tyvoxljby4",
+        "result": {
+          "ok": false,
+          "message": "La reserva no tiene email de huésped válido"
+        }
+      }
+    },
+    {
+      "phase": "7.2 Airbnb sin bienvenida auto",
+      "ok": true,
+      "detail": {
+        "reservationId": "cmrnguvyf0002k0ty2dpo9cgd",
+        "result": {
+          "ok": true,
+          "skipped": true,
+          "message": "Correo de bienvenida solo para reservas directas"
+        }
+      }
+    },
+    {
+      "phase": "7.3/7.4 TTLock bloqueado antes de GR",
+      "ok": true,
+      "detail": {
+        "beforeTry": null,
+        "beforeGen": {
+          "ok": false,
+          "message": "El huésped aún no completó el registro. TTLock no generará código hasta entonces."
+        },
+        "credsBefore": 0
+      }
+    },
+    {
+      "phase": "2 Bienvenida Direct",
+      "ok": true,
+      "detail": {
+        "providerId": "0631694f-3264-491b-a10b-eee66e596645",
+        "dedupe": "Correo de bienvenida ya enviado",
+        "logStatus": "success",
+        "resendLastEvent": "queued"
+      }
+    },
+    {
+      "phase": "3 Guest Registration COMPLETED",
+      "ok": true,
+      "detail": {
+        "completedAt": "2026-07-16T12:09:35.474Z",
+        "guestCount": 2,
+        "owner": "FullFlow Titular-68429DEF"
+      }
+    },
+    {
+      "phase": "4 Correo administración",
+      "ok": true,
+      "detail": {
+        "notifiedAt": "2026-07-16T12:09:38.953Z",
+        "recipients": [
+          "bsionaryup@gmail.com"
+        ],
+        "providerIds": {
+          "bsionaryup@gmail.com": "d1c3c86f-04c3-4451-993e-7fbfd4303d96"
+        },
+        "resendLastEvent": "sent",
+        "branding": true
+      }
+    },
+    {
+      "phase": "5+6 TTLock código + correo",
+      "ok": true,
+      "detail": {
+        "credentialId": "cmrngv1pa0009k0tyr4mjdshk",
+        "deliveryStatus": "SENT",
+        "code": "484300#",
+        "hasMarkdownBold": false,
+        "dedupeMessage": "El código ya fue enviado"
+      }
+    },
+    {
+      "phase": "7.5 Anti-duplicados código",
+      "ok": true,
+      "detail": {
+        "dedupe": {
+          "ok": true,
+          "message": "El código ya fue enviado",
+          "skipped": true
+        }
+      }
+    },
+    {
+      "phase": "7.5 Anti-duplicados bienvenida",
+      "ok": true,
+      "detail": {
+        "second": {
+          "ok": true,
+          "skipped": true,
+          "message": "Correo de bienvenida ya enviado"
+        }
+      }
+    }
+  ],
+  "allOk": true
+}

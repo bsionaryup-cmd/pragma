@@ -135,8 +135,12 @@ async function finalizeGuestRegistrationAfterHold(reservationId: string) {
   }
 
   await ensureGuestRegistrationForReservation(reservationId);
-  if (row.guestEmail?.trim()) {
-    await sendGuestRegistrationEmailForReservation(reservationId).catch((err) => {
+
+  // Bienvenida automática: solo Direct (idempotente dentro del servicio).
+  if (row.platform === BookingPlatform.DIRECT && row.guestEmail?.trim()) {
+    await sendGuestRegistrationEmailForReservation(reservationId, {
+      triggeredBy: "auto",
+    }).catch((err) => {
       console.warn("[guest-registration-email] Post-hold", reservationId, err);
     });
   }

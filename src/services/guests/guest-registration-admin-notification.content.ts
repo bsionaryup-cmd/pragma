@@ -1,16 +1,30 @@
+import { pragmaEmailFooterHtml, pragmaEmailHeaderHtml } from "@/lib/brand-email";
 import { getGuestDocumentTypeLabel } from "@/lib/guest-document-types";
+
+export type GuestRegistrationAdminCompanion = {
+  fullName: string;
+  documentType: string;
+  documentNumber: string;
+  nationality: string | null;
+  dateOfBirth: string | null;
+};
 
 export type GuestRegistrationAdminEmailPayload = {
   reservationCode: string | null;
   propertyLabel: string;
   checkIn: string;
   checkOut: string;
-  primaryGuestName: string;
-  documentType: string;
-  documentNumber: string;
-  email: string | null;
-  phone: string | null;
   guestCount: number;
+  primaryGuest: {
+    fullName: string;
+    documentType: string;
+    documentNumber: string;
+    nationality: string | null;
+    dateOfBirth: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+  companions: GuestRegistrationAdminCompanion[];
 };
 
 export function buildGuestRegistrationAdminEmailSubject(
@@ -27,26 +41,112 @@ export function buildGuestRegistrationAdminEmailHtml(
   payload: GuestRegistrationAdminEmailPayload,
 ): string {
   const codeRow = payload.reservationCode?.trim()
-    ? `<tr><td style="padding:6px 12px 6px 0;color:#6b7280">Reserva</td><td style="padding:6px 0"><strong>${escapeHtml(payload.reservationCode.trim())}</strong></td></tr>`
+    ? infoRow("Reserva", `<strong>${escapeHtml(payload.reservationCode.trim())}</strong>`)
     : "";
 
+  const companionsSection =
+    payload.companions.length > 0
+      ? `
+        <h2 style="font-size:15px;margin:24px 0 12px;color:#111827">Acompañantes</h2>
+        <table style="border-collapse:collapse;font-size:13px;line-height:1.5;width:100%;border:1px solid #e5e7eb">
+          <thead>
+            <tr style="background:#f9fafb">
+              <th align="left" style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#6b7280">Nombre</th>
+              <th align="left" style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#6b7280">Documento</th>
+              <th align="left" style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#6b7280">Nacionalidad</th>
+              <th align="left" style="padding:8px 10px;border-bottom:1px solid #e5e7eb;color:#6b7280">Nacimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payload.companions
+              .map(
+                (guest) => `
+              <tr>
+                <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6"><strong>${escapeHtml(guest.fullName)}</strong></td>
+                <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6">${escapeHtml(getGuestDocumentTypeLabel(guest.documentType))} ${escapeHtml(guest.documentNumber)}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6">${escapeHtml(guest.nationality ?? "—")}</td>
+                <td style="padding:8px 10px;border-bottom:1px solid #f3f4f6">${escapeHtml(guest.dateOfBirth ?? "—")}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `.trim()
+      : `<p style="margin:16px 0 0;font-size:13px;color:#6b7280">Sin acompañantes registrados.</p>`;
+
   return `
-    <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:560px">
-      <h1 style="font-size:18px;margin:0 0 16px">Registro de huéspedes completado</h1>
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:640px">
+      ${pragmaEmailHeaderHtml()}
+      <h1 style="font-size:20px;margin:0 0 8px">Registro de huéspedes completado</h1>
+      <p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.5">
+        Correo generado automáticamente por PRAGMA PMS.
+      </p>
+
+      <h2 style="font-size:15px;margin:0 0 12px;color:#111827">Información de la reserva</h2>
       <table style="border-collapse:collapse;font-size:14px;line-height:1.5;width:100%">
         ${codeRow}
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Propiedad</td><td style="padding:6px 0"><strong>${escapeHtml(payload.propertyLabel)}</strong></td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Check-in</td><td style="padding:6px 0">${escapeHtml(payload.checkIn)}</td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Check-out</td><td style="padding:6px 0">${escapeHtml(payload.checkOut)}</td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Huésped principal</td><td style="padding:6px 0"><strong>${escapeHtml(payload.primaryGuestName)}</strong></td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Documento</td><td style="padding:6px 0">${escapeHtml(getGuestDocumentTypeLabel(payload.documentType))} ${escapeHtml(payload.documentNumber)}</td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Teléfono</td><td style="padding:6px 0">${escapeHtml(payload.phone ?? "—")}</td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Correo</td><td style="padding:6px 0">${escapeHtml(payload.email ?? "—")}</td></tr>
-        <tr><td style="padding:6px 12px 6px 0;color:#6b7280">Huéspedes registrados</td><td style="padding:6px 0"><strong>${payload.guestCount}</strong></td></tr>
+        ${infoRow("Propiedad", `<strong>${escapeHtml(payload.propertyLabel)}</strong>`)}
+        ${infoRow("Check-in", escapeHtml(payload.checkIn))}
+        ${infoRow("Check-out", escapeHtml(payload.checkOut))}
+        ${infoRow("Huéspedes registrados", `<strong>${payload.guestCount}</strong>`)}
       </table>
-      <p style="margin:24px 0 0;font-size:12px;color:#9ca3af">PRAGMA · Property Management</p>
+
+      <h2 style="font-size:15px;margin:24px 0 12px;color:#111827">Huésped principal</h2>
+      <table style="border-collapse:collapse;font-size:14px;line-height:1.5;width:100%">
+        ${infoRow("Nombre", `<strong>${escapeHtml(payload.primaryGuest.fullName)}</strong>`)}
+        ${infoRow(
+          "Documento",
+          `${escapeHtml(getGuestDocumentTypeLabel(payload.primaryGuest.documentType))} ${escapeHtml(payload.primaryGuest.documentNumber)}`,
+        )}
+        ${infoRow("Nacionalidad", escapeHtml(payload.primaryGuest.nationality ?? "—"))}
+        ${infoRow("Fecha de nacimiento", escapeHtml(payload.primaryGuest.dateOfBirth ?? "—"))}
+        ${infoRow("Teléfono", escapeHtml(payload.primaryGuest.phone ?? "—"))}
+        ${infoRow("Correo", escapeHtml(payload.primaryGuest.email ?? "—"))}
+      </table>
+
+      ${companionsSection}
+
+      ${pragmaEmailFooterHtml()}
     </div>
   `.trim();
+}
+
+export function buildGuestRegistrationAdminEmailText(
+  payload: GuestRegistrationAdminEmailPayload,
+): string {
+  const lines = [
+    "Registro de huéspedes completado — PRAGMA PMS",
+    payload.reservationCode?.trim()
+      ? `Reserva: ${payload.reservationCode.trim()}`
+      : null,
+    `Propiedad: ${payload.propertyLabel}`,
+    `Check-in: ${payload.checkIn}`,
+    `Check-out: ${payload.checkOut}`,
+    `Huéspedes registrados: ${payload.guestCount}`,
+    "",
+    "Huésped principal:",
+    `- Nombre: ${payload.primaryGuest.fullName}`,
+    `- Documento: ${getGuestDocumentTypeLabel(payload.primaryGuest.documentType)} ${payload.primaryGuest.documentNumber}`,
+    `- Nacionalidad: ${payload.primaryGuest.nationality ?? "—"}`,
+    `- Fecha de nacimiento: ${payload.primaryGuest.dateOfBirth ?? "—"}`,
+    `- Teléfono: ${payload.primaryGuest.phone ?? "—"}`,
+    `- Correo: ${payload.primaryGuest.email ?? "—"}`,
+    "",
+    payload.companions.length > 0 ? "Acompañantes:" : "Sin acompañantes registrados.",
+    ...payload.companions.map(
+      (guest) =>
+        `- ${guest.fullName} · ${getGuestDocumentTypeLabel(guest.documentType)} ${guest.documentNumber} · ${guest.nationality ?? "—"} · ${guest.dateOfBirth ?? "—"}`,
+    ),
+    "",
+    "Correo generado automáticamente por PRAGMA PMS.",
+  ];
+
+  return lines.filter((line) => line !== null).join("\n");
+}
+
+function infoRow(label: string, value: string): string {
+  return `<tr><td style="padding:6px 12px 6px 0;color:#6b7280;vertical-align:top;width:38%">${escapeHtml(label)}</td><td style="padding:6px 0">${value}</td></tr>`;
 }
 
 function escapeHtml(value: string): string {

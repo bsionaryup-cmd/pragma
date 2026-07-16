@@ -101,10 +101,13 @@ function buildLocationPhrase(ctx: AccessCodeCopyContext): string {
 }
 
 /**
- * Mensaje completo listo para enviar al huésped (texto plano; **código** para apps que respetan markdown).
+ * Mensaje completo listo para enviar al huésped.
+ * Por defecto usa **código** para apps con markdown (WhatsApp).
+ * En correo transaccional usar `codeStyle: "plain"` para mostrar el código tal cual (ej. 12345#).
  */
 export function buildAccessCodeGuestMessage(
   ctx: AccessCodeCopyContext,
+  options?: { codeStyle?: "markdown" | "plain" },
 ): string | null {
   const code = formatAccessCode(ctx.code);
   if (!code) return null;
@@ -118,10 +121,13 @@ export function buildAccessCodeGuestMessage(
     DEFAULT_CHECK_OUT_TIME,
   );
 
+  const codePhrase =
+    options?.codeStyle === "plain" ? code : `**${code}**`;
+
   return [
     "Bienvenido,",
     "",
-    `Tu código de acceso para ${location} es **${code}**`,
+    `Tu código de acceso para ${location} es ${codePhrase}`,
     "",
     "Será válido durante este período:",
     `Desde las ${checkInTime} ${checkInDate}`,

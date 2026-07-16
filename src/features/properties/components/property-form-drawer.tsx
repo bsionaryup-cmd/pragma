@@ -2,8 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState, startTransition } from "react";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import {
   createPropertyAction,
@@ -40,6 +40,10 @@ import { PropertyStatus, PropertyType } from "@prisma/client";
 import { propertyStatusLabels, propertyTypeLabels } from "@/lib/labels";
 import { getDefaultQuickMessageTemplate } from "@/lib/reservations/quick-messages";
 import { defaultMessageTemplatesToFormFields } from "@/lib/default-message-templates";
+import {
+  GUEST_REGISTRATION_LEGACY_CONTACT_KEY,
+  guestRegistrationContactKeyToFormValue,
+} from "@/lib/operational-contacts";
 import {
   QUICK_MESSAGE_TEMPLATE_HINT,
   QUICK_MESSAGE_TYPES,
@@ -90,6 +94,10 @@ function detailToFormValues(property: PropertyDetailDto): PropertyFormValues {
     coverImageUrl: property.coverImageUrl ?? "",
     status: property.status,
     notificationEmails: property.notificationEmails ?? "",
+    operationalContacts: property.operationalContacts ?? [],
+    guestRegistrationContactKey: guestRegistrationContactKeyToFormValue(
+      property.guestRegistrationContactKey,
+    ),
     receptionWhatsapp: property.receptionWhatsapp ?? "",
     useDefaultQuickMessages: property.useDefaultQuickMessages ?? true,
     quickMessageWELCOME: property.quickMessageWELCOME ?? "",
@@ -127,6 +135,8 @@ const defaultCreateValues: PropertyFormValues = {
   coverImageUrl: "",
   status: PropertyStatus.ACTIVE,
   notificationEmails: "",
+  operationalContacts: [],
+  guestRegistrationContactKey: GUEST_REGISTRATION_LEGACY_CONTACT_KEY,
   receptionWhatsapp: "",
   useDefaultQuickMessages: true,
   quickMessageWELCOME: "",
@@ -161,16 +171,28 @@ export function PropertyFormDrawer({
     resolver: zodResolver(propertyFormSchema),
     defaultValues: defaultCreateValues,
   });
-
-  const useDefaultQuickMessages = form.watch("useDefaultQuickMessages");
+  const operationalContacts = useFieldArray({
+    control: form.control,
+    name: "operationalContacts",
+  });
+  const watchedOperationalContacts =
+    useWatch({ control: form.control, name: "operationalContacts" }) ?? [];
+  const useDefaultQuickMessages = useWatch({
+    control: form.control,
+    name: "useDefaultQuickMessages",
+  });
 
   useEffect(() => {
     if (isEditing && property) {
       form.reset(detailToFormValues(property));
-      setShowCustomizeMessages(!property.useDefaultQuickMessages);
+      startTransition(() => {
+        setShowCustomizeMessages(!property.useDefaultQuickMessages);
+      });
     } else if (mode === "create") {
       form.reset(defaultCreateValues);
-      setShowCustomizeMessages(false);
+      startTransition(() => {
+        setShowCustomizeMessages(false);
+      });
     }
   }, [form, isEditing, mode, property]);
 
@@ -612,6 +634,151 @@ export function PropertyFormDrawer({
           </FormSection>
 
           <FormSection title="Operación">
+            <div className="space-y-2 rounded-xl border border-border/80 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Contactos Operativos</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    operationalContacts.append({
+                      key: `contact-${Date.now()}`,
+                      name: "",
+                      role: "",
+                      email: "",
+                      whatsapp: "",
+                      isActive: true,
+                    })
+                  }
+                >
+                  Agregar contacto
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Fuente única por propiedad para módulos operativos (Guest Registration, mensajes y futuras integraciones).
+              </p>
+              {operationalContacts.fields.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin contactos configurados.</p>
+              ) : (
+                <div className="space-y-3">
+                  {operationalContacts.fields.map((field, index) => (
+                    <div key={field.id} className="rounded-lg border border-border p-3 space-y-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name={`operationalContacts.${index}.name`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nombre</FormLabel>
+                              <FormControl><Input {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`operationalContacts.${index}.role`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cargo / descripción</FormLabel>
+                              <FormControl><Input placeholder="Recepción, Seguridad…" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`operationalContacts.${index}.email`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Correo</FormLabel>
+                              <FormControl><Input placeholder="contacto@edificio.com" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`operationalContacts.${index}.whatsapp`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>WhatsApp</FormLabel>
+                              <FormControl><Input placeholder="+57 300 123 4567" {...field} /></FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <FormField
+                          control={form.control}
+                          name={`operationalContacts.${index}.isActive`}
+                          render={({ field }) => (
+                            <FormItem className="flex flex-row items-center gap-2 space-y-0">
+                              <FormControl>
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-input"
+                                  checked={field.value}
+                                  onChange={(e) => field.onChange(e.target.checked)}
+                                />
+                              </FormControl>
+                              <FormLabel>Activo</FormLabel>
+                            </FormItem>
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => operationalContacts.remove(index)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <FormField
+              control={form.control}
+              name="guestRegistrationContactKey"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Destino Guest Registration</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un contacto operativo" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={GUEST_REGISTRATION_LEGACY_CONTACT_KEY}>
+                        Usar fallback (notificationEmails)
+                      </SelectItem>
+                      {watchedOperationalContacts
+                        .filter((contact) => contact.isActive)
+                        .map((contact) => (
+                          <SelectItem key={contact.key} value={contact.key}>
+                            {contact.role} · {contact.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Si se selecciona, el envío automático del registro usará el correo de este contacto operativo.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="accessInstructions"
