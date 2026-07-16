@@ -359,7 +359,7 @@ export function BillingDashboard({
         ) : null}
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          <Link href="mailto:soporte@pragma.co" className="text-pragma-electric hover:underline">
+          <Link href="mailto:soporte@pragmapms.com" className="text-pragma-electric hover:underline">
             Soporte
           </Link>
         </p>

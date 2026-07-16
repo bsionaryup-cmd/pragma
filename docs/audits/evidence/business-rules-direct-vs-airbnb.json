@@ -1,0 +1,232 @@
+{
+  "startedAt": "2026-07-16T13:12:50.599Z",
+  "to": "magvillafuerte@gmail.com",
+  "ops": {
+    "recipients": [
+      "porterialofts33ph@gmail.com"
+    ],
+    "source": "operational-contact"
+  },
+  "directReservationId": "cmrnj4ejf00044ctycqgfkflc",
+  "welcome": {
+    "url": "http://localhost:3000/guest-registration/468426c2af5f493475a217b3c9b29838d1e58f61044ed2e0",
+    "first": {
+      "ok": true,
+      "message": "Correo de bienvenida enviado",
+      "providerId": "30921f6a-af34-489c-8cfe-2b54e9602c05"
+    },
+    "second": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida ya enviado"
+    },
+    "log": [
+      {
+        "at": "2026-07-16T13:12:55.870Z",
+        "status": "success",
+        "recipient": "magvillafuerte@gmail.com",
+        "providerId": "30921f6a-af34-489c-8cfe-2b54e9602c05",
+        "triggeredBy": "auto"
+      }
+    ]
+  },
+  "gr": {
+    "guestRegistrationCompletedAt": "2026-07-16T13:12:58.145Z",
+    "guests": [
+      {
+        "fullName": "BRDirect Titular-F6CDC195",
+        "isReservationOwner": true
+      },
+      {
+        "fullName": "BRDirect Acomp-F6CDC195",
+        "isReservationOwner": false
+      }
+    ]
+  },
+  "admin": {
+    "notifiedAt": "2026-07-16T13:13:01.758Z",
+    "recipients": [
+      "porterialofts33ph@gmail.com"
+    ],
+    "providerIds": {
+      "porterialofts33ph@gmail.com": "6331f67e-cbef-4c27-b346-1b93b4009254"
+    },
+    "source": "operational-contact"
+  },
+  "ttlock": {
+    "credentialId": "cmrnj4jyt00094ctyoyw5qiuc",
+    "code": "819834#",
+    "deliveryStatus": "SENT",
+    "dedupe": {
+      "ok": true,
+      "message": "El código ya fue enviado",
+      "skipped": true
+    }
+  },
+  "cleanup": "CANCELLED",
+  "finishedAt": "2026-07-16T13:13:07.807Z",
+  "rules": [
+    {
+      "rule": "2 Airbnb sync: ensure GR sin welcome",
+      "ok": true,
+      "detail": {
+        "callsEnsure": true,
+        "callsWelcome": false
+      }
+    },
+    {
+      "rule": "Negativo Direct sin correo",
+      "ok": true,
+      "detail": {
+        "result": {
+          "ok": false,
+          "message": "La reserva no tiene email de huésped válido"
+        }
+      }
+    },
+    {
+      "rule": "2 Reserva Airbnb sin bienvenida auto",
+      "ok": true,
+      "detail": {
+        "welcome": {
+          "ok": true,
+          "skipped": true,
+          "message": "Correo de bienvenida solo para reservas directas"
+        },
+        "beforeTt": null,
+        "inviteSentAt": null
+      }
+    },
+    {
+      "rule": "5 TTLock no genera antes de GR",
+      "ok": true,
+      "detail": {
+        "beforeTry": null,
+        "beforeGen": {
+          "ok": false,
+          "message": "El huésped aún no completó el registro. TTLock no generará código hasta entonces."
+        },
+        "creds": 0
+      }
+    },
+    {
+      "rule": "1 Direct bienvenida auto + link + historial",
+      "ok": true,
+      "detail": {
+        "providerId": "30921f6a-af34-489c-8cfe-2b54e9602c05",
+        "url": "http://localhost:3000/guest-registration/468426c2af5f493475a217b3c9b29838d1e58f61044ed2e0",
+        "logStatus": "success"
+      }
+    },
+    {
+      "rule": "7 Anti-dupe bienvenida",
+      "ok": true,
+      "detail": {
+        "second": {
+          "ok": true,
+          "skipped": true,
+          "message": "Correo de bienvenida ya enviado"
+        }
+      }
+    },
+    {
+      "rule": "3 Guest Registration COMPLETED",
+      "ok": true,
+      "detail": {
+        "completedAt": "2026-07-16T13:12:58.145Z",
+        "guests": 2
+      }
+    },
+    {
+      "rule": "7 Anti-dupe administración",
+      "ok": true,
+      "detail": {
+        "again": {
+          "ok": true,
+          "message": "Ya se notificó a administración",
+          "skipped": true
+        }
+      }
+    },
+    {
+      "rule": "4 Correo administración + Contacto Operativo",
+      "ok": true,
+      "detail": {
+        "notifiedAt": "2026-07-16T13:13:01.758Z",
+        "recipients": [
+          "porterialofts33ph@gmail.com"
+        ],
+        "providerIds": {
+          "porterialofts33ph@gmail.com": "6331f67e-cbef-4c27-b346-1b93b4009254"
+        },
+        "source": "operational-contact"
+      }
+    },
+    {
+      "rule": "7 Anti-dupe código TTLock",
+      "ok": true,
+      "detail": {
+        "again": {
+          "ok": true,
+          "message": "El código ya fue enviado",
+          "skipped": true
+        }
+      }
+    },
+    {
+      "rule": "5+6 TTLock genera post-GR y correo plain al huésped+ops",
+      "ok": true,
+      "detail": {
+        "credentialId": "cmrnj4jyt00094ctyoyw5qiuc",
+        "code": "819834#",
+        "deliveryStatus": "SENT",
+        "dedupe": {
+          "ok": true,
+          "message": "El código ya fue enviado",
+          "skipped": true
+        }
+      }
+    },
+    {
+      "rule": "Negativo/Reenvío: auto bloqueado; manual force permitido",
+      "ok": true,
+      "detail": {
+        "auto": {
+          "ok": true,
+          "message": "Correo de bienvenida enviado",
+          "providerId": "9fb765a9-678e-40c0-8506-cf34894df406"
+        },
+        "blocked": {
+          "ok": true,
+          "skipped": true,
+          "message": "Correo de bienvenida ya enviado"
+        },
+        "forced": {
+          "ok": true,
+          "message": "Correo de bienvenida enviado",
+          "providerId": "93586104-6d61-416d-a518-7c17e8eb555a"
+        }
+      }
+    },
+    {
+      "rule": "Negativo TTLock falla → no correo código exitoso",
+      "ok": true,
+      "detail": {
+        "sendAttempt": {
+          "ok": false,
+          "message": "No se pudo iniciar el envío (ya enviado o en curso)",
+          "skipped": true
+        },
+        "deliveryStatus": "NOT_SENT"
+      }
+    },
+    {
+      "rule": "Global: un transporte Resend / sin pipeline paralelo",
+      "ok": true,
+      "detail": {
+        "onlyResend": true
+      }
+    }
+  ],
+  "allOk": true
+}
