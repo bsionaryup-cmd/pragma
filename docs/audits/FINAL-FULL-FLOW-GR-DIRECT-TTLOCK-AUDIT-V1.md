@@ -147,14 +147,18 @@ Reserva de prueba: `cmrnguwf20004k0ty1hid4zk5` (propiedad 801 / Margarita) — c
 
 Criterios de producto/flujo: **cumplidos**.
 
-### Condición de trazabilidad (bloqueante operativo)
+### Despliegue ejecutado
 
-El working tree local contiene el código auditado **sin commit**. Un deploy a producción debe:
+| Campo | Valor |
+|-------|-------|
+| Fecha/hora (UTC) | 2026-07-16 ≈ 12:20 |
+| Commit auditado | `82383967b919a8b6d2614c37aaec04435f7d1c57` |
+| Branch | `cursor/apify-prospecting-engine` |
+| Deployment ID | `dpl_BZXMR9QmroCapLG1KBtpKjMfCeTN` |
+| URL deployment | https://pragma-it0ftp2ou-pragma-s-projects.vercel.app |
+| Alias producción | https://www.pragmapms.com |
+| Inspect | https://vercel.com/pragma-s-projects/pragma-pms/BZXMR9QmroCapLG1KBtpKjMfCeTN |
+| Resultado | **READY** / `status: ok` |
+| Migraciones Neon | Ya aplicadas (schema up to date) antes del deploy |
 
-1. **Committear** el conjunto auditado (GR invite, admin notify, ops contacts, TTLock access-code email, migraciones, tests).
-2. Desplegar esa revisión.
-3. Registrar commit SHA + URL de deployment.
-
-Hasta ese commit, **no se ejecuta el deploy** en esta pasada para no violar “versión en producción = versión auditada” con un SHA reproducible.
-
-**Acción siguiente recomendada (autorizada por este documento una vez exista el commit):** `vercel deploy --prod` (o el pipeline estándar del repo) desde la revisión certificada, con migraciones ya aplicadas en Neon.
+**Confirmación:** la versión en producción corresponde al commit auditado `8238396` (feat ops: Direct welcome + admin GR notify + TTLock code email), validado E2E en este informe.
