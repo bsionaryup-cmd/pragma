@@ -616,15 +616,9 @@ export async function createReservation(data: ReservationWizardValues) {
     ownerId: created.property.ownerId,
   });
 
-  const requiresPaymentHold = data.totalAmount > 0;
-
-  if (requiresPaymentHold) {
-    await activateReservationPaymentHold({
-      reservationId: created.id,
-      createdById: tenantCtx.userId,
-      totalAmount: data.totalAmount,
-    });
-  } else if (
+  // Bienvenida Direct: al confirmar, con correo válido — antes del hold de pago.
+  // Si totalAmount > 0 el hold se activa después; post-hold reintenta de forma idempotente.
+  if (
     created.platform === BookingPlatform.DIRECT &&
     isGuestRegistrationEligiblePlatform(created.platform) &&
     isGuestRegistrationEligibleStatus(created.status)
@@ -637,6 +631,15 @@ export async function createReservation(data: ReservationWizardValues) {
         console.warn("[guest-registration-email] No enviado", created.id, err);
       });
     }
+  }
+
+  const requiresPaymentHold = data.totalAmount > 0;
+  if (requiresPaymentHold) {
+    await activateReservationPaymentHold({
+      reservationId: created.id,
+      createdById: tenantCtx.userId,
+      totalAmount: data.totalAmount,
+    });
   }
 
   return created;

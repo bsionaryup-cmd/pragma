@@ -278,19 +278,19 @@ export async function sendGuestRegistrationEmailForReservation(
       };
     }
 
-    if (reservation.holdExpiresAt) {
-      return {
-        ok: true,
-        skipped: true,
-        message: "Reserva en hold de pago; bienvenida diferida",
-      };
-    }
-
     if (reservation.guestRegistrationInviteSentAt) {
       return {
         ok: true,
         skipped: true,
         message: "Correo de bienvenida ya enviado",
+      };
+    }
+
+    if (reservation.holdExpiresAt) {
+      return {
+        ok: true,
+        skipped: true,
+        message: "Reserva en hold de pago; bienvenida diferida",
       };
     }
   }

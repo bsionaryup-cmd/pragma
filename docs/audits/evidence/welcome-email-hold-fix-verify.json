@@ -1,0 +1,39 @@
+{
+  "directWithAmount": {
+    "id": "cmrnmo2mi0000c0ty4x4wece3",
+    "welcome": {
+      "ok": true,
+      "message": "Correo de bienvenida enviado",
+      "providerId": "21228e88-1592-4c86-9442-0c437480627b"
+    },
+    "dedupe": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida ya enviado"
+    },
+    "holdAfterWelcome": true,
+    "inviteSentAt": "2026-07-16T14:52:14.869Z",
+    "log": [
+      {
+        "at": "2026-07-16T14:52:14.869Z",
+        "status": "success",
+        "recipient": "magvillafuerte@gmail.com",
+        "providerId": "21228e88-1592-4c86-9442-0c437480627b",
+        "triggeredBy": "auto"
+      }
+    ],
+    "hasToken": true,
+    "pass": true
+  },
+  "airbnb": {
+    "id": "cmrnmo6r30002c0tycjo2valv",
+    "airbnbSend": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida solo para reservas directas"
+    },
+    "pass": true
+  },
+  "incidentRecovery": null,
+  "allPass": true
+}
