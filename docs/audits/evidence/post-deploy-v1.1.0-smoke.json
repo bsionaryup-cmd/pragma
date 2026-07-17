@@ -1,0 +1,50 @@
+﻿[
+    {
+        "check":  "home",
+        "http":  "200"
+    },
+    {
+        "check":  "sign-in",
+        "http":  "200"
+    },
+    {
+        "check":  "guest-registration",
+        "http":  "200"
+    },
+    {
+        "check":  "guest-registration bad token",
+        "http":  "200"
+    },
+    {
+        "check":  "ai-concierge (expect redirect)",
+        "http":  "404"
+    },
+    {
+        "check":  "panel (expect redirect)",
+        "http":  "404"
+    },
+    {
+        "check":  "concierge health no auth",
+        "http":  "401"
+    },
+    {
+        "check":  "concierge heartbeat no auth",
+        "http":  "405"
+    },
+    {
+        "check":  "ttlock callback",
+        "http":  "200"
+    },
+    {
+        "check":  "reservations (expect redirect)",
+        "http":  "404"
+    },
+    {
+        "check":  "calendar (expect redirect)",
+        "http":  "404"
+    },
+    {
+        "check":  "novedades (expect redirect)",
+        "http":  "404"
+    }
+]
