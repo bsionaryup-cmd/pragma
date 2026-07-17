@@ -157,13 +157,16 @@ export async function notifyAccessCodeEmailForCredential(
       };
     }
 
-    if (
-      credential.deliveryStatus === AccessCredentialDeliveryStatus.SENT ||
-      credential.deliveryStatus === AccessCredentialDeliveryStatus.PENDING
-    ) {
-      if (credential.deliveryStatus === AccessCredentialDeliveryStatus.SENT) {
-        return { ok: true, message: "El código ya fue enviado", skipped: true };
-      }
+    if (credential.deliveryStatus === AccessCredentialDeliveryStatus.SENT) {
+      return { ok: true, message: "El código ya fue enviado", skipped: true };
+    }
+
+    if (credential.deliveryStatus === AccessCredentialDeliveryStatus.PENDING) {
+      return {
+        ok: true,
+        message: "Envío de código en curso",
+        skipped: true,
+      };
     }
 
     const claimed = await claimAccessCodeEmailSend(credentialId);

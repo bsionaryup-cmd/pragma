@@ -1,0 +1,86 @@
+{
+  "reservationId": "cmro6aqbg00002otykm2q4t39",
+  "welcome": {
+    "welcome1": {
+      "ok": true,
+      "message": "Correo de bienvenida enviado",
+      "providerId": "ad0e93a9-6440-4115-a134-d494f2d0e128"
+    },
+    "welcome2": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida ya enviado"
+    },
+    "welcome3": {
+      "ok": true,
+      "skipped": true,
+      "message": "Correo de bienvenida ya enviado"
+    }
+  },
+  "inviteLog": [
+    {
+      "at": "2026-07-17T00:01:41.128Z",
+      "status": "success",
+      "recipient": "magvillafuerte@gmail.com",
+      "providerId": "ad0e93a9-6440-4115-a134-d494f2d0e128",
+      "triggeredBy": "auto"
+    }
+  ],
+  "autoInviteSuccessCount": 1,
+  "adminLog": [
+    {
+      "at": "2026-07-17T00:01:46.607Z",
+      "status": "success",
+      "recipients": [
+        "porterialofts33ph@gmail.com"
+      ],
+      "providerIds": {
+        "porterialofts33ph@gmail.com": "a1d5a3c9-0896-42dc-b02a-821e75eed266"
+      },
+      "triggeredBy": "auto",
+      "source": "operational-contact",
+      "selectedContactKey": "administracion"
+    }
+  ],
+  "autoAdminSuccessCount": 1,
+  "ttlock": {
+    "gen2": {
+      "ok": true,
+      "message": "Ya existe un código activo para esta reserva",
+      "credentialId": "cmro6aujk00042otyl6ye3sjz",
+      "code": "565860#"
+    },
+    "gen3": {
+      "ok": true,
+      "message": "Ya existe un código activo para esta reserva",
+      "credentialId": "cmro6aujk00042otyl6ye3sjz",
+      "code": "565860#"
+    },
+    "cred": {
+      "id": "cmro6aujk00042otyl6ye3sjz",
+      "deliveryStatus": "SENT",
+      "status": "SENT"
+    },
+    "emailAgain1": {
+      "ok": true,
+      "message": "El código ya fue enviado",
+      "skipped": true
+    },
+    "emailAgain2": {
+      "ok": true,
+      "message": "El código ya fue enviado",
+      "skipped": true
+    }
+  },
+  "adminAgain": {
+    "ok": true,
+    "message": "Ya se notificó a administración",
+    "skipped": true
+  },
+  "verdict": {
+    "welcomeAutoOnce": true,
+    "adminAutoOnce": true,
+    "codeEmailNotResentOnRegen": true,
+    "latentRisk": "generateAccessCodeForReservation schedules email even when credential already exists (line ~344)"
+  }
+}

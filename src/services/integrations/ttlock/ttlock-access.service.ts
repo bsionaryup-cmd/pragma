@@ -340,9 +340,8 @@ export async function generateAccessCodeForReservation(
       existing.status === AccessCredentialStatus.SENT)
   ) {
     const code = formatAccessCode(decryptTTLockSecret(existing.codeEncrypted));
-    if (existing.id) {
-      scheduleAccessCodeEmail(existing.id);
-    }
+    // No re-programar correo aquí: el envío automático ocurre solo al generar/restaurar.
+    // Re-disparar en cada "ya existe" abría una ruta de duplicado (ventana NOT_SENT / FAILED).
     return {
       ok: true,
       message: "Ya existe un código activo para esta reserva",
