@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>PRAGMA AI Concierge</title>
+    <style>
+      body {
+        font: 13px/1.4 system-ui, sans-serif;
+        margin: 0;
+        padding: 12px;
+        width: 320px;
+        background: #0f0f0f;
+        color: #f2f2f2;
+      }
+      label {
+        display: block;
+        margin: 8px 0 4px;
+        color: #bbb;
+      }
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #333;
+        background: #1a1a1a;
+        color: #fff;
+      }
+      button {
+        margin-top: 12px;
+        width: 100%;
+        padding: 10px;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        background: #e8e8e8;
+        color: #111;
+        font-weight: 600;
+      }
+      .hint {
+        margin-top: 10px;
+        color: #888;
+        font-size: 11px;
+      }
+    </style>
+  </head>
+  <body>
+    <strong>PRAGMA AI Concierge</strong>
+    <label>API base</label>
+    <input id="apiBase" />
+    <label>Extension secret</label>
+    <input id="secret" type="password" />
+    <label>Org ID</label>
+    <input id="orgId" />
+    <label>User ID</label>
+    <input id="userId" />
+    <label>Mode</label>
+    <select id="mode">
+      <option value="observe">observe (F7)</option>
+      <option value="manual" selected>manual (F8)</option>
+      <option value="assisted">assisted (F9)</option>
+      <option value="autonomous">autonomous (F12)</option>
+    </select>
+    <button id="save">Guardar</button>
+    <div class="hint">
+      Sin lógica de negocio. Solo canal hacia PRAGMA local.
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>

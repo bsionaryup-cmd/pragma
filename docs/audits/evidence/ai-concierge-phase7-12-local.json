@@ -1,0 +1,111 @@
+{
+  "startedAt": "2026-07-17T04:36:06.441Z",
+  "propertyId": "cmpm0xani000004jgxfqjnih0",
+  "allOk": true,
+  "checks": [
+    {
+      "name": "F7 session created",
+      "ok": true,
+      "detail": {
+        "conversationId": "conv_cmplxfg0a000105jrs0gqtwy_mrog3m4o"
+      }
+    },
+    {
+      "name": "F8 manual WIFI draft",
+      "ok": true,
+      "detail": {
+        "path": "deterministic",
+        "reply": "La red WiFi es SOMOSAPTO804. La contraseña es micasasucasa804.",
+        "autoEligible": true
+      }
+    },
+    {
+      "name": "F9 assisted checkout autoEligible",
+      "ok": true,
+      "detail": {
+        "reply": "El check-out es hasta las 11:00. Por favor deja las llaves/acceso según las instrucciones.",
+        "autoEligible": true
+      }
+    },
+    {
+      "name": "F12 autonomous mayAutoSend",
+      "ok": true,
+      "detail": {
+        "mayAutoSend": true,
+        "reply": "La red WiFi es SOMOSAPTO804. La contraseña es micasasucasa804."
+      }
+    },
+    {
+      "name": "F12 refund escalates / no auto-send",
+      "ok": true,
+      "detail": {
+        "path": "escalate"
+      }
+    },
+    {
+      "name": "F10 create_operational_task",
+      "ok": true,
+      "detail": {
+        "task": {
+          "id": "cmrog3m760000fctyl2vb5fas",
+          "title": "[audit] Concierge task 1784262963919",
+          "status": "PENDING"
+        }
+      }
+    },
+    {
+      "name": "Learning proposal on OTHER (no LLM)",
+      "ok": true,
+      "detail": {
+        "proposals": [
+          {
+            "id": "learn_mrog3m9g",
+            "at": "2026-07-17T04:36:04.084Z",
+            "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+            "question": "asdf qwert zx",
+            "intent": "OTHER",
+            "reason": "Ambigüedad / confianza baja — LLM diferido (no invocado en Fase 5)",
+            "status": "proposed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "F11 commercial booking flow",
+      "ok": true,
+      "detail": {
+        "reservationId": "cmrog3mnr0001fctyyavsdk5p",
+        "steps": [
+          {
+            "step": "availability",
+            "ok": true
+          },
+          {
+            "step": "quote",
+            "ok": true
+          },
+          {
+            "step": "create_reservation",
+            "ok": true
+          },
+          {
+            "step": "guest_registration_invite",
+            "ok": true
+          }
+        ],
+        "quoteSummary": "Loft 2P con Vista Premium | Laureles | Zona top: 2 noche(s) × 209845 + limpieza 60000 = 479690 COP (tarifa base; no incluye PriceLabs dinámico en Fase 6)."
+      }
+    },
+    {
+      "name": "Extension package present",
+      "ok": true,
+      "detail": {
+        "manifest": "extensions/pragma-ai-concierge/manifest.json",
+        "note": "Load unpacked in Chrome for live WA/Airbnb DOM validation",
+        "authFailIgnored": true
+      }
+    }
+  ],
+  "tokensUsed": 0,
+  "llmCalls": 0
+}

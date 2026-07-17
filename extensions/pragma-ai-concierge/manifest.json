@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "PRAGMA AI Concierge",
+  "version": "0.12.0",
+  "description": "Canal tonto: detecta y lee conversaciones de Airbnb/WhatsApp Web. La inteligencia vive en PRAGMA.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://www.airbnb.com/*",
+    "https://www.airbnb.com.co/*",
+    "https://web.whatsapp.com/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PRAGMA AI Concierge"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content-shared.js", "content-whatsapp.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.airbnb.com/*",
+        "https://www.airbnb.com.co/*"
+      ],
+      "js": ["content-shared.js", "content-airbnb.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
