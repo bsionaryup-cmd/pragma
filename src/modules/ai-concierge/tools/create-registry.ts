@@ -19,13 +19,18 @@ export function createConciergeToolRegistry(
   const defs = options?.includeWrite
     ? [...PLANNED_READ_TOOLS, ...PLANNED_WRITE_TOOLS]
     : [...PLANNED_READ_TOOLS];
-  const registry = createToolRegistry(defs);
+  const allowed = ctx.allowedTools ?? [];
+  const enabledDefs =
+    allowed.length > 0
+      ? defs.filter((definition) => allowed.includes(definition.name))
+      : defs;
+  const registry = createToolRegistry(enabledDefs);
   for (const [name, handler] of Object.entries(createReadToolHandlers(ctx))) {
-    registry.registerHandler(name, handler);
+    if (registry.getDefinition(name)) registry.registerHandler(name, handler);
   }
   if (options?.includeWrite) {
     for (const [name, handler] of Object.entries(createWriteToolHandlers(ctx))) {
-      registry.registerHandler(name, handler);
+      if (registry.getDefinition(name)) registry.registerHandler(name, handler);
     }
   }
   return registry;

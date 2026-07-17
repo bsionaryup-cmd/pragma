@@ -40,6 +40,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/inbound/(.*)",
   "/api/integrations/ttlock/callback",
   "/api/integrations/ttlock/webhook/(.*)",
+  "/guest-registration",
   "/guest-registration/(.*)",
   "/m/(.*)",
   "/offer/(.*)",
@@ -55,6 +56,12 @@ const isSelfAuthedApi = createRouteMatcher([
   "/api/integrations/ttlock/disconnect",
   "/api/integrations/ttlock/status",
   "/api/integrations/ttlock/test",
+  // AI Concierge extension: short-lived Bearer linked from authenticated PRAGMA.
+  "/api/concierge/channel/(.*)",
+  "/api/concierge/commercial/(.*)",
+  "/api/concierge/health",
+  "/api/concierge/heartbeat",
+  "/api/concierge/link/complete",
 ]);
 
 const useClerkProxy =

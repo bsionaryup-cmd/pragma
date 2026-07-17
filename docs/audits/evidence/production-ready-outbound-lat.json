@@ -1,0 +1,174 @@
+{
+  "at": "2026-07-17T11:03:38.901Z",
+  "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+  "mode": "AUTONOMOUS",
+  "pairingOk": true,
+  "mayAutoSendGate": {
+    "mode": "autonomous",
+    "path": "needs_llm",
+    "hasSuggestedReply": true,
+    "mayAutoSend": true,
+    "autoEligible": false
+  },
+  "turnResults": [
+    {
+      "text": "Hola",
+      "auditId": null,
+      "intent": null,
+      "path": null,
+      "channelStatus": {
+        "at": "2026-07-17T11:03:02.337Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "hasGuestMessage": true,
+        "role": "leader",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "¿Tienen disponibilidad?",
+      "auditId": "cmrotxk880020k4ty5wy1gsut",
+      "intent": "OTHER",
+      "path": "needs_llm",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:16.446Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "error": null,
+        "lastIntent": "OTHER",
+        "lastMessageAt": "2026-07-17T11:03:16.444Z",
+        "mayAutoSend": true,
+        "mode": "autonomous",
+        "role": "leader",
+        "sent": true,
+        "suggestedPreview": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesit",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "¿Cuánto cuesta?",
+      "auditId": "cmrotxli80023k4tyb94f36fv",
+      "intent": "COTIZACION",
+      "path": "needs_tools",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:18.228Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "hasGuestMessage": true,
+        "role": "leader",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "¿Cuál es la clave del WiFi?",
+      "auditId": "cmrotxmq00026k4tysdtpx3uq",
+      "intent": "WIFI",
+      "path": "needs_tools",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:19.680Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "error": null,
+        "lastIntent": "WIFI",
+        "lastMessageAt": "2026-07-17T11:03:19.678Z",
+        "mayAutoSend": true,
+        "mode": "autonomous",
+        "role": "leader",
+        "sent": true,
+        "suggestedPreview": "Para ayudarte necesito confirmar: wifiName, wifiPassword. ¿Me das más detalles?",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "Perdí mi código.",
+      "auditId": "cmrotxo2b0029k4tyuz6805od",
+      "intent": "TTLOCK",
+      "path": "needs_tools",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:20.380Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "hasGuestMessage": true,
+        "role": "leader",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "Ya hice el pago.",
+      "auditId": "cmrotxp10002ck4tyc9jjbpgs",
+      "intent": "PAGO",
+      "path": "needs_tools",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:22.822Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "hasGuestMessage": true,
+        "role": "leader",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    },
+    {
+      "text": "Gracias.",
+      "auditId": "cmrotxqc1002fk4tyh6q9niha",
+      "intent": "OTHER",
+      "path": "needs_llm",
+      "channelStatus": {
+        "at": "2026-07-17T11:03:23.339Z",
+        "channel": "whatsapp_web",
+        "connected": true,
+        "hasGuestMessage": true,
+        "role": "leader",
+        "tabVisible": true,
+        "threadId": "wa:1aocn1x"
+      }
+    }
+  ],
+  "sentInDom": [
+    "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?",
+    "Para ayudarte necesito confirmar: quoteSummary. ¿Me das más detalles?",
+    "Para ayudarte necesito confirmar: wifiName, wifiPassword. ¿Me das más detalles?",
+    "Para ayudarte necesito confirmar: accessCode, accessValidFrom, accessValidTo. ¿Me das más detalles?",
+    "Para ayudarte necesito confirmar: balanceDue, currency. ¿Me das más detalles?",
+    "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?"
+  ],
+  "outboundSentCount": 6,
+  "channelStatus": {
+    "airbnb_web": {
+      "at": "2026-07-17T11:03:25.086Z",
+      "channel": "airbnb_web",
+      "connected": true
+    },
+    "whatsapp_web": {
+      "at": "2026-07-17T11:03:25.086Z",
+      "role": "leader",
+      "channel": "whatsapp_web",
+      "threadId": "wa:1aocn1x",
+      "connected": true,
+      "tabVisible": true,
+      "hasGuestMessage": true
+    }
+  },
+  "whatsappOnline": true,
+  "airbnbOnline": true,
+  "hydration": {
+    "hasServerTime": true,
+    "serverTime": "2026-07-17T11:03:38.901Z",
+    "whatsappOnlineA": true,
+    "whatsappOnlineB": true
+  },
+  "pass": {
+    "mayAutoSendTrue": true,
+    "pairing": true,
+    "turnsDetected": true,
+    "outboundAttempted": true,
+    "hydrationClock": true,
+    "bothChannelsConnected": true
+  },
+  "ok": true
+}

@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeConciergeExtension } from "@/modules/ai-concierge/channel/auth";
-import { listChannelSessionSummaries } from "@/modules/ai-concierge/channel/session-store";
-import { listRecentToolAudits } from "@/modules/ai-concierge/tools/read/context";
-import { listLearningProposals } from "@/modules/ai-concierge/learning/proposals";
-import { getConciergeRuntimeMetrics } from "@/modules/ai-concierge/engine/metrics";
+import { getConciergeDashboard } from "@/modules/ai-concierge/channel/operational-state";
 
 export const runtime = "nodejs";
 
@@ -12,11 +9,14 @@ export const runtime = "nodejs";
  * Auth: Bearer CONCIERGE_EXTENSION_SECRET
  */
 export async function GET(request: Request) {
-  const auth = authorizeConciergeExtension(request);
+  const auth = await authorizeConciergeExtension(request, {
+    allowInactive: true,
+  });
   if (!auth.ok) return auth.response;
 
   const organizationId =
     auth.scope.organizationId ?? `user:${auth.scope.userId}`;
+  const dashboard = await getConciergeDashboard(organizationId);
 
   return NextResponse.json({
     ok: true,
@@ -24,15 +24,15 @@ export async function GET(request: Request) {
     transport: "https-rest",
     websocket: false,
     note: "Canal vía HTTPS REST (menor impacto que WebSocket en App Router). Reconexión en la extensión.",
-    modeHeader: "x-concierge-mode",
+    modeSource: "pragma-organization-configuration",
     scope: {
       organizationId: auth.scope.organizationId,
       userId: auth.scope.userId,
     },
-    sessions: listChannelSessionSummaries(organizationId).slice(-20),
-    recentToolAudits: listRecentToolAudits(10),
-    learningProposals: listLearningProposals(10),
-    metrics: getConciergeRuntimeMetrics(),
+    enabled: auth.enabled,
+    paused: auth.paused,
+    mode: auth.mode,
+    dashboard,
     serverTime: new Date().toISOString(),
   });
 }

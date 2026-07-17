@@ -15,6 +15,18 @@ type StoredSession = {
 
 const sessions = new Map<string, StoredSession>();
 
+// Cota de estabilidad: en un proceso Node de larga vida el store en memoria no
+// debe crecer sin límite ante muchos hilos. Eviction FIFO del más antiguo.
+const MAX_SESSIONS = 2000;
+
+function evictIfNeeded(): void {
+  while (sessions.size > MAX_SESSIONS) {
+    const oldestKey = sessions.keys().next().value;
+    if (oldestKey === undefined) break;
+    sessions.delete(oldestKey);
+  }
+}
+
 function sessionKey(input: {
   organizationId: string;
   channel: ConciergeChannel;
@@ -57,6 +69,7 @@ export function getOrCreateChannelSession(input: {
     updatedAt: at,
   };
   sessions.set(key, { conversation, runs: [], updatedAt: at });
+  evictIfNeeded();
   return conversation;
 }
 

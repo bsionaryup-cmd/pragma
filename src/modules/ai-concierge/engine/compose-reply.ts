@@ -51,11 +51,15 @@ export async function composeConciergeReply(input: {
   scope: TenantDataScope;
   mode: ConciergeOperationMode;
   knownFacts?: Record<string, string | number | boolean | null>;
+  allowedPropertyIds?: string[];
+  allowedTools?: string[];
   externalMessageId?: string | null;
 }): Promise<ConciergeComposeResult> {
   const registry = createPhase6ReadToolRegistry({
     scope: input.scope,
     conversationId: input.conversation.id,
+    allowedPropertyIds: input.allowedPropertyIds,
+    allowedTools: input.allowedTools,
   });
 
   let knownFacts = { ...(input.knownFacts ?? {}) };
@@ -149,8 +153,15 @@ export async function composeConciergeReply(input: {
     def.complexity === "low" &&
     !def.alwaysEscalate;
 
+  // Autonomous outbound gate (channel concern): send any non-escalated suggested
+  // reply. Deterministic drafts still require auditor verification.
+  // Previous gate (autoEligible only) blocked needs_tools / clarification replies
+  // → guest never received a message despite turn.processed success.
   const mayAutoSend =
-    input.mode === "autonomous" && autoEligible && Boolean(suggestedReply);
+    input.mode === "autonomous" &&
+    Boolean(suggestedReply?.trim()) &&
+    run.decision.path !== "escalate" &&
+    (run.decision.path !== "deterministic" || run.auditor.verified);
 
   recordConciergeTurnMetric(run.decision.path);
 

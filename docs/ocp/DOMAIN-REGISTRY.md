@@ -1,6 +1,6 @@
 # OCP Domain Registry
 
-**Last updated:** 2026-06-17  
+**Last updated:** 2026-07-17  
 **Protocol:** `docs/OCP-MASTER-EXECUTION-PROTOCOL.md`  
 **Global certification:** `docs/ocp/GLOBAL-CERTIFICATION.md`
 
@@ -27,6 +27,7 @@ OPEN → IN_PROGRESS → CERTIFIED → FROZEN → CLOSED
 | **Match / enrichment pipeline** | `applySafeReservationEnrichment` | FROZEN | `6cb5d90` | Prior release |
 | **iCal sync** | `airbnb-ical-sync.service.ts` | CLOSED | prior | stabilization |
 | **Performance / CPU** | stabilization RC | CLOSED | `3d256a3` | stabilization |
+| **AI Concierge native integration** | PRAGMA tenant config + ephemeral extension link | IN_PROGRESS | pending | UX/auth/linking implementation; live channel acceptance pending |
 
 **Deploy (Phase 10):** OPEN — awaiting owner localhost approval
 

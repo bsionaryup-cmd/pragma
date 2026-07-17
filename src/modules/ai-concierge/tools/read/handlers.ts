@@ -35,6 +35,40 @@ function asRecord(input: unknown): Record<string, unknown> {
     : {};
 }
 
+async function assertConciergePropertyAllowed(
+  ctx: ConciergeToolExecutionContext,
+  propertyId: string,
+) {
+  const property = await assertPropertyInScope(ctx.scope, propertyId);
+  const allowlist = ctx.allowedPropertyIds ?? [];
+  if (allowlist.length > 0 && !allowlist.includes(propertyId)) {
+    throw new TenantAccessError(
+      "Propiedad no autorizada para AI Concierge",
+    );
+  }
+  return property;
+}
+
+async function assertConciergeReservationAllowed(
+  ctx: ConciergeToolExecutionContext,
+  reservationId: string,
+) {
+  const reservation = await assertReservationInScope(
+    ctx.scope,
+    reservationId,
+  );
+  const allowlist = ctx.allowedPropertyIds ?? [];
+  if (
+    allowlist.length > 0 &&
+    !allowlist.includes(reservation.propertyId)
+  ) {
+    throw new TenantAccessError(
+      "Reserva fuera de las propiedades autorizadas para AI Concierge",
+    );
+  }
+  return reservation;
+}
+
 function wrapHandler(
   ctx: ConciergeToolExecutionContext,
   toolName: string,
@@ -95,7 +129,7 @@ export function createReadToolHandlers(
         return failResult("Input inválido para search_reservations");
       }
       if (parsed.data.propertyId) {
-        await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+        await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
       }
       const limit = parsed.data.limit ?? 20;
       const q = parsed.data.query?.toLowerCase();
@@ -104,7 +138,9 @@ export function createReadToolHandlers(
           mergeReservationScope(ctx.scope, {
             ...(parsed.data.propertyId
               ? { propertyId: parsed.data.propertyId }
-              : {}),
+              : (ctx.allowedPropertyIds?.length ?? 0) > 0
+                ? { propertyId: { in: ctx.allowedPropertyIds } }
+                : {}),
             ...(q
               ? {
                   OR: [
@@ -156,7 +192,7 @@ export function createReadToolHandlers(
         .object({ reservationId: z.string().trim().min(1) })
         .safeParse(asRecord(input));
       if (!parsed.success) return failResult("reservationId requerido");
-      await assertReservationInScope(ctx.scope, parsed.data.reservationId);
+      await assertConciergeReservationAllowed(ctx, parsed.data.reservationId);
       const row = await db.reservation.findFirst({
         where: mergeReservationScope(ctx.scope, { id: parsed.data.reservationId }),
         select: {
@@ -225,7 +261,7 @@ export function createReadToolHandlers(
           .object({ propertyId: z.string().trim().min(1) })
           .safeParse(asRecord(input));
         if (!parsed.success) return failResult("propertyId requerido");
-        await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+        await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
         const property = await db.property.findFirst({
           where: mergePropertyScope(ctx.scope, { id: parsed.data.propertyId }),
           select: {
@@ -291,7 +327,7 @@ export function createReadToolHandlers(
           .object({ reservationId: z.string().trim().min(1) })
           .safeParse(asRecord(input));
         if (!parsed.success) return failResult("reservationId requerido");
-        await assertReservationInScope(ctx.scope, parsed.data.reservationId);
+        await assertConciergeReservationAllowed(ctx, parsed.data.reservationId);
         const active = await getActiveGuestRegistrationForReservation(
           parsed.data.reservationId,
         );
@@ -323,7 +359,7 @@ export function createReadToolHandlers(
         })
         .safeParse(asRecord(input));
       if (!parsed.success) return failResult("reservationId requerido");
-      await assertReservationInScope(ctx.scope, parsed.data.reservationId);
+      await assertConciergeReservationAllowed(ctx, parsed.data.reservationId);
       const credential = await db.accessCredential.findFirst({
         where: {
           reservationId: parsed.data.reservationId,
@@ -396,7 +432,7 @@ export function createReadToolHandlers(
       if (!parsed.success) {
         return failResult("propertyId, checkIn y checkOut requeridos");
       }
-      await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+      await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
       const checkIn = dateKeyToPrismaDate(parsed.data.checkIn);
       const checkOut = dateKeyToPrismaDate(parsed.data.checkOut);
       if (!(checkOut > checkIn)) {
@@ -438,7 +474,7 @@ export function createReadToolHandlers(
         .safeParse(asRecord(input));
       if (!parsed.success) return failResult("from y to (YYYY-MM-DD) requeridos");
       if (parsed.data.propertyId) {
-        await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+        await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
       }
       const from = dateKeyToPrismaDate(parsed.data.from);
       const to = dateKeyToPrismaDate(parsed.data.to);
@@ -493,7 +529,7 @@ export function createReadToolHandlers(
           .object({ propertyId: z.string().trim().min(1) })
           .safeParse(asRecord(input));
         if (!parsed.success) return failResult("propertyId requerido");
-        await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+        await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
         const property = await db.property.findFirst({
           where: mergePropertyScope(ctx.scope, { id: parsed.data.propertyId }),
           select: {
@@ -519,7 +555,7 @@ export function createReadToolHandlers(
         .object({ reservationId: z.string().trim().min(1) })
         .safeParse(asRecord(input));
       if (!parsed.success) return failResult("reservationId requerido");
-      await assertReservationInScope(ctx.scope, parsed.data.reservationId);
+      await assertConciergeReservationAllowed(ctx, parsed.data.reservationId);
       const row = await db.reservation.findFirst({
         where: mergeReservationScope(ctx.scope, { id: parsed.data.reservationId }),
         select: {
@@ -572,7 +608,7 @@ export function createReadToolHandlers(
         .object({ reservationId: z.string().trim().min(1) })
         .safeParse(asRecord(input));
       if (!parsed.success) return failResult("reservationId requerido");
-      await assertReservationInScope(ctx.scope, parsed.data.reservationId);
+      await assertConciergeReservationAllowed(ctx, parsed.data.reservationId);
       const links = await db.guestPaymentLink.findMany({
         where: { reservationId: parsed.data.reservationId },
         orderBy: { createdAt: "desc" },
@@ -613,7 +649,7 @@ export function createReadToolHandlers(
       if (!parsed.success) {
         return failResult("propertyId, checkIn y checkOut requeridos");
       }
-      await assertPropertyInScope(ctx.scope, parsed.data.propertyId);
+      await assertConciergePropertyAllowed(ctx, parsed.data.propertyId);
       const property = await db.property.findFirst({
         where: mergePropertyScope(ctx.scope, { id: parsed.data.propertyId }),
         select: {

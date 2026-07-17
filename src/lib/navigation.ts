@@ -27,7 +27,8 @@ export type NavIconName =
   | "credit-card"
   | "list-checks"
   | "bell"
-  | "scan-search";
+  | "scan-search"
+  | "bot";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -75,6 +76,13 @@ const panelNavItem: NavItem = {
   href: "/panel",
   icon: "layout-dashboard",
   permission: "dashboard:read",
+};
+
+const aiConciergeNavItem: NavItem = {
+  labelKey: "nav.aiConcierge",
+  href: "/ai-concierge",
+  icon: "bot",
+  permission: "concierge:read",
 };
 
 const reservationsNavItem: NavItem = {
@@ -306,6 +314,10 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(panelNavItem, role, plan)) {
     modules.push(navLinkModule(panelNavItem));
+  }
+
+  if (navLinkAllowed(aiConciergeNavItem, role, plan)) {
+    modules.push(navLinkModule(aiConciergeNavItem));
   }
 
   if (navLinkAllowed(novedadesNavItem, role, plan)) {

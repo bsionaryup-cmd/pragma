@@ -8,6 +8,8 @@ import { createConciergeToolRegistry } from "@/modules/ai-concierge/tools/create
  */
 export async function runCommercialBookingFlow(input: {
   scope: TenantDataScope;
+  allowedPropertyIds?: string[];
+  allowedTools?: string[];
   propertyId: string;
   checkIn: string;
   checkOut: string;
@@ -23,7 +25,11 @@ export async function runCommercialBookingFlow(input: {
   quoteSummary?: string;
 }> {
   const reg = createConciergeToolRegistry(
-    { scope: input.scope },
+    {
+      scope: input.scope,
+      allowedPropertyIds: input.allowedPropertyIds,
+      allowedTools: input.allowedTools,
+    },
     { includeWrite: true },
   );
 

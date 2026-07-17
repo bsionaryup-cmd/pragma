@@ -2,6 +2,7 @@
 
 import {
   Building2,
+  Bot,
   CalendarDays,
   ClipboardList,
   CreditCard,
@@ -34,6 +35,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   wallet: Wallet,
   settings: Settings,
   "scan-search": ScanSearch,
+  bot: Bot,
 };
 
 type NavIconProps = {

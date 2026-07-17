@@ -32,7 +32,7 @@ const BodySchema = z.object({
  * F7: detectar + leer + comunicar. No genera respuesta al huésped.
  */
 export async function POST(request: Request) {
-  const auth = authorizeConciergeExtension(request);
+  const auth = await authorizeConciergeExtension(request);
   if (!auth.ok) return auth.response;
 
   let json: unknown;
@@ -51,6 +51,25 @@ export async function POST(request: Request) {
 
   const body = parsed.data;
   const channel = body.channel as ConciergeChannel;
+  if (
+    (channel === "whatsapp_web" && !auth.whatsappEnabled) ||
+    (channel === "airbnb_web" && !auth.airbnbEnabled)
+  ) {
+    return NextResponse.json(
+      { error: "Canal desactivado en PRAGMA" },
+      { status: 423 },
+    );
+  }
+  if (
+    body.propertyId &&
+    auth.allowedPropertyIds.length > 0 &&
+    !auth.allowedPropertyIds.includes(body.propertyId)
+  ) {
+    return NextResponse.json(
+      { error: "Propiedad no autorizada para AI Concierge" },
+      { status: 403 },
+    );
+  }
   const organizationId = auth.scope.organizationId ?? `user:${auth.scope.userId}`;
 
   const conversation = getOrCreateChannelSession({

@@ -1,13 +1,15 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw/agUbDGWbi+UUtuV8nOKkWSNB1O94Tw+UIijnHu+rGotwK/S8WWjdF4yXOjXLZhJWIaacTG/djFX6qUXe0USsFjLAxJEzPaGM/d2LKS3SBiH+J6BVJzhtM0xhnOBXFDtOAqaKg8nj2ZhN36x87SPJpsGHcfP5Wgc8ewLUKlb1XO03Rm+vLO6ggA+qAGQM2ClPzWkoyUt3IXB55BQBy/Lb2UXxiLSkliB9lq2XkcPVu28RCRzXgxsJhBxwOAXo3EW51sWMjROgkCPvevKzfQZdSqRzmsVXgND1hDVN+xFnWs1g+TXrzQwXln9uGBuZxjNg2dLh1tfiFKoNG6TIaSewIDAQAB",
   "name": "PRAGMA AI Concierge",
-  "version": "0.12.0",
+  "version": "1.0.0",
   "description": "Canal tonto: detecta y lee conversaciones de Airbnb/WhatsApp Web. La inteligencia vive en PRAGMA.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "alarms"],
   "host_permissions": [
     "https://www.airbnb.com/*",
     "https://www.airbnb.com.co/*",
     "https://web.whatsapp.com/*",
+    "https://*.pragmapms.com/*",
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*"
   ],
@@ -16,8 +18,14 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html",
     "default_title": "PRAGMA AI Concierge"
+  },
+  "externally_connectable": {
+    "matches": [
+      "https://*.pragmapms.com/*",
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*"
+    ]
   },
   "content_scripts": [
     {

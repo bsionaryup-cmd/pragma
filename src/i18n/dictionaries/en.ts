@@ -24,6 +24,7 @@ export const en = {
   },
   nav: {
     overview: "Today",
+    aiConcierge: "AI Concierge",
     operations: "Operations",
     reservations: "Reservations",
     novedades: "Inbox",

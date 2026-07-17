@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-07-17T04:50:08.261Z",
+  "startedAt": "2026-07-17T05:42:22.064Z",
   "phase": 13,
   "propertyId": "cmpm0xani000004jgxfqjnih0",
   "propertyName": "Loft 2P con Vista Premium | Laureles | Zona top",
@@ -178,7 +178,7 @@
       "name": "Seguridad tool no autorizada denegada",
       "ok": true,
       "detail": {
-        "id": "tool_enwme4cl",
+        "id": "tool_5cc5lzqx",
         "toolName": "delete_reservation_forever",
         "input": {},
         "result": {
@@ -186,7 +186,7 @@
           "error": "Tool desconocida"
         },
         "status": "denied",
-        "at": "2026-07-17T04:50:07.964Z"
+        "at": "2026-07-17T05:42:21.810Z"
       }
     },
     {

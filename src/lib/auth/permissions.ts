@@ -34,7 +34,9 @@ export type Permission =
   | "access:read"
   | "access:manage"
   | "settings:read"
-  | "pricing:read";
+  | "pricing:read"
+  | "concierge:read"
+  | "concierge:manage";
 
 const ALL_PERMISSIONS: Permission[] = [
   "dashboard:read",
@@ -62,6 +64,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "access:manage",
   "settings:read",
   "pricing:read",
+  "concierge:read",
+  "concierge:manage",
 ];
 
 const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
@@ -95,6 +99,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/reservations": "reservations:read",
   "/novedades": "reservations:read",
   "/inbox": "reservations:read",
+  "/ai-concierge": "concierge:read",
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
   "/finance": "finance:read",
@@ -133,6 +138,7 @@ export const PROTECTED_DASHBOARD_PREFIXES = [
   "/users",
   "/tasks",
   "/inbox",
+  "/ai-concierge",
   "/onboarding",
 ] as const;
 

@@ -5,6 +5,10 @@ import type { ConciergeToolResult } from "@/modules/ai-concierge/types/tool";
 
 export type ConciergeToolExecutionContext = {
   scope: TenantDataScope;
+  /** Vacío = todas las propiedades del tenant; con valores = allowlist estricta. */
+  allowedPropertyIds?: string[];
+  /** Vacío = catálogo completo; con valores = allowlist estricta. */
+  allowedTools?: string[];
   /** Correlación opcional para auditoría. */
   runId?: string;
   conversationId?: string;

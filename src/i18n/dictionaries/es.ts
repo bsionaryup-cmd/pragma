@@ -23,6 +23,7 @@ export const es = {
   },
   nav: {
     overview: "HOY",
+    aiConcierge: "AI Concierge",
     operations: "Operaciones",
     reservations: "Reservas",
     novedades: "Bandeja de entrada",

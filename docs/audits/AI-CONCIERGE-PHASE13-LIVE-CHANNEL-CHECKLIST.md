@@ -8,14 +8,15 @@
    ```
    CONCIERGE_EXTENSION_SECRET=<elige-un-secreto-largo>
    ```
-2. `npm run dev` (puerto 3000).
+2. Reiniciar `npm run dev` (puerto 3000) **después** de agregar el secreto.
 3. Chrome → Load unpacked → `extensions/pragma-ai-concierge`.
 4. Popup:
    - API: `http://127.0.0.1:3000`
    - Secret: el mismo
-   - Org ID / User ID del tenant piloto
+   - User ID del tenant piloto (obligatorio; la org se deriva en servidor, no del popup)
    - Mode: `manual` (luego `assisted` / `autonomous`)
-5. “Probar conexión” → debe decir Conectado.
+5. “Probar conexión” / Health → debe responder JSON (no página de login).  
+   Si ves HTML de sign-in: el proxy no está dejando pasar `/api/concierge` (debe estar en `isSelfAuthedApi`).
 6. Abrir WhatsApp Web **o** Airbnb inbox en esa misma Chrome.
 
 ## Escenario WhatsApp (cliente = tú)
@@ -59,3 +60,8 @@ Repetir el mismo guion en un hilo de mensajes Airbnb.
 
 La evidencia automatizada del cerebro está en `ai-concierge-phase13-scenarios.json`.  
 Esta checklist completa el criterio “conversa en WA/Airbnb Web” con sesión humana real.
+
+## Hallazgo LAT (2026-07-17) — RESUELTO
+
+`/api/concierge/*` estaba protegido por Clerk en `src/proxy.ts`. La extensión (Bearer propio) recibía redirect a sign-in.  
+Fix mínimo: agregar `/api/concierge(.*)` a `isSelfAuthedApi`. Reprobado: health sin secreto → JSON `503`, no HTML.

@@ -17,7 +17,7 @@ const BodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const auth = authorizeConciergeExtension(request);
+  const auth = await authorizeConciergeExtension(request);
   if (!auth.ok) return auth.response;
 
   let json: unknown;
@@ -30,9 +30,20 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Payload inválido" }, { status: 400 });
   }
+  if (
+    auth.allowedPropertyIds.length > 0 &&
+    !auth.allowedPropertyIds.includes(parsed.data.propertyId)
+  ) {
+    return NextResponse.json(
+      { error: "Propiedad no autorizada para AI Concierge" },
+      { status: 403 },
+    );
+  }
 
   const result = await runCommercialBookingFlow({
     scope: auth.scope,
+    allowedPropertyIds: auth.allowedPropertyIds,
+    allowedTools: auth.allowedTools,
     ...parsed.data,
   });
 

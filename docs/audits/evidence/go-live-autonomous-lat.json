@@ -1,0 +1,181 @@
+{
+  "at": "2026-07-17T15:06:32.109Z",
+  "mode": "AUTONOMOUS",
+  "sequence": [
+    "Hola",
+    "¿Cuánto cuesta?",
+    "¿Hay disponibilidad?",
+    "Aceptan mascotas?",
+    "¿Cuál es la clave del WiFi?",
+    "Llegaré a las 11 PM.",
+    "Perdí el código.",
+    "Gracias."
+  ],
+  "pairingOk": true,
+  "heartbeatFresh": true,
+  "whatsappOnline": true,
+  "results": [
+    {
+      "index": 1,
+      "text": "Hola",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 8020,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 2,
+      "text": "¿Cuánto cuesta?",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 887,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 3,
+      "text": "¿Hay disponibilidad?",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 784,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 4,
+      "text": "Aceptan mascotas?",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 1289,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 5,
+      "text": "¿Cuál es la clave del WiFi?",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 854,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 6,
+      "text": "Llegaré a las 11 PM.",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 1120,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 7,
+      "text": "Perdí el código.",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 746,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    },
+    {
+      "index": 8,
+      "text": "Gracias.",
+      "ok": false,
+      "turnId": null,
+      "turnsForMessage": 0,
+      "replyText": null,
+      "replyVisibleInDom": false,
+      "mayAutoSend": false,
+      "sentFlag": false,
+      "verifiedInChat": null,
+      "timingsMs": {
+        "detection": 800,
+        "processing": null,
+        "write": null,
+        "send": null
+      }
+    }
+  ],
+  "soak": {
+    "startedAt": "2026-07-17T15:05:31.522Z",
+    "ms": 60000,
+    "sentBeforeSoak": 0,
+    "sentAfterSoak": 0,
+    "turnsBeforeSoak": 0,
+    "turnsAfterSoak": 0
+  },
+  "checks": {
+    "perMessageOk": false,
+    "oneTurnEach": false,
+    "sendsEqualMessages": false,
+    "soakNoNewSends": true,
+    "soakNoNewTurns": true,
+    "heartbeatFresh": true,
+    "whatsappOnline": true
+  },
+  "pass": false
+}

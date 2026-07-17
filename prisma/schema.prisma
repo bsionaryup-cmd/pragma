@@ -47,6 +47,10 @@ model Organization {
   paymentMethodConfig    OrganizationPaymentMethodConfig?
   inboxAiDrafts          InboxAiDraft[]
   prospectingLeads       ProspectingLead[]
+  conciergeConfiguration ConciergeConfiguration?
+  conciergeExtensionLinks ConciergeExtensionLink[]
+  conciergeConversationStates ConciergeConversationState[]
+  conciergeAuditEvents   ConciergeAuditEvent[]
 
   @@map("organizations")
 }
@@ -110,11 +114,134 @@ model User {
   reservationActivitySeen          ReservationActivitySeen[]
   inboxAiDraftsCreated             InboxAiDraft[] @relation("InboxAiDraftCreator")
   inboxAiDraftAuditEvents          InboxAiDraftAuditEvent[] @relation("InboxAiDraftAuditActor")
+  conciergeConfigurationsUpdated   ConciergeConfiguration[] @relation("ConciergeConfigurationUpdater")
+  conciergeExtensionLinksCreated   ConciergeExtensionLink[] @relation("ConciergeExtensionLinkCreator")
 
   @@index([role, isActive])
   @@index([organizationId])
   @@index([platformRole])
   @@map("users")
+}
+
+enum ConciergeOperationMode {
+  OBSERVE
+  MANUAL
+  ASSISTED
+  AUTONOMOUS
+}
+
+enum ConciergeExtensionLinkStatus {
+  PENDING
+  ACTIVE
+  REVOKED
+}
+
+enum ConciergeConversationStatus {
+  ACTIVE
+  ESCALATED
+  COMPLETED
+}
+
+model ConciergeConfiguration {
+  organizationId     String                 @id
+  enabled            Boolean                @default(false)
+  paused             Boolean                @default(false)
+  mode               ConciergeOperationMode @default(MANUAL)
+  whatsappEnabled    Boolean                @default(true)
+  airbnbEnabled      Boolean                @default(true)
+  allowedPropertyIds String[]               @default([])
+  allowedTools       Json                   @default("[]")
+  aiEnabled          Boolean                @default(false)
+  auditorEnabled     Boolean                @default(true)
+  activeHours        Json?
+  updatedById        String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    User?        @relation("ConciergeConfigurationUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("concierge_configurations")
+}
+
+model ConciergeExtensionLink {
+  id               String                        @id @default(cuid())
+  organizationId   String
+  linkedByUserId   String
+  deviceIdHash     String?
+  pairingTokenHash String?                       @unique
+  pairingExpiresAt DateTime?
+  pairedAt         DateTime?
+  status           ConciergeExtensionLinkStatus @default(PENDING)
+  version          String?
+  lastHeartbeatAt  DateTime?
+  lastSyncAt       DateTime?
+  lastError        String?
+  channelStatus    Json?
+  revokedAt        DateTime?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  linkedBy     User                  @relation("ConciergeExtensionLinkCreator", fields: [linkedByUserId], references: [id], onDelete: Cascade)
+  auditEvents  ConciergeAuditEvent[]
+
+  @@unique([organizationId, deviceIdHash])
+  @@index([organizationId, status])
+  @@index([lastHeartbeatAt])
+  @@map("concierge_extension_links")
+}
+
+model ConciergeConversationState {
+  id                 String                       @id @default(cuid())
+  organizationId     String
+  channel            String
+  threadHash         String
+  status             ConciergeConversationStatus @default(ACTIVE)
+  messageCount       Int                          @default(0)
+  pendingCount       Int                          @default(0)
+  escalationCount    Int                          @default(0)
+  deterministicCount Int                          @default(0)
+  llmCount           Int                          @default(0)
+  errorCount         Int                          @default(0)
+  totalResponseMs    Int                          @default(0)
+  lastIntent         String?
+  lastPath           String?
+  lastProcessedAt    DateTime?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  auditEvents  ConciergeAuditEvent[]
+
+  @@unique([organizationId, channel, threadHash])
+  @@index([organizationId, status])
+  @@index([organizationId, lastProcessedAt])
+  @@map("concierge_conversation_states")
+}
+
+model ConciergeAuditEvent {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  extensionLinkId     String?
+  conversationStateId String?
+  runId               String?
+  idempotencyKey      String?  @unique
+  eventType           String
+  result              String
+  toolName            String?
+  durationMs          Int?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  extensionLink     ConciergeExtensionLink?     @relation(fields: [extensionLinkId], references: [id], onDelete: SetNull)
+  conversationState ConciergeConversationState? @relation(fields: [conversationStateId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([extensionLinkId, createdAt])
+  @@index([conversationStateId, createdAt])
+  @@map("concierge_audit_events")
 }
 
 enum PlatformRole {

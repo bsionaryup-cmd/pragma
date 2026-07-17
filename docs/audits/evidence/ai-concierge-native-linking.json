@@ -1,0 +1,11 @@
+{
+  "at": "2026-07-17T08:32:57.369Z",
+  "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+  "firstPendingChallengeInvalidated": true,
+  "wrongDeviceRejected": true,
+  "validSessionAuthorized": true,
+  "spoofedHeadersIgnored": true,
+  "tamperedTokenRejected": true,
+  "revokedSessionRejected": true,
+  "dashboardTenantScoped": true
+}

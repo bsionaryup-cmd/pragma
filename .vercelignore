@@ -1,0 +1,24 @@
+# Local audit/LAT probes and finance dumps — never ship to Vercel upload
+data/
+e2e-trigger-body.json
+scripts/_*
+scripts/ui-validation-screenshots/
+scripts/audit-*.mjs
+scripts/audit-*.ts
+scripts/audit-*.json
+scripts/capture-*
+scripts/debug-*
+scripts/e2e-*
+scripts/forensic-*
+scripts/qa-*
+scripts/probe-*
+scripts/prepare-e2e-*
+scripts/stub-server-only*
+public/marketing/screenshots/0c-dark-review/
+public/marketing/screenshots/0f-2-preview/
+public/marketing/screenshots/0f-final/
+
+# Dev-only / e2e surfaces that must not become production routes
+src/app/api/cron/guest-registration-admin-notify-e2e/
+src/components/layout/nav-layout-probe.ts
+src/components/layout/nav-sub-sidebar-debug.ts
