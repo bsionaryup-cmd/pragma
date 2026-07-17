@@ -337,13 +337,22 @@ export async function sendGuestRegistrationEmailForReservation(
   }
 
   try {
-    const active = await db.guestRegistrationToken.findFirst({
+    let tokenRow = await db.guestRegistrationToken.findFirst({
       where: { reservationId, status: "ACTIVE" },
       orderBy: { createdAt: "desc" },
       select: { token: true },
     });
 
-    if (!active?.token) {
+    // Reenvío manual: permitir último token aunque ya no esté ACTIVE (p. ej. GR completado).
+    if (!tokenRow?.token && force) {
+      tokenRow = await db.guestRegistrationToken.findFirst({
+        where: { reservationId },
+        orderBy: { createdAt: "desc" },
+        select: { token: true },
+      });
+    }
+
+    if (!tokenRow?.token) {
       const entry: GuestRegistrationInviteLogEntry = {
         at: new Date().toISOString(),
         status: "failed",
@@ -361,7 +370,7 @@ export async function sendGuestRegistrationEmailForReservation(
 
     const result = await sendGuestRegistrationInviteEmail({
       reservationId,
-      registrationUrl: buildGuestRegistrationUrl(active.token),
+      registrationUrl: buildGuestRegistrationUrl(tokenRow.token),
     });
 
     if (!result.ok) {
