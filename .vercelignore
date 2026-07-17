@@ -1,5 +1,6 @@
 # Local audit/LAT probes and finance dumps — never ship to Vercel upload
-data/
+# Root-only: do not use bare "data/" (it would exclude src/**/data modules).
+/data/
 e2e-trigger-body.json
 scripts/_*
 scripts/ui-validation-screenshots/
