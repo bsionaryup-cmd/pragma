@@ -1,6 +1,7 @@
 /**
- * PRAGMA AI Concierge — Fase 5 foundation.
- * No DB access. No outbound messaging. No LLM invocation.
+ * PRAGMA AI Concierge — Fase 5 foundation (+ exports seguros sin server-only).
+ * Handlers de lectura Fase 6: importar desde
+ * `@/modules/ai-concierge/tools/read/wire` (server-only).
  */
 export type {
   ConciergeChannel,
