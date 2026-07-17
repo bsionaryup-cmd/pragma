@@ -1,6 +1,8 @@
 (() => {
   const platform = "airbnb_web";
   let lastFingerprint = "";
+  let leader = null;
+  let connected = true;
 
   function getThreadId() {
     return location.pathname + location.search;
@@ -9,7 +11,7 @@
   function readLatestGuestMessage() {
     const candidates = [
       ...document.querySelectorAll(
-        '[data-testid*="message"], [class*="message"], li[role="listitem"]',
+        '[data-testid*="message"], [class*="message"], li[role="listitem"], [data-testid*="inbox"]',
       ),
     ];
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
@@ -39,35 +41,49 @@
     tryInsert(ev.detail?.text || "");
   });
 
+  async function ensureLeader() {
+    if (leader?.isLeader) return true;
+    leader = await window.PragmaConcierge.claimTabLeadership("airbnb");
+    return leader.isLeader;
+  }
+
   async function tick() {
+    if (!(await ensureLeader())) return;
     const guestMessage = readLatestGuestMessage();
     if (!guestMessage) return;
-    const fingerprint = `${getThreadId()}::${guestMessage.slice(0, 120)}`;
+    const fingerprint = `${getThreadId()}::${guestMessage.slice(0, 160)}`;
     if (fingerprint === lastFingerprint) return;
     lastFingerprint = fingerprint;
 
-    await window.PragmaConcierge.sendToBackground("CONCIERGE_INGEST", {
+    const ingest = await window.PragmaConcierge.sendToBackground("CONCIERGE_INGEST", {
       channel: platform,
       threadId: getThreadId(),
       guestMessage,
       platformDetected: platform,
     });
+    connected = Boolean(ingest?.ok);
 
     const turn = await window.PragmaConcierge.sendToBackground("CONCIERGE_TURN", {
       channel: platform,
       threadId: getThreadId(),
       guestMessage,
     });
+    connected = connected && Boolean(turn?.ok);
 
     const suggested = turn?.data?.suggestedReply || null;
-    window.PragmaConcierge.showConciergePanel(suggested, turn?.data || {});
+    window.PragmaConcierge.showConciergePanel(suggested, {
+      ...(turn?.data || {}),
+      connected,
+    });
 
     if (turn?.data?.mayAutoSend && suggested) {
       tryInsert(suggested);
     }
   }
 
-  setInterval(() => {
-    tick().catch(() => undefined);
-  }, 5000);
+  window.PragmaConcierge.watchConversation(() => {
+    tick().catch(() => {
+      connected = false;
+    });
+  });
 })();

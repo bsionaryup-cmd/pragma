@@ -10,6 +10,7 @@ import {
 } from "@/modules/ai-concierge/intent/library";
 import { auditConciergeCandidate } from "@/modules/ai-concierge/engine/auditor";
 import { recordLearningProposal } from "@/modules/ai-concierge/learning/proposals";
+import { recordConciergeTurnMetric } from "@/modules/ai-concierge/engine/metrics";
 
 function extractFactsFromToolData(
   data: unknown,
@@ -150,6 +151,8 @@ export async function composeConciergeReply(input: {
 
   const mayAutoSend =
     input.mode === "autonomous" && autoEligible && Boolean(suggestedReply);
+
+  recordConciergeTurnMetric(run.decision.path);
 
   return {
     conversation,

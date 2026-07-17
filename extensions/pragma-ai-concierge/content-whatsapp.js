@@ -1,18 +1,25 @@
 (() => {
   const platform = "whatsapp_web";
   let lastFingerprint = "";
+  let leader = null;
+  let connected = true;
 
   function getThreadId() {
-    return location.pathname || "whatsapp-root";
+    // WhatsApp Web suele reflejar el chat en el hash/path
+    return location.href || "whatsapp-root";
   }
 
   function readLatestGuestMessage() {
     const nodes = [
       ...document.querySelectorAll(
-        '[data-testid="msg-container"], .message-in, div[class*="message-in"]',
+        '[data-testid="msg-container"], .message-in, div.message-in, div[class*="message-in"]',
       ),
     ];
-    const last = nodes[nodes.length - 1];
+    // Preferir mensajes entrantes; si no hay marcador, usar el último
+    const incoming = nodes.filter((n) =>
+      /message-in|msg-container/i.test(n.className + (n.getAttribute("data-testid") || "")),
+    );
+    const last = (incoming.length ? incoming : nodes).at(-1);
     const text = (last?.innerText || "").trim();
     return text.slice(0, 4000);
   }
@@ -33,35 +40,49 @@
     tryInsert(ev.detail?.text || "");
   });
 
+  async function ensureLeader() {
+    if (leader?.isLeader) return true;
+    leader = await window.PragmaConcierge.claimTabLeadership("whatsapp");
+    return leader.isLeader;
+  }
+
   async function tick() {
+    if (!(await ensureLeader())) return;
     const guestMessage = readLatestGuestMessage();
     if (!guestMessage) return;
-    const fingerprint = `${getThreadId()}::${guestMessage.slice(0, 120)}`;
+    const fingerprint = `${getThreadId()}::${guestMessage.slice(0, 160)}`;
     if (fingerprint === lastFingerprint) return;
     lastFingerprint = fingerprint;
 
-    await window.PragmaConcierge.sendToBackground("CONCIERGE_INGEST", {
+    const ingest = await window.PragmaConcierge.sendToBackground("CONCIERGE_INGEST", {
       channel: platform,
       threadId: getThreadId(),
       guestMessage,
       platformDetected: platform,
     });
+    connected = Boolean(ingest?.ok);
 
     const turn = await window.PragmaConcierge.sendToBackground("CONCIERGE_TURN", {
       channel: platform,
       threadId: getThreadId(),
       guestMessage,
     });
+    connected = connected && Boolean(turn?.ok);
 
     const suggested = turn?.data?.suggestedReply || null;
-    window.PragmaConcierge.showConciergePanel(suggested, turn?.data || {});
+    window.PragmaConcierge.showConciergePanel(suggested, {
+      ...(turn?.data || {}),
+      connected,
+    });
 
     if (turn?.data?.mayAutoSend && suggested) {
       tryInsert(suggested);
     }
   }
 
-  setInterval(() => {
-    tick().catch(() => undefined);
-  }, 4000);
+  window.PragmaConcierge.watchConversation(() => {
+    tick().catch(() => {
+      connected = false;
+    });
+  });
 })();

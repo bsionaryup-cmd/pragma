@@ -1,0 +1,242 @@
+{
+  "startedAt": "2026-07-17T04:50:08.261Z",
+  "phase": 13,
+  "propertyId": "cmpm0xani000004jgxfqjnih0",
+  "propertyName": "Loft 2P con Vista Premium | Laureles | Zona top",
+  "channelSimulated": [
+    "whatsapp_web",
+    "airbnb_web"
+  ],
+  "allOk": true,
+  "checks": [
+    {
+      "name": "Escenario1 WhatsApp flow (canal)",
+      "ok": true,
+      "detail": [
+        "Hola → path=needs_llm llm=false reply=true",
+        "¿Tienen disponibilidad del 10 al 12 de m → path=needs_tools llm=false reply=true",
+        "¿Me puedes cotizar? → path=needs_tools llm=false reply=true",
+        "Quiero reservar → path=needs_tools llm=false reply=true",
+        "¿Cómo pago? → path=needs_tools llm=false reply=true",
+        "¿Me envías el guest registration? → path=needs_tools llm=false reply=true",
+        "¿Cuál es el código de la puerta? → path=needs_tools llm=false reply=true",
+        "¿A qué hora es el check-in? → path=escalate llm=false reply=true",
+        "¿Y el check-out? → path=deterministic llm=false reply=true",
+        "Gracias, hasta luego → path=needs_llm llm=false reply=true"
+      ]
+    },
+    {
+      "name": "Escenario2 Airbnb channel WIFI",
+      "ok": true,
+      "detail": {
+        "reply": "La red WiFi es SOMOSAPTO804. La contraseña es micasasucasa804.",
+        "path": "deterministic"
+      }
+    },
+    {
+      "name": "Escenario3 conversación larga / memoria",
+      "ok": true,
+      "detail": [
+        {
+          "m": "Mi nombre es Laura",
+          "messages": 11,
+          "path": "needs_llm"
+        },
+        {
+          "m": "Llego con 2 adultos",
+          "messages": 12,
+          "path": "needs_llm"
+        },
+        {
+          "m": "Necesito parqueadero",
+          "messages": 13,
+          "path": "deterministic"
+        },
+        {
+          "m": "Recuérdame las reglas",
+          "messages": 14,
+          "path": "deterministic"
+        },
+        {
+          "m": "Y el wifi otra vez",
+          "messages": 15,
+          "path": "deterministic"
+        }
+      ]
+    },
+    {
+      "name": "Escenario4 fuera de alcance escala",
+      "ok": true,
+      "detail": [
+        {
+          "msg": "Quiero cancelar la reserva",
+          "path": "needs_llm",
+          "mayAutoSend": false
+        },
+        {
+          "msg": "Necesito un descuento especial del 40%",
+          "path": "escalate",
+          "mayAutoSend": false
+        },
+        {
+          "msg": "Quiero reembolso completo",
+          "path": "escalate",
+          "mayAutoSend": false
+        },
+        {
+          "msg": "Quiero cambiar de apartamento",
+          "path": "needs_llm",
+          "mayAutoSend": false
+        }
+      ]
+    },
+    {
+      "name": "Escenario5 absurdo no inventa",
+      "ok": true,
+      "detail": {
+        "path": "needs_llm",
+        "reply": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?",
+        "learning": true
+      }
+    },
+    {
+      "name": "Escenario6 FAQs sin OpenAI",
+      "ok": true,
+      "detail": {
+        "faqResults": [
+          {
+            "q": "wifi",
+            "path": "deterministic",
+            "usedLlm": false
+          },
+          {
+            "q": "código de acceso",
+            "path": "needs_tools",
+            "usedLlm": false
+          },
+          {
+            "q": "reglas de la casa",
+            "path": "deterministic",
+            "usedLlm": false
+          },
+          {
+            "q": "hora de check-in",
+            "path": "escalate",
+            "usedLlm": false
+          },
+          {
+            "q": "hora de check-out",
+            "path": "deterministic",
+            "usedLlm": false
+          },
+          {
+            "q": "parqueadero",
+            "path": "deterministic",
+            "usedLlm": false
+          },
+          {
+            "q": "dirección exacta",
+            "path": "deterministic",
+            "usedLlm": false
+          },
+          {
+            "q": "métodos de pago",
+            "path": "needs_tools",
+            "usedLlm": false
+          },
+          {
+            "q": "guest registration",
+            "path": "needs_tools",
+            "usedLlm": false
+          },
+          {
+            "q": "disponibilidad 2027-04-01 a 2027-04-03",
+            "path": "needs_tools",
+            "usedLlm": false
+          },
+          {
+            "q": "cotización",
+            "path": "needs_tools",
+            "usedLlm": false
+          }
+        ],
+        "openaiDelta": 0,
+        "metrics": {
+          "turnsTotal": 32,
+          "deterministicTurns": 10,
+          "needsToolsTurns": 11,
+          "needsLlmTurns": 7,
+          "escalateTurns": 4,
+          "openaiCalls": 0,
+          "openaiTokens": 0,
+          "deterministicRate": 0.3125,
+          "openaiDependencyRate": 0
+        }
+      }
+    },
+    {
+      "name": "Seguridad tool no autorizada denegada",
+      "ok": true,
+      "detail": {
+        "id": "tool_enwme4cl",
+        "toolName": "delete_reservation_forever",
+        "input": {},
+        "result": {
+          "ok": false,
+          "error": "Tool desconocida"
+        },
+        "status": "denied",
+        "at": "2026-07-17T04:50:07.964Z"
+      }
+    },
+    {
+      "name": "Tools disponibilidad + cotización reales",
+      "ok": true,
+      "detail": {
+        "avail": {
+          "propertyId": "cmpm0xani000004jgxfqjnih0",
+          "checkIn": "2027-05-01",
+          "checkOut": "2027-05-03",
+          "available": true,
+          "availabilitySummary": "Disponible del 2027-05-01 al 2027-05-03.",
+          "conflict": null
+        },
+        "quote": {
+          "propertyId": "cmpm0xani000004jgxfqjnih0",
+          "propertyName": "Loft 2P con Vista Premium | Laureles | Zona top",
+          "checkIn": "2027-05-01",
+          "checkOut": "2027-05-03",
+          "nights": 2,
+          "baseRate": 209845,
+          "cleaningFee": 60000,
+          "stayTotal": 479690,
+          "currency": "COP",
+          "quoteSummary": "Loft 2P con Vista Premium | Laureles | Zona top: 2 noche(s) × 209845 + limpieza 60000 = 479690 COP (tarifa base; no incluye PriceLabs dinámico en Fase 6).",
+          "source": "property_base_rate"
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "turnsTotal": 32,
+    "deterministicTurns": 10,
+    "needsToolsTurns": 11,
+    "needsLlmTurns": 7,
+    "escalateTurns": 4,
+    "openaiCalls": 0,
+    "openaiTokens": 0,
+    "deterministicRate": 0.3125,
+    "openaiDependencyRate": 0
+  },
+  "llm": {
+    "openaiCalls": 0,
+    "openaiTokens": 0,
+    "note": "L3 no invocado en esta build; needs_llm escala / pide info.",
+    "deterministicRate": 0.3125
+  },
+  "liveDomPending": {
+    "whatsappWeb": "Requiere sesión humana + extensión unpacked",
+    "airbnbWeb": "Requiere sesión humana + extensión unpacked",
+    "checklist": "docs/audits/AI-CONCIERGE-PHASE13-LIVE-CHANNEL-CHECKLIST.md"
+  }
+}

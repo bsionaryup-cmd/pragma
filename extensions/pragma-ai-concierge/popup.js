@@ -23,4 +23,21 @@ document.getElementById("save")?.addEventListener("click", async () => {
   window.close();
 });
 
+document.getElementById("health")?.addEventListener("click", async () => {
+  const out = document.getElementById("healthOut");
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: "CONCIERGE_HEALTH",
+      payload: {},
+    });
+    if (out) {
+      out.textContent = res?.ok
+        ? `Conectado · HTTP ${res.status} · mode header OK`
+        : `Sin conexión · ${res?.data?.error || res?.status || "fail"}`;
+    }
+  } catch (err) {
+    if (out) out.textContent = `Error: ${String(err)}`;
+  }
+});
+
 load();
