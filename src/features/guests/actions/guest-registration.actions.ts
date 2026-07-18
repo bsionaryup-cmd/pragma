@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import {
@@ -48,12 +49,27 @@ async function requireGuestRegistrationPermission() {
   await requireAnyPermission("reservations:write", "properties:write");
 }
 
+async function readGuestRegistrationRequestMeta() {
+  const headerStore = await headers();
+  const forwarded = headerStore.get("x-forwarded-for");
+  const ipAddress =
+    forwarded?.split(",")[0]?.trim() ??
+    headerStore.get("cf-connecting-ip") ??
+    headerStore.get("x-real-ip");
+  const userAgent = headerStore.get("user-agent");
+  return {
+    ipAddress: ipAddress ?? null,
+    userAgent: userAgent ?? null,
+  };
+}
+
 export async function submitGuestRegistrationAction(
   values: GuestRegistrationValues,
 ) {
   try {
     const parsed = guestRegistrationSchema.parse(values);
-    await submitGuestRegistration(parsed);
+    const requestMeta = await readGuestRegistrationRequestMeta();
+    await submitGuestRegistration(parsed, requestMeta);
     revalidateGuestRegistrationPaths();
     revalidatePath(`/guest-registration/${parsed.token}`);
     return { success: true as const };
@@ -87,7 +103,8 @@ export async function completeGuestRegistrationAction(
 ) {
   try {
     const parsed = completeGuestRegistrationSchema.parse(values);
-    const reservation = await completeGuestRegistration(parsed);
+    const requestMeta = await readGuestRegistrationRequestMeta();
+    const reservation = await completeGuestRegistration(parsed, requestMeta);
     revalidateGuestRegistrationPaths();
     revalidatePath(`/guest-registration/${parsed.token}`);
     return { success: true as const, reservation };

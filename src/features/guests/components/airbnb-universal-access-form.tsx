@@ -1,10 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  accessAirbnbGuestRegistrationAction,
-  initialAirbnbUniversalAccessState,
-} from "@/app/guest-registration/actions";
+import { accessAirbnbGuestRegistrationAction } from "@/app/guest-registration/actions";
+import { initialAirbnbUniversalAccessState } from "@/app/guest-registration/universal-access-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

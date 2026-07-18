@@ -1,0 +1,26 @@
+{
+  "auditedAt": "2026-07-18T03:03:27.597Z",
+  "case": "HM9MJ4HBFJ",
+  "lookupState": "valid",
+  "header": {
+    "welcome": "Bienvenido, Tachi Yamel Silva Martinez.",
+    "confirmation": "Encontramos correctamente tu reserva.",
+    "property": "802 — Loft moderno para 4 personas en Laureles | A 10 min de la Av. 70",
+    "airbnbCode": "HM9MJ4HBFJ",
+    "checkIn": "23 de jul de 2026",
+    "checkOut": "26 de jul de 2026",
+    "sensitiveFieldsAbsent": {
+      "email": true,
+      "phone": true,
+      "amount": true,
+      "tokenInHeaderPayload": false
+    }
+  },
+  "acceptance": {
+    "validShowsHeader": true,
+    "hasProperty": true,
+    "hasCode": true,
+    "hasDates": true,
+    "hasHolderOrFriendlyWelcome": true
+  }
+}

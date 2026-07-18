@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import type { AirbnbUniversalAccessActionState } from "@/app/guest-registration/universal-access-state";
 import {
   buildAirbnbUniversalAccessRateLimitKey,
   checkAirbnbUniversalAccessRateLimit,
@@ -18,13 +19,6 @@ const accessSchema = z.object({
     .max(20)
     .regex(/^[a-z0-9-]+$/i),
 });
-
-export type AirbnbUniversalAccessActionState = {
-  error: string | null;
-};
-
-export const initialAirbnbUniversalAccessState: AirbnbUniversalAccessActionState =
-  { error: null };
 
 const INVALID_MESSAGE =
   "No pudimos validar el código de la reserva. Revisa el código e intenta nuevamente.";

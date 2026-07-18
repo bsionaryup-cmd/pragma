@@ -395,6 +395,7 @@ model Reservation {
   property                Property                 @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   guests                  ReservationGuest[]
   guestRegistrationTokens GuestRegistrationToken[]
+  guestRegistrationLegalAcceptance GuestRegistrationLegalAcceptance?
   accessCredentials       AccessCredential[]
   accessEvents            AccessEvent[]
   tasks                   Task[]
@@ -435,6 +436,19 @@ model ReservationGuest {
   phone              String?
   nationality        String?
   dateOfBirth        DateTime?              @db.Date
+  /// Canonical guest profile (additive). ISO / catalog codes — not free-form UI text.
+  sex                  String?
+  travelMotive         String?
+  occupation           String?
+  residenceCountry     String?
+  residenceAdminArea   String?
+  residenceCity        String?
+  originCountry        String?
+  originAdminArea      String?
+  originCity           String?
+  destinationCountry   String?
+  destinationAdminArea String?
+  destinationCity      String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
@@ -445,6 +459,33 @@ model ReservationGuest {
   @@index([reservationId, isPrimary])
   @@index([reservationId, status])
   @@map("reservation_guests")
+}
+
+/// Traceable lodging-contract + Habeas Data acceptance for one completed guest registration.
+model GuestRegistrationLegalAcceptance {
+  id                        String   @id @default(cuid())
+  reservationId             String   @unique
+  organizationId            String?
+  propertyId                String?
+  acceptedByGuestId         String
+  titularFullName           String
+  titularDocumentType       String
+  titularDocumentNumber     String
+  lodgingContractVersion    String
+  lodgingContractAcceptedAt DateTime
+  habeasDataPolicyVersion   String
+  habeasDataAcceptedAt      DateTime
+  acceptedAt                DateTime @default(now())
+  ipAddress                 String?
+  userAgent                 String?
+  locale                    String   @default("es-CO")
+  evidenceJson              Json?
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([acceptedAt])
+  @@map("guest_registration_legal_acceptances")
 }
 
 enum ReservationGuestStatus {

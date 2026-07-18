@@ -1,0 +1,101 @@
+{
+  "at": "2026-07-18T03:41:15.852Z",
+  "lodgingContractVersion": "2026-07-18",
+  "habeasDataPolicyVersion": "2026-07-18",
+  "reservationId": "cmrptl0g40000sctyps1bhmev",
+  "property": {
+    "id": "cmpmqfgrs000004jm3a2k4ky2",
+    "name": "Loft moderno para 4 personas en Laureles | A 10 min de la Av. 70",
+    "unitNumber": "802",
+    "organizationId": "cmplxfg0a000105jrs0gqtwyc"
+  },
+  "registrationUrl": "http://localhost:3000/guest-registration/420d59fbf98acc6649838f3d4685fbf2bcd6f0a3ca6aacb7",
+  "guests": [
+    {
+      "fullName": "LAT Titular-077335",
+      "documentType": "CC",
+      "phoneE164": "+573105556677",
+      "nationalityIso": "CO",
+      "sex": "F",
+      "travelMotive": "LEISURE",
+      "complete": true
+    },
+    {
+      "fullName": "LAT Acompanante-077335",
+      "documentType": "CE",
+      "phoneE164": null,
+      "nationalityIso": "VE",
+      "sex": "M",
+      "travelMotive": "FAMILY",
+      "complete": true
+    }
+  ],
+  "legalAcceptance": {
+    "lodgingContractVersion": "2026-07-18",
+    "habeasDataPolicyVersion": "2026-07-18",
+    "acceptedAt": "2026-07-18T03:41:19.228Z",
+    "ipAddress": "203.0.113.10",
+    "userAgent": "LAT-canonical-legal/1.0",
+    "locale": "es-CO",
+    "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+    "titularFullName": "LAT Titular-077335"
+  },
+  "tokenStatus": "COMPLETED",
+  "reservationSnapshot": {
+    "completedAt": "2026-07-18T03:41:19.228Z",
+    "guestName": "LAT Titular-077335",
+    "guestEmail": "lat.titular.077335@example.com",
+    "guestPhone": "+573105556677",
+    "guestCountry": "CO"
+  },
+  "sireSample": {
+    "fullName": "LAT Titular-077335",
+    "nationality": "CO",
+    "documentType": "CC",
+    "documentNumber": "7707733501",
+    "dateOfBirth": "1988-06-15",
+    "sex": "F",
+    "occupation": "Arquitecta",
+    "originCountry": "CO",
+    "originAdminArea": "Cundinamarca",
+    "originCity": "Bogotá, D.C.",
+    "destinationCountry": "CO",
+    "destinationAdminArea": "Antioquia",
+    "destinationCity": "Medellín",
+    "checkIn": "2026-10-16",
+    "checkOut": "2026-10-18"
+  },
+  "traSample": {
+    "roomLabel": "802",
+    "documentType": "CC",
+    "documentNumber": "7707733501",
+    "fullName": "LAT Titular-077335",
+    "dateOfBirth": "1988-06-15",
+    "sex": "F",
+    "nationality": "CO",
+    "travelMotive": "LEISURE",
+    "occupation": "Arquitecta",
+    "residenceCountry": "CO",
+    "residenceAdminArea": "Antioquia",
+    "residenceCity": "Medellín",
+    "originCountry": "CO",
+    "originAdminArea": "Cundinamarca",
+    "originCity": "Bogotá, D.C.",
+    "checkIn": "2026-10-16",
+    "checkOut": "2026-10-18",
+    "companionCount": 1,
+    "accommodationType": null,
+    "totalPaid": "0",
+    "paymentMedium": null,
+    "bookingMedium": "DIRECT",
+    "role": "PRIMARY"
+  },
+  "airbnbUniversalProbe": {
+    "code": "HM5JC2HP5S",
+    "ok": true,
+    "state": "active",
+    "reason": null
+  },
+  "result": "PASS",
+  "cleanedUp": true
+}

@@ -1,5 +1,6 @@
 import { GuestBrandMark } from "@/components/brand/guest-brand-mark";
 import { GuestRegistrationForm } from "@/features/guests/components/guest-registration-form";
+import { GuestRegistrationReservationHeader } from "@/features/guests/components/guest-registration-reservation-header";
 import { getGuestRegistrationLookupResult } from "@/services/guests/guest-registration.service";
 
 export const dynamic = "force-dynamic";
@@ -55,48 +56,7 @@ export default async function GuestRegistrationPage({
       <div className="mx-auto max-w-3xl">
         <header className="mb-6 rounded-3xl border border-border bg-card p-6 shadow-pragma-soft">
           <GuestBrandMark />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
-            Registro de huéspedes
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Completa los datos de todas las personas que ingresarán a la
-            propiedad. Este registro está vinculado a tu reserva.
-          </p>
-          <div className="mt-5 grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Propiedad
-              </p>
-              <p className="mt-1 font-medium">{reservation.propertyName}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Check-in
-              </p>
-              <p className="mt-1 font-medium">{reservation.checkIn}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Check-out
-              </p>
-              <p className="mt-1 font-medium">{reservation.checkOut}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Capacidad máxima
-              </p>
-              <p className="mt-1 font-medium">
-                {reservation.maxCapacity} huésped
-                {reservation.maxCapacity === 1 ? "" : "es"}
-              </p>
-            </div>
-          </div>
-          {reservation.registeredCount > 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Progreso actual: {reservation.registeredCount} /{" "}
-              {reservation.maxCapacity} huéspedes registrados
-            </p>
-          ) : null}
+          <GuestRegistrationReservationHeader reservation={reservation} />
         </header>
 
         <GuestRegistrationForm reservation={reservation} />

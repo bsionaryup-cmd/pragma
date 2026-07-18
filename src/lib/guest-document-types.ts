@@ -1,5 +1,6 @@
 export const guestDocumentTypes = [
   "CC",
+  "CE",
   "RC",
   "TI",
   "PASSPORT",
@@ -11,6 +12,7 @@ export type GuestDocumentType = (typeof guestDocumentTypes)[number];
 
 export const guestDocumentTypeLabels: Record<GuestDocumentType, string> = {
   CC: "Cédula de ciudadanía",
+  CE: "Cédula de extranjería",
   RC: "Registro civil",
   TI: "Tarjeta de identidad",
   PASSPORT: "Pasaporte",
@@ -20,7 +22,6 @@ export const guestDocumentTypeLabels: Record<GuestDocumentType, string> = {
 
 /** Etiquetas de tipos históricos aún presentes en BD. */
 export const legacyGuestDocumentTypeLabels: Record<string, string> = {
-  CE: "Cédula de extranjería",
   OTHER: "Otro",
 };
 
