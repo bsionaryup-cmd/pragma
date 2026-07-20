@@ -14,6 +14,7 @@ import {
   hashConciergeDeviceId,
   hashConciergePairingSecret,
 } from "@/modules/ai-concierge/channel/session-token";
+import { normalizeHeartbeatChannels } from "@/modules/ai-concierge/channel/heartbeat-channel-status";
 
 const PAIRING_TTL_MS = 2 * 60 * 1000;
 
@@ -310,24 +311,13 @@ export async function recordConciergeHeartbeat(input: {
   error?: string | null;
 }): Promise<void> {
   const now = new Date();
-  // Renew `at` for channels still marked connected so Online does not flicker
-  // when the content script is quiet between heartbeats (Airbnb/WA background tabs).
+  // WhatsApp Web stays Online only with a fresh tabAliveAt (honest bridge).
+  // Airbnb keeps prior quiet-tab renew behavior via normalizeHeartbeatChannels.
   let channelStatus: Prisma.InputJsonObject | undefined;
   if (input.channels) {
-    const refreshed: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(input.channels)) {
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        const row = value as Record<string, unknown>;
-        refreshed[key] =
-          row.connected === true
-            ? { ...row, at: now.toISOString() }
-            : { ...row };
-      } else {
-        refreshed[key] = value;
-      }
-    }
+    const refreshed = normalizeHeartbeatChannels(input.channels, now);
     channelStatus = JSON.parse(
-      JSON.stringify(refreshed),
+      JSON.stringify(refreshed ?? {}),
     ) as Prisma.InputJsonObject;
   }
   await db.conciergeExtensionLink.update({
@@ -342,18 +332,118 @@ export async function recordConciergeHeartbeat(input: {
   });
 }
 
+/**
+ * Read last outbound ack from extension heartbeat (channelStatus).
+ * Used so mayAutoSend anti-dup does not treat "saved in memory" as "sent to WA".
+ */
+export async function getChannelOutboundAck(input: {
+  organizationId: string;
+  channel: string;
+  threadId?: string | null;
+}): Promise<{
+  sent: boolean;
+  outboundDispatched: boolean;
+  duplicate: boolean;
+  suggestedPreview: string | null;
+  threadId: string | null;
+  at: string | null;
+} | null> {
+  const link = await db.conciergeExtensionLink.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      status: "ACTIVE",
+      revokedAt: null,
+    },
+    orderBy: { lastHeartbeatAt: "desc" },
+    select: { channelStatus: true },
+  });
+  if (!link?.channelStatus || typeof link.channelStatus !== "object") {
+    return null;
+  }
+  const root = link.channelStatus as Record<string, unknown>;
+  const row = root[input.channel];
+  if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+  const ch = row as Record<string, unknown>;
+  const threadId = typeof ch.threadId === "string" ? ch.threadId : null;
+  if (
+    input.threadId &&
+    threadId &&
+    threadId !== input.threadId
+  ) {
+    // Different chat — do not use this ack for anti-dup of another thread.
+    return null;
+  }
+  return {
+    sent: ch.sent === true,
+    outboundDispatched: ch.outboundDispatched === true,
+    duplicate: ch.duplicate === true,
+    suggestedPreview:
+      typeof ch.suggestedPreview === "string" ? ch.suggestedPreview : null,
+    threadId,
+    at: typeof ch.at === "string" ? ch.at : null,
+  };
+}
+
 export async function claimConciergeExternalMessage(input: {
   organizationId: string;
   extensionLinkId: string;
   channel: string;
   externalMessageId?: string | null;
-}): Promise<{ duplicate: boolean }> {
+  threadId?: string | null;
+}): Promise<{ duplicate: boolean; orphan?: boolean }> {
   if (!input.externalMessageId) return { duplicate: false };
   const idempotencyKey = createHash("sha256")
     .update(
       `${input.organizationId}:${input.channel}:${input.externalMessageId}`,
     )
     .digest("hex");
+
+  // Pre-check avoids Prisma unique-constraint error logs on expected duplicates.
+  const existing = await db.conciergeAuditEvent.findFirst({
+    where: {
+      organizationId: input.organizationId,
+      idempotencyKey,
+      eventType: "message.received",
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existing) {
+    const threadId =
+      input.threadId ||
+      (existing.metadata &&
+      typeof existing.metadata === "object" &&
+      !Array.isArray(existing.metadata) &&
+      typeof (existing.metadata as Record<string, unknown>).threadId ===
+        "string"
+        ? ((existing.metadata as Record<string, unknown>).threadId as string)
+        : null);
+
+    const turnAfter = await db.conciergeAuditEvent.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        eventType: "turn.processed",
+        createdAt: { gte: new Date(existing.createdAt.getTime() - 2000) },
+        ...(threadId
+          ? {
+              metadata: {
+                path: ["threadId"],
+                equals: threadId,
+              },
+            }
+          : {
+              metadata: {
+                path: ["channel"],
+                equals: input.channel,
+              },
+            }),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    if (turnAfter) return { duplicate: true };
+    return { duplicate: false, orphan: true };
+  }
+
   try {
     await db.conciergeAuditEvent.create({
       data: {
@@ -362,7 +452,11 @@ export async function claimConciergeExternalMessage(input: {
         idempotencyKey,
         eventType: "message.received",
         result: "accepted",
-        metadata: { channel: input.channel },
+        metadata: {
+          channel: input.channel,
+          ...(input.threadId ? { threadId: input.threadId } : {}),
+          externalMessageId: input.externalMessageId,
+        },
       },
     });
     return { duplicate: false };
@@ -373,10 +467,34 @@ export async function claimConciergeExternalMessage(input: {
       "code" in error &&
       error.code === "P2002"
     ) {
+      // Race: another request created the claim between find and create.
       return { duplicate: true };
     }
     throw error;
   }
+}
+
+/** Soft text dedupe window — same guest text can be re-tested after this. */
+export const CONCIERGE_TEXT_CLAIM_WINDOW_MS = 45_000;
+
+/**
+ * Text-only claim keyed by sliding time window so retries inside the window
+ * dedupe, but a later "Hola" (new test) is treated as a fresh message.
+ */
+export function buildWindowedTextClaimId(input: {
+  channel: string;
+  threadId: string;
+  guestMessage: string;
+  nowMs?: number;
+  windowMs?: number;
+}): string {
+  const windowMs = input.windowMs ?? CONCIERGE_TEXT_CLAIM_WINDOW_MS;
+  const bucket = Math.floor((input.nowMs ?? Date.now()) / windowMs);
+  const base = createHash("sha256")
+    .update(`${input.channel}\n${input.threadId}\n${input.guestMessage}`)
+    .digest("hex")
+    .slice(0, 40);
+  return `tmsg:${base}:w${bucket}`;
 }
 
 export async function recordConciergeTurnState(input: {
@@ -390,13 +508,16 @@ export async function recordConciergeTurnState(input: {
   durationMs: number;
   toolNames: string[];
   ok: boolean;
+  usedLlm?: boolean;
+  llmTokens?: number | null;
+  factKeys?: string[];
+  observabilityPath?: string;
 }): Promise<void> {
   const threadHash = createHash("sha256")
     .update(`${input.organizationId}:${input.channel}:${input.threadId}`)
     .digest("hex");
 
-  const escalated =
-    input.path === "escalate" || input.path === "needs_llm";
+  const escalated = input.path === "escalate";
   const conversation = await db.conciergeConversationState.upsert({
     where: {
       organizationId_channel_threadHash: {
@@ -448,9 +569,14 @@ export async function recordConciergeTurnState(input: {
       durationMs: Math.max(0, input.durationMs),
       metadata: {
         channel: input.channel,
+        threadId: input.threadId,
         intent: input.intent,
         path: input.path,
         toolNames: input.toolNames,
+        usedLlm: input.usedLlm ?? false,
+        llmTokens: input.llmTokens ?? null,
+        factKeys: input.factKeys ?? [],
+        observabilityPath: input.observabilityPath ?? input.path,
       },
     },
   });

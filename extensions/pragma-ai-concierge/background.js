@@ -68,6 +68,7 @@ async function apiFetch(path, { method = "GET", body } = {}) {
   }
   const headers = {
     authorization: `Bearer ${session.token}`,
+    "ngrok-skip-browser-warning": "true",
   };
   if (body) headers["content-type"] = "application/json";
 
@@ -282,25 +283,229 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       );
     return true;
   }
+  if (message.type === "CONCIERGE_TURN_LOCK") {
+    const inFlight = Boolean(message.payload?.inFlight);
+    chrome.storage.local
+      .set({
+        conciergeTurnInFlight: inFlight,
+        conciergeTurnInFlightAt: inFlight ? Date.now() : null,
+      })
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({ ok: false, error: String(error) }),
+      );
+    return true;
+  }
 });
 
-async function sendHeartbeat() {
+const SAFE_RELOAD_MIN_INTERVAL_MS = 45 * 60 * 1000;
+const TURN_LOCK_STALE_MS = 120_000;
+
+async function pingWhatsAppTabs() {
+  const result = {
+    anyAlive: false,
+    tabCount: 0,
+    discardedCount: 0,
+    responded: 0,
+  };
+  try {
+    const tabs = await chrome.tabs.query({
+      url: ["https://web.whatsapp.com/*"],
+    });
+    result.tabCount = tabs.length;
+    for (const tab of tabs) {
+      if (typeof tab.id !== "number") continue;
+      if (tab.discarded) {
+        result.discardedCount += 1;
+        continue;
+      }
+      try {
+        const res = await chrome.tabs.sendMessage(tab.id, {
+          type: "CONCIERGE_PING",
+        });
+        if (res?.ok) {
+          result.anyAlive = true;
+          result.responded += 1;
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+  return result;
+}
+
+async function mergeWhatsAppStatus(patch) {
   const stored = await chrome.storage.local.get(CHANNEL_STATUS_KEY);
+  const prev = (stored[CHANNEL_STATUS_KEY] || {}).whatsapp_web || {};
+  const next = {
+    ...(stored[CHANNEL_STATUS_KEY] || {}),
+    whatsapp_web: {
+      ...prev,
+      ...patch,
+      at: new Date().toISOString(),
+    },
+  };
+  await chrome.storage.local.set({ [CHANNEL_STATUS_KEY]: next });
+  return next.whatsapp_web;
+}
+
+async function maybeSafeReloadWhatsApp(reason) {
+  const stored = await chrome.storage.local.get([
+    "conciergeTurnInFlight",
+    "conciergeTurnInFlightAt",
+    "conciergeLastSafeReloadAt",
+    "conciergeOutboundQueue",
+    CHANNEL_STATUS_KEY,
+  ]);
+  if (stored.conciergeTurnInFlight) {
+    const lockedAt = Number(stored.conciergeTurnInFlightAt || 0);
+    if (lockedAt && Date.now() - lockedAt < TURN_LOCK_STALE_MS) {
+      return { reloaded: false, skipped: "turn_in_flight" };
+    }
+  }
+  const queue = Array.isArray(stored.conciergeOutboundQueue)
+    ? stored.conciergeOutboundQueue
+    : [];
+  if (queue.length > 0) {
+    return { reloaded: false, skipped: "outbound_pending" };
+  }
+  const wa = (stored[CHANNEL_STATUS_KEY] || {}).whatsapp_web || {};
+  if (wa.needs_auth === true || wa.network_down === true) {
+    return { reloaded: false, skipped: "hard_stop_state" };
+  }
+  const last = Number(stored.conciergeLastSafeReloadAt || 0);
+  if (Date.now() - last < SAFE_RELOAD_MIN_INTERVAL_MS) {
+    return { reloaded: false, skipped: "rate_limited" };
+  }
+  const ping = await pingWhatsAppTabs();
+  if (ping.anyAlive) {
+    return { reloaded: false, skipped: "tab_alive" };
+  }
+  if (ping.tabCount === 0) {
+    return { reloaded: false, skipped: "no_tab" };
+  }
+  await chrome.storage.local.set({
+    conciergeLastSafeReloadAt: Date.now(),
+    conciergeLastSafeReloadReason: reason || "recover",
+  });
+  await reloadWhatsAppTabs();
+  return { reloaded: true, reason: reason || "recover" };
+}
+
+async function sendHeartbeat() {
+  const ping = await pingWhatsAppTabs();
+  const stored = await chrome.storage.local.get([
+    CHANNEL_STATUS_KEY,
+    "conciergeNetworkDown",
+  ]);
+  let channels = { ...(stored[CHANNEL_STATUS_KEY] || {}) };
+  const prevWa = channels.whatsapp_web || {};
+  const networkDown = Boolean(stored.conciergeNetworkDown);
+
+  if (ping.tabCount === 0) {
+    channels.whatsapp_web = {
+      ...prevWa,
+      channel: "whatsapp_web",
+      connected: false,
+      tabAlive: false,
+      tabAliveAt: null,
+      tabCount: 0,
+      network_down: networkDown,
+      disconnectReason: "no_tab",
+      at: new Date().toISOString(),
+    };
+  } else if (!ping.anyAlive) {
+    channels.whatsapp_web = {
+      ...prevWa,
+      channel: "whatsapp_web",
+      connected: false,
+      tabAlive: false,
+      tabAliveAt: null,
+      tabCount: ping.tabCount,
+      discardedCount: ping.discardedCount,
+      network_down: networkDown,
+      disconnectReason: ping.discardedCount ? "tab_discarded" : "tab_unresponsive",
+      at: new Date().toISOString(),
+    };
+  } else {
+    channels.whatsapp_web = {
+      ...prevWa,
+      channel: "whatsapp_web",
+      tabAlive: true,
+      tabAliveAt: new Date().toISOString(),
+      tabCount: ping.tabCount,
+      responded: ping.responded,
+      network_down: networkDown,
+      // connected left to content script session flags; server still requires tabAliveAt
+      connected:
+        prevWa.needs_auth === true || networkDown
+          ? false
+          : prevWa.connected !== false,
+    };
+  }
+
+  await chrome.storage.local.set({ [CHANNEL_STATUS_KEY]: channels });
+
   const result = await apiFetch("/api/concierge/heartbeat", {
     method: "POST",
     body: {
       version: extensionVersion(),
-      channels: stored[CHANNEL_STATUS_KEY] || {},
-      error: null,
+      channels,
+      error: networkDown ? "network_down" : null,
     },
   });
-  await chrome.storage.local.set({
+
+  if (result.status === 0) {
+    await chrome.storage.local.set({ conciergeNetworkDown: true });
+    await mergeWhatsAppStatus({
+      network_down: true,
+      connected: false,
+      disconnectReason: "network_down",
+    });
+  } else if (result.ok) {
+    await chrome.storage.local.set({ conciergeNetworkDown: false });
+  }
+
+  const runtime = result?.data?.runtime;
+  const patch = {
     conciergeLastHealth: {
       at: new Date().toISOString(),
       ok: Boolean(result.ok),
       status: result.status,
+      runtimeStatus: runtime?.status || null,
+      processing: runtime?.processing ?? null,
+      tabPing: ping,
     },
-  });
+  };
+  if (
+    typeof runtime?.pollIntervalMs === "number" &&
+    runtime.pollIntervalMs >= 1000
+  ) {
+    patch.conciergePollIntervalMs = runtime.pollIntervalMs;
+  }
+
+  const commands = Array.isArray(runtime?.commands) ? runtime.commands : [];
+  let needsReconnect = false;
+  let needsSafeReload = false;
+  for (const cmd of commands) {
+    if (
+      cmd?.type === "reconnect_channels" ||
+      cmd?.type === "recover_tab"
+    ) {
+      needsReconnect = true;
+      if (!ping.anyAlive && ping.tabCount > 0) {
+        needsSafeReload = true;
+      }
+    }
+  }
+  if (needsReconnect) {
+    patch.conciergeReconnectAt = Date.now();
+  }
+  await chrome.storage.local.set(patch);
+
+  if (needsSafeReload) {
+    await maybeSafeReloadWhatsApp("watchdog_recover_tab").catch(() => {});
+  }
+
   return result;
 }
 
@@ -308,11 +513,31 @@ async function ensureHeartbeatAlarm() {
   await chrome.alarms.create("concierge-heartbeat", { periodInMinutes: 1 });
 }
 
+/** Re-inject content scripts so WhatsApp can keep answering after Reload. */
+async function reloadWhatsAppTabs() {
+  try {
+    const tabs = await chrome.tabs.query({
+      url: ["https://web.whatsapp.com/*"],
+    });
+    await Promise.all(
+      tabs
+        .filter((tab) => typeof tab.id === "number")
+        .map((tab) => chrome.tabs.reload(tab.id).catch(() => {})),
+    );
+  } catch (_) {}
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   ensureHeartbeatAlarm().catch(() => {});
+  reloadWhatsAppTabs().catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => {
   ensureHeartbeatAlarm().catch(() => {});
+  // Post-suspend / Chrome restart: immediate honesty + soft recover signal.
+  chrome.storage.local
+    .set({ conciergeReconnectAt: Date.now(), conciergeWakeAt: Date.now() })
+    .then(() => sendHeartbeat())
+    .catch(() => {});
 });
 ensureHeartbeatAlarm().catch(() => {});
 chrome.alarms.onAlarm.addListener((alarm) => {

@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw/agUbDGWbi+UUtuV8nOKkWSNB1O94Tw+UIijnHu+rGotwK/S8WWjdF4yXOjXLZhJWIaacTG/djFX6qUXe0USsFjLAxJEzPaGM/d2LKS3SBiH+J6BVJzhtM0xhnOBXFDtOAqaKg8nj2ZhN36x87SPJpsGHcfP5Wgc8ewLUKlb1XO03Rm+vLO6ggA+qAGQM2ClPzWkoyUt3IXB55BQBy/Lb2UXxiLSkliB9lq2XkcPVu28RCRzXgxsJhBxwOAXo3EW51sWMjROgkCPvevKzfQZdSqRzmsVXgND1hDVN+xFnWs1g+TXrzQwXln9uGBuZxjNg2dLh1tfiFKoNG6TIaSewIDAQAB",
   "name": "PRAGMA AI Concierge",
-  "version": "1.0.0",
-  "description": "Canal tonto: detecta y lee conversaciones de Airbnb/WhatsApp Web. La inteligencia vive en PRAGMA.",
-  "permissions": ["storage", "activeTab", "alarms"],
+  "version": "1.0.19",
+  "description": "PRAGMA AI Concierge channel. v1.0.19: bridge resilience — honest heartbeat, queue/ack, safe reload gates.",
+  "permissions": ["storage", "activeTab", "alarms", "tabs"],
   "host_permissions": [
     "https://www.airbnb.com/*",
     "https://www.airbnb.com.co/*",
