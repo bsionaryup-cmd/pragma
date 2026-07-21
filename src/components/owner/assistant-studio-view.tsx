@@ -582,11 +582,12 @@ export function AssistantStudioView({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="org-select">
-            Organización
+            Bot / tenant a activar
           </label>
           <select
             id="org-select"
             className={inputCls}
+            title="Solo tenants operativos. Enciende el bot de esa org."
             value={organizationId}
             onChange={(e) => setOrganizationId(e.target.value)}
           >

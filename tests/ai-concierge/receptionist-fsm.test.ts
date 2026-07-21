@@ -111,4 +111,29 @@ describe("receptionist FSM runtime", () => {
     assert.equal(r.handled, true);
     assert.ok(r.reply && r.reply.length > 0);
   });
+
+  it("greeting mid-flow resets session (no old memory)", () => {
+    const playbook = buildDefaultPlaybook();
+    playbook.messages.welcome_ask_name = "WELCOME-FRESH";
+    const r = runReceptionistTurn({
+      organizationId: "org",
+      conversationId: "c1",
+      threadId: "t1",
+      guestMessage: "Hola",
+      playbook,
+      stored: {
+        status: "MENU",
+        guestName: "Rigo",
+        menuOffered: true,
+        variables: { nombre: "Rigo" },
+        workflowKey: "booking",
+        nodeId: "booking_ask_dates",
+      },
+    });
+    assert.equal(r.handled, true);
+    assert.equal(r.resetSession, true);
+    assert.equal(r.state.status, "WELCOME");
+    assert.equal(r.state.variables.nombre, undefined);
+    assert.match(r.reply ?? "", /WELCOME-FRESH/);
+  });
 });

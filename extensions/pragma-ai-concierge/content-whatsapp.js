@@ -1,7 +1,7 @@
 (() => {
   const platform = "whatsapp_web";
   /** Bumped with manifest — heartbeat must show this or WA page needs refresh. */
-  const CONTENT_BUILD = "1.0.19-bridge-resilience";
+  const CONTENT_BUILD = "1.0.20-session-authority";
   const OUTBOUND_QUEUE_KEY = "conciergeOutboundQueue";
   const MAX_OUTBOUND_ATTEMPTS = 5;
   /** Guest message fingerprint fully consumed (turn done; no further engine/send). */
@@ -160,6 +160,30 @@
     );
     if (!conversationOpen && !selectedId) return null;
     return `wa:${stableHash(label)}`;
+  }
+
+  function isGreetingMessage(text) {
+    const t = String(text || "").trim();
+    return /^(hola+|holi+|ola+|wenas+|buenas?(?: (?:tardes|noches|días|dias))?|hey+|hi+|hello+)[\s!.?]*$/i.test(
+      t,
+    );
+  }
+
+  /** Same number + greeting → new server session (no memory leak). */
+  async function resolveSessionThreadId(guestText) {
+    const base = getThreadId();
+    if (!base) return null;
+    const key = `conciergeWaSession:${base}`;
+    const stored = await window.PragmaConcierge.storageLocalGet(key);
+    let epoch = Number(stored[key] || 0);
+    if (isGreetingMessage(guestText)) {
+      epoch = (Number.isFinite(epoch) ? epoch : 0) + 1;
+      await window.PragmaConcierge.storageLocalSet({ [key]: epoch });
+    } else if (!epoch) {
+      epoch = 1;
+      await window.PragmaConcierge.storageLocalSet({ [key]: epoch });
+    }
+    return `${base}:s${epoch}`;
   }
 
   function collectMessageRows() {
@@ -983,8 +1007,10 @@
         }
       }
 
-      let threadId = getThreadId();
       let message = readLatestGuestMessage();
+      let threadId = message?.text
+        ? await resolveSessionThreadId(message.text)
+        : getThreadId();
 
       // Autonomous: if no open chat / no guest text, open an unread conversation
       // (including the currently selected row if it still shows unread).
@@ -992,8 +1018,10 @@
         const opened = openFirstUnreadChat({ excludeSelected: false });
         if (opened) {
           await sleep(1000);
-          threadId = getThreadId();
           message = readLatestGuestMessage();
+          threadId = message?.text
+            ? await resolveSessionThreadId(message.text)
+            : getThreadId();
         }
       }
 

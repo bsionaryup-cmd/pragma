@@ -493,15 +493,24 @@ export async function composeConciergeReply(input: {
         role: "agent",
         body: reply,
       }).conversation;
-      const recent: ConciergeRecentSnippet[] = [
-        ...memory.recent,
-        {
-          role: "guest",
-          body: input.guestMessage,
-          at: new Date().toISOString(),
-        },
-        { role: "agent", body: reply, at: new Date().toISOString() },
-      ];
+      const recent: ConciergeRecentSnippet[] = reception.resetSession
+        ? [
+            {
+              role: "guest",
+              body: input.guestMessage,
+              at: new Date().toISOString(),
+            },
+            { role: "agent", body: reply, at: new Date().toISOString() },
+          ]
+        : [
+            ...memory.recent,
+            {
+              role: "guest",
+              body: input.guestMessage,
+              at: new Date().toISOString(),
+            },
+            { role: "agent", body: reply, at: new Date().toISOString() },
+          ];
       const patch = receptionFactsPatch(reception.state);
       const protocolLabel =
         reception.state.status === "HUMAN"
@@ -515,11 +524,14 @@ export async function composeConciergeReply(input: {
                 : reception.state.status === "SUPPORT"
                   ? "RECEPTION"
                   : "MAIN_MENU";
+      const baseFacts = reception.resetSession
+        ? { language: "es" as const }
+        : memory.facts;
       await saveConciergeThreadMemory({
         organizationId,
         channel,
         threadId: input.threadId,
-        facts: mergeFacts(memory.facts, {
+        facts: mergeFacts(baseFacts, {
           ...patch,
           language: "es",
           ...protocolFactsPatch({
@@ -548,8 +560,12 @@ export async function composeConciergeReply(input: {
           lastIntent: reception.escalate ? "COMPLAINT" : "OTHER",
         },
         recent,
-        propertyId: conversation.propertyId ?? memory.propertyId,
-        reservationId: conversation.reservationId ?? memory.reservationId,
+        propertyId: reception.resetSession
+          ? null
+          : (conversation.propertyId ?? memory.propertyId),
+        reservationId: reception.resetSession
+          ? null
+          : (conversation.reservationId ?? memory.reservationId),
       });
       recordConciergeTurnMetric(
         reception.escalate ? "escalate" : "deterministic",

@@ -27,6 +27,8 @@ export type ReceptionistTurnResult = {
   state: ReceptionRuntimeState;
   escalate: boolean;
   path: string;
+  /** Wipe prior thread memory — new conversational session. */
+  resetSession?: boolean;
 };
 
 type StoredReception = {
@@ -247,6 +249,41 @@ export function runReceptionistTurn(input: {
     };
   }
 
+  // New session: greeting starts clean (same phone ≠ same conversation memory).
+  const midFlow =
+    Boolean(guestName) ||
+    Boolean(state.workflowKey) ||
+    state.status === "MENU" ||
+    state.status === "BOOKING" ||
+    state.status === "STAY" ||
+    state.status === "SUPPORT" ||
+    state.status === "CHECKIN" ||
+    state.status === "HUMAN" ||
+    state.status === "FINISHED";
+  if (isGreeting(text) && midFlow) {
+    const reply = resolveWelcomeAskName(input.playbook, {
+      propertyName: input.propertyName ?? "",
+    });
+    return {
+      handled: true,
+      reply,
+      escalate: false,
+      resetSession: true,
+      path: "reception:session_reset_welcome",
+      state: stamp({
+        ...emptyState(
+          input.organizationId,
+          input.conversationId,
+          input.threadId,
+        ),
+        status: "WELCOME",
+        workflowKey: null,
+        nodeId: null,
+        variables: {},
+      }),
+    };
+  }
+
   // Cold start / greeting → welcome ask name
   if (
     (state.status === "WELCOME" || !stored.menuOffered) &&
@@ -260,12 +297,14 @@ export function runReceptionistTurn(input: {
       handled: true,
       reply,
       escalate: false,
+      resetSession: !stored.menuOffered && !guestName,
       path: "reception:welcome",
       state: stamp({
         ...state,
         status: "WELCOME",
         workflowKey: null,
         nodeId: null,
+        variables: {},
       }),
     };
   }

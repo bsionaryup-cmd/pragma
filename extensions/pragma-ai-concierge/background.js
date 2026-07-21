@@ -461,8 +461,14 @@ async function sendHeartbeat() {
       connected: false,
       disconnectReason: "network_down",
     });
+    // Burst reconnect attempts while offline (MV3 alarms wake the SW).
+    await chrome.alarms.create("concierge-reconnect", { delayInMinutes: 0.5 });
   } else if (result.ok) {
+    const wasDown = Boolean(stored.conciergeNetworkDown);
     await chrome.storage.local.set({ conciergeNetworkDown: false });
+    if (wasDown) {
+      await chrome.storage.local.set({ conciergeReconnectAt: Date.now() });
+    }
   }
 
   const runtime = result?.data?.runtime;
@@ -543,5 +549,16 @@ ensureHeartbeatAlarm().catch(() => {});
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "concierge-heartbeat") {
     sendHeartbeat().catch(() => {});
+  }
+  if (alarm.name === "concierge-reconnect") {
+    sendHeartbeat()
+      .then(async (result) => {
+        if (!result?.ok) {
+          await chrome.alarms.create("concierge-reconnect", {
+            delayInMinutes: 0.5,
+          });
+        }
+      })
+      .catch(() => {});
   }
 });
