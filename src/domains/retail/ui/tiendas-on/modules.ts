@@ -4,6 +4,7 @@ import {
   FileText,
   LineChart,
   Package,
+  Receipt,
   Settings,
   ShoppingBag,
   ShoppingCart,
@@ -13,6 +14,13 @@ import {
 
 export const INTIENDAS_MODULES = [
   { id: "ventas", label: "Ventas", href: "/intiendas/ventas", icon: ShoppingCart },
+  {
+    id: "facturas",
+    label: "Facturas",
+    href: "/intiendas/facturas",
+    icon: Receipt,
+    prefetch: false,
+  },
   { id: "compras", label: "Compras", href: "/intiendas/compras", icon: ShoppingBag },
   { id: "pedidos", label: "Centro de Abastecimiento", href: "/intiendas/pedidos", icon: ClipboardList },
   { id: "clientes", label: "Clientes", href: "/intiendas/clientes", icon: Users },

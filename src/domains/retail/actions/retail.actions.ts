@@ -420,7 +420,22 @@ export async function updateStoreAction(data: FormData) {
   const { store } = await requireRetailContext();
   const name = text(data, "name");
   if (!name) throw new Error("El nombre de la tienda es obligatorio.");
-  await db.retailStore.update({ where: { id: store.id }, data: { name } });
+  const legalName = optional(text(data, "legalName"));
+  const taxId = optional(text(data, "taxId"));
+  const address = optional(text(data, "address"));
+  const phone = optional(text(data, "phone"));
+  const invoicePrefix = text(data, "invoicePrefix") || "FV";
+  await db.retailStore.update({
+    where: { id: store.id },
+    data: {
+      name,
+      legalName,
+      taxId,
+      address,
+      phone,
+      invoicePrefix: invoicePrefix.slice(0, 12).toUpperCase(),
+    },
+  });
   refresh();
 }
 

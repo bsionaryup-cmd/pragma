@@ -194,20 +194,97 @@ export async function getReportsData() {
 }
 
 export async function getSettingsData() {
-  const { store } = await requireRetailContext();
-  const registers = await db.retailCashRegister.findMany({
-    where: { storeId: store.id, status: "ACTIVE" },
-    orderBy: { name: "asc" },
-    include: {
-      sessions: { where: { status: "OPEN" }, orderBy: { openedAt: "desc" }, take: 1 },
-    },
-  });
+  const { store: ctxStore } = await requireRetailContext();
+  const [store, registers] = await Promise.all([
+    db.retailStore.findUniqueOrThrow({ where: { id: ctxStore.id } }),
+    db.retailCashRegister.findMany({
+      where: { storeId: ctxStore.id, status: "ACTIVE" },
+      orderBy: { name: "asc" },
+      include: {
+        sessions: { where: { status: "OPEN" }, orderBy: { openedAt: "desc" }, take: 1 },
+      },
+    }),
+  ]);
   return {
     store,
     registers: registers.map((r) => ({
       ...r,
       sessions: r.sessions.map((s) => ({ ...s, openingAmount: money(s.openingAmount) })),
     })),
+  };
+}
+
+export async function getInvoicesData() {
+  const { store } = await requireRetailContext();
+  const invoices = await db.retailInvoice.findMany({
+    where: { storeId: store.id },
+    orderBy: { issuedAt: "desc" },
+    take: 200,
+    include: {
+      sale: {
+        select: {
+          id: true,
+          code: true,
+          total: true,
+          status: true,
+          customer: { select: { name: true } },
+        },
+      },
+    },
+  });
+  return invoices.map((invoice) => ({
+    id: invoice.id,
+    number: invoice.number,
+    status: invoice.status,
+    issuedAt: invoice.issuedAt,
+    buyerName: invoice.buyerName ?? invoice.sale.customer?.name ?? "Consumidor final",
+    total: money(invoice.sale.total),
+    saleCode: invoice.sale.code,
+    saleId: invoice.sale.id,
+  }));
+}
+
+export async function getInvoiceDetailData(invoiceId: string) {
+  const { store } = await requireRetailContext();
+  const invoice = await db.retailInvoice.findFirst({
+    where: { id: invoiceId, storeId: store.id },
+    include: {
+      sale: {
+        include: {
+          customer: true,
+          items: true,
+        },
+      },
+    },
+  });
+  if (!invoice) throw new Error("Factura no encontrada");
+  return {
+    id: invoice.id,
+    number: invoice.number,
+    status: invoice.status,
+    issuedAt: invoice.issuedAt,
+    issuerName: invoice.issuerName,
+    issuerTaxId: invoice.issuerTaxId,
+    issuerAddress: invoice.issuerAddress,
+    issuerPhone: invoice.issuerPhone,
+    buyerName: invoice.buyerName,
+    buyerTaxId: invoice.buyerTaxId,
+    sale: {
+      id: invoice.sale.id,
+      code: invoice.sale.code,
+      subtotal: money(invoice.sale.subtotal),
+      discount: money(invoice.sale.discount),
+      total: money(invoice.sale.total),
+      paymentMethod: invoice.sale.paymentMethod,
+      note: invoice.sale.note,
+      createdAt: invoice.sale.createdAt,
+      items: invoice.sale.items.map((item) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: money(item.unitPrice),
+        lineTotal: money(item.lineTotal),
+      })),
+    },
   };
 }
 

@@ -16,6 +16,7 @@ import {
 import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { completeSaleAction } from "@/domains/retail/actions/retail.actions";
+import { issueInvoiceForSaleAction } from "@/domains/retail/actions/invoice.actions";
 import {
   claimSuspendedSaleAction,
   suspendSaleAction,
@@ -78,6 +79,9 @@ export function TiendasOnPos({
   const [note, setNote] = useState("");
   const [showHeld, setShowHeld] = useState(false);
   const [held, setHeld] = useState(initialSuspended);
+  const [printPrompt, setPrintPrompt] = useState<{
+    paymentMethod: SaleInput["paymentMethod"];
+  } | null>(null);
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -165,11 +169,17 @@ export function TiendasOnPos({
     setCustomerId("");
   }
 
-  function complete(paymentMethod: SaleInput["paymentMethod"]) {
+  function requestComplete(paymentMethod: SaleInput["paymentMethod"]) {
     if (!cart.length) return toast.error("Agrega productos a la venta.");
     if (paymentMethod === "CREDIT" && !customerId) {
       return toast.error("Selecciona un cliente para crédito.");
     }
+    setPrintPrompt({ paymentMethod });
+  }
+
+  function complete(wantPrint: boolean) {
+    if (!printPrompt) return;
+    const paymentMethod = printPrompt.paymentMethod;
     startTransition(async () => {
       try {
         const sale = await completeSaleAction({
@@ -182,8 +192,24 @@ export function TiendasOnPos({
           amountPaid: paymentMethod === "CREDIT" ? 0 : total,
           note: note || null,
         });
+        setPrintPrompt(null);
         resetTicket();
         toast.success(`Venta ${sale.code} registrada.`);
+        if (wantPrint) {
+          try {
+            const invoice = await issueInvoiceForSaleAction(sale.id);
+            const printUrl = `/intiendas/facturas/${invoice.id}/imprimir?auto=1`;
+            // Hard navigation in a new tab (avoids App Router RSC fetch races).
+            window.setTimeout(() => {
+              const popup = window.open(printUrl, "_blank", "noopener,noreferrer");
+              if (!popup) {
+                toast.message("Activa ventanas emergentes para imprimir, o ábrela desde Facturas.");
+              }
+            }, 50);
+          } catch {
+            toast.warning("Venta guardada. No se pudo generar la factura para imprimir.");
+          }
+        }
         searchRef.current?.focus();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "No se pudo completar la venta.");
@@ -518,7 +544,7 @@ export function TiendasOnPos({
             <button
               type="button"
               disabled={pending}
-              onClick={() => complete("CREDIT")}
+              onClick={() => requestComplete("CREDIT")}
               className="flex min-h-[78px] flex-col items-center justify-center gap-1 border-t border-[#d9dee5] bg-[#f8fafc] px-2 py-3 text-[14px] font-semibold text-[#4a5568] hover:bg-[#eef2f7] disabled:opacity-60"
             >
               <FileText className="size-5" strokeWidth={1.75} />
@@ -528,7 +554,7 @@ export function TiendasOnPos({
             <button
               type="button"
               disabled={pending}
-              onClick={() => complete("CASH")}
+              onClick={() => requestComplete("CASH")}
               className={cn(
                 "col-span-2 flex min-h-[100px] flex-col items-center justify-center gap-1.5 bg-pragma-electric px-3 py-4 text-xl font-bold text-white shadow-[0_0_0_4px_rgba(20,228,200,0.35)] transition hover:bg-pragma-electric/90 disabled:opacity-60",
               )}
@@ -551,6 +577,50 @@ export function TiendasOnPos({
       </div>
 
       <TiendasOnScreenFooter storeCode={storeCode} />
+
+      {printPrompt ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="print-invoice-title"
+        >
+          <div className="w-full max-w-md rounded-md border border-[#d5dce6] bg-white p-5 shadow-lg">
+            <h2 id="print-invoice-title" className="text-lg font-semibold text-[#2d3748]">
+              ¿Desea imprimir factura?
+            </h2>
+            <p className="mt-2 text-sm text-[#718096]">
+              La venta se registrará en ambos casos. La impresión no bloquea el guardado.
+            </p>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => complete(true)}
+                className="inline-flex h-11 items-center justify-center rounded-md bg-pragma-electric px-4 text-sm font-semibold text-white hover:bg-pragma-electric/90 disabled:opacity-60"
+              >
+                Sí, imprimir
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => complete(false)}
+                className="inline-flex h-11 items-center justify-center rounded-md border border-[#c5ced8] bg-white px-4 text-sm font-semibold text-[#4a5568] hover:bg-[#f8fafc] disabled:opacity-60"
+              >
+                No, finalizar sin imprimir
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setPrintPrompt(null)}
+              className="mt-3 w-full text-center text-sm text-[#718096] hover:text-[#4a5568]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

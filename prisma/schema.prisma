@@ -2547,12 +2547,23 @@ enum RetailIntelPriority {
   LOW
 }
 
+enum RetailInvoiceStatus {
+  ISSUED
+  VOID
+}
+
 model RetailStore {
   id             String   @id @default(cuid())
   organizationId String
   name           String
   slug           String?
   currency       String   @default("COP")
+  legalName      String?
+  taxId          String?
+  address        String?
+  phone          String?
+  invoicePrefix  String   @default("FV")
+  invoiceSeq     Int      @default(0)
   createdByUserId String?
   ownerUserId    String?
   accessPlan     RetailAccessPlan @default(MONTHLY)
@@ -2569,6 +2580,7 @@ model RetailStore {
   cashRegisters     RetailCashRegister[]
   cashSessions      RetailCashSession[]
   sales             RetailSale[]
+  invoices          RetailInvoice[]
   inventoryMoves    RetailInventoryMovement[]
   purchaseOrders    RetailPurchaseOrder[]
   customerPayments  RetailCustomerPayment[]
@@ -2794,6 +2806,7 @@ model RetailSale {
   cashSession RetailCashSession? @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
   customer    RetailCustomer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items       RetailSaleItem[]
+  invoice     RetailInvoice?
 
   @@unique([storeId, code])
   @@index([storeId, status, createdAt])
@@ -2801,6 +2814,32 @@ model RetailSale {
   @@index([customerId])
   @@index([cashSessionId])
   @@map("retail_sales")
+}
+
+model RetailInvoice {
+  id            String              @id @default(cuid())
+  storeId       String
+  saleId        String              @unique
+  number        String
+  status        RetailInvoiceStatus @default(ISSUED)
+  issuerName    String
+  issuerTaxId   String?
+  issuerAddress String?
+  issuerPhone   String?
+  buyerName     String?
+  buyerTaxId    String?
+  issuedAt      DateTime            @default(now())
+  voidedAt      DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  store RetailStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale  RetailSale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, number])
+  @@index([storeId, issuedAt])
+  @@index([storeId, status])
+  @@map("retail_invoices")
 }
 
 model RetailSaleItem {

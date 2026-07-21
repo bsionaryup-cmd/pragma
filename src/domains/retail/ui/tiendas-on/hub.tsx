@@ -12,14 +12,17 @@ function ModuleTile({
   label,
   href,
   icon: Icon,
+  prefetch = true,
 }: {
   label: string;
   href: string;
   icon: LucideIcon;
+  prefetch?: boolean;
 }) {
   return (
     <Link
       href={href}
+      prefetch={prefetch}
       className="group relative flex min-h-[128px] flex-col rounded-md border border-[#d5dce6] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition hover:border-pragma-electric/40 hover:shadow-md"
     >
       <span className="inline-flex items-center gap-2 text-base font-medium text-[#3d4a5c]">
@@ -89,7 +92,13 @@ export function TiendasOnHub({
 
           <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {INTIENDAS_MODULES.map((module) => (
-              <ModuleTile key={module.id} {...module} />
+              <ModuleTile
+                key={module.id}
+                label={module.label}
+                href={module.href}
+                icon={module.icon}
+                prefetch={"prefetch" in module ? module.prefetch : true}
+              />
             ))}
           </div>
         </main>
