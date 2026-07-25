@@ -13,11 +13,16 @@ type ClerkRootProviderProps = {
  * In production, route ClerkJS + FAPI through same-origin `/__clerk` so login
  * does not depend on clerk.pragmapms.com SSL (which can fail while DNS CNAME
  * already points at frontend-api.clerk.services).
+ *
+ * Prefer absolute apex URL when configured — Clerk Production domain is
+ * pragmapms.com (not www), and proxy_url must match that domain.
  */
 function resolveClerkProxyUrl(): string | undefined {
   const fromEnv = process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim();
   if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === "production") return "/__clerk";
+  if (process.env.NODE_ENV === "production") {
+    return "https://pragmapms.com/__clerk";
+  }
   return undefined;
 }
 

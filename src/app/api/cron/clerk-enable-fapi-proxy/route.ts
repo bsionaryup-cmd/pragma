@@ -43,7 +43,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const proxyUrl = "https://www.pragmapms.com/__clerk";
+  const candidates = [
+    "https://pragmapms.com/__clerk",
+    "https://www.pragmapms.com/__clerk",
+  ];
 
   const listRes = await fetch("https://api.clerk.com/v1/domains", {
     headers: {
@@ -74,31 +77,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No Clerk domains found", body: listBody }, { status: 404 });
   }
 
-  const primary =
-    domains.find((d) => d.name.includes("pragmapms.com")) ?? domains[0];
+  const attempts: Array<Record<string, unknown>> = [];
 
-  const patchRes = await fetch(`https://api.clerk.com/v1/domains/${primary.id}`, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ proxy_url: proxyUrl }),
-    cache: "no-store",
-  });
-  const patchBody = await patchRes.json().catch(() => null);
+  for (const domain of domains) {
+    for (const proxyUrl of candidates) {
+      const patchRes = await fetch(`https://api.clerk.com/v1/domains/${domain.id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ proxy_url: proxyUrl }),
+        cache: "no-store",
+      });
+      const patchBody = await patchRes.json().catch(() => null);
+      attempts.push({
+        domainId: domain.id,
+        domainName: domain.name,
+        proxyUrl,
+        status: patchRes.status,
+        ok: patchRes.ok,
+        body: patchBody,
+      });
+      if (patchRes.ok) {
+        return NextResponse.json({
+          ok: true,
+          proxyUrl,
+          domainId: domain.id,
+          domainName: domain.name,
+          domains: domains.map((d) => ({ id: d.id, name: d.name, proxy_url: d.proxy_url ?? null })),
+          attempts,
+        });
+      }
+    }
+  }
 
   return NextResponse.json(
     {
-      ok: patchRes.ok,
-      proxyUrl,
-      domainId: primary.id,
-      domainName: primary.name,
-      previousProxyUrl: primary.proxy_url ?? null,
-      status: patchRes.status,
-      body: patchBody,
+      ok: false,
+      domains: domains.map((d) => ({ id: d.id, name: d.name, proxy_url: d.proxy_url ?? null })),
+      attempts,
     },
-    { status: patchRes.ok ? 200 : 502 },
+    { status: 502 },
   );
 }
 
