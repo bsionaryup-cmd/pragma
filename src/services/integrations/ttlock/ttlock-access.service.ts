@@ -269,7 +269,12 @@ export type GenerateAccessCodeResult = {
 
 export async function generateAccessCodeForReservation(
   reservationId: string,
-  options?: { force?: boolean; skipManualApproval?: boolean },
+  options?: {
+    force?: boolean;
+    skipManualApproval?: boolean;
+    /** When true, do not schedule the access-code email (orchestrator sends later). */
+    skipAccessCodeEmail?: boolean;
+  },
 ): Promise<GenerateAccessCodeResult> {
   const reservation = await db.reservation.findUnique({
     where: { id: reservationId },
@@ -449,8 +454,28 @@ export async function generateAccessCodeForReservation(
   const apiSession = await resolveAccessTokenForProperty(reservation.propertyId);
   let ttlockCodeId: string | null = null;
   let apiMessage: string | null = null;
+  const liveApiRequired = isTTLockLiveApiEnabled();
 
-  if (apiSession && isTTLockLiveApiEnabled()) {
+  if (liveApiRequired) {
+    if (!apiSession) {
+      await db.accessEvent.create({
+        data: {
+          reservationId: reservation.id,
+          integrationId: integration?.id ?? null,
+          eventType: AccessEventType.LOCK_SYNC_FAILED,
+          payload: {
+            step: "session",
+            message: "Integración TTLock no conectada o sin token válido",
+          },
+        },
+      });
+      return {
+        ok: false,
+        message:
+          "Integración TTLock no conectada. El código no se creó ni se envió al huésped.",
+      };
+    }
+
     const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
     if (!Number.isFinite(lockId)) {
       return { ok: false, message: "ID de cerradura TTLock inválido" };
@@ -483,9 +508,7 @@ export async function generateAccessCodeForReservation(
     ttlockCodeId = String(result.keyboardPwdId);
     apiMessage = "Código enviado a TTLock";
   } else {
-    apiMessage = isTTLockLiveApiEnabled()
-      ? "Integración TTLock no conectada"
-      : "Modo preparación: código generado localmente";
+    apiMessage = "Modo preparación: código generado localmente (sin TTLock)";
   }
 
   const organizationId =
@@ -516,13 +539,15 @@ export async function generateAccessCodeForReservation(
           credentialId: credential.id,
           guestLabel,
           ttlockCodeId,
-          mode: isTTLockLiveApiEnabled() ? "live_api" : "prepared_without_live_api",
+          mode: liveApiRequired ? "live_api" : "prepared_without_live_api",
         },
       },
     });
   }
 
-  scheduleAccessCodeEmail(credential.id);
+  if (ttlockCodeId && !options?.skipAccessCodeEmail) {
+    scheduleAccessCodeEmail(credential.id);
+  }
 
   return {
     ok: true,
@@ -607,7 +632,16 @@ export async function restoreRevokedAccessCodeForReservation(
   const apiSession = await resolveAccessTokenForProperty(
     credential.reservation.propertyId,
   );
-  if (apiSession && isTTLockLiveApiEnabled()) {
+  const liveApiRequired = isTTLockLiveApiEnabled();
+
+  if (liveApiRequired) {
+    if (!apiSession) {
+      return {
+        ok: false,
+        message: "Integración TTLock no conectada; no se puede restaurar el código",
+      };
+    }
+
     const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
     if (!Number.isFinite(lockId)) {
       return { ok: false, message: "ID de cerradura TTLock inválido" };
@@ -633,6 +667,13 @@ export async function restoreRevokedAccessCodeForReservation(
     apiMessage = "Código restaurado en TTLock";
   }
 
+  if (liveApiRequired && !ttlockCodeId) {
+    return {
+      ok: false,
+      message: "No se pudo registrar el código en TTLock",
+    };
+  }
+
   await db.accessCredential.update({
     where: { id: credential.id },
     data: {
@@ -656,7 +697,9 @@ export async function restoreRevokedAccessCodeForReservation(
     });
   }
 
-  scheduleAccessCodeEmail(credential.id);
+  if (ttlockCodeId) {
+    scheduleAccessCodeEmail(credential.id);
+  }
 
   return {
     ok: true,
@@ -807,7 +850,8 @@ export async function processReservationAccessAfterRegistration(input: {
   reservationId: string;
   propertyId: string;
   ownerId: string;
-}): Promise<void> {
+  skipAccessCodeEmail?: boolean;
+}): Promise<GenerateAccessCodeResult | void> {
   const integration = await resolveTTLockIntegrationForProperty(input.propertyId);
   const settings = await resolveTTLockAutomationSettingsForProperty(
     input.propertyId,
@@ -831,7 +875,8 @@ export async function processReservationAccessAfterRegistration(input: {
     return;
   }
 
-  await generateAccessCodeForReservation(input.reservationId, {
+  return generateAccessCodeForReservation(input.reservationId, {
     skipManualApproval: true,
+    skipAccessCodeEmail: input.skipAccessCodeEmail === true,
   });
 }

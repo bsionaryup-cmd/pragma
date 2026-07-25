@@ -25,12 +25,15 @@ import {
 } from "@/lib/phone/phone-number";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
-import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 import {
   getGuestRegistrationMaxCapacity,
   getReservationGuestCount,
   type GuestRegistrationCapacityInput,
 } from "@/lib/guest-registration/guest-registration-capacity";
+import {
+  reconcileReservationOccupancyIfSafe,
+  resolveGuestRegistrationMaxCapacityForReservation,
+} from "@/lib/guest-registration/guest-registration-occupancy-reconcile";
 import {
   GUEST_HABEAS_DATA_POLICY_VERSION,
   GUEST_HABEAS_DATA_SUMMARY_ES,
@@ -223,8 +226,14 @@ async function resolveGuestRegistrationMaxCapacity(
   reservation: GuestRegistrationCapacityInput & { id: string },
   registeredCount?: number,
 ): Promise<number> {
-  return getGuestRegistrationMaxCapacity({
-    ...reservation,
+  return resolveGuestRegistrationMaxCapacityForReservation({
+    id: reservation.id,
+    platform: reservation.platform,
+    adults: reservation.adults,
+    children: reservation.children,
+    infants: reservation.infants,
+    propertyMaxGuests: reservation.propertyMaxGuests,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
     registeredCount,
   });
 }
@@ -550,29 +559,11 @@ async function finalizeGuestRegistration(
   });
 
   if (reservationMeta.property) {
-    await onGuestRegistrationCompletedForTTLock({
-      reservationId,
-      propertyId: reservationMeta.propertyId,
-      ownerId: reservationMeta.property.ownerId,
-      guestRegistrationCompleted: true,
-    });
+    const { scheduleGuestRegistrationCompletionComms } = await import(
+      "@/services/guests/guest-registration-completion-comms.service"
+    );
+    scheduleGuestRegistrationCompletionComms(reservationId);
   }
-
-  scheduleAdminGuestRegistrationNotification(reservationId);
-}
-
-function scheduleAdminGuestRegistrationNotification(reservationId: string): void {
-  void import("@/services/guests/guest-registration-admin-notification.service")
-    .then(({ notifyAdminGuestRegistrationCompleted }) =>
-      notifyAdminGuestRegistrationCompleted(reservationId),
-    )
-    .catch((error) => {
-      console.error(
-        "[guest-registration-admin-notify] Unhandled",
-        reservationId,
-        error,
-      );
-    });
 }
 
 export function buildGuestRegistrationUrl(token: string): string {
@@ -762,6 +753,8 @@ export async function getGuestRegistrationLookupResult(
     return { state: "invalid" };
   }
 
+  await reconcileReservationOccupancyIfSafe(registration.reservationId);
+
   const reservation = await db.reservation.findUnique({
     where: { id: registration.reservationId },
     select: {
@@ -844,6 +837,8 @@ export async function registerGuestStep(
   if (reservation.guestRegistrationCompletedAt) {
     throw new GuestRegistrationError("El registro ya fue completado");
   }
+
+  await reconcileReservationOccupancyIfSafe(reservation.id);
 
   const registeredCount = await countRegisteredGuests(reservation.id);
   const maxCapacity = await resolveGuestRegistrationMaxCapacity(
@@ -964,6 +959,44 @@ export async function completeGuestRegistration(
     );
   }
 
+  await reconcileReservationOccupancyIfSafe(registration.reservationId);
+
+  const reservationForCapacity = await db.reservation.findUnique({
+    where: { id: registration.reservationId },
+    select: {
+      id: true,
+      platform: true,
+      adults: true,
+      children: true,
+      infants: true,
+      guestRegistrationCompletedAt: true,
+      property: { select: { maxGuests: true } },
+    },
+  });
+  if (!reservationForCapacity) {
+    throw new GuestRegistrationError("Reserva no encontrada");
+  }
+
+  const maxCapacity = await resolveGuestRegistrationMaxCapacity(
+    {
+      id: reservationForCapacity.id,
+      platform: reservationForCapacity.platform,
+      adults: reservationForCapacity.adults,
+      children: reservationForCapacity.children,
+      infants: reservationForCapacity.infants,
+      propertyMaxGuests: reservationForCapacity.property.maxGuests,
+      guestRegistrationCompletedAt:
+        reservationForCapacity.guestRegistrationCompletedAt,
+    },
+    registeredCount,
+  );
+
+  if (registeredCount !== maxCapacity) {
+    throw new GuestRegistrationError(
+      `Registro incompleto: debes registrar a los ${maxCapacity} huéspedes de la reserva (${registeredCount}/${maxCapacity}).`,
+    );
+  }
+
   const ownerCount = await db.reservationGuest.count({
     where: {
       reservationId: registration.reservationId,
@@ -1075,6 +1108,11 @@ export async function submitGuestRegistration(
   if (parsed.guests.length > maxCapacity) {
     throw new GuestRegistrationError(
       "No puedes registrar más huéspedes de los permitidos en esta reserva.",
+    );
+  }
+  if (parsed.guests.length !== maxCapacity) {
+    throw new GuestRegistrationError(
+      `Registro incompleto: debes registrar a los ${maxCapacity} huéspedes de la reserva (${parsed.guests.length}/${maxCapacity}).`,
     );
   }
 
@@ -1190,13 +1228,9 @@ export async function submitGuestRegistration(
   });
 
   if (reservation.property) {
-    await onGuestRegistrationCompletedForTTLock({
-      reservationId: reservation.id,
-      propertyId: reservation.propertyId,
-      ownerId: reservation.property.ownerId,
-      guestRegistrationCompleted: true,
-    });
+    const { scheduleGuestRegistrationCompletionComms } = await import(
+      "@/services/guests/guest-registration-completion-comms.service"
+    );
+    scheduleGuestRegistrationCompletionComms(reservation.id);
   }
-
-  scheduleAdminGuestRegistrationNotification(reservation.id);
 }

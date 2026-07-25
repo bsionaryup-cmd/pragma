@@ -16,6 +16,7 @@ import { sendEmail } from "@/lib/email/send-email";
 import { resolveGuestRegistrationAdminRecipients } from "@/lib/operational-contacts";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+import { isTTLockLiveApiEnabled } from "@/services/integrations/ttlock/ttlock-oauth.client";
 import { resolveTTLockAutomationSettingsForProperty } from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export type NotifyAccessCodeEmailResult = {
@@ -103,6 +104,7 @@ function resolveGuestRecipient(input: {
  */
 export async function notifyAccessCodeEmailForCredential(
   credentialId: string,
+  options: { ignoreAutoSendFlag?: boolean } = {},
 ): Promise<NotifyAccessCodeEmailResult> {
   try {
     const credential = await db.accessCredential.findUnique({
@@ -111,6 +113,7 @@ export async function notifyAccessCodeEmailForCredential(
         id: true,
         status: true,
         deliveryStatus: true,
+        ttlockCodeId: true,
         codeEncrypted: true,
         reservation: {
           select: {
@@ -146,13 +149,27 @@ export async function notifyAccessCodeEmailForCredential(
       return { ok: false, message: "Credencial no encontrada", skipped: true };
     }
 
-    const settings = await resolveTTLockAutomationSettingsForProperty(
-      credential.reservation.propertyId,
-    );
-    if (!settings?.autoSendCode) {
+    if (!options.ignoreAutoSendFlag) {
+      const settings = await resolveTTLockAutomationSettingsForProperty(
+        credential.reservation.propertyId,
+      );
+      if (!settings?.autoSendCode) {
+        return {
+          ok: true,
+          message: "Envío automático de código desactivado en la integración TTLock",
+          skipped: true,
+        };
+      }
+    }
+
+    if (
+      (isTTLockLiveApiEnabled() || process.env.NODE_ENV === "production") &&
+      !credential.ttlockCodeId
+    ) {
       return {
-        ok: true,
-        message: "Envío automático de código desactivado en la integración TTLock",
+        ok: false,
+        message:
+          "Código no registrado en TTLock; no se envía al huésped hasta sincronizar la cerradura",
         skipped: true,
       };
     }
