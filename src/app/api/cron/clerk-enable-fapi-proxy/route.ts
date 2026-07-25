@@ -4,11 +4,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * One-shot: align Clerk Production domain + FAPI proxy with the live app host
- * (www.pragmapms.com). Apex pragmapms.com 307-redirects to www, so proxy on
- * apex never receives /__clerk traffic.
- *
- * DELETE this route after successful enablement.
+ * Temporary ops endpoint for Clerk Production login restore.
+ * DELETE after migration/proxy work is confirmed.
  */
 function isAuthorized(request: Request): boolean {
   const cron = process.env.CRON_SECRET?.trim();
@@ -29,11 +26,7 @@ type ClerkDomain = {
   frontend_api_url?: string | null;
 };
 
-async function clerkFetch(
-  secretKey: string,
-  path: string,
-  init?: RequestInit,
-) {
+async function clerkFetch(secretKey: string, path: string, init?: RequestInit) {
   const res = await fetch(`https://api.clerk.com/v1${path}`, {
     ...init,
     headers: {
@@ -60,6 +53,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action") ?? "diagnose";
+
   const listed = await clerkFetch(secretKey, "/domains");
   if (!listed.res.ok) {
     return NextResponse.json(
@@ -81,11 +77,9 @@ export async function POST(request: Request) {
   }
 
   const primary = domains[0];
-  const proxyUrl = "https://www.pragmapms.com/__clerk";
-  const attempts: Array<Record<string, unknown>> = [];
 
-  // 1) Prefer renaming primary home origin to www (where the app actually lives).
-  {
+  if (action === "enable") {
+    const proxyUrl = "https://www.pragmapms.com/__clerk";
     const patch = await clerkFetch(secretKey, `/domains/${primary.id}`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -94,68 +88,56 @@ export async function POST(request: Request) {
         is_secondary: true,
       }),
     });
-    attempts.push({
-      step: "rename_primary_to_www_with_proxy",
-      status: patch.res.status,
-      ok: patch.res.ok,
-      body: patch.body,
-    });
-    if (patch.res.ok) {
-      return NextResponse.json({ ok: true, mode: "renamed_primary", proxyUrl, attempts });
-    }
+    return NextResponse.json(
+      {
+        ok: patch.res.ok,
+        action,
+        status: patch.res.status,
+        body: patch.body,
+      },
+      { status: patch.res.ok ? 200 : 502 },
+    );
   }
 
-  // 2) Fallback: set proxy on current primary using www URL (may fail domain check).
-  {
-    const patch = await clerkFetch(secretKey, `/domains/${primary.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ proxy_url: proxyUrl }),
+  const emails = ["urbanovaloft@gmail.com", "bsionaryup@gmail.com"];
+  const userChecks: Array<Record<string, unknown>> = [];
+  for (const email of emails) {
+    const found = await clerkFetch(
+      secretKey,
+      `/users?email_address=${encodeURIComponent(email)}&limit=5`,
+    );
+    const data = Array.isArray((found.body as { data?: unknown[] } | null)?.data)
+      ? (found.body as { data: Array<{ id: string }> }).data
+      : Array.isArray(found.body)
+        ? (found.body as Array<{ id: string }>)
+        : [];
+    userChecks.push({
+      email,
+      status: found.res.status,
+      count: data.length,
+      ids: data.map((u) => u.id).slice(0, 3),
     });
-    attempts.push({
-      step: "proxy_www_on_existing_primary",
-      status: patch.res.status,
-      ok: patch.res.ok,
-      body: patch.body,
-    });
-    if (patch.res.ok) {
-      return NextResponse.json({ ok: true, mode: "proxy_only", proxyUrl, attempts });
-    }
   }
 
-  // 3) Fallback: create www satellite + proxy.
-  {
-    const created = await clerkFetch(secretKey, "/domains", {
-      method: "POST",
-      body: JSON.stringify({
-        name: "www.pragmapms.com",
-        is_satellite: true,
-        proxy_url: proxyUrl,
-      }),
-    });
-    attempts.push({
-      step: "create_www_satellite",
-      status: created.res.status,
-      ok: created.res.ok,
-      body: created.body,
-    });
-    if (created.res.ok) {
-      return NextResponse.json({ ok: true, mode: "satellite", proxyUrl, attempts });
-    }
-  }
+  const total = await clerkFetch(secretKey, "/users?limit=1");
+  const totalCount =
+    typeof (total.body as { total_count?: number } | null)?.total_count === "number"
+      ? (total.body as { total_count: number }).total_count
+      : null;
 
-  return NextResponse.json(
-    {
-      ok: false,
-      domains: domains.map((d) => ({
-        id: d.id,
-        name: d.name,
-        proxy_url: d.proxy_url ?? null,
-        frontend_api_url: d.frontend_api_url ?? null,
-      })),
-      attempts,
+  return NextResponse.json({
+    ok: true,
+    action: "diagnose",
+    domain: {
+      id: primary.id,
+      name: primary.name,
+      proxy_url: primary.proxy_url ?? null,
+      frontend_api_url: primary.frontend_api_url ?? null,
     },
-    { status: 502 },
-  );
+    totalUsers: totalCount,
+    userChecks,
+    secretPrefix: secretKey.slice(0, 8),
+  });
 }
 
 export async function GET(request: Request) {
