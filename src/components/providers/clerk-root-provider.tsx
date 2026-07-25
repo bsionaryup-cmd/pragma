@@ -20,9 +20,8 @@ type ClerkRootProviderProps = {
 function resolveClerkProxyUrl(): string | undefined {
   const fromEnv = process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim();
   if (fromEnv) return fromEnv;
-  if (process.env.NODE_ENV === "production") {
-    return "https://pragmapms.com/__clerk";
-  }
+  // Relative same-origin proxy on www.pragmapms.com (Vercel primary host).
+  if (process.env.NODE_ENV === "production") return "/__clerk";
   return undefined;
 }
 

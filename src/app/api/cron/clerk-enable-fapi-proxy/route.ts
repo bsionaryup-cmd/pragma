@@ -4,11 +4,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * One-shot: register https://www.pragmapms.com/__clerk as Clerk Production
- * Frontend API proxy_url so host_invalid stops blocking login.
- *
- * Auth: Authorization Bearer CRON_SECRET, or x-pragma-oneshot header
- * matching CLERK_PROXY_ONESHOT_TOKEN (temporary deploy-time secret).
+ * One-shot: align Clerk Production domain + FAPI proxy with the live app host
+ * (www.pragmapms.com). Apex pragmapms.com 307-redirects to www, so proxy on
+ * apex never receives /__clerk traffic.
  *
  * DELETE this route after successful enablement.
  */
@@ -28,7 +26,26 @@ type ClerkDomain = {
   id: string;
   name: string;
   proxy_url?: string | null;
+  frontend_api_url?: string | null;
 };
+
+async function clerkFetch(
+  secretKey: string,
+  path: string,
+  init?: RequestInit,
+) {
+  const res = await fetch(`https://api.clerk.com/v1${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${secretKey}`,
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => null);
+  return { res, body };
+}
 
 export async function POST(request: Request) {
   if (!isAuthorized(request)) {
@@ -43,79 +60,98 @@ export async function POST(request: Request) {
     );
   }
 
-  const candidates = [
-    "https://pragmapms.com/__clerk",
-    "https://www.pragmapms.com/__clerk",
-  ];
-
-  const listRes = await fetch("https://api.clerk.com/v1/domains", {
-    headers: {
-      Authorization: `Bearer ${secretKey}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
-  const listBody = (await listRes.json().catch(() => null)) as
-    | { data?: ClerkDomain[] }
-    | ClerkDomain[]
-    | null;
-
-  if (!listRes.ok) {
+  const listed = await clerkFetch(secretKey, "/domains");
+  if (!listed.res.ok) {
     return NextResponse.json(
-      { error: "Failed to list Clerk domains", status: listRes.status, body: listBody },
+      { error: "Failed to list domains", status: listed.res.status, body: listed.body },
       { status: 502 },
     );
   }
 
-  const domains = Array.isArray(listBody)
-    ? listBody
-    : Array.isArray(listBody?.data)
-      ? listBody.data
-      : [];
+  const domains = (
+    Array.isArray(listed.body)
+      ? listed.body
+      : Array.isArray((listed.body as { data?: ClerkDomain[] } | null)?.data)
+        ? (listed.body as { data: ClerkDomain[] }).data
+        : []
+  ) as ClerkDomain[];
 
   if (domains.length === 0) {
-    return NextResponse.json({ error: "No Clerk domains found", body: listBody }, { status: 404 });
+    return NextResponse.json({ error: "No domains", body: listed.body }, { status: 404 });
   }
 
+  const primary = domains[0];
+  const proxyUrl = "https://www.pragmapms.com/__clerk";
   const attempts: Array<Record<string, unknown>> = [];
 
-  for (const domain of domains) {
-    for (const proxyUrl of candidates) {
-      const patchRes = await fetch(`https://api.clerk.com/v1/domains/${domain.id}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ proxy_url: proxyUrl }),
-        cache: "no-store",
-      });
-      const patchBody = await patchRes.json().catch(() => null);
-      attempts.push({
-        domainId: domain.id,
-        domainName: domain.name,
-        proxyUrl,
-        status: patchRes.status,
-        ok: patchRes.ok,
-        body: patchBody,
-      });
-      if (patchRes.ok) {
-        return NextResponse.json({
-          ok: true,
-          proxyUrl,
-          domainId: domain.id,
-          domainName: domain.name,
-          domains: domains.map((d) => ({ id: d.id, name: d.name, proxy_url: d.proxy_url ?? null })),
-          attempts,
-        });
-      }
+  // 1) Prefer renaming primary home origin to www (where the app actually lives).
+  {
+    const patch = await clerkFetch(secretKey, `/domains/${primary.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name: "www.pragmapms.com",
+        proxy_url: proxyUrl,
+        is_secondary: true,
+      }),
+    });
+    attempts.push({
+      step: "rename_primary_to_www_with_proxy",
+      status: patch.res.status,
+      ok: patch.res.ok,
+      body: patch.body,
+    });
+    if (patch.res.ok) {
+      return NextResponse.json({ ok: true, mode: "renamed_primary", proxyUrl, attempts });
+    }
+  }
+
+  // 2) Fallback: set proxy on current primary using www URL (may fail domain check).
+  {
+    const patch = await clerkFetch(secretKey, `/domains/${primary.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ proxy_url: proxyUrl }),
+    });
+    attempts.push({
+      step: "proxy_www_on_existing_primary",
+      status: patch.res.status,
+      ok: patch.res.ok,
+      body: patch.body,
+    });
+    if (patch.res.ok) {
+      return NextResponse.json({ ok: true, mode: "proxy_only", proxyUrl, attempts });
+    }
+  }
+
+  // 3) Fallback: create www satellite + proxy.
+  {
+    const created = await clerkFetch(secretKey, "/domains", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "www.pragmapms.com",
+        is_satellite: true,
+        proxy_url: proxyUrl,
+      }),
+    });
+    attempts.push({
+      step: "create_www_satellite",
+      status: created.res.status,
+      ok: created.res.ok,
+      body: created.body,
+    });
+    if (created.res.ok) {
+      return NextResponse.json({ ok: true, mode: "satellite", proxyUrl, attempts });
     }
   }
 
   return NextResponse.json(
     {
       ok: false,
-      domains: domains.map((d) => ({ id: d.id, name: d.name, proxy_url: d.proxy_url ?? null })),
+      domains: domains.map((d) => ({
+        id: d.id,
+        name: d.name,
+        proxy_url: d.proxy_url ?? null,
+        frontend_api_url: d.frontend_api_url ?? null,
+      })),
       attempts,
     },
     { status: 502 },
