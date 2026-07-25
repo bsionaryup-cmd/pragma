@@ -30,17 +30,27 @@ export function encryptTTLockSecret(value: string): string | null {
 export function decryptTTLockSecret(value: string | null | undefined): string | null {
   if (!value?.startsWith(SECRET_PREFIX)) return null;
 
-  const raw = Buffer.from(value.slice(SECRET_PREFIX.length), "base64");
-  const iv = raw.subarray(0, 12);
-  const tag = raw.subarray(12, 28);
-  const encrypted = raw.subarray(28);
-  const decipher = createDecipheriv("aes-256-gcm", getTTLockEncryptionKey(), iv);
-  decipher.setAuthTag(tag);
-  const decrypted = Buffer.concat([
-    decipher.update(encrypted),
-    decipher.final(),
-  ]);
-  return decrypted.toString("utf8");
+  try {
+    const raw = Buffer.from(value.slice(SECRET_PREFIX.length), "base64");
+    const iv = raw.subarray(0, 12);
+    const tag = raw.subarray(12, 28);
+    const encrypted = raw.subarray(28);
+    const decipher = createDecipheriv("aes-256-gcm", getTTLockEncryptionKey(), iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final(),
+    ]);
+    return decrypted.toString("utf8");
+  } catch (error) {
+    // Wrong/rotated key (e.g. CLERK_SECRET_KEY fallback after Dev→Prod) must not
+    // take down /panel or smart-access — callers already treat null as missing.
+    console.error(
+      "[ttlock-crypto] decrypt failed:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
 }
 
 /** TTLock OAuth expects the account password as lowercase MD5 hex. */
