@@ -121,6 +121,7 @@ export async function POST(request: Request) {
     guestMessage: body.guestMessage,
     scope: auth.scope,
     mode: auth.mode,
+    threadId: body.threadId,
     allowedPropertyIds: auth.allowedPropertyIds,
     allowedTools: auth.allowedTools,
     externalMessageId: body.externalMessageId,
