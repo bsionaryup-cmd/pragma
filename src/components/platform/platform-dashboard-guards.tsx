@@ -55,20 +55,37 @@ export async function enforceTenantDashboardAccess(
     }
 
     // Retail-only orgs must not enter PMS dashboards (shared Organization model).
-    const [retailStore, propertyCount] = await Promise.all([
-      db.retailStore.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          deletedAt: null,
-          status: "ACTIVE",
-        },
-        select: { id: true },
-      }),
-      db.property.count({
+    // Soft-fail when retail tables were eradicated from this DB (P2021) — PMS tenants
+    // must still reach /panel after login.
+    let retailStoreId: string | null = null;
+    let propertyCount = 0;
+    try {
+      const [retailStore, count] = await Promise.all([
+        db.retailStore.findFirst({
+          where: {
+            organizationId: user.organizationId,
+            deletedAt: null,
+            status: "ACTIVE",
+          },
+          select: { id: true },
+        }),
+        db.property.count({
+          where: { organizationId: user.organizationId },
+        }),
+      ]);
+      retailStoreId = retailStore?.id ?? null;
+      propertyCount = count;
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: string }).code)
+          : "";
+      if (code !== "P2021") throw error;
+      propertyCount = await db.property.count({
         where: { organizationId: user.organizationId },
-      }),
-    ]);
-    if (retailStore && propertyCount === 0) {
+      });
+    }
+    if (retailStoreId && propertyCount === 0) {
       redirect("/intiendas/dashboard");
     }
   }
