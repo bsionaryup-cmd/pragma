@@ -13,6 +13,7 @@ import { isTTLockLiveApiEnabled } from "@/services/integrations/ttlock/ttlock-oa
 import {
   decryptTTLockSecret,
 } from "@/services/integrations/ttlock/ttlock-crypto";
+import { purgeExpiredTTLockPasscodes } from "@/services/integrations/ttlock/ttlock-access.service";
 
 const SYNC_INTERVAL_MS = 8 * 60 * 1000;
 
@@ -132,6 +133,7 @@ export async function syncSmartLocksForOrganization(
 export async function runTTLockScheduledSync(): Promise<{
   organizationsProcessed: number;
   summaries: TTLockSyncSummary[];
+  expiredPasscodes: Awaited<ReturnType<typeof purgeExpiredTTLockPasscodes>>;
 }> {
   const integrations = await db.tTLockIntegration.findMany({
     where: {
@@ -155,8 +157,11 @@ export async function runTTLockScheduledSync(): Promise<{
     summaries.push(await syncSmartLocksForOrganization(organizationId));
   }
 
+  const expiredPasscodes = await purgeExpiredTTLockPasscodes({ limit: 40 });
+
   return {
     organizationsProcessed: orgIds.length,
     summaries,
+    expiredPasscodes,
   };
 }

@@ -16,7 +16,6 @@ import { sendEmail } from "@/lib/email/send-email";
 import { resolveGuestRegistrationAdminRecipients } from "@/lib/operational-contacts";
 import { formatPropertyLabel } from "@/lib/property-display";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
-import { isTTLockLiveApiEnabled } from "@/services/integrations/ttlock/ttlock-oauth.client";
 import { resolveTTLockAutomationSettingsForProperty } from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export type NotifyAccessCodeEmailResult = {
@@ -172,10 +171,8 @@ export async function notifyAccessCodeEmailForCredential(
       }
     }
 
-    if (
-      (isTTLockLiveApiEnabled() || process.env.NODE_ENV === "production") &&
-      !credential.ttlockCodeId
-    ) {
+    // Never email a local-only / unsynced code — guest must receive a real TTLock passcode.
+    if (!credential.ttlockCodeId) {
       return {
         ok: false,
         message:

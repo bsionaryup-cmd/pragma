@@ -381,6 +381,7 @@ export function createReadToolHandlers(
           validFrom: true,
           validTo: true,
           codeEncrypted: true,
+          ttlockCodeId: true,
         },
       });
       if (!credential) {
@@ -395,7 +396,11 @@ export function createReadToolHandlers(
       }
       const includeCode = parsed.data.includeCode !== false;
       let accessCode: string | null = null;
-      if (includeCode && credential.codeEncrypted) {
+      if (
+        includeCode &&
+        credential.ttlockCodeId &&
+        credential.codeEncrypted
+      ) {
         try {
           accessCode =
             formatAccessCode(decryptTTLockSecret(credential.codeEncrypted)) ??

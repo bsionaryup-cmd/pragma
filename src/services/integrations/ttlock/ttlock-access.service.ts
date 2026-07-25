@@ -344,15 +344,27 @@ export async function generateAccessCodeForReservation(
       existing.status === AccessCredentialStatus.ACTIVE ||
       existing.status === AccessCredentialStatus.SENT)
   ) {
-    const code = formatAccessCode(decryptTTLockSecret(existing.codeEncrypted));
-    // No re-programar correo aquí: el envío automático ocurre solo al generar/restaurar.
-    // Re-disparar en cada "ya existe" abría una ruta de duplicado (ventana NOT_SENT / FAILED).
-    return {
-      ok: true,
-      message: "Ya existe un código activo para esta reserva",
-      credentialId: existing.id,
-      code: code ?? undefined,
-    };
+    // Never treat a local-only credential as a real TTLock code.
+    if (!existing.ttlockCodeId) {
+      if (!isTTLockLiveApiEnabled()) {
+        return {
+          ok: false,
+          message:
+            "Hay un código local sin sincronizar. Activa TTLock API (TTLOCK_API_ENABLED=true + credenciales) y regenera.",
+          credentialId: existing.id,
+        };
+      }
+      // Phantom row — delete and fall through to create a real TTLock passcode.
+      await db.accessCredential.delete({ where: { id: existing.id } });
+    } else {
+      const code = formatAccessCode(decryptTTLockSecret(existing.codeEncrypted));
+      return {
+        ok: true,
+        message: "Ya existe un código activo sincronizado con TTLock",
+        credentialId: existing.id,
+        code: code ?? undefined,
+      };
+    }
   }
 
   const propertyLock = reservation.property.propertyLock;
@@ -453,63 +465,79 @@ export async function generateAccessCodeForReservation(
   const lockPasscode = formatAccessCodeForLockApi(passcode);
   const apiSession = await resolveAccessTokenForProperty(reservation.propertyId);
   let ttlockCodeId: string | null = null;
-  let apiMessage: string | null = null;
   const liveApiRequired = isTTLockLiveApiEnabled();
 
-  if (liveApiRequired) {
-    if (!apiSession) {
-      await db.accessEvent.create({
-        data: {
-          reservationId: reservation.id,
-          integrationId: integration?.id ?? null,
-          eventType: AccessEventType.LOCK_SYNC_FAILED,
-          payload: {
-            step: "session",
-            message: "Integración TTLock no conectada o sin token válido",
-          },
+  // Fail closed: never persist a "fake" local code that looks real in the UI.
+  if (!liveApiRequired) {
+    await db.accessEvent.create({
+      data: {
+        reservationId: reservation.id,
+        integrationId: integration?.id ?? null,
+        eventType: AccessEventType.LOCK_SYNC_FAILED,
+        payload: {
+          step: "live_api_disabled",
+          message:
+            "TTLock API deshabilitada; no se crea código local falso",
         },
-      });
-      return {
-        ok: false,
-        message:
-          "Integración TTLock no conectada. El código no se creó ni se envió al huésped.",
-      };
-    }
-
-    const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
-    if (!Number.isFinite(lockId)) {
-      return { ok: false, message: "ID de cerradura TTLock inválido" };
-    }
-
-    const result = await requestTTLockAddKeyboardPwd({
-      environment: apiSession.environment,
-      clientId: apiSession.clientId,
-      accessToken: apiSession.accessToken,
-      lockId,
-      keyboardPwd: lockPasscode,
-      keyboardPwdName: guestLabel.slice(0, 50),
-      startDate: validFrom.getTime(),
-      endDate: validTo.getTime(),
-      addType: 2,
+      },
     });
-
-    if (!result.ok) {
-      await db.accessEvent.create({
-        data: {
-          reservationId: reservation.id,
-          integrationId: apiSession.integrationId,
-          eventType: AccessEventType.LOCK_SYNC_FAILED,
-          payload: { step: "keyboardPwd/add", message: result.message },
-        },
-      });
-      return { ok: false, message: result.message };
-    }
-
-    ttlockCodeId = String(result.keyboardPwdId);
-    apiMessage = "Código enviado a TTLock";
-  } else {
-    apiMessage = "Modo preparación: código generado localmente (sin TTLock)";
+    return {
+      ok: false,
+      message:
+        "TTLock API no está habilitada. Configura TTLOCK_CLIENT_ID/SECRET y TTLOCK_API_ENABLED=true. No se genera código falso.",
+    };
   }
+
+  if (!apiSession) {
+    await db.accessEvent.create({
+      data: {
+        reservationId: reservation.id,
+        integrationId: integration?.id ?? null,
+        eventType: AccessEventType.LOCK_SYNC_FAILED,
+        payload: {
+          step: "session",
+          message: "Integración TTLock no conectada o sin token válido",
+        },
+      },
+    });
+    return {
+      ok: false,
+      message:
+        "Integración TTLock no conectada. El código no se creó ni se envió al huésped.",
+    };
+  }
+
+  const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
+  if (!Number.isFinite(lockId)) {
+    return { ok: false, message: "ID de cerradura TTLock inválido" };
+  }
+
+  const result = await requestTTLockAddKeyboardPwd({
+    environment: apiSession.environment,
+    clientId: apiSession.clientId,
+    accessToken: apiSession.accessToken,
+    lockId,
+    keyboardPwd: lockPasscode,
+    keyboardPwdName: guestLabel.slice(0, 50),
+    startDate: validFrom.getTime(),
+    endDate: validTo.getTime(),
+    addType: 2,
+  });
+
+  if (!result.ok) {
+    await db.accessEvent.create({
+      data: {
+        reservationId: reservation.id,
+        integrationId: apiSession.integrationId,
+        eventType: AccessEventType.LOCK_SYNC_FAILED,
+        payload: { step: "keyboardPwd/add", message: result.message },
+      },
+    });
+    return { ok: false, message: result.message };
+  }
+
+  ttlockCodeId = String(result.keyboardPwdId);
+  const apiMessage = "Código enviado a TTLock";
 
   const organizationId =
     reservation.property.organizationId ??
@@ -539,7 +567,7 @@ export async function generateAccessCodeForReservation(
           credentialId: credential.id,
           guestLabel,
           ttlockCodeId,
-          mode: liveApiRequired ? "live_api" : "prepared_without_live_api",
+          mode: "live_api",
         },
       },
     });
@@ -551,7 +579,7 @@ export async function generateAccessCodeForReservation(
 
   return {
     ok: true,
-    message: apiMessage ?? "Código generado",
+    message: apiMessage,
     credentialId: credential.id,
     code: formatAccessCode(lockPasscode) ?? undefined,
   };
@@ -626,53 +654,47 @@ export async function restoreRevokedAccessCodeForReservation(
   const integration = await resolveTTLockIntegrationForProperty(
     credential.reservation.propertyId,
   );
-  let ttlockCodeId = credential.ttlockCodeId;
-  let apiMessage = "Código restaurado";
+
+  if (!isTTLockLiveApiEnabled()) {
+    return {
+      ok: false,
+      message:
+        "TTLock API no está habilitada. No se restaura un código sin sincronizar con la cerradura.",
+    };
+  }
 
   const apiSession = await resolveAccessTokenForProperty(
     credential.reservation.propertyId,
   );
-  const liveApiRequired = isTTLockLiveApiEnabled();
-
-  if (liveApiRequired) {
-    if (!apiSession) {
-      return {
-        ok: false,
-        message: "Integración TTLock no conectada; no se puede restaurar el código",
-      };
-    }
-
-    const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
-    if (!Number.isFinite(lockId)) {
-      return { ok: false, message: "ID de cerradura TTLock inválido" };
-    }
-
-    const result = await requestTTLockAddKeyboardPwd({
-      environment: apiSession.environment,
-      clientId: apiSession.clientId,
-      accessToken: apiSession.accessToken,
-      lockId,
-      keyboardPwd: lockPasscode,
-      keyboardPwdName: "Restaurado PRAGMA",
-      startDate: credential.validFrom.getTime(),
-      endDate: credential.validTo.getTime(),
-      addType: 2,
-    });
-
-    if (!result.ok) {
-      return { ok: false, message: result.message };
-    }
-
-    ttlockCodeId = String(result.keyboardPwdId);
-    apiMessage = "Código restaurado en TTLock";
-  }
-
-  if (liveApiRequired && !ttlockCodeId) {
+  if (!apiSession) {
     return {
       ok: false,
-      message: "No se pudo registrar el código en TTLock",
+      message: "Integración TTLock no conectada; no se puede restaurar el código",
     };
   }
+
+  const lockId = Number.parseInt(propertyLock.ttlockLockId, 10);
+  if (!Number.isFinite(lockId)) {
+    return { ok: false, message: "ID de cerradura TTLock inválido" };
+  }
+
+  const result = await requestTTLockAddKeyboardPwd({
+    environment: apiSession.environment,
+    clientId: apiSession.clientId,
+    accessToken: apiSession.accessToken,
+    lockId,
+    keyboardPwd: lockPasscode,
+    keyboardPwdName: "Restaurado PRAGMA",
+    startDate: credential.validFrom.getTime(),
+    endDate: credential.validTo.getTime(),
+    addType: 2,
+  });
+
+  if (!result.ok) {
+    return { ok: false, message: result.message };
+  }
+
+  const ttlockCodeId = String(result.keyboardPwdId);
 
   await db.accessCredential.update({
     where: { id: credential.id },
@@ -692,18 +714,17 @@ export async function restoreRevokedAccessCodeForReservation(
           credentialId: credential.id,
           ttlockCodeId,
           restored: true,
+          mode: "live_api",
         },
       },
     });
   }
 
-  if (ttlockCodeId) {
-    scheduleAccessCodeEmail(credential.id);
-  }
+  scheduleAccessCodeEmail(credential.id);
 
   return {
     ok: true,
-    message: apiMessage,
+    message: "Código restaurado en TTLock",
     credentialId: credential.id,
     code: formatAccessCode(lockPasscode) ?? undefined,
   };
@@ -879,4 +900,116 @@ export async function processReservationAccessAfterRegistration(input: {
     skipManualApproval: true,
     skipAccessCodeEmail: input.skipAccessCodeEmail === true,
   });
+}
+
+export type PurgeExpiredTTLockPasscodesResult = {
+  scanned: number;
+  deletedFromTtlock: number;
+  markedExpired: number;
+  errors: string[];
+};
+
+/**
+ * After validTo, remove the passcode from TTLock (when synced) and mark EXPIRED in DB.
+ * Intended for the ttlock-sync cron — codes must not linger on the lock past checkout.
+ */
+export async function purgeExpiredTTLockPasscodes(options?: {
+  limit?: number;
+}): Promise<PurgeExpiredTTLockPasscodesResult> {
+  const limit = Math.min(Math.max(options?.limit ?? 40, 1), 100);
+  const now = new Date();
+  const result: PurgeExpiredTTLockPasscodesResult = {
+    scanned: 0,
+    deletedFromTtlock: 0,
+    markedExpired: 0,
+    errors: [],
+  };
+
+  const expired = await db.accessCredential.findMany({
+    where: {
+      validTo: { not: null, lt: now },
+      status: {
+        in: [
+          AccessCredentialStatus.PENDING,
+          AccessCredentialStatus.GENERATED,
+          AccessCredentialStatus.ACTIVE,
+          AccessCredentialStatus.SENT,
+          AccessCredentialStatus.SUSPENDED,
+        ],
+      },
+    },
+    orderBy: { validTo: "asc" },
+    take: limit,
+    select: {
+      id: true,
+      ttlockCodeId: true,
+      reservationId: true,
+      propertyLock: { select: { ttlockLockId: true } },
+      reservation: { select: { propertyId: true } },
+    },
+  });
+
+  result.scanned = expired.length;
+  const live = isTTLockLiveApiEnabled();
+
+  for (const credential of expired) {
+    try {
+      if (
+        live &&
+        credential.ttlockCodeId &&
+        credential.propertyLock?.ttlockLockId
+      ) {
+        const apiSession = await resolveAccessTokenForProperty(
+          credential.reservation.propertyId,
+        );
+        if (apiSession) {
+          const lockId = Number.parseInt(
+            credential.propertyLock.ttlockLockId,
+            10,
+          );
+          const keyboardPwdId = Number.parseInt(credential.ttlockCodeId, 10);
+          if (Number.isFinite(lockId) && Number.isFinite(keyboardPwdId)) {
+            const deleted = await requestTTLockDeleteKeyboardPwd({
+              environment: apiSession.environment,
+              clientId: apiSession.clientId,
+              accessToken: apiSession.accessToken,
+              lockId,
+              keyboardPwdId,
+              deleteType: 2,
+            });
+            if (deleted.ok) {
+              result.deletedFromTtlock += 1;
+            } else {
+              result.errors.push(
+                `${credential.id}: TTLock delete failed — ${deleted.message}`,
+              );
+            }
+          }
+        }
+      }
+
+      await db.accessCredential.update({
+        where: { id: credential.id },
+        data: { status: AccessCredentialStatus.EXPIRED },
+      });
+      result.markedExpired += 1;
+
+      await db.accessEvent.create({
+        data: {
+          reservationId: credential.reservationId,
+          eventType: AccessEventType.CODE_REVOKED,
+          payload: {
+            credentialId: credential.id,
+            reason: "expired_validTo",
+            deletedFromTtlock: Boolean(credential.ttlockCodeId),
+          },
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(`${credential.id}: ${message}`);
+    }
+  }
+
+  return result;
 }

@@ -476,7 +476,7 @@ export async function getReservationForInbox(
     db.accessCredential.findFirst({
       where: { reservationId: row.id },
       orderBy: { createdAt: "desc" },
-      select: { status: true, codeEncrypted: true },
+      select: { status: true, codeEncrypted: true, ttlockCodeId: true },
     }),
     getAirbnbEnrichedGuestNameByReservationIds([row.id]),
     getReservationActivityUnreadMap(scope, [row.id]),
@@ -485,10 +485,12 @@ export async function getReservationForInbox(
   const accessCode = accessCredential
     ? {
         status: accessCredential.status,
-        code: formatAccessCode(decryptTTLockSecret(accessCredential.codeEncrypted)),
-        isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
-          accessCredential.status,
-        ),
+        code: accessCredential.ttlockCodeId
+          ? formatAccessCode(decryptTTLockSecret(accessCredential.codeEncrypted))
+          : null,
+        isActive:
+          Boolean(accessCredential.ttlockCodeId) &&
+          ["GENERATED", "SENT", "ACTIVE"].includes(accessCredential.status),
       }
     : null;
 
