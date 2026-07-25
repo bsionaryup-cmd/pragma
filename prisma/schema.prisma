@@ -51,6 +51,7 @@ model Organization {
   conciergeExtensionLinks ConciergeExtensionLink[]
   conciergeConversationStates ConciergeConversationState[]
   conciergeAuditEvents   ConciergeAuditEvent[]
+  assistantDefinitions   AssistantDefinition[]
 
   @@map("organizations")
 }
@@ -142,6 +143,15 @@ enum ConciergeConversationStatus {
   COMPLETED
 }
 
+enum ConciergeRuntimeStatus {
+  OFF
+  STARTING
+  RUNNING
+  RECOVERING
+  ERROR
+  STOPPING
+}
+
 model ConciergeConfiguration {
   organizationId     String                 @id
   enabled            Boolean                @default(false)
@@ -154,6 +164,13 @@ model ConciergeConfiguration {
   aiEnabled          Boolean                @default(false)
   auditorEnabled     Boolean                @default(true)
   activeHours        Json?
+  /// Owner wants autonomous runtime ON (separate from reply mode).
+  runtimeDesiredOn   Boolean                @default(false)
+  runtimeStatus      ConciergeRuntimeStatus @default(OFF)
+  runtimeLastTransitionAt DateTime?
+  runtimeLastError   String?
+  runtimeWatchdogAt  DateTime?
+  runtimeMeta        Json?
   updatedById        String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -208,6 +225,15 @@ model ConciergeConversationState {
   lastIntent         String?
   lastPath           String?
   lastProcessedAt    DateTime?
+  /// Ephemeral facts (TTL). Never full transcripts.
+  factsJson          Json                         @default("{}")
+  /// Conversational state machine (topic/flow/pending).
+  conversationStateJson Json                      @default("{}")
+  /// Capped recent message snippets for context (not full history).
+  recentMessagesJson Json                         @default("[]")
+  factsExpiresAt     DateTime?
+  propertyId         String?
+  reservationId      String?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
 
@@ -217,6 +243,7 @@ model ConciergeConversationState {
   @@unique([organizationId, channel, threadHash])
   @@index([organizationId, status])
   @@index([organizationId, lastProcessedAt])
+  @@index([factsExpiresAt])
   @@map("concierge_conversation_states")
 }
 
@@ -3240,4 +3267,98 @@ model RetailIntelFeedback {
   @@index([storeId, createdAt])
   @@index([productId])
   @@map("retail_intel_feedback")
+}
+
+// ─── Assistant Platform v1 (additive — Owner Studio) ─────────
+
+enum AssistantStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// Platform-level or org-scoped assistant (Concierge is the first).
+model AssistantDefinition {
+  id                 String          @id @default(cuid())
+  slug               String
+  name               String
+  description        String?
+  /// null = platform catalog template; set = tenant-bound assistant
+  organizationId     String?
+  status             AssistantStatus @default(DRAFT)
+  /// Points at the live playbook version (null until first publish).
+  publishedVersionId String?         @unique
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  organization     Organization?                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  publishedVersion AssistantPlaybookVersion?           @relation("AssistantPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
+  versions         AssistantPlaybookVersion[]          @relation("AssistantPlaybookVersions")
+  articles         AssistantKnowledgeArticle[]
+  providers        AssistantKnowledgeProviderBinding[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@map("assistant_definitions")
+}
+
+model AssistantPlaybookVersion {
+  id                   String    @id @default(cuid())
+  assistantId          String
+  version              Int
+  label                String?
+  identityJson         Json      @default("{}")
+  promptJson           Json      @default("{}")
+  guardRailsJson       Json      @default("{}")
+  messageTemplatesJson Json      @default("{}")
+  protocolsJson        Json      @default("{}")
+  publishedAt          DateTime?
+  createdById          String?
+  createdAt            DateTime  @default(now())
+
+  assistant    AssistantDefinition  @relation("AssistantPlaybookVersions", fields: [assistantId], references: [id], onDelete: Cascade)
+  publishedFor AssistantDefinition? @relation("AssistantPublishedVersion")
+
+  @@unique([assistantId, version])
+  @@index([assistantId, publishedAt])
+  @@map("assistant_playbook_versions")
+}
+
+model AssistantKnowledgeArticle {
+  id          String   @id @default(cuid())
+  assistantId String
+  category    String   @default("FAQ")
+  title       String
+  body        String
+  tags        String[] @default([])
+  propertyId  String?
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assistant AssistantDefinition @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+
+  @@index([assistantId, category, enabled])
+  @@index([propertyId])
+  @@map("assistant_knowledge_articles")
+}
+
+model AssistantKnowledgeProviderBinding {
+  id          String   @id @default(cuid())
+  assistantId String
+  /// e.g. pragma-pms | ecommerce | crm | docs
+  providerKey String
+  displayName String
+  enabled     Boolean  @default(true)
+  configJson  Json     @default("{}")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assistant AssistantDefinition @relation(fields: [assistantId], references: [id], onDelete: Cascade)
+
+  @@unique([assistantId, providerKey])
+  @@index([assistantId, enabled])
+  @@map("assistant_knowledge_provider_bindings")
 }
