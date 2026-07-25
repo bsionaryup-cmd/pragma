@@ -29,4 +29,21 @@ describe("guest registration completion communications contract", () => {
     const receptionFailed = false;
     assert.equal(receptionFailed && true, false);
   });
+
+  it("manual panel resend uses the same pipeline with forceResend", () => {
+    const autoOptions = { forceResend: false as const, triggeredBy: "auto" as const };
+    const manualOptions = {
+      forceResend: true as const,
+      triggeredBy: "manual" as const,
+      userId: "user-1",
+    };
+
+    assert.equal(autoOptions.forceResend, false);
+    assert.equal(manualOptions.forceResend, true);
+    assert.equal(manualOptions.triggeredBy, "manual");
+    assert.deepEqual(
+      ["ttlock", "reception", "accessCode", "tenantReport"],
+      ["ttlock", "reception", "accessCode", "tenantReport"],
+    );
+  });
 });

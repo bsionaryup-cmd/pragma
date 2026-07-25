@@ -23,12 +23,20 @@ export type GuestRegistrationCompletionCommsResult = {
   tenantReport: GuestRegistrationCommsStepStatus;
 };
 
+export type GuestRegistrationCompletionCommsOptions = {
+  /** Manual resend: force recepción + access-code emails even if already sent. */
+  forceResend?: boolean;
+  triggeredBy?: "auto" | "manual";
+  userId?: string;
+};
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function notifyReceptionWithRetry(
   reservationId: string,
+  options: GuestRegistrationCompletionCommsOptions,
   attempts = 3,
 ): Promise<GuestRegistrationCommsStepStatus> {
   let last: GuestRegistrationCommsStepStatus = {
@@ -38,7 +46,9 @@ async function notifyReceptionWithRetry(
 
   for (let i = 0; i < attempts; i++) {
     const result = await notifyAdminGuestRegistrationCompleted(reservationId, {
-      triggeredBy: "auto",
+      force: options.forceResend === true,
+      triggeredBy: options.triggeredBy ?? "auto",
+      userId: options.userId,
     });
     last = {
       ok: result.ok,
@@ -125,16 +135,21 @@ async function notifyTenantDeliveryReport(input: {
   reception: GuestRegistrationCommsStepStatus;
   accessCode: GuestRegistrationCommsStepStatus;
   ttlock: GuestRegistrationCommsStepStatus;
+  forceResend: boolean;
 }): Promise<GuestRegistrationCommsStepStatus> {
   const allOk = input.reception.ok && input.accessCode.ok;
+  const subjectPrefix = input.forceResend
+    ? "PRAGMA · Reenvío GR"
+    : "PRAGMA · Notificaciones GR";
   const subject = allOk
-    ? `PRAGMA · Notificaciones GR OK — ${input.propertyLabel}`
-    : `PRAGMA · Revisar notificaciones GR — ${input.propertyLabel}`;
+    ? `${subjectPrefix} OK — ${input.propertyLabel}`
+    : `${subjectPrefix} · Revisar — ${input.propertyLabel}`;
 
   const lines = [
     `Reserva: ${input.reservationCode ?? input.reservationId}`,
     `Huésped: ${input.guestName ?? "—"}`,
     `Propiedad: ${input.propertyLabel}`,
+    input.forceResend ? "Origen: reenvío manual desde el panel" : "Origen: completado de registro",
     "",
     `1) Correo a recepción (registro completado): ${stepLabel(input.reception)}`,
     `2) Generación TTLock: ${stepLabel(input.ttlock)}`,
@@ -151,7 +166,12 @@ async function notifyTenantDeliveryReport(input: {
       <h1 style="font-size:20px;margin:0 0 16px">Estado de notificaciones · Registro de huéspedes</h1>
       <p style="margin:0 0 8px"><strong>Reserva:</strong> ${escapeHtml(input.reservationCode ?? input.reservationId)}</p>
       <p style="margin:0 0 8px"><strong>Huésped:</strong> ${escapeHtml(input.guestName ?? "—")}</p>
-      <p style="margin:0 0 16px"><strong>Propiedad:</strong> ${escapeHtml(input.propertyLabel)}</p>
+      <p style="margin:0 0 8px"><strong>Propiedad:</strong> ${escapeHtml(input.propertyLabel)}</p>
+      <p style="margin:0 0 16px"><strong>Origen:</strong> ${escapeHtml(
+        input.forceResend
+          ? "Reenvío manual desde el panel"
+          : "Completado de registro",
+      )}</p>
       <ol style="margin:0 0 16px;padding-left:20px;line-height:1.6">
         <li>Correo a recepción (registro): ${escapeHtml(stepLabel(input.reception))}</li>
         <li>Generación TTLock: ${escapeHtml(stepLabel(input.ttlock))}</li>
@@ -181,6 +201,33 @@ async function notifyTenantDeliveryReport(input: {
   };
 }
 
+function summarizeCommsResult(
+  result: GuestRegistrationCompletionCommsResult,
+): { ok: boolean; message: string } {
+  const coreOk = result.reception.ok && result.accessCode.ok;
+  const parts = [
+    `Recepción: ${result.reception.ok ? "OK" : "falló"}`,
+    `Código: ${result.accessCode.ok ? "OK" : "falló"}`,
+    `Tenant: ${result.tenantReport.ok ? "OK" : "falló"}`,
+  ];
+  if (coreOk && result.tenantReport.ok) {
+    return {
+      ok: true,
+      message: `Secuencia post-registro enviada (${parts.join(" · ")})`,
+    };
+  }
+  if (coreOk) {
+    return {
+      ok: true,
+      message: `Recepción y código OK; reporte al tenant: ${result.tenantReport.message}`,
+    };
+  }
+  return {
+    ok: false,
+    message: `Secuencia incompleta (${parts.join(" · ")}). ${result.reception.ok ? result.accessCode.message : result.reception.message}`,
+  };
+}
+
 /**
  * Post-GR communications (ordered):
  * 1) Generate TTLock code (without email)
@@ -190,7 +237,10 @@ async function notifyTenantDeliveryReport(input: {
  */
 export async function runGuestRegistrationCompletionComms(
   reservationId: string,
+  options: GuestRegistrationCompletionCommsOptions = {},
 ): Promise<GuestRegistrationCompletionCommsResult> {
+  const forceResend = options.forceResend === true;
+
   const reservation = await db.reservation.findUnique({
     where: { id: reservationId },
     select: {
@@ -255,7 +305,7 @@ export async function runGuestRegistrationCompletionComms(
     };
   }
 
-  const reception = await notifyReceptionWithRetry(reservation.id);
+  const reception = await notifyReceptionWithRetry(reservation.id, options);
 
   let accessCode: GuestRegistrationCommsStepStatus = {
     ok: false,
@@ -286,7 +336,10 @@ export async function runGuestRegistrationCompletionComms(
         where: { id: credentialId },
         select: { deliveryStatus: true },
       });
-      if (existing?.deliveryStatus === AccessCredentialDeliveryStatus.SENT) {
+      if (
+        !forceResend &&
+        existing?.deliveryStatus === AccessCredentialDeliveryStatus.SENT
+      ) {
         accessCode = {
           ok: true,
           skipped: true,
@@ -296,6 +349,7 @@ export async function runGuestRegistrationCompletionComms(
         // Completion pipeline always sends (guest + recepción), even if autoSendCode is off.
         const sent = await notifyAccessCodeEmailForCredential(credentialId, {
           ignoreAutoSendFlag: true,
+          forceResend,
         });
         accessCode = {
           ok: sent.ok,
@@ -326,11 +380,14 @@ export async function runGuestRegistrationCompletionComms(
       reception,
       accessCode,
       ttlock,
+      forceResend,
     });
   }
 
   console.info("[gr-completion-comms]", {
     reservationId,
+    forceResend,
+    triggeredBy: options.triggeredBy ?? "auto",
     ttlock,
     reception,
     accessCode,
@@ -344,6 +401,23 @@ export async function runGuestRegistrationCompletionComms(
     accessCode,
     tenantReport,
   };
+}
+
+/**
+ * Manual panel action: same ordered pipeline as auto-completion, with forced
+ * re-send of recepción + access-code emails and a fresh tenant status report.
+ */
+export async function resendGuestRegistrationCompletionComms(
+  reservationId: string,
+  userId: string,
+): Promise<{ ok: boolean; message: string; result: GuestRegistrationCompletionCommsResult }> {
+  const result = await runGuestRegistrationCompletionComms(reservationId, {
+    forceResend: true,
+    triggeredBy: "manual",
+    userId,
+  });
+  const summary = summarizeCommsResult(result);
+  return { ...summary, result };
 }
 
 export function scheduleGuestRegistrationCompletionComms(

@@ -63,7 +63,10 @@ function buildAccessCodeEmailHtml(plainMessage: string, code: string): string {
   `.trim();
 }
 
-async function claimAccessCodeEmailSend(credentialId: string): Promise<boolean> {
+async function claimAccessCodeEmailSend(
+  credentialId: string,
+  forceResend = false,
+): Promise<boolean> {
   const claimed = await db.accessCredential.updateMany({
     where: {
       id: credentialId,
@@ -74,10 +77,16 @@ async function claimAccessCodeEmailSend(credentialId: string): Promise<boolean> 
           AccessCredentialStatus.SENT,
         ],
       },
-      OR: [
-        { deliveryStatus: AccessCredentialDeliveryStatus.NOT_SENT },
-        { deliveryStatus: AccessCredentialDeliveryStatus.FAILED },
-      ],
+      OR: forceResend
+        ? [
+            { deliveryStatus: AccessCredentialDeliveryStatus.NOT_SENT },
+            { deliveryStatus: AccessCredentialDeliveryStatus.FAILED },
+            { deliveryStatus: AccessCredentialDeliveryStatus.SENT },
+          ]
+        : [
+            { deliveryStatus: AccessCredentialDeliveryStatus.NOT_SENT },
+            { deliveryStatus: AccessCredentialDeliveryStatus.FAILED },
+          ],
     },
     data: {
       deliveryStatus: AccessCredentialDeliveryStatus.PENDING,
@@ -104,9 +113,10 @@ function resolveGuestRecipient(input: {
  */
 export async function notifyAccessCodeEmailForCredential(
   credentialId: string,
-  options: { ignoreAutoSendFlag?: boolean } = {},
+  options: { ignoreAutoSendFlag?: boolean; forceResend?: boolean } = {},
 ): Promise<NotifyAccessCodeEmailResult> {
   try {
+    const forceResend = options.forceResend === true;
     const credential = await db.accessCredential.findUnique({
       where: { id: credentialId },
       select: {
@@ -174,7 +184,10 @@ export async function notifyAccessCodeEmailForCredential(
       };
     }
 
-    if (credential.deliveryStatus === AccessCredentialDeliveryStatus.SENT) {
+    if (
+      !forceResend &&
+      credential.deliveryStatus === AccessCredentialDeliveryStatus.SENT
+    ) {
       return { ok: true, message: "El código ya fue enviado", skipped: true };
     }
 
@@ -186,7 +199,7 @@ export async function notifyAccessCodeEmailForCredential(
       };
     }
 
-    const claimed = await claimAccessCodeEmailSend(credentialId);
+    const claimed = await claimAccessCodeEmailSend(credentialId, forceResend);
     if (!claimed) {
       return {
         ok: false,

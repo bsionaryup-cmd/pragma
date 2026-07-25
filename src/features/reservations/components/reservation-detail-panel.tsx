@@ -534,7 +534,7 @@ export function ReservationDetailPanel({
   function resendAdminNotification() {
     if (
       !confirm(
-        "¿Reenviar el correo de registro completado a administración del edificio?",
+        "¿Reenviar la secuencia post-registro?\n\n1) Correo a recepción\n2) Código de acceso al huésped + recepción\n3) Reporte de estado al dueño de la cuenta",
       )
     ) {
       return;
@@ -547,7 +547,7 @@ export function ReservationDetailPanel({
         toast.error(result.error);
         return;
       }
-      toast.success(result.message ?? "Correo reenviado a administración");
+      toast.success(result.message ?? "Secuencia post-registro reenviada");
       router.refresh();
       dispatchDashboardDataRefresh();
     });
@@ -1046,7 +1046,7 @@ export function ReservationDetailPanel({
                       }
                     >
                       <Send className="h-3.5 w-3.5" />
-                      Reenviar a administración
+                      Reenviar secuencia GR
                     </Button>
                   ) : null}
                 </div>

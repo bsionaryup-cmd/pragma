@@ -25,7 +25,7 @@ import {
   submitGuestRegistration,
 } from "@/services/guests/guest-registration.service";
 import { sendGuestRegistrationEmailForReservation } from "@/services/guests/guest-registration-email.service";
-import { resendAdminGuestRegistrationNotification } from "@/services/guests/guest-registration-admin-notification.service";
+import { resendGuestRegistrationCompletionComms } from "@/services/guests/guest-registration-completion-comms.service";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
@@ -185,12 +185,13 @@ export async function resendGuestRegistrationAdminNotificationAction(
     ]);
     await assertReservationInScope(scope, reservationId);
 
-    const result = await resendAdminGuestRegistrationNotification(
+    const result = await resendGuestRegistrationCompletionComms(
       reservationId,
       tenant.userId,
     );
     revalidateGuestRegistrationPaths();
     revalidatePath("/reservations");
+    revalidatePath("/smart-access");
 
     if (!result.ok) {
       return { success: false as const, error: result.message };
