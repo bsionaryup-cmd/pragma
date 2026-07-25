@@ -16,6 +16,8 @@ type SignInPageProps = {
     existing_account?: string;
     trial_consumed?: string;
     next?: string;
+    /** Middleware uses `redirect_url`; keep `next` for older links. */
+    redirect_url?: string;
   }>;
 };
 
@@ -26,7 +28,10 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const showClerkUnavailableHint = params.clerk_unavailable === "1";
   const showExistingAccountHint = params.existing_account === "1";
   const showTrialConsumedHint = params.trial_consumed === "1";
-  const postAuthPath = sanitizeAuthRedirectPath(params.next, "/panel");
+  const postAuthPath = sanitizeAuthRedirectPath(
+    params.next ?? params.redirect_url,
+    "/panel",
+  );
   const { userId } = await auth();
 
   // After logout, allow the sign-in form even if a stale server session cookie lingers.

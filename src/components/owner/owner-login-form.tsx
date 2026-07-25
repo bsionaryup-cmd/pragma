@@ -1,76 +1,139 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs/legacy";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import { Shield, Mail, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getSignInFlowErrorMessage } from "@/lib/clerk-auth-errors";
+import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
 import {
   PLATFORM_OWNER_EMAIL,
   OWNER_DASHBOARD_PATH,
 } from "@/lib/platform/constants.client";
 
-type Step = "email" | "code";
-type CodeFactorType = "first" | "second";
+type Step = "credentials" | "code";
+type CodeMode = "first_factor" | "second_factor";
 
+/**
+ * Owner login must use Clerk SignInFuture (same stack as /sign-in).
+ * The legacy `@clerk/nextjs/legacy` hook gated the CTA on `isLoaded`, which
+ * can stay false forever on production Custom Domains → botón nunca habilita.
+ */
 export function OwnerLoginForm() {
-  const { isLoaded, signIn, setActive } = useSignIn();
-  const router = useRouter();
+  const { isLoaded: authLoaded } = useAuth();
+  const { signIn, errors, fetchStatus } = useSignIn();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") ?? OWNER_DASHBOARD_PATH;
+  const nextPath = sanitizeAuthRedirectPath(
+    searchParams.get("next"),
+    OWNER_DASHBOARD_PATH,
+  );
 
-  const [step, setStep] = useState<Step>("email");
-  const [codeFactorType, setCodeFactorType] = useState<CodeFactorType>("first");
-  const [email, setEmail] = useState(PLATFORM_OWNER_EMAIL);
+  const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
+  const [step, setStep] = useState<Step>("credentials");
+  const [codeMode, setCodeMode] = useState<CodeMode>("first_factor");
+  const [email] = useState(PLATFORM_OWNER_EMAIL);
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  function validateOwnerEmail(value: string): boolean {
-    return value.trim().toLowerCase() === PLATFORM_OWNER_EMAIL;
+  const authBootstrapComplete = authLoaded || authBootstrapTimedOut;
+  const clerkReady = Boolean(signIn);
+  const isFetching = fetchStatus === "fetching" || pending;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function assertOwnerEmail(value: string): boolean {
+    if (value === PLATFORM_OWNER_EMAIL) return true;
+    setError("Este acceso está restringido al Super Admin Owner autorizado.");
+    return false;
   }
 
-  async function prepareEmailCode(normalized: string): Promise<boolean> {
-    if (!signIn) return false;
-
-    await signIn.create({ identifier: normalized });
-
-    const emailFactor = signIn.supportedFirstFactors?.find(
-      (factor) => factor.strategy === "email_code",
-    );
-
-    if (!emailFactor || emailFactor.strategy !== "email_code") {
-      setError(
-        "No se pudo iniciar verificación por correo. En Clerk, habilita Email verification code para este usuario.",
-      );
-      return false;
+  async function finalizeAndGo() {
+    if (!signIn) {
+      throw new Error("El servicio de autenticación no está listo.");
     }
 
-    await signIn.prepareFirstFactor({
-      strategy: "email_code",
-      emailAddressId: emailFactor.emailAddressId,
+    const result = await signIn.finalize({
+      navigate: ({ decorateUrl }) => {
+        const url = decorateUrl(nextPath);
+        if (url.startsWith("http")) {
+          window.location.href = url;
+        } else {
+          window.location.assign(url);
+        }
+      },
     });
 
-    setStep("code");
-    setCodeFactorType("first");
-    setInfo(`Enviamos un código de verificación a ${normalized}`);
-    return true;
+    const message = getSignInFlowErrorMessage(
+      result,
+      errors,
+      "No se pudo activar la sesión. Intenta de nuevo.",
+    );
+    if (result.error) {
+      throw new Error(message);
+    }
+
+    window.location.assign(nextPath);
   }
 
-  function signInWithPassword() {
-    if (!isLoaded || !signIn) return;
+  async function completeIfReady() {
+    if (!signIn) {
+      throw new Error("El servicio de autenticación no está listo.");
+    }
 
-    const normalized = email.trim().toLowerCase();
-    if (!validateOwnerEmail(normalized)) {
-      setError("Este acceso está restringido al Super Admin Owner autorizado.");
+    if (signIn.status === "complete") {
+      await finalizeAndGo();
       return;
     }
 
+    if (
+      signIn.status === "needs_second_factor" ||
+      signIn.status === "needs_client_trust"
+    ) {
+      const result = await signIn.mfa.sendEmailCode();
+      const message = getSignInFlowErrorMessage(
+        result,
+        errors,
+        "Se requiere verificación adicional. No se pudo enviar el código.",
+      );
+      if (result.error) throw new Error(message);
+
+      setCodeMode("second_factor");
+      setStep("code");
+      setInfo(`Enviamos un código de verificación a ${normalizedEmail}`);
+      return;
+    }
+
+    if (signIn.status === "needs_first_factor") {
+      setCodeMode("first_factor");
+      setStep("code");
+      setInfo(`Ingresa el código enviado a ${normalizedEmail}`);
+      return;
+    }
+
+    throw new Error(
+      "No se pudo completar el inicio de sesión. Verifica tus datos e intenta de nuevo.",
+    );
+  }
+
+  function signInWithPassword() {
+    if (!clerkReady || !signIn) {
+      setError(
+        "La autenticación aún no está lista. Espera un momento o recarga la página.",
+      );
+      return;
+    }
+    if (!assertOwnerEmail(normalizedEmail)) return;
     if (!password) {
       setError("Ingresa tu contraseña.");
       return;
@@ -81,79 +144,87 @@ export function OwnerLoginForm() {
 
     startTransition(async () => {
       try {
-        const result = await signIn.create({
-          identifier: normalized,
+        if (signIn.status !== "needs_identifier") {
+          await signIn.reset();
+        }
+
+        const result = await signIn.password({
+          emailAddress: normalizedEmail,
           password,
         });
 
-        if (result.status === "complete" && result.createdSessionId) {
-          await setActive({ session: result.createdSessionId });
-          router.push(nextPath.startsWith("/") ? nextPath : OWNER_DASHBOARD_PATH);
-          router.refresh();
+        const message = getSignInFlowErrorMessage(
+          result,
+          errors,
+          "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.",
+        );
+        if (result.error) {
+          setError(message);
           return;
         }
 
-        if (result.status === "needs_second_factor") {
-          const emailFactor = signIn.supportedSecondFactors?.find(
-            (factor) => factor.strategy === "email_code",
-          );
-
-          if (!emailFactor || emailFactor.strategy !== "email_code") {
-            setError(
-              "Se requiere verificación adicional. Habilita código por correo en Clerk para este usuario.",
-            );
-            return;
-          }
-
-          await signIn.prepareSecondFactor({
-            strategy: "email_code",
-            emailAddressId: emailFactor.emailAddressId,
-          });
-
-          setCodeFactorType("second");
-          setStep("code");
-          setInfo(`Enviamos un código de verificación a ${normalized}`);
-          return;
-        }
-
-        setError("Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.");
+        await completeIfReady();
       } catch (err) {
-        const message =
+        setError(
           err instanceof Error
             ? err.message
-            : "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.";
-        setError(message);
+            : "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.",
+        );
       }
     });
   }
 
   function sendCode() {
-    if (!isLoaded || !signIn) return;
-
-    const normalized = email.trim().toLowerCase();
-    if (!validateOwnerEmail(normalized)) {
-      setError("Este acceso está restringido al Super Admin Owner autorizado.");
+    if (!clerkReady || !signIn) {
+      setError(
+        "La autenticación aún no está lista. Espera un momento o recarga la página.",
+      );
       return;
     }
+    if (!assertOwnerEmail(normalizedEmail)) return;
 
     setError(null);
     setInfo(null);
 
     startTransition(async () => {
       try {
-        await prepareEmailCode(normalized);
+        if (signIn.status !== "needs_identifier") {
+          await signIn.reset();
+        }
+
+        const result = await signIn.emailCode.sendCode({
+          emailAddress: normalizedEmail,
+        });
+        const message = getSignInFlowErrorMessage(
+          result,
+          errors,
+          "No se pudo enviar el código. En Clerk, habilita Email verification code.",
+        );
+        if (result.error) {
+          setError(message);
+          return;
+        }
+
+        setCodeMode("first_factor");
+        setStep("code");
+        setInfo(`Enviamos un código de verificación a ${normalizedEmail}`);
       } catch (err) {
-        const message =
+        setError(
           err instanceof Error
             ? err.message
-            : "No se pudo enviar el código. Intenta de nuevo.";
-        setError(message);
+            : "No se pudo enviar el código. Intenta de nuevo.",
+        );
       }
     });
   }
 
   function verifyCode() {
-    if (!isLoaded || !signIn) return;
+    if (!clerkReady || !signIn) {
+      setError(
+        "La autenticación aún no está lista. Espera un momento o recarga la página.",
+      );
+      return;
+    }
 
     const trimmed = code.trim();
     if (trimmed.length < 6) {
@@ -166,47 +237,69 @@ export function OwnerLoginForm() {
     startTransition(async () => {
       try {
         const result =
-          codeFactorType === "second"
-            ? await signIn.attemptSecondFactor({
-                strategy: "email_code",
-                code: trimmed,
-              })
-            : await signIn.attemptFirstFactor({
-                strategy: "email_code",
-                code: trimmed,
-              });
+          codeMode === "second_factor"
+            ? await signIn.mfa.verifyEmailCode({ code: trimmed })
+            : await signIn.emailCode.verifyCode({ code: trimmed });
 
-        if (result.status !== "complete" || !result.createdSessionId) {
-          setError("Verificación incompleta. Revisa el código e intenta de nuevo.");
+        const message = getSignInFlowErrorMessage(
+          result,
+          errors,
+          "Código inválido o expirado.",
+        );
+        if (result.error) {
+          setError(message);
           return;
         }
 
-        await setActive({ session: result.createdSessionId });
-        router.push(nextPath.startsWith("/") ? nextPath : OWNER_DASHBOARD_PATH);
-        router.refresh();
+        await completeIfReady();
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Código inválido o expirado.";
-        setError(message);
+        setError(
+          err instanceof Error ? err.message : "Código inválido o expirado.",
+        );
       }
     });
   }
 
   function resendCode() {
-    if (!isLoaded || !signIn) return;
-    const normalized = email.trim().toLowerCase();
-    if (!validateOwnerEmail(normalized)) return;
+    if (!clerkReady || !signIn) return;
+    if (!assertOwnerEmail(normalizedEmail)) return;
 
     setError(null);
     startTransition(async () => {
       try {
-        await prepareEmailCode(normalized);
+        const result =
+          codeMode === "second_factor"
+            ? await signIn.mfa.sendEmailCode()
+            : await signIn.emailCode.sendCode({
+                emailAddress: normalizedEmail,
+              });
+
+        const message = getSignInFlowErrorMessage(
+          result,
+          errors,
+          "No se pudo reenviar el código.",
+        );
+        if (result.error) {
+          setError(message);
+          return;
+        }
+        setInfo(`Reenviamos un código a ${normalizedEmail}`);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "No se pudo reenviar el código.";
-        setError(message);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo reenviar el código.",
+        );
       }
     });
+  }
+
+  if (!authBootstrapComplete) {
+    return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        Cargando autenticación…
+      </div>
+    );
   }
 
   return (
@@ -226,6 +319,13 @@ export function OwnerLoginForm() {
         </p>
       </div>
 
+      {!clerkReady ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+          No se pudo conectar con Clerk. Recarga la página o revisa el dominio
+          de producción en el Dashboard de Clerk.
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
           {error}
@@ -238,7 +338,7 @@ export function OwnerLoginForm() {
         </div>
       ) : null}
 
-      {step === "email" ? (
+      {step === "credentials" ? (
         <div className="space-y-4">
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium text-foreground">Correo autorizado</span>
@@ -248,10 +348,9 @@ export function OwnerLoginForm() {
                 type="email"
                 autoComplete="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                readOnly
                 className="pl-9"
                 placeholder={PLATFORM_OWNER_EMAIL}
-                readOnly
               />
             </div>
           </label>
@@ -268,16 +367,16 @@ export function OwnerLoginForm() {
             type="button"
             className="w-full"
             variant="brand"
-            disabled={pending || !isLoaded}
+            disabled={isFetching || !clerkReady}
             onClick={signInWithPassword}
           >
-            Iniciar sesión
+            {isFetching ? "Ingresando…" : "Iniciar sesión"}
           </Button>
           <Button
             type="button"
             className="w-full"
             variant="ghost"
-            disabled={pending || !isLoaded}
+            disabled={isFetching || !clerkReady}
             onClick={sendCode}
           >
             Enviar código de verificación
@@ -306,16 +405,16 @@ export function OwnerLoginForm() {
             type="button"
             className="w-full"
             variant="brand"
-            disabled={pending || !isLoaded}
+            disabled={isFetching || !clerkReady}
             onClick={verifyCode}
           >
-            Verificar e ingresar
+            {isFetching ? "Verificando…" : "Verificar e ingresar"}
           </Button>
           <Button
             type="button"
             className="w-full"
             variant="ghost"
-            disabled={pending}
+            disabled={isFetching}
             onClick={resendCode}
           >
             Reenviar código
@@ -324,11 +423,11 @@ export function OwnerLoginForm() {
             type="button"
             className="w-full"
             variant="ghost"
-            disabled={pending}
+            disabled={isFetching}
             onClick={() => {
-              setStep("email");
+              setStep("credentials");
               setCode("");
-              setCodeFactorType("first");
+              setCodeMode("first_factor");
               setError(null);
               setInfo(null);
             }}

@@ -9,7 +9,21 @@ type ClerkRootProviderProps = {
   children: React.ReactNode;
 };
 
+/**
+ * In production, route ClerkJS + FAPI through same-origin `/__clerk` so login
+ * does not depend on clerk.pragmapms.com SSL (which can fail while DNS CNAME
+ * already points at frontend-api.clerk.services).
+ */
+function resolveClerkProxyUrl(): string | undefined {
+  const fromEnv = process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim();
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "production") return "/__clerk";
+  return undefined;
+}
+
 export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
+  const proxyUrl = resolveClerkProxyUrl();
+
   return (
     <ClerkProvider
       dynamic
@@ -18,6 +32,7 @@ export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
       afterSignOutUrl="/sign-in?signed_out=1"
       allowedRedirectOrigins={getClerkAllowedDevOrigins()}
       appearance={pragmaClerkAppearance}
+      {...(proxyUrl ? { proxyUrl } : {})}
     >
       <ClerkErrorBoundary>{children}</ClerkErrorBoundary>
     </ClerkProvider>

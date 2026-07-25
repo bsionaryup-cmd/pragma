@@ -96,9 +96,13 @@ const isSelfAuthedApi = createRouteMatcher([
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
 
+// Production always proxies FAPI through /__clerk. Custom domain
+// clerk.pragmapms.com can hang TLS/SSL while CNAME exists; without proxy,
+// clerk-js never loads and /sign-in stays on "Ingresando…".
+// (Clerk auto-proxy only covers *.vercel.app — not custom apex domains.)
 const useClerkProxy =
-  process.env.NODE_ENV === "production" &&
-  Boolean(process.env.NEXT_PUBLIC_CLERK_PROXY_URL);
+  process.env.NODE_ENV === "production" ||
+  Boolean(process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim());
 
 const clerkMiddlewareOptions = useClerkProxy
   ? { frontendApiProxy: { enabled: true as const } }
@@ -189,5 +193,8 @@ export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
+    // Must be explicit: /__clerk/npm/.../*.js is excluded by the static-file
+    // negative lookahead above, and without it clerk-js never loads via proxy.
+    "/__clerk/(.*)",
   ],
 };

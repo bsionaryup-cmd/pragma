@@ -27,7 +27,7 @@ type VerificationReason = "client_trust" | "second_factor";
 type EmailPasswordSignInFormProps = {
   postAuthPath?: string;
   clearStaleSession?: boolean;
-  /** When false, hides the PMS sign-up link (used by INTIENDAS). Default true. */
+  /** When false, hides the PMS sign-up link. Default true. */
   showSignUpLink?: boolean;
 };
 
@@ -135,6 +135,8 @@ export function EmailPasswordSignInForm({
 }: EmailPasswordSignInFormProps) {
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() ?? "";
+  const redirectFromQuery =
+    searchParams.get("next") ?? searchParams.get("redirect_url");
 
   const { isLoaded: authLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
@@ -164,7 +166,10 @@ export function EmailPasswordSignInForm({
   const clerkReady = authLoaded && Boolean(signIn);
   const isFetching = fetchStatus === "fetching" || pending;
   const normalizedEmail = email.trim().toLowerCase();
-  const redirectPath = sanitizeAuthRedirectPath(postAuthPath, DEFAULT_POST_AUTH_PATH);
+  const redirectPath = sanitizeAuthRedirectPath(
+    redirectFromQuery ?? postAuthPath,
+    DEFAULT_POST_AUTH_PATH,
+  );
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -244,11 +249,9 @@ export function EmailPasswordSignInForm({
     }
 
     const result = await signIn.finalize({
-      navigate: ({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          return;
-        }
-
+      navigate: ({ decorateUrl }) => {
+        // Always navigate. Skipping on `currentTask` left tenants stuck on
+        // /sign-in after a successful password check ("no abre").
         const url = decorateUrl(redirectPath);
         if (url.startsWith("http")) {
           window.location.href = url;
@@ -267,6 +270,9 @@ export function EmailPasswordSignInForm({
     if (result.error) {
       throw new Error(message);
     }
+
+    // Hard fallback if Clerk navigate did not leave the page.
+    window.location.assign(redirectPath);
   }
 
   async function sendVerificationCode(strategy: VerificationStrategy) {
