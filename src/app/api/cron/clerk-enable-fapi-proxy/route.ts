@@ -130,6 +130,37 @@ export async function POST(request: Request) {
     );
   }
 
+  if (action === "bypass-trust") {
+    const email = url.searchParams.get("email")?.trim().toLowerCase();
+    if (!email) {
+      return NextResponse.json({ error: "email required" }, { status: 400 });
+    }
+    const found = await clerkFetch(
+      secretKey,
+      `/users?email_address=${encodeURIComponent(email)}&limit=1`,
+    );
+    const data = Array.isArray(found.body)
+      ? (found.body as Array<{ id: string }>)
+      : Array.isArray((found.body as { data?: Array<{ id: string }> } | null)?.data)
+        ? (found.body as { data: Array<{ id: string }> }).data
+        : [];
+    const userId = data[0]?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "user_not_found", email }, { status: 404 });
+    }
+    const patch = await clerkFetch(secretKey, `/users/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ bypass_client_trust: true }),
+    });
+    return NextResponse.json({
+      ok: patch.res.ok,
+      email,
+      userId,
+      status: patch.res.status,
+      body: patch.body,
+    }, { status: patch.res.ok ? 200 : 502 });
+  }
+
   if (action === "migrate-users") {
     const devSecret = request.headers.get("x-pragma-dev-secret")?.trim();
     if (!devSecret?.startsWith("sk_test_")) {
