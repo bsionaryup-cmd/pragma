@@ -104,8 +104,16 @@ const useClerkProxy =
   process.env.NODE_ENV === "production" ||
   Boolean(process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim());
 
+const productionProxyUrl =
+  process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim() ||
+  "https://www.pragmapms.com/__clerk";
+
 const clerkMiddlewareOptions = useClerkProxy
-  ? { frontendApiProxy: { enabled: true as const } }
+  ? {
+      frontendApiProxy: { enabled: true as const },
+      // Explicit absolute proxy URL so handshake + Set-Cookie align with www.
+      proxyUrl: productionProxyUrl,
+    }
   : {};
 
 function forwardWithPathname(request: Request, pathname: string) {
