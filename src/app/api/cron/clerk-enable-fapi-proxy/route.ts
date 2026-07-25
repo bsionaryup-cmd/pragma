@@ -182,7 +182,7 @@ export async function POST(request: Request) {
           ? (existing.body as { data: ClerkUser[] }).data
           : [];
 
-      let prodId = existingData[0]?.id ?? null;
+      let prodId: string | null = existingData[0]?.id ?? null;
 
       if (!prodId) {
         const payload: Record<string, unknown> = {
@@ -220,7 +220,8 @@ export async function POST(request: Request) {
           continue;
         }
 
-        prodId = (created.body as { id?: string } | null)?.id ?? null;
+        const createdId = (created.body as { id?: string } | null)?.id;
+        prodId = createdId ?? null;
       }
 
       if (!prodId) {
@@ -228,20 +229,22 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const resolvedProdId: string = prodId;
+
       // Remap Prisma clerkId so requireDbUser resolves after login.
       const dbUpdated = await db.user.updateMany({
         where: { clerkId: devUser.id },
-        data: { clerkId: prodId },
+        data: { clerkId: resolvedProdId },
       });
       const dbByEmail = await db.user.updateMany({
-        where: { email: email.toLowerCase(), NOT: { clerkId: prodId } },
-        data: { clerkId: prodId },
+        where: { email: email.toLowerCase(), NOT: { clerkId: resolvedProdId } },
+        data: { clerkId: resolvedProdId },
       });
 
       results.push({
         email,
         devId: devUser.id,
-        prodId,
+        prodId: resolvedProdId,
         dbUpdatedByClerkId: dbUpdated.count,
         dbUpdatedByEmail: dbByEmail.count,
         passwordMode: tempPassword ? "temp_password_set" : "reset_required",
