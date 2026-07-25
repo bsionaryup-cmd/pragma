@@ -10,10 +10,8 @@ import {
   LayoutDashboard,
   LogOut,
   Plug,
-  QrCode,
   Settings,
   Shield,
-  Store,
   User,
   Users,
 } from "lucide-react";
@@ -31,6 +29,7 @@ import {
   getUserInitials,
 } from "@/lib/helpers/user-display";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
+import { OwnerPmsEntryButton } from "@/components/owner/owner-pms-entry-button";
 import { cn } from "@/lib/utils";
 
 export type OwnerAccountMenuUser = {
@@ -163,25 +162,17 @@ export function OwnerAccountMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Productos
+              Operación
             </DropdownMenuLabel>
-            <DropdownMenuItem asChild>
-              <Link href="/panel" className="cursor-pointer">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                PMS
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/owner-dashboard/qr-mobility" className="cursor-pointer">
-                <QrCode className="mr-2 h-4 w-4" />
-                QR Mobility
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/owner-dashboard/intiendas" className="cursor-pointer">
-                <Store className="mr-2 h-4 w-4" />
-                INTIENDAS
-              </Link>
+            <DropdownMenuItem
+              className="cursor-pointer p-0 focus:bg-transparent"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <OwnerPmsEntryButton
+                label="Entrar al PMS (piloto)"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+                idleClassName="hover:bg-accent hover:text-accent-foreground"
+              />
             </DropdownMenuItem>
           </>
         ) : null}

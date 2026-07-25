@@ -3,10 +3,11 @@ import { PrismaClient } from "@prisma/client";
 import { Pool, type PoolConfig } from "pg";
 
 /**
- * Debe coincidir con la última migración de schema.
- * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
+ * Bump when the Prisma schema changes so the dev singleton recycles.
+ * Do not hard-require product models here — probes must never take down Owner/PMS.
  */
-const PRISMA_SCHEMA_VERSION = "20260716160000_guest_registration_invite_email_log";
+const PRISMA_SCHEMA_VERSION =
+  "20260725010000_owner_db_guard_pms_core+no-retail-hard-throw";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -69,19 +70,21 @@ function createAndCacheClient(): PrismaClient {
   return client;
 }
 
-function runtimeHasSupplierWhatsapp(client: PrismaClient): boolean {
-  const models = (client as unknown as { _runtimeDataModel?: { models?: Record<string, { fields?: Array<{ name: string }> }> } })
-    ._runtimeDataModel?.models;
-  const fields = models?.RetailSupplier?.fields ?? [];
-  return fields.some((field) => field.name === "whatsapp");
+/** Lodging PMS delegates required for Owner + tenant dashboards. */
+function hasPmsCoreDelegates(client: PrismaClient): boolean {
+  const c = client as unknown as Record<string, unknown>;
+  return (
+    Boolean(c.organization) &&
+    Boolean(c.user) &&
+    Boolean(c.property) &&
+    Boolean(c.reservation)
+  );
 }
 
-function hasCoreDelegates(client: PrismaClient): boolean {
-  return Boolean(client.mobilityAlly) && Boolean(client.retailStore);
-}
-
-function hasIntelDelegates(client: PrismaClient): boolean {
-  return Boolean(client.retailProductIntelProfile) && Boolean(client.retailIntelOutbox);
+function hasConciergeDelegate(client: PrismaClient): boolean {
+  return Boolean(
+    (client as unknown as { conciergeConfiguration?: unknown }).conciergeConfiguration,
+  );
 }
 
 function getPrismaClient(): PrismaClient {
@@ -107,26 +110,21 @@ function getPrismaClient(): PrismaClient {
 
   let client = globalForPrisma.prisma ?? createAndCacheClient();
 
-  const needsRecycle =
-    !hasCoreDelegates(client) ||
-    !hasIntelDelegates(client) ||
-    !runtimeHasSupplierWhatsapp(client);
-
-  if (needsRecycle) {
-    console.warn("[db] Reciclando cliente Prisma (delegados/schema incompletos)…");
+  if (!hasPmsCoreDelegates(client)) {
+    console.warn("[db] Reciclando cliente Prisma (faltan delegados PMS core)…");
     globalForPrisma.prisma = undefined;
     client = createAndCacheClient();
   }
 
-  if (!hasCoreDelegates(client) || !runtimeHasSupplierWhatsapp(client)) {
-    throw new Error(
-      "[db] Prisma Client desactualizado (falta schema RetailSupplier.whatsapp). Ejecuta: npx prisma generate && npm run dev:clean && npm run dev",
-    );
-  }
-
-  if (!hasIntelDelegates(client)) {
+  // Soft checks only — never throw on optional product/runtime probes.
+  // Hard throws here take down Owner Dashboard and every authenticated page.
+  if (!hasPmsCoreDelegates(client)) {
     console.error(
-      "[db] Faltan delegados Inventory Intelligence. Ejecuta: npx prisma generate && npm run dev:clean",
+      "[db] Prisma Client incompleto (organization/user/property/reservation). Ejecuta: npx prisma generate",
+    );
+  } else if (!hasConciergeDelegate(client)) {
+    console.warn(
+      "[db] ConciergeConfiguration ausente en cliente Prisma (concierge puede fallar hasta regenerar).",
     );
   }
 

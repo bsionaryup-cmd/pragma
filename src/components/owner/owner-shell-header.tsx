@@ -8,33 +8,27 @@ import {
   OwnerAccountMenu,
   type OwnerAccountMenuUser,
 } from "@/components/owner/owner-account-menu";
+import { OwnerPmsEntryButton } from "@/components/owner/owner-pms-entry-button";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
 import { cn } from "@/lib/utils";
 
 const PLATFORM_NAV = [
-  { href: OWNER_DASHBOARD_PATH, label: "Resumen", activePrefix: OWNER_DASHBOARD_PATH, exact: true },
-  { href: "/panel", label: "PMS", activePrefix: "/panel" },
   {
-    href: "/owner-dashboard/sales/prospects",
-    label: "Consola de ventas",
-    activePrefix: "/owner-dashboard/sales",
+    href: OWNER_DASHBOARD_PATH,
+    label: "Resumen",
+    activePrefix: OWNER_DASHBOARD_PATH,
+    exact: true,
   },
   {
-    href: "/owner-dashboard/qr-mobility",
-    label: "QR Mobility",
-    activePrefix: "/owner-dashboard/qr-mobility",
+    href: "/owner-dashboard/quotes",
+    label: "Cotizaciones",
+    activePrefix: "/owner-dashboard/quotes",
   },
   {
-    href: "/owner-dashboard/intiendas",
-    label: "INTIENDAS",
-    activePrefix: "/owner-dashboard/intiendas",
+    href: "/owner-dashboard/support",
+    label: "Soporte",
+    activePrefix: "/owner-dashboard/support",
   },
-  {
-    href: "/owner-dashboard/salud",
-    label: "Salud",
-    activePrefix: "/owner-dashboard/salud",
-  },
-  { href: "/owner-dashboard/support", label: "Soporte", activePrefix: "/owner-dashboard/support" },
 ] as const;
 
 type OwnerShellHeaderProps = {
@@ -51,6 +45,13 @@ export function OwnerShellHeader({
   className,
 }: OwnerShellHeaderProps) {
   const pathname = usePathname();
+  const onOwnerHome =
+    pathname === OWNER_DASHBOARD_PATH ||
+    (pathname.startsWith(`${OWNER_DASHBOARD_PATH}/`) &&
+      !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/quotes`) &&
+      !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/support`) &&
+      !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/billing`) &&
+      !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/tenant`));
 
   return (
     <header
@@ -102,6 +103,16 @@ export function OwnerShellHeader({
                   </Link>
                 );
               })}
+              <OwnerPmsEntryButton
+                idleClassName="text-muted-foreground hover:bg-muted hover:text-foreground"
+                activeClassName="bg-pragma-electric/15 text-pragma-electric"
+                className={cn(
+                  !onOwnerHome && pathname.startsWith("/panel")
+                    ? "bg-pragma-electric/15 text-pragma-electric"
+                    : undefined,
+                )}
+                label="PMS"
+              />
             </nav>
           ) : null}
         </div>
