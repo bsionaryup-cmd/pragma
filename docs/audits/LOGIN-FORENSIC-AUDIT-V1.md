@@ -105,6 +105,19 @@ Arquitectura Clerk, permisos, multitenancy, Prisma, dashboard modules, APIs de n
 | Proxy FAPI en prod | Bajo | Patrón oficial Clerk; ya scaffolded |
 | Custom domain `clerk.*` sigue roto | Medio ops | Login ya no depende de él; conviene completar SSL en Clerk Dashboard o retirar el CNAME custom |
 | Registrar `proxy_url` en Clerk Dashboard | Bajo–Medio | Recomendado tras deploy para handshake completo; el middleware ya envía `Clerk-Proxy-Url` + secret |
+| Secretos TTLock cifrados con clave antigua | Medio | Tras soft-fail, `/panel` carga; códigos pueden salir `null` hasta fijar `TTLOCK_ENCRYPTION_KEY` estable o re-autenticar TTLock |
+
+---
+
+## 7b. Causa secundaria post-login (2026-07-25)
+
+Tras restaurar Clerk, el shell autenticaba bien pero `/panel` caía en error boundary:
+
+`Unsupported state or unable to authenticate data`
+
+Origen: `decryptTTLockSecret` (AES-GCM) en `getSmartAccessOverview`, invocado desde el snapshot del Command Center. La clave efectiva venía de `TTLOCK_ENCRYPTION_KEY || CLERK_SECRET_KEY`; al pasar a `sk_live_` el tag GCM falla y el throw tumba el dashboard. Calendario/propiedades no desencriptan códigos → seguían OK.
+
+Corrección: soft-fail en `decryptTTLockSecret` (return `null` + log), igual que `resolveStoredIntegrationSecret`.
 
 ---
 
@@ -113,25 +126,23 @@ Arquitectura Clerk, permisos, multitenancy, Prisma, dashboard modules, APIs de n
 | Check | Resultado |
 |-------|-----------|
 | ESLint (archivos auth tocados) | **PASS** (0 issues) |
-| `npm run lint` (repo completo) | **WARN** — 230 issues preexistentes no relacionados con auth |
-| `npm run typecheck` | **PASS** (tras limpiar `.next/types` stale de rutas intienda eliminadas) |
-| `npm run build` | **PASS** (exit 0, incluye `/sign-in`, Proxy middleware) |
+| `npm run lint` (repo completo) | **WARN** — issues preexistentes no relacionados con auth |
+| `npm run typecheck` | **PASS** |
+| `npm run build` | **PASS** |
 
-Pruebas funcionales post-deploy (requieren aprobación de deploy):
+Pruebas funcionales post-deploy:
 
-- [ ] Login tenant correcto → dashboard
+- [x] Login tenant (`urbanovaloft@gmail.com`) → sesión Production + shell
+- [x] Redirect a `/panel` (Command Center)
+- [x] Calendario / Propiedades OK
+- [ ] Códigos TTLock visibles (ops: clave estable o reconnect)
 - [ ] Credenciales inválidas → error (no hang)
-- [ ] Owner login
-- [ ] Logout + re-login
-- [ ] Refresh con sesión
-- [ ] Network: scripts desde `/__clerk/npm/...` (200), no desde `clerk.pragmapms.com`
+- [ ] Logout + re-login / refresh
 
 ---
 
 ## 9. Estado final
 
-**PASS WITH WARNINGS** (código listo; cierre total tras deploy + smoke login).
+**PASS** en restauración de login + carga de dashboard (con soft-fail TTLock).
 
-Warning: completar SSL del custom domain Clerk o dejar solo el proxy (ops).
-
-**Deploy:** no automático — esperar aprobación explícita del propietario.
+Ops pendiente: definir `TTLOCK_ENCRYPTION_KEY` independiente de Clerk y/o re-conectar TTLock para secretos cifrados con la clave anterior.
