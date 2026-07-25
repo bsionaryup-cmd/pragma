@@ -18,7 +18,42 @@ const isOwnerRoute = createRouteMatcher([
 ]);
 
 const isOwnerLoginRoute = createRouteMatcher([`${OWNER_LOGIN_PATH}(.*)`]);
-const isRetailRoute = createRouteMatcher(["/intiendas(.*)"]);
+
+/**
+ * Canonical app prefixes (lowercase). Typos like /OWNer-dashboard must not 404.
+ * Only redirects when casing differs — exact paths are untouched.
+ */
+const CASE_CANONICAL_PREFIXES = [
+  OWNER_DASHBOARD_PATH,
+  OWNER_LOGIN_PATH,
+  "/panel",
+  "/calendar",
+  "/reservations",
+  "/properties",
+  "/integrations",
+  "/smart-access",
+  "/novedades",
+  "/finance",
+  "/settings",
+  "/tasks",
+  "/inbox",
+  "/sign-in",
+  "/sign-up",
+  "/onboarding",
+  "/unauthorized",
+] as const;
+
+function canonicalizePathnameCasing(pathname: string): string | null {
+  if (!pathname || pathname === "/") return null;
+  const lower = pathname.toLowerCase();
+  for (const canonical of CASE_CANONICAL_PREFIXES) {
+    if (lower === canonical || lower.startsWith(`${canonical}/`)) {
+      const normalized = canonical + lower.slice(canonical.length);
+      return normalized === pathname ? null : normalized;
+    }
+  }
+  return null;
+}
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -28,8 +63,6 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/forgot-password",
-  "/intiendas/login",
-  "/intiendas/login/recuperar",
   `${OWNER_LOGIN_PATH}(.*)`,
   "/account-suspended",
   "/api/webhooks(.*)",
@@ -42,12 +75,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/integrations/ttlock/webhook/(.*)",
   "/guest-registration",
   "/guest-registration/(.*)",
-  "/m/(.*)",
   "/offer/(.*)",
   "/landing-product-screenshot-preview",
 ]);
-
-const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
 
 /** APIs that authenticate inside the route handler — skip duplicate Clerk auth in proxy. */
 const isSelfAuthedApi = createRouteMatcher([
@@ -63,6 +93,8 @@ const isSelfAuthedApi = createRouteMatcher([
   "/api/concierge/heartbeat",
   "/api/concierge/link/complete",
 ]);
+
+const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
 
 const useClerkProxy =
   process.env.NODE_ENV === "production" &&
@@ -82,6 +114,13 @@ export default clerkMiddleware(
   async (auth, request) => {
     const pathname = request.nextUrl.pathname;
 
+    const cased = canonicalizePathnameCasing(pathname);
+    if (cased) {
+      const url = request.nextUrl.clone();
+      url.pathname = cased;
+      return NextResponse.redirect(url);
+    }
+
     if (isPublicRoute(request)) {
       return forwardWithPathname(request, pathname);
     }
@@ -91,16 +130,6 @@ export default clerkMiddleware(
     }
 
     if (isUnauthorizedPage(request)) {
-      return forwardWithPathname(request, pathname);
-    }
-
-    if (isRetailRoute(request)) {
-      const authState = await auth();
-      if (!authState.userId) {
-        const loginUrl = new URL("/intiendas/login", request.url);
-        loginUrl.searchParams.set("next", pathname);
-        return NextResponse.redirect(loginUrl);
-      }
       return forwardWithPathname(request, pathname);
     }
 
@@ -123,8 +152,16 @@ export default clerkMiddleware(
 
     const authState = await auth();
     if (!authState.userId) {
-      await auth.protect();
-      return;
+      // Prefer explicit redirect over auth.protect() rewrite-to-404.
+      // protect() + Clerk Development keys on a production domain yields:
+      // X-Clerk-Auth-Reason: protect-rewrite, dev-browser-missing → /_not-found
+      // and the Clerk client UI "This page couldn't load / ERROR <digest>".
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const signInUrl = new URL("/sign-in", request.url);
+      signInUrl.searchParams.set("redirect_url", pathname);
+      return NextResponse.redirect(signInUrl);
     }
 
     if (!isProtectedDashboardPath(pathname)) {
