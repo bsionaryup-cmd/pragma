@@ -26,7 +26,7 @@ export function recordConciergeTurnMetric(path: string): void {
   else if (path === "escalate") metrics.escalateTurns += 1;
 }
 
-/** Reservado: cuando se active L3 OpenAI, incrementar aquí. */
+/** Reservado histórico: L3 OpenAI se registra vía recordOpenAiUsage. */
 export function recordOpenAiUsage(tokens: number): void {
   metrics.openaiCalls += 1;
   metrics.openaiTokens += Math.max(0, tokens);

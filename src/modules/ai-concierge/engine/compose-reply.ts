@@ -619,7 +619,11 @@ export async function composeConciergeReply(input: {
         autoEligible: true,
         mayAutoSend:
           input.mode === "autonomous" &&
-          !isRecentDuplicateOutbound(memory.recent, reply, outboundAck),
+          !isRecentDuplicateOutbound(
+            reception.resetSession ? [] : memory.recent,
+            reply,
+            outboundAck,
+          ),
         mode: input.mode,
         usedLlm: false,
         learningRecorded: false,

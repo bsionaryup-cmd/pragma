@@ -131,8 +131,9 @@ const DEFINITIONS: Record<ConciergeIntent, ConciergeIntentDefinition> = {
   DISPONIBILIDAD: {
     intent: "DISPONIBILIDAD",
     label: "Disponibilidad",
-    template: "{{availabilitySummary}}",
-    requiredFacts: ["availabilitySummary"],
+    template:
+      "Para esas fechas te confirmo lo que veo en el calendario. Si aún no tengo el detalle, te pido entrada, salida y número de huéspedes.",
+    requiredFacts: [],
     suggestedReadTools: ["search_availability", "get_calendar"],
     alwaysEscalate: false,
     complexity: "medium",
@@ -140,8 +141,9 @@ const DEFINITIONS: Record<ConciergeIntent, ConciergeIntentDefinition> = {
   COTIZACION: {
     intent: "COTIZACION",
     label: "Cotización",
-    template: "{{quoteSummary}}",
-    requiredFacts: ["quoteSummary"],
+    template:
+      "Con gusto te armo la cotización. ¿Me compartes fechas de entrada y salida y para cuántas personas?",
+    requiredFacts: [],
     suggestedReadTools: ["calculate_stay_quote"],
     alwaysEscalate: false,
     complexity: "medium",
@@ -149,8 +151,9 @@ const DEFINITIONS: Record<ConciergeIntent, ConciergeIntentDefinition> = {
   RESERVA: {
     intent: "RESERVA",
     label: "Reserva",
-    template: "{{reservationSummary}}",
-    requiredFacts: ["reservationSummary"],
+    template:
+      "Para avanzar con tu reserva necesito fechas, número de personas y confirmar la propiedad. ¿Me las compartes?",
+    requiredFacts: [],
     suggestedReadTools: ["get_reservation", "search_reservations"],
     alwaysEscalate: false,
     complexity: "high",
@@ -158,8 +161,9 @@ const DEFINITIONS: Record<ConciergeIntent, ConciergeIntentDefinition> = {
   REGLAS: {
     intent: "REGLAS",
     label: "Reglas",
-    template: "{{houseRules}}",
-    requiredFacts: ["houseRules"],
+    template:
+      "Te comparto las reglas de la casa de la propiedad. ¿Me confirmas de cuál se trata?",
+    requiredFacts: [],
     suggestedReadTools: ["get_property_guest_info"],
     alwaysEscalate: false,
     complexity: "low",

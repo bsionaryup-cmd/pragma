@@ -4,6 +4,7 @@ import type {
   ConciergeIntent,
   ConciergeIntentDetection,
 } from "@/modules/ai-concierge/types/intent";
+import { matchGuestUtterance } from "@/modules/ai-concierge/intent/utterance-bank";
 
 type IntentRule = {
   intent: ConciergeIntent;
@@ -17,7 +18,7 @@ const RULES: IntentRule[] = [
     intent: "EMERGENCY",
     weight: 100,
     test: (t) =>
-      /urgente|emergenc|911|ambulanc|incendio|fuga de gas|ayuda inmediata/i.test(
+      /urgente|emergenc|911|ambulanc|incendio|fuga de gas|ayuda inmediata|amenaza|accidente|lesi[oó]n|demanda legal|abogado|polic[ií]a|denuncia/i.test(
         t,
       ),
   },
@@ -30,7 +31,7 @@ const RULES: IntentRule[] = [
     intent: "COMPLAINT",
     weight: 95,
     test: (t) =>
-      /queja|reclamo|inaceptable|muy mal|p[eé]simo|horrible|problema grave/i.test(
+      /queja|reclamo|inaceptable|muy mal|p[eé]simo|horrible|problema grave|problema legal/i.test(
         t,
       ),
   },
@@ -38,7 +39,7 @@ const RULES: IntentRule[] = [
     intent: "DISCOUNT",
     weight: 92,
     test: (t) =>
-      /descuento extraordin|descuento especial|mejor precio|rebaja fuerte/i.test(
+      /descuento extraordin|descuento especial|mejor precio|rebaja fuerte|pago especial/i.test(
         t,
       ),
   },
@@ -71,7 +72,10 @@ const RULES: IntentRule[] = [
   {
     intent: "DISPONIBILIDAD",
     weight: 86,
-    test: (t) => /disponib|hay fechas|est[aá] libre|vacante|pueden hosped/i.test(t),
+    test: (t) =>
+      /disponib|hay fechas|est[aá] libre|vacante|pueden hosped|hay cupo|tienes algo|tienen algo|necesito (un |una )?(apto|apartamento|depto|habitaci|alojamiento)|busco (apto|apartamento|alojamiento|hosped)|tienen habitaci/i.test(
+        t,
+      ),
   },
   {
     intent: "RESERVA",
@@ -81,7 +85,11 @@ const RULES: IntentRule[] = [
   {
     intent: "PAGO",
     weight: 84,
-    test: (t) => /pago|pagar|link de pago|transferencia|saldo|abono/i.test(t),
+    // Avoid false hits on greetings / short chat ("hola", "ok").
+    test: (t) =>
+      /\b(pagar|pago|transferencia|saldo|abono|link de pago|comprobante de pago)\b/i.test(
+        t,
+      ) && !/^(hola+|hi+|hey+|buenas?)\b/i.test(t.trim()),
   },
   {
     intent: "FACTURACION",
@@ -136,12 +144,19 @@ const RULES: IntentRule[] = [
   {
     intent: "CHECKIN",
     weight: 70,
-    test: (t) => /check[- ]?in|hora de (entrada|llegada)|llegada/i.test(t),
+    test: (t) =>
+      /check[- ]?in|hora de (entrada|llegada)|a qu[eé] hora (entro|llego|es la entrada)/i.test(
+        t,
+      ),
   },
   {
     intent: "CHECKOUT",
     weight: 69,
-    test: (t) => /check[- ]?out|hora de salida|salida/i.test(t),
+    // Do not treat booking "fecha de salida" / bare "salida" as checkout FAQ.
+    test: (t) =>
+      /check[- ]?out|hora de salida|a qu[eé] hora (salgo|es la salida)|late checkout/i.test(
+        t,
+      ) && !/\b(del|desde|entre).{0,40}\b(al|hasta)\b/i.test(t),
   },
 ];
 
@@ -177,10 +192,16 @@ function detectFromRules(text: string): ConciergeIntentDetection | null {
 }
 
 /**
- * L1/L2: reglas Concierge primero; si no hay match, adapta Inbox AI (sin LLM).
+ * L1/L2: utterance bank → reglas Concierge → Inbox AI adapter (sin LLM).
+ * Optional flow bias keeps follow-ups on the same topic (additive).
  */
 export function detectConciergeIntent(
   body: string | null | undefined,
+  options?: {
+    flowLastIntent?: string | null;
+    flowTopic?: string | null;
+    preferIntent?: ConciergeIntent | null;
+  },
 ): ConciergeIntentDetection {
   const text = body?.trim() ?? "";
   if (!text) {
@@ -192,17 +213,69 @@ export function detectConciergeIntent(
     };
   }
 
+  if (options?.preferIntent) {
+    return {
+      intent: options.preferIntent,
+      confidence: 0.78,
+      level: "L1",
+      source: "concierge-rules",
+    };
+  }
+
+  // Top-100 utterance bank (exact/phrase) — boosts coverage without replacing RULES.
+  const uttered = matchGuestUtterance(text);
+  if (uttered && uttered.score >= 8) {
+    // Pure greetings stay OTHER so deterministic-ack path can own them.
+    if (
+      uttered.entry.id === "q001" ||
+      uttered.entry.id === "q088"
+    ) {
+      // fall through to rules / ack
+    } else {
+      return {
+        intent: uttered.entry.intent,
+        confidence: Math.min(0.96, 0.72 + uttered.score / 200),
+        level: "L1",
+        source: "concierge-rules",
+      };
+    }
+  }
+
   const fromRules = detectFromRules(text.toLowerCase());
   if (fromRules) return fromRules;
 
   const inbox = detectInboxMessageIntent(text);
   const mapped = INBOX_TO_CONCIERGE[inbox.intent];
   if (mapped && inbox.intent !== "OTHER") {
+    // Guard: inbox PAYMENT must not steal pure greetings.
+    if (mapped === "PAGO" && /^(hola+|hi+|hey+|buenas?)\b/i.test(text)) {
+      return {
+        intent: "OTHER",
+        confidence: 0.9,
+        level: "L1",
+        source: "concierge-rules",
+      };
+    }
     return {
       intent: mapped,
       confidence: Math.max(0.5, inbox.confidence * 0.9),
       level: "L2",
       source: "inbox-ai-adapter",
+    };
+  }
+
+  // Low-confidence OTHER: keep prior commercial/wifi topic when message is short follow-up.
+  if (
+    options?.flowLastIntent &&
+    options.flowLastIntent !== "OTHER" &&
+    text.length <= 48 &&
+    /^(y |entonces |ya |la |el |eso )/i.test(text)
+  ) {
+    return {
+      intent: options.flowLastIntent as ConciergeIntent,
+      confidence: 0.62,
+      level: "L1",
+      source: "concierge-rules",
     };
   }
 

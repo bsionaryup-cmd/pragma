@@ -32,6 +32,38 @@ export {
   listConciergeIntentDefinitions,
 } from "@/modules/ai-concierge/intent/library";
 export { detectConciergeIntent } from "@/modules/ai-concierge/intent/detect";
+export {
+  GUEST_UTTERANCE_BANK,
+  matchGuestUtterance,
+  utteranceBankStats,
+} from "@/modules/ai-concierge/intent/utterance-bank";
+export {
+  humanClarifyMissingFacts,
+  sanitizeGuestOutbound,
+  guestCopyLooksUnsafe,
+} from "@/modules/ai-concierge/engine/guest-copy";
+
+/** Conversation Engine facade (rule-based workflows; no LLM). */
+export {
+  RESERVATION_WORKFLOW_STEPS,
+  WORKFLOW_REGISTRY_IDS,
+  getWorkflowDefinition,
+  listRegisteredWorkflows,
+  routeGuestIntent,
+  mapPendingActionToStep,
+  renderReservationStepPrompt,
+  assertReservationStepMachineComplete,
+} from "@/modules/ai-concierge/conversation-engine";
+
+/** Hospitality Protocol Engine v3.0 */
+export {
+  listHospitalityProtocols,
+  protocolFromWorkflowId,
+  protocolFromPendingAction,
+  buildVirtualReceptionistWelcome,
+  buildWelcomeAskNameMessage,
+  buildPostNameMenuMessage,
+} from "@/modules/ai-concierge/hospitality-protocols";
 
 export {
   createConversationMemory,
@@ -52,6 +84,8 @@ export {
 } from "@/modules/ai-concierge/engine/policy";
 
 export { auditConciergeCandidate } from "@/modules/ai-concierge/engine/auditor";
+
+export { matchDeterministicAck } from "@/modules/ai-concierge/engine/deterministic-ack";
 
 export {
   runConciergeTurn,

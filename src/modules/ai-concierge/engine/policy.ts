@@ -35,7 +35,7 @@ export function evaluateConciergePolicy(input: {
   if (input.intent === "OTHER" || input.confidence < 0.55) {
     return {
       action: "needs_llm",
-      reason: "Ambigüedad / confianza baja — LLM diferido (no invocado en Fase 5)",
+      reason: "Ambigüedad / confianza baja — requiere L3 con Context Engine",
     };
   }
 
@@ -50,7 +50,7 @@ export function evaluateConciergePolicy(input: {
   if (!def.template.trim()) {
     return {
       action: "needs_llm",
-      reason: "Sin plantilla determinística — LLM diferido",
+      reason: "Sin plantilla determinística — requiere L3 grounded",
     };
   }
 
