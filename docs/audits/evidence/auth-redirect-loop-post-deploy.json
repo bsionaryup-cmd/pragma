@@ -1,0 +1,29 @@
+{
+  "at": "2026-07-27T05:22:05.467Z",
+  "deploymentId": "dpl_9Fv7j5JBX3a8nqrxdZFjStsdVLug",
+  "productionUrl": "https://www.pragmapms.com",
+  "ok": true,
+  "verdict": "sign_in_uat no longer self-loops; one-shot auth-surface-clear then 200",
+  "chain": {
+    "ok": true,
+    "steps": [
+      {
+        "i": 0,
+        "status": 307,
+        "location": "/sign-in?redirect_url=%2Fpanel&uat_cleared=1",
+        "bypass": "auth-surface-clear"
+      },
+      {
+        "i": 1,
+        "status": 200,
+        "location": null,
+        "bypass": null
+      }
+    ],
+    "selfLoop": false
+  },
+  "commits": [
+    "0995c7f release: auth settle-bridge loop fix, GR/TTLock emails, PMS simplification",
+    "bb9d048 fix(auth): clear incomplete UAT with append Set-Cookie and one-shot reload"
+  ]
+}
