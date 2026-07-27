@@ -30,7 +30,6 @@ export const en = {
     revenue: "Rates",
     smartAccess: "Access codes",
     integrations: "Integrations",
-    prospecting: "Prospecting",
     integrationsOverview: "Overview",
     integrationsAirbnb: "Airbnb",
     integrationsPriceLabs: "PriceLabs · API",

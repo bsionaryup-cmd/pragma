@@ -84,6 +84,17 @@ async function processEvent(event: RetailIntelOutbox) {
  * Drain pending outbox events. Product/supplier updates first, then one plan+health refresh per store.
  */
 export async function drainIntelOutbox(limit = 100) {
+  // Reclaim rows stuck in PROCESSING after crash/timeout (no updatedAt lease).
+  const reclaimed = await db.retailIntelOutbox.updateMany({
+    where: { status: "PROCESSING" },
+    data: { status: "PENDING", lastError: "reclaimed_stale_processing" },
+  });
+  if (reclaimed.count > 0) {
+    logIntelObs("warn", "outbox_processing_reclaimed", {
+      count: reclaimed.count,
+    });
+  }
+
   const pending = await db.retailIntelOutbox.findMany({
     where: { status: "PENDING" },
     orderBy: { createdAt: "asc" },

@@ -32,7 +32,6 @@ import {
   parseBillingSubscriptionReference,
 } from "@/lib/payments/guest-payment-reference";
 import { reconcileGuestPaymentFromWebhook } from "@/services/payments/guest-payment-reconcile.service";
-import { mapEpaycoResponseCode } from "@/modules/integrations/epayco/epayco-signature";
 import {
   fetchEpaycoTransactionByRefPayco,
   fetchEpaycoTransactionViaApify,
@@ -423,30 +422,11 @@ async function tryReconcileEpaycoReturn(input: {
   epaycoResponseCode?: string | null;
   epaycoRefPayco?: string | null;
 }): Promise<boolean> {
+  // Never trust client/query response codes — only ePayco API via ref_payco.
+  void input.epaycoResponseCode;
   const refPayco = input.epaycoRefPayco?.trim();
-  if (refPayco) {
-    const reconciled = await reconcileEpaycoBillingByRefPayco(refPayco, input.reference);
-    if (reconciled) return true;
-  }
-
-  const reference = input.reference?.trim();
-  if (!reference) return false;
-
-  const invoice = await findBillingInvoiceByPaymentReference(reference);
-  if (!invoice || invoice.status === BillingInvoiceStatus.PAID) {
-    return false;
-  }
-
-  const paymentRef = invoice.externalRef ?? reference;
-  if (mapEpaycoResponseCode(input.epaycoResponseCode) === "APPROVED") {
-    await reconcileApprovedEpaycoPayment({
-      reference: paymentRef,
-      providerTransactionId: refPayco,
-    });
-    return true;
-  }
-
-  return false;
+  if (!refPayco) return false;
+  return reconcileEpaycoBillingByRefPayco(refPayco, input.reference);
 }
 
 /** Reconcilia pago al volver del checkout si el webhook aún no actualizó la cuenta. */

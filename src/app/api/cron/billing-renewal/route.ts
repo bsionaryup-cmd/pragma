@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
 import {
   accountNeedsLifecycleReconciliation,
@@ -9,23 +10,12 @@ import { expireStaleSalesQuotes } from "@/modules/sales/services/sales-quote.ser
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) return false;
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${secret}`) return true;
-
-  const url = new URL(request.url);
-  return url.searchParams.get("secret") === secret;
-}
-
 /**
  * Renueva ciclo de suscripción: facturas abiertas, PAST_DUE y LOCKED por gracia.
  * Programar en Vercel Cron con Authorization: Bearer CRON_SECRET
  */
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cron-auth";
 import {
   activeIcalUrlOnPropertyFilter,
   hasActiveAirbnbIcalImport,
@@ -10,23 +11,12 @@ import { syncAllAirbnbCalendarsForOwner } from "@/services/airbnb/airbnb-ical-sy
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-function isAuthorized(request: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) return false;
-
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${secret}`) return true;
-
-  const url = new URL(request.url);
-  return url.searchParams.get("secret") === secret;
-}
-
 /**
  * Sincronización programada Airbnb → PRAGMA para todos los owners con iCal.
  * Configurar en Vercel Cron con header Authorization: Bearer CRON_SECRET
  */
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     icalSyncLog.warn("cron_unauthorized");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
