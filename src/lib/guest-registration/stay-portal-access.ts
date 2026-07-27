@@ -21,6 +21,8 @@ export type StayPortalView = {
   accessValidFrom: string | null;
   accessValidTo: string | null;
   addressLine: string | null;
+  locationLabel: string | null;
+  coverImageUrl: string | null;
   mapsUrl: string | null;
   wifiName: string | null;
   wifiPassword: string | null;

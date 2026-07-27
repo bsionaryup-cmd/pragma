@@ -16,9 +16,9 @@ export default async function StayPortalTokenPage({
   const portal = await getStayPortalByToken(token);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-6 text-foreground sm:py-10">
-      <div className="mx-auto max-w-lg space-y-4">
-        <header className="rounded-3xl border border-border bg-card p-5 shadow-pragma-soft">
+    <main className="min-h-screen bg-[#f7f9fc] px-4 py-6 text-foreground sm:py-10">
+      <div className="mx-auto max-w-3xl space-y-4">
+        <header className="flex justify-center py-1">
           <GuestBrandMark />
         </header>
         <StayPortalViewPanel portal={portal} />

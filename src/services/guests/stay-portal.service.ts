@@ -57,6 +57,8 @@ function emptyStayPortalView(
     accessValidFrom: null,
     accessValidTo: null,
     addressLine: null,
+    locationLabel: null,
+    coverImageUrl: null,
     mapsUrl: null,
     wifiName: null,
     wifiPassword: null,
@@ -229,6 +231,7 @@ async function loadStayPortalPayload(reservationId: string) {
           wifiPassword: true,
           houseRules: true,
           accessInstructions: true,
+          coverImageUrl: true,
           receptionWhatsapp: true,
           notificationEmails: true,
           operationalContacts: true,
@@ -323,6 +326,11 @@ function toStayPortalView(
       .map((p) => p?.trim())
       .filter(Boolean)
       .join(", "),
+    locationLabel: [property.neighborhood, property.city]
+      .map((p) => p?.trim())
+      .filter(Boolean)
+      .join(", ") || null,
+    coverImageUrl: property.coverImageUrl?.trim() || null,
     mapsUrl: buildMapsUrl(property),
     wifiName: property.wifiName?.trim() || null,
     wifiPassword: property.wifiPassword?.trim() || null,

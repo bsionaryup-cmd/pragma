@@ -12,15 +12,10 @@ export default function StayPortalLookupPage() {
         <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
           Mi estadía
         </h1>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Ingresa el código de tu reserva para ver el acceso, WiFi y la
-          información esencial de tu alojamiento.
+        <p className="mt-2 text-sm text-muted-foreground">
+          Ingresa tu código de reserva.
         </p>
         <StayPortalAccessForm />
-        <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
-          Disponible solo después de completar el registro de huéspedes y
-          mientras tu reserva esté vigente.
-        </p>
       </section>
     </main>
   );

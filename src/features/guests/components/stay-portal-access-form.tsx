@@ -20,14 +20,14 @@ export function StayPortalAccessForm() {
   return (
     <form action={formAction} className="mt-6 space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="reservationCode">Código de reserva</Label>
+        <Label htmlFor="reservationCode">Código</Label>
         <Input
           id="reservationCode"
           name="reservationCode"
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
-          placeholder="Ej. HMXXXXXX"
+          placeholder="HMXXXXXX"
           required
           minLength={6}
           maxLength={20}
