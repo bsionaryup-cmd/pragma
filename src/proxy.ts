@@ -93,6 +93,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/integrations/ttlock/webhook/(.*)",
   "/guest-registration",
   "/guest-registration/(.*)",
+  "/stay",
+  "/stay/(.*)",
   "/offer/(.*)",
   "/landing-product-screenshot-preview",
 ]);

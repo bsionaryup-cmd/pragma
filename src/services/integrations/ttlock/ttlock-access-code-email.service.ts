@@ -75,6 +75,7 @@ function buildAccessCodeEmailHtml(
     email: string | null;
     whatsapp: string | null;
   } | null,
+  stayPortalUrl?: string | null,
 ): string {
   const lines = plainMessage.split("\n").map((line) => {
     if (line.includes(code)) {
@@ -88,6 +89,19 @@ function buildAccessCodeEmailHtml(
     if (!line.trim()) return `<p style="margin:0 0 8px">&nbsp;</p>`;
     return `<p style="margin:0 0 8px;font-size:15px;line-height:1.5;color:#111827">${escapeHtml(line)}</p>`;
   });
+
+  const stayCta = stayPortalUrl
+    ? `
+      <p style="margin:24px 0 8px;font-size:14px;line-height:1.5;color:#4b5563">
+        Consulta tu acceso, WiFi y detalles de la estadía en un solo lugar:
+      </p>
+      <p style="margin:0 0 20px">
+        <a href="${escapeHtml(stayPortalUrl)}" style="display:inline-block;background:#0ea5e9;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600">
+          Ir a mi Estadía
+        </a>
+      </p>
+    `
+    : "";
 
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:640px">
@@ -105,6 +119,7 @@ function buildAccessCodeEmailHtml(
       <p style="margin:0 0 16px;font-size:12px;color:#6b7280">
         Selecciona el código y cópialo (Ctrl+C / ⌘+C).
       </p>
+      ${stayCta}
       ${buildReceptionContactHtml(receptionContact)}
     </div>
   `.trim();
@@ -327,11 +342,23 @@ export async function notifyAccessCodeEmailForCredential(
     }
 
     const subject = buildAccessCodeEmailSubject();
-    const html = buildAccessCodeEmailHtml(plainMessage, code, receptionContact);
+    const { getStayPortalUrlForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const stayPortalUrl = await getStayPortalUrlForReservation(
+      credential.reservation.id,
+    ).catch(() => null);
+    const html = buildAccessCodeEmailHtml(
+      plainMessage,
+      code,
+      receptionContact,
+      stayPortalUrl,
+    );
     const text = [
       plainMessage,
       "",
       `Código: ${code}`,
+      stayPortalUrl ? `Mi estadía: ${stayPortalUrl}` : null,
       receptionContact
         ? `Contacto de recepción: ${receptionContact.name}${
             receptionContact.email ? ` · ${receptionContact.email}` : ""
@@ -341,7 +368,9 @@ export async function notifyAccessCodeEmailForCredential(
               : ""
           }`
         : "Si necesitas ayuda con el acceso, contacta a recepción.",
-    ].join("\n");
+    ]
+      .filter((line) => line !== null)
+      .join("\n");
 
     const failures: string[] = [];
     const providerIds: Record<string, string> = {};

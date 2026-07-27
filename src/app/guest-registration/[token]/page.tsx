@@ -25,8 +25,23 @@ export default async function GuestRegistrationPage({
             Registro completado
           </h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            La información de huéspedes ya fue registrada correctamente. Gracias.
+            La información de huéspedes ya fue registrada correctamente.
           </p>
+          {result.stayPortalUrl ? (
+            <a
+              href={result.stayPortalUrl}
+              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              Ir a mi Estadía
+            </a>
+          ) : (
+            <a
+              href="/stay"
+              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground"
+            >
+              Consultar mi estadía
+            </a>
+          )}
         </section>
       </main>
     );

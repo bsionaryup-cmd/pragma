@@ -195,19 +195,35 @@ export function GuestRegistrationForm({
   }
 
   if (step === "success") {
+    const stayPortalUrl = reservation.stayPortalUrl;
     return (
       <section className="rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <h2 className="mt-4 text-xl font-semibold tracking-tight text-foreground">
-          Registro completado
+          Registro completado correctamente
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Registraste {registeredGuests.length} huésped
-          {registeredGuests.length === 1 ? "" : "es"}. El anfitrión ya puede
-          ver la información en PRAGMA y preparar tu acceso.
+          {registeredGuests.length === 1 ? "" : "es"}. Ya puedes consultar el
+          acceso y la información de tu estadía.
         </p>
+        {stayPortalUrl ? (
+          <a
+            href={stayPortalUrl}
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            Ir a mi Estadía
+          </a>
+        ) : (
+          <a
+            href="/stay"
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground"
+          >
+            Consultar mi estadía
+          </a>
+        )}
       </section>
     );
   }

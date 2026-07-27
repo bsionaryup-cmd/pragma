@@ -212,11 +212,13 @@ export type GuestRegistrationReservation = {
   expiresAt: string | null;
   completedAt: string | null;
   guests: GuestRegistrationGuest[];
+  /** Present after GR complete when Stay Portal token was issued. */
+  stayPortalUrl?: string | null;
 };
 
 export type GuestRegistrationLookupResult =
   | { state: "valid"; reservation: GuestRegistrationReservation }
-  | { state: "completed" }
+  | { state: "completed"; stayPortalUrl?: string | null }
   | { state: "revoked" }
   | { state: "invalid" };
 
@@ -559,6 +561,13 @@ async function finalizeGuestRegistration(
   });
 
   if (reservationMeta.property) {
+    const { ensureStayPortalTokenForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    await ensureStayPortalTokenForReservation(reservationId).catch((error) => {
+      console.warn("[stay-portal] token ensure failed", reservationId, error);
+    });
+
     const { settleGuestRegistrationCompletionComms } = await import(
       "@/services/guests/guest-registration-completion-comms.service"
     );
@@ -747,7 +756,13 @@ export async function getGuestRegistrationLookupResult(
 
   if (!registration) return { state: "invalid" };
   if (registration.status === GuestRegistrationStatus.COMPLETED) {
-    return { state: "completed" };
+    const { getStayPortalUrlForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const stayPortalUrl = await getStayPortalUrlForReservation(
+      registration.reservationId,
+    ).catch(() => null);
+    return { state: "completed", stayPortalUrl };
   }
   if (registration.status === GuestRegistrationStatus.REVOKED) {
     return { state: "revoked" };
@@ -1051,6 +1066,14 @@ export async function completeGuestRegistration(
     },
     reservation,
     guests,
+  }).then(async (view) => {
+    const { getStayPortalUrlForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const stayPortalUrl = await getStayPortalUrlForReservation(
+      reservation.id,
+    ).catch(() => null);
+    return { ...view, stayPortalUrl };
   });
 }
 
@@ -1231,6 +1254,13 @@ export async function submitGuestRegistration(
   });
 
   if (reservation.property) {
+    const { ensureStayPortalTokenForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    await ensureStayPortalTokenForReservation(reservation.id).catch((error) => {
+      console.warn("[stay-portal] token ensure failed", reservation.id, error);
+    });
+
     const { settleGuestRegistrationCompletionComms } = await import(
       "@/services/guests/guest-registration-completion-comms.service"
     );
