@@ -1,7 +1,7 @@
 import { CheckCircle2, Heart, Home } from "lucide-react";
 import { DEFAULT_HOUSE_RULES } from "./stay-portal-ui-helpers";
 
-/** Guest-facing house rules — curated top 5 (not property free-text dump). */
+/** Cinco reglas curadas — prioridad UX sobre dump de texto de la propiedad. */
 export function HouseRulesCard() {
   return (
     <section
@@ -37,10 +37,7 @@ export function HouseRulesCard() {
 
       <div className="mt-4 flex gap-2 rounded-xl bg-amber-100/70 px-3 py-2.5 text-sm text-foreground md:mt-auto">
         <Heart className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
-        <p>
-          ¡Gracias por cuidar el alojamiento! Esperamos que disfrutes tu
-          estadía.
-        </p>
+        <p>¡Gracias por cuidar el alojamiento!</p>
       </div>
     </section>
   );

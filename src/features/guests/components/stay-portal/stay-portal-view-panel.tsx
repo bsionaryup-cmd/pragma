@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart } from "lucide-react";
+import Link from "next/link";
 import type { StayPortalView } from "@/lib/guest-registration/stay-portal-access";
 import { AccessCodeCard } from "./access-code-card";
 import { ContactCard } from "./contact-card";
@@ -48,9 +48,9 @@ export function StayPortalViewPanel({ portal }: StayPortalViewProps) {
       <StayPortalShell title="Portal no disponible">
         <p>
           Usa{" "}
-          <a href="/stay" className="font-medium text-foreground underline">
+          <Link href="/stay" className="font-medium text-foreground underline">
             /stay
-          </a>{" "}
+          </Link>{" "}
           con tu código de reserva.
         </p>
       </StayPortalShell>
@@ -82,8 +82,8 @@ export function StayPortalViewPanel({ portal }: StayPortalViewProps) {
       <WifiCard wifiName={portal.wifiName} wifiPassword={portal.wifiPassword} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
-        <OpenDoorInstructions accessInstructions={portal.accessInstructions} />
-        <HouseRulesCard houseRules={portal.houseRules} />
+        <OpenDoorInstructions />
+        <HouseRulesCard />
       </div>
 
       <ContactCard
@@ -101,8 +101,7 @@ export function StayPortalViewPanel({ portal }: StayPortalViewProps) {
         reservationCode={portal.reservationCode}
       />
 
-      <p className="flex items-center justify-center gap-1.5 px-2 pb-2 text-center text-xs text-muted-foreground">
-        <Heart className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+      <p className="px-2 pb-2 text-center text-xs text-muted-foreground">
         Tu seguridad es nuestra prioridad. Disfruta tu estancia.
       </p>
     </div>

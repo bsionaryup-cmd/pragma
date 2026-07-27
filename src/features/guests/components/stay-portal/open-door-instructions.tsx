@@ -1,12 +1,12 @@
 import { DoorOpen, Info } from "lucide-react";
 import { DEFAULT_DOOR_STEPS } from "./stay-portal-ui-helpers";
 
-/** Guest-facing door steps — curated for clarity (not property free-text). */
+/** Tres pasos curados — prioridad UX sobre texto libre de la propiedad. */
 export function OpenDoorInstructions() {
   return (
     <section
       aria-labelledby="stay-open-door-title"
-      className="flex h-full flex-col rounded-2xl border border-border bg-card p-4 shadow-pragma-soft sm:p-5"
+      className="flex h-full flex-col rounded-2xl border border-sky-200/70 bg-sky-50/60 p-4 shadow-pragma-soft sm:p-5 dark:border-sky-900/40 dark:bg-sky-950/20"
     >
       <div className="flex items-center gap-2.5">
         <span
@@ -42,7 +42,7 @@ export function OpenDoorInstructions() {
         ))}
       </ol>
 
-      <div className="mt-4 flex gap-2 rounded-xl bg-primary/5 px-3 py-2.5 text-sm text-foreground md:mt-auto">
+      <div className="mt-4 flex gap-2 rounded-xl bg-sky-100/80 px-3 py-2.5 text-sm text-foreground md:mt-auto dark:bg-sky-900/30">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
         <p>
           Antes de salir, verifica que la puerta y las ventanas queden bien
