@@ -135,26 +135,28 @@ function expireStaleClientUatCookies(
   const names = clientUatCookieNamesFromHeader(request.headers.get("cookie"));
   const domainTargets = clientUatExpireTargets(requestUrl.hostname);
 
+  // Use append: response.cookies.set() overwrites same-name cookies and would
+  // drop the host-only expire when also setting Domain=pragmapms.com.
+  const appendExpire = (name: string, domain?: string) => {
+    const parts = [
+      `${name}=`,
+      "Path=/",
+      "Max-Age=0",
+      "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
+      "SameSite=Lax",
+    ];
+    if (secure) parts.push("Secure");
+    if (domain) parts.push(`Domain=${domain}`);
+    response.headers.append("Set-Cookie", parts.join("; "));
+  };
+
   for (const name of names) {
-    response.cookies.set(name, "", {
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
-      sameSite: "lax",
-      secure,
-    });
+    appendExpire(name);
   }
 
   for (const target of domainTargets) {
     if (!target.domain) continue;
-    response.cookies.set(target.name, "", {
-      path: "/",
-      maxAge: 0,
-      expires: new Date(0),
-      sameSite: "lax",
-      secure,
-      domain: target.domain,
-    });
+    appendExpire(target.name, target.domain);
   }
 }
 
@@ -164,7 +166,7 @@ function expireStaleClientUatCookies(
  *
  * Incomplete cookies (`client-uat-but-no-session-token`): do NOT follow handshake
  * (it wipes cookies). Protected routes → one hop to login + clear UAT.
- * Auth surfaces → pass-through (never self-redirect; breaks ERR_TOO_MANY_REDIRECTS).
+ * Auth surfaces → clear UAT + one reload (never self-loop; avoids RSC 500 with dirty jar).
  */
 function rewriteClerkFapiHandshakeLocation(
   response: Response,
@@ -184,8 +186,23 @@ function rewriteClerkFapiHandshakeLocation(
     );
 
     if (decision.action === "pass-through") {
+      const reload = request.nextUrl.clone();
+      // One-shot clear: expire UAT then reload. Avoid next() on the dirty request
+      // (auth()/RSC can 500 while __client_uat is still on the inbound Cookie header).
+      if (reload.searchParams.get("uat_cleared") !== "1") {
+        reload.searchParams.set("uat_cleared", "1");
+        const clearRedirect = NextResponse.redirect(reload, 307);
+        clearRedirect.headers.set(
+          "x-pragma-clerk-handshake-bypass",
+          "auth-surface-clear",
+        );
+        clearRedirect.headers.set("cache-control", "no-store");
+        expireStaleClientUatCookies(clearRedirect, request);
+        return clearRedirect;
+      }
+
       const pass = forwardWithPathname(request, request.nextUrl.pathname);
-      pass.headers.set("x-pragma-clerk-handshake-bypass", decision.marker);
+      pass.headers.set("x-pragma-clerk-handshake-bypass", "auth-surface-pass");
       pass.headers.set("cache-control", "no-store");
       expireStaleClientUatCookies(pass, request);
       return pass;
@@ -193,6 +210,7 @@ function rewriteClerkFapiHandshakeLocation(
 
     const bridge = new URL(decision.loginPath, request.url);
     bridge.searchParams.set(decision.redirectParam, decision.nextPath);
+    bridge.searchParams.set("uat_cleared", "1");
     const headers = new Headers();
     headers.set("location", bridge.toString());
     headers.set("x-pragma-clerk-handshake-bypass", decision.marker);
