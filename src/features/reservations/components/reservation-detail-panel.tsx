@@ -53,7 +53,6 @@ import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
 import { PropertyIdentity } from "@/components/properties/property-identity";
 import { ReservationPaymentsPanel } from "@/features/payments/components/reservation-payments-panel";
-import { ReservationQuickMessages } from "@/features/reservations/components/reservation-quick-messages";
 import { isGuestRegistrationDueSoon } from "@/lib/guest-registration-alert";
 import { isReservationHoldActive } from "@/lib/reservations/reservation-hold";
 import {
@@ -619,32 +618,68 @@ export function ReservationDetailPanel({
               variant="outline"
               disabled={
                 isTokenPending ||
-                !(registration?.url ?? reservation.guestRegistrationUrl)
+                (reservation.platform === "AIRBNB"
+                  ? false
+                  : !(registration?.url ?? reservation.guestRegistrationUrl))
               }
               onClick={async () => {
-                const url = registration?.url ?? reservation.guestRegistrationUrl;
-                if (!url) return;
-                const welcome = [
-                  `¡Hola${reservation.guestFirstName?.trim() ? ` ${reservation.guestFirstName.trim()}` : ""}! Nos alegra recibirte pronto.`,
-                  "",
-                  `Para tu estadía en ${propertyLabel}, completa el registro de huéspedes (datos y acceso) en este enlace seguro:`,
-                  url,
-                  "",
-                  accessCode?.code
-                    ? buildAccessCodeGuestMessage({
-                        code: accessCode.code,
-                        propertyName: reservation.property.name,
-                        unitNumber: reservation.property.unitNumber,
-                        propertyType: reservation.property.propertyType,
-                        checkIn: reservation.checkIn,
-                        checkOut: reservation.checkOut,
-                        checkInTime: reservation.property.checkInTime,
-                        checkOutTime: reservation.property.checkOutTime,
-                      }) ?? ""
-                    : "Cuando completes el registro, te compartiremos el código de acceso válido para tu estadía.",
-                ]
-                  .filter(Boolean)
-                  .join("\n");
+                const tokenUrl =
+                  registration?.url ?? reservation.guestRegistrationUrl;
+                const appOrigin =
+                  (typeof window !== "undefined"
+                    ? window.location.origin
+                    : process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")) ||
+                  "";
+                const isAirbnb = reservation.platform === "AIRBNB";
+                const registrationUrl = isAirbnb
+                  ? `${appOrigin}/guest-registration`
+                  : tokenUrl;
+                if (!registrationUrl) return;
+                const welcome = isAirbnb
+                  ? [
+                      `¡Hola${reservation.guestFirstName?.trim() ? ` ${reservation.guestFirstName.trim()}` : ""}! Nos alegra recibirte pronto.`,
+                      "",
+                      `Para tu estadía en ${propertyLabel}, completa el registro de huéspedes en este enlace:`,
+                      registrationUrl,
+                      "",
+                      "Ingresa tu código de reserva de Airbnb para continuar.",
+                      "",
+                      accessCode?.code
+                        ? buildAccessCodeGuestMessage({
+                            code: accessCode.code,
+                            propertyName: reservation.property.name,
+                            unitNumber: reservation.property.unitNumber,
+                            propertyType: reservation.property.propertyType,
+                            checkIn: reservation.checkIn,
+                            checkOut: reservation.checkOut,
+                            checkInTime: reservation.property.checkInTime,
+                            checkOutTime: reservation.property.checkOutTime,
+                          }) ?? ""
+                        : "Cuando completes el registro, te compartiremos el código de acceso válido para tu estadía.",
+                    ]
+                      .filter(Boolean)
+                      .join("\n")
+                  : [
+                      `¡Hola${reservation.guestFirstName?.trim() ? ` ${reservation.guestFirstName.trim()}` : ""}! Nos alegra recibirte pronto.`,
+                      "",
+                      `Para tu estadía en ${propertyLabel}, completa el registro de huéspedes (datos y acceso) en este enlace seguro:`,
+                      registrationUrl,
+                      "",
+                      accessCode?.code
+                        ? buildAccessCodeGuestMessage({
+                            code: accessCode.code,
+                            propertyName: reservation.property.name,
+                            unitNumber: reservation.property.unitNumber,
+                            propertyType: reservation.property.propertyType,
+                            checkIn: reservation.checkIn,
+                            checkOut: reservation.checkOut,
+                            checkInTime: reservation.property.checkInTime,
+                            checkOutTime: reservation.property.checkOutTime,
+                          }) ?? ""
+                        : "Cuando completes el registro, te compartiremos el código de acceso válido para tu estadía.",
+                    ]
+                      .filter(Boolean)
+                      .join("\n");
                 await navigator.clipboard.writeText(welcome);
                 toast.success("Mensaje de bienvenida copiado");
               }}
@@ -776,19 +811,6 @@ export function ReservationDetailPanel({
       </div>
 
       {!editing ? (
-        <div className="shrink-0 border-b border-border/60 bg-module-pane-alt/40 px-4 py-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Copiar mensaje
-          </p>
-          <ReservationQuickMessages
-            reservation={reservation}
-            registrationLink={registration?.url ?? reservation.guestRegistrationUrl}
-            accessCode={accessCode?.code ?? null}
-          />
-        </div>
-      ) : null}
-
-      {!editing ? (
         <nav
           className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 px-4"
           aria-label="Secciones de reserva"
@@ -831,6 +853,30 @@ export function ReservationDetailPanel({
             }}
             onCancel={() => setEditing(false)}
           />
+        ) : null}
+
+        {/* Visible in every tab so recepción sees/copies the code immediately. */}
+        {!editing && accessCode?.code ? (
+          <div className="mb-3">
+            <ReservationDetailSection title="Código de acceso">
+              <AccessCodeDisplay
+                code={accessCode.code}
+                status={accessCode.status}
+                isActive={accessCode.isActive}
+                validFrom={accessCode.validFrom}
+                validTo={accessCode.validTo}
+                copyContext={{
+                  propertyType: reservation.property.propertyType,
+                  propertyName: reservation.property.name,
+                  unitNumber: reservation.property.unitNumber,
+                  checkIn: reservation.checkIn,
+                  checkOut: reservation.checkOut,
+                  checkInTime: reservation.property.checkInTime,
+                  checkOutTime: reservation.property.checkOutTime,
+                }}
+              />
+            </ReservationDetailSection>
+          </div>
         ) : null}
 
         {!editing ? (
@@ -1068,25 +1114,6 @@ export function ReservationDetailPanel({
                     </li>
                   ))}
                 </ul>
-              </ReservationDetailSection>
-            ) : null}
-
-            {accessCode ? (
-              <ReservationDetailSection title="Código de acceso">
-                <AccessCodeDisplay
-                  code={accessCode.code}
-                  status={accessCode.status}
-                  isActive={accessCode.isActive}
-                  copyContext={{
-                    propertyType: reservation.property.propertyType,
-                    propertyName: reservation.property.name,
-                    unitNumber: reservation.property.unitNumber,
-                    checkIn: reservation.checkIn,
-                    checkOut: reservation.checkOut,
-                    checkInTime: reservation.property.checkInTime,
-                    checkOutTime: reservation.property.checkOutTime,
-                  }}
-                />
               </ReservationDetailSection>
             ) : null}
               </>

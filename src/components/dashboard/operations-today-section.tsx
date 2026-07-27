@@ -42,8 +42,8 @@ function TodayRow({
   return (
     <button
       type="button"
-      onClick={() => router.push(`/novedades?reservation=${row.id}`)}
-      className="flex w-full items-center gap-4 border-b border-border/50 py-3.5 text-left transition-colors last:border-b-0 hover:bg-muted/15"
+      onClick={() => router.push(`/calendar?reservation=${row.id}`)}
+      className="flex w-full items-center gap-3 border-b border-border/40 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/15"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-foreground">{row.guestName}</p>
@@ -51,13 +51,13 @@ function TodayRow({
           {unit ?? row.property.name}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2.5">
         {time ? (
           <span className="text-sm tabular-nums text-foreground/80">{time}</span>
         ) : null}
         <span
           className={cn(
-            "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+            "rounded-md px-2 py-0.5 text-[11px] font-medium",
             mode === "arrival"
               ? "bg-pragma-olive-leaf/15 text-pragma-olive-leaf"
               : "bg-pragma-sand-oak/15 text-pragma-sand-oak",
@@ -86,15 +86,20 @@ function TodayColumn({
   statusLabel: string;
 }) {
   return (
-    <div className="min-w-0 flex-1 rounded-xl border border-border/70 bg-card/50 p-4 sm:p-5">
-      <div className="mb-1 flex items-baseline justify-between gap-2">
-        <h3 className="font-heading text-sm font-semibold tracking-tight text-foreground">
-          {title}
-        </h3>
-        <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
+    <div className="min-w-0 flex-1">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
+        <span
+          className={cn(
+            "text-2xl font-semibold tabular-nums tracking-tight",
+            count > 0 ? "text-foreground" : "text-muted-foreground/70",
+          )}
+        >
+          {count}
+        </span>
       </div>
       {rows.length === 0 ? (
-        <p className="py-8 text-center text-xs text-muted-foreground">{emptyLabel}</p>
+        <p className="py-5 text-center text-xs text-muted-foreground">{emptyLabel}</p>
       ) : (
         <div>
           {rows.map((row) => (
@@ -119,29 +124,40 @@ export function OperationsTodaySection({
   const { t } = useI18n();
 
   return (
-    <section>
-      <div className="mb-4">
+    <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-pragma-soft">
+      <div className="flex items-baseline justify-between gap-3 border-b border-border/60 px-5 py-3.5 sm:px-6">
         <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
           {t("dashboard.sections.today")}
         </h2>
+        <p className="text-xs tabular-nums text-muted-foreground">
+          {t("dashboard.today.summaryCounts", {
+            arrivals: counts.arrivals,
+            departures: counts.departures,
+          })}
+        </p>
       </div>
-      <div className={cn("grid gap-4", "md:grid-cols-2")}>
-        <TodayColumn
-          title={t("dashboard.today.arrivals")}
-          count={counts.arrivals}
-          rows={arrivals}
-          mode="arrival"
-          emptyLabel={t("dashboard.today.emptyArrivals")}
-          statusLabel={t("dashboard.today.statusArrival")}
-        />
-        <TodayColumn
-          title={t("dashboard.today.departures")}
-          count={counts.departures}
-          rows={departures}
-          mode="departure"
-          emptyLabel={t("dashboard.today.emptyDepartures")}
-          statusLabel={t("dashboard.today.statusDeparture")}
-        />
+
+      <div className="grid gap-0 md:grid-cols-2">
+        <div className="px-5 py-4 sm:px-6 md:border-r md:border-border/60">
+          <TodayColumn
+            title={t("dashboard.today.arrivals")}
+            count={counts.arrivals}
+            rows={arrivals}
+            mode="arrival"
+            emptyLabel={t("dashboard.today.emptyArrivals")}
+            statusLabel={t("dashboard.today.statusArrival")}
+          />
+        </div>
+        <div className="border-t border-border/60 px-5 py-4 sm:px-6 md:border-t-0">
+          <TodayColumn
+            title={t("dashboard.today.departures")}
+            count={counts.departures}
+            rows={departures}
+            mode="departure"
+            emptyLabel={t("dashboard.today.emptyDepartures")}
+            statusLabel={t("dashboard.today.statusDeparture")}
+          />
+        </div>
       </div>
     </section>
   );

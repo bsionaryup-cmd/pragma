@@ -7,7 +7,7 @@ import { Pool, type PoolConfig } from "pg";
  * Do not hard-require product models here — probes must never take down Owner/PMS.
  */
 const PRISMA_SCHEMA_VERSION =
-  "20260725010000_owner_db_guard_pms_core+no-retail-hard-throw";
+  "20260726010000_drop_concierge_assistant+inbox_tasks_simplification";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -81,12 +81,6 @@ function hasPmsCoreDelegates(client: PrismaClient): boolean {
   );
 }
 
-function hasConciergeDelegate(client: PrismaClient): boolean {
-  return Boolean(
-    (client as unknown as { conciergeConfiguration?: unknown }).conciergeConfiguration,
-  );
-}
-
 function getPrismaClient(): PrismaClient {
   const stale =
     globalForPrisma.prisma &&
@@ -121,10 +115,6 @@ function getPrismaClient(): PrismaClient {
   if (!hasPmsCoreDelegates(client)) {
     console.error(
       "[db] Prisma Client incompleto (organization/user/property/reservation). Ejecuta: npx prisma generate",
-    );
-  } else if (!hasConciergeDelegate(client)) {
-    console.warn(
-      "[db] ConciergeConfiguration ausente en cliente Prisma (concierge puede fallar hasta regenerar).",
     );
   }
 

@@ -25,7 +25,6 @@ export type NavIconName =
   | "settings"
   | "key-round"
   | "credit-card"
-  | "list-checks"
   | "bell"
   | "scan-search"
   | "bot";
@@ -78,27 +77,6 @@ const panelNavItem: NavItem = {
   permission: "dashboard:read",
 };
 
-const aiConciergeNavItem: NavItem = {
-  labelKey: "nav.aiConcierge",
-  href: "/ai-concierge",
-  icon: "bot",
-  permission: "concierge:read",
-};
-
-const reservationsNavItem: NavItem = {
-  labelKey: "nav.reservations",
-  href: "/reservations",
-  icon: "clipboard-list",
-  permission: "reservations:read",
-};
-
-const novedadesNavItem: NavItem = {
-  labelKey: "nav.novedades",
-  href: "/novedades",
-  icon: "message-circle",
-  permission: "reservations:read",
-};
-
 const integrationsNavItem: NavItem = {
   labelKey: "nav.integrations",
   href: "/integrations",
@@ -111,14 +89,6 @@ const calendarNavItem: NavItem = {
   href: "/calendar",
   icon: "calendar-days",
   permission: "calendar:read",
-};
-
-const tasksNavItem: NavItem = {
-  labelKey: "nav.tasks",
-  href: "/tasks",
-  icon: "list-checks",
-  permission: "tasks:read",
-  planFeature: "tasks",
 };
 
 const propertiesNavItem: NavItem = {
@@ -316,24 +286,8 @@ export function getNavigationModulesForRole(
     modules.push(navLinkModule(panelNavItem));
   }
 
-  if (navLinkAllowed(aiConciergeNavItem, role, plan)) {
-    modules.push(navLinkModule(aiConciergeNavItem));
-  }
-
-  if (navLinkAllowed(novedadesNavItem, role, plan)) {
-    modules.push(navLinkModule(novedadesNavItem));
-  }
-
-  if (navLinkAllowed(reservationsNavItem, role, plan)) {
-    modules.push(navLinkModule(reservationsNavItem));
-  }
-
   if (navLinkAllowed(calendarNavItem, role, plan)) {
     modules.push(navLinkModule(calendarNavItem));
-  }
-
-  if (navLinkAllowed(tasksNavItem, role, plan)) {
-    modules.push(navLinkModule(tasksNavItem));
   }
 
   if (

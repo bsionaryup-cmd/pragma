@@ -1,7 +1,8 @@
 import "server-only";
 
+import { formatAccessCode } from "@/lib/access-code";
 import { sendEmail } from "@/lib/email/send-email";
-import { formatDate } from "@/lib/helpers/date";
+import { formatDate, formatDateTime } from "@/lib/helpers/date";
 import {
   GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
   getLatestGuestRegistrationAdminNotificationLogEntry,
@@ -20,6 +21,7 @@ import {
   buildGuestRegistrationAdminEmailText,
   type GuestRegistrationAdminEmailPayload,
 } from "@/services/guests/guest-registration-admin-notification.content";
+import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 
 export type { GuestRegistrationAdminEmailPayload } from "@/services/guests/guest-registration-admin-notification.content";
 export {
@@ -90,9 +92,9 @@ function resolveAdminRecipients(property: {
   return resolveGuestRegistrationAdminRecipients(property);
 }
 
-function buildEmailPayload(
+async function buildEmailPayload(
   reservation: NonNullable<Awaited<ReturnType<typeof loadAdminNotificationContext>>>,
-): GuestRegistrationAdminEmailPayload | null {
+): Promise<GuestRegistrationAdminEmailPayload | null> {
   const owner =
     reservation.guests.find((guest) => guest.isReservationOwner) ??
     reservation.guests[0];
@@ -107,6 +109,23 @@ function buildEmailPayload(
       nationality: guest.nationality,
       dateOfBirth: formatGuestBirthDate(guest.dateOfBirth),
     }));
+
+  const credential = await db.accessCredential.findFirst({
+    where: {
+      reservationId: reservation.id,
+      ttlockCodeId: { not: null },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      codeEncrypted: true,
+      validFrom: true,
+      validTo: true,
+    },
+  });
+
+  const accessCode = credential
+    ? formatAccessCode(decryptTTLockSecret(credential.codeEncrypted))
+    : null;
 
   return {
     reservationCode: reservation.reservationCode,
@@ -124,6 +143,13 @@ function buildEmailPayload(
       phone: owner.phone,
     },
     companions,
+    accessCode,
+    accessValidFrom: credential?.validFrom
+      ? formatDateTime(credential.validFrom)
+      : null,
+    accessValidTo: credential?.validTo
+      ? formatDateTime(credential.validTo)
+      : null,
   };
 }
 
@@ -281,7 +307,7 @@ export async function notifyAdminGuestRegistrationCompleted(
       return { ok: false, message: entry.error ?? "Sin destinatarios configurados" };
     }
 
-    const payload = buildEmailPayload(reservation);
+    const payload = await buildEmailPayload(reservation);
     if (!payload) {
       const entry: GuestRegistrationAdminNotificationLogEntry = {
         at: new Date().toISOString(),
@@ -303,6 +329,7 @@ export async function notifyAdminGuestRegistrationCompleted(
 
     const subject = buildGuestRegistrationAdminEmailSubject(
       payload.propertyLabel,
+      payload.primaryGuest.fullName,
       reservation.reservationCode,
     );
     const html = buildGuestRegistrationAdminEmailHtml(payload);

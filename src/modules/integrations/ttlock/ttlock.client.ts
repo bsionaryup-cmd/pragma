@@ -30,10 +30,25 @@ function hasAppCredentials(integration: {
   return Boolean(integration.clientId?.trim() && integration.clientSecretEncrypted);
 }
 
+/**
+ * Session usable for passcode APIs. SYNC_ERROR often means lock-list sync failed
+ * while OAuth tokens remain valid — do not block Guest Registration → TTLock.
+ */
+function canResolveTTLockApiSession(
+  integration: Pick<TTLockIntegration, "status" | "isActive">,
+): boolean {
+  if (integration.isActive === false) return false;
+  return (
+    integration.status === TTLockIntegrationStatus.CONNECTED ||
+    integration.status === TTLockIntegrationStatus.READY ||
+    integration.status === TTLockIntegrationStatus.SYNC_ERROR
+  );
+}
+
 export async function resolveTTLockApiSessionForIntegration(
   integration: TTLockIntegration,
 ): Promise<TTLockApiSession | null> {
-  if (!isTTLockIntegrationConnected(integration)) return null;
+  if (!canResolveTTLockApiSession(integration)) return null;
   if (!hasAppCredentials(integration)) return null;
 
   const accessToken = decryptTTLockSecret(integration.accessTokenEncrypted);

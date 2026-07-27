@@ -1,7 +1,10 @@
 /**
  * Canonical guest model — single official guest source for PRAGMA.
- * Integrations (SIRE, TRA, TTLock, emails, AI Concierge) map FROM this shape.
+ * Integrations (SIRE, TRA, TTLock, emails) map FROM this shape.
  */
+
+import type { PropertyType } from "@prisma/client";
+import { propertyTypeLabels } from "@/lib/labels";
 
 export type CanonicalGuestPlace = {
   country: string | null;
@@ -46,7 +49,23 @@ export type CanonicalStayContext = {
   currency: string | null;
   paymentMedium: string | null;
   bookingMedium: string | null;
+  /** Property.propertyType enum or already-localized label. */
+  propertyType?: PropertyType | string | null;
 };
+
+/** Map Property.propertyType → TRA/SIAT accommodationType (human label preferred). */
+export function resolveAccommodationType(
+  propertyType?: PropertyType | string | null,
+): string | null {
+  if (propertyType == null) return null;
+  const raw = String(propertyType).trim();
+  if (!raw) return null;
+  const key = raw.toUpperCase();
+  if (key in propertyTypeLabels) {
+    return propertyTypeLabels[key as PropertyType];
+  }
+  return raw;
+}
 
 /** Normalize stored phone (+57 300...) to E.164 (+57300...). */
 export function toE164Phone(value: string | null | undefined): string | null {
@@ -180,7 +199,7 @@ export function mapCanonicalGuestToTraPayload(
     checkIn: stay.checkIn,
     checkOut: stay.checkOut,
     companionCount: stay.companionCount,
-    accommodationType: null as string | null,
+    accommodationType: resolveAccommodationType(stay.propertyType),
     totalPaid: stay.totalAmount,
     paymentMedium: stay.paymentMedium,
     bookingMedium: stay.bookingMedium ?? stay.platform,

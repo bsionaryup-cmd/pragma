@@ -154,7 +154,12 @@ export async function ensureTTLockIntegrationForScope(
 
     if (!byUser.automationSettings) {
       await db.tTLockAutomationSettings.create({
-        data: { integrationId: byUser.id },
+        data: {
+          integrationId: byUser.id,
+          generateAfterGuestRegistration: true,
+          requireManualApproval: false,
+          autoSendCode: true,
+        },
       });
     }
 

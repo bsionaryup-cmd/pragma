@@ -201,7 +201,7 @@ async function main() {
         platform: true,
         reservationCode: true,
         propertyId: true,
-        property: { select: { organizationId: true, unitNumber: true } },
+        property: { select: { organizationId: true, unitNumber: true, propertyType: true } },
       },
     });
 
@@ -220,6 +220,7 @@ async function main() {
       currency: reservation.currency,
       paymentMedium: null,
       bookingMedium: String(reservation.platform),
+      propertyType: reservation.property.propertyType,
     };
 
     evidence.guests = canonical.map((g) => ({

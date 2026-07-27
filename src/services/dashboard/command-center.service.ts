@@ -1,8 +1,6 @@
 import {
   PropertyStatus,
   ReservationStatus,
-  TaskStatus,
-  TaskType,
   TTLockIntegrationStatus,
 } from "@prisma/client";
 import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
@@ -18,7 +16,6 @@ import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope
 import {
   mergePropertyScope,
   mergeReservationScope,
-  taskWhere,
   ttLockIntegrationWhere,
   type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
@@ -169,14 +166,12 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     counts,
     panelLists,
     todayCounts,
-    pendingCleaning,
     propertiesWithStaleSync,
-    pendingGuestRegistration,
     ttlockConnected,
+    pendingGuestRegistration,
     currentMonthRevenueReservations,
     previousMonthRevenueReservations,
     recentReservations,
-    recentTasks,
     portfolioCapacity,
     occupancyAggregates,
   ] = await Promise.all([
@@ -203,13 +198,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     getPanelCounts(scope),
     getCommandCenterPanelReservationLists(scope, 8),
     getTodayPanelCounts(scope),
-    db.task.count({
-      where: {
-        ...taskWhere(scope),
-        type: TaskType.CLEANING,
-        status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
-      },
-    }),
     db.property.count({
       where: mergePropertyScope(scope, {
         status: PropertyStatus.ACTIVE,
@@ -280,26 +268,14 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
         property: { select: { name: true, unitNumber: true } },
       },
     }),
-    db.task.findMany({
-      where: {
-        ...taskWhere(scope),
-        status: TaskStatus.COMPLETED,
-      },
-      orderBy: { completedAt: "desc" },
-      take: 3,
-      select: {
-        id: true,
-        title: true,
-        completedAt: true,
-        property: { select: { name: true, unitNumber: true } },
-      },
-    }),
     db.property.aggregate({
       where: mergePropertyScope(scope, { status: PropertyStatus.ACTIVE }),
       _sum: { maxGuests: true },
     }),
     loadMonthlyFinanceAggregates(scope, [currentMonthKey, previousMonthKey]),
   ]);
+
+  const pendingCleaning = 0;
 
   const guestsCurrent = checkedInReservations.reduce(
     (sum, r) => sum + r.adults + r.children + r.infants,
@@ -383,14 +359,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
   ];
 
   const alerts: DashboardAlert[] = [];
-  if (pendingCleaning > 0) {
-    alerts.push({
-      id: "cleaning",
-      type: "cleaning",
-      severity: pendingCleaning > 3 ? "critical" : "warning",
-      messageKey: "dashboard.alerts.cleaningDelayed",
-    });
-  }
   if (propertiesWithStaleSync > 0) {
     alerts.push({
       id: "sync",
@@ -424,15 +392,6 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
       subtitle: formatPropertyLabel(r.property),
       at: r.createdAt.toISOString(),
     })),
-    ...recentTasks
-      .filter((t) => t.completedAt)
-      .map((t) => ({
-        id: `task-${t.id}`,
-        type: "task" as const,
-        title: t.title,
-        subtitle: t.property ? formatPropertyLabel(t.property) : "—",
-        at: t.completedAt!.toISOString(),
-      })),
   ]
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
     .slice(0, 8);

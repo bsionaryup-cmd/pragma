@@ -9,7 +9,6 @@ import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 import { useSidebarCollapsed } from "@/components/layout/use-sidebar-collapsed";
 import { useI18n } from "@/components/providers/i18n-provider";
-import { useNovedadesUnread } from "@/features/novedades/components/novedades-unread-provider";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import {
   isNavGroupModule,
@@ -189,7 +188,6 @@ export function Sidebar({
   const { collapsed: storedCollapsed, toggle } = useSidebarCollapsed();
   const collapsed = forceExpanded ? false : storedCollapsed;
   const { t } = useI18n();
-  const { hasUnread: hasNovedadesUnread } = useNovedadesUnread();
 
   return (
     <aside
@@ -271,7 +269,6 @@ export function Sidebar({
               collapsed={collapsed}
               title={t(module.labelKey)}
               isActive={strongActive}
-              showUnreadDot={module.href === "/novedades" && hasNovedadesUnread}
               onNavigate={onMainLinkNavigate ?? onNavigate}
             />
           );

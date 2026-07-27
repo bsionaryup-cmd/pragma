@@ -1,13 +1,32 @@
 import "server-only";
 
 import { AccessCredentialDeliveryStatus } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { formatAccessCode } from "@/lib/access-code";
 import { pragmaEmailFooterHtml, pragmaEmailHeaderHtml } from "@/lib/brand-email";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email/send-email";
+import { formatDate, formatDateTime } from "@/lib/helpers/date";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { buildTenantRegistrationCompletedSubject } from "@/lib/guest-registration/reservation-event-email-subjects";
 import { notifyAdminGuestRegistrationCompleted } from "@/services/guests/guest-registration-admin-notification.service";
 import { notifyAccessCodeEmailForCredential } from "@/services/integrations/ttlock/ttlock-access-code-email.service";
 import { processReservationAccessAfterRegistration } from "@/services/integrations/ttlock/ttlock-access.service";
+import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
+
+function revalidateAccessCodeSurfaces() {
+  try {
+    revalidatePath("/calendar");
+    revalidatePath("/panel");
+    revalidatePath("/smart-access");
+  } catch (error) {
+    // Scripts / background jobs may lack Next request store.
+    console.warn(
+      "[gr-completion-comms] revalidate skipped:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 export type GuestRegistrationCommsStepStatus = {
   ok: boolean;
@@ -131,55 +150,110 @@ async function notifyTenantDeliveryReport(input: {
   propertyLabel: string;
   guestName: string | null;
   reservationCode: string | null;
+  checkIn: string | null;
+  checkOut: string | null;
+  accessCodePlain: string | null;
+  accessValidFrom: string | null;
+  accessValidTo: string | null;
   tenantEmail: string;
   reception: GuestRegistrationCommsStepStatus;
   accessCode: GuestRegistrationCommsStepStatus;
   ttlock: GuestRegistrationCommsStepStatus;
   forceResend: boolean;
 }): Promise<GuestRegistrationCommsStepStatus> {
-  const allOk = input.reception.ok && input.accessCode.ok;
-  const subjectPrefix = input.forceResend
-    ? "PRAGMA · Reenvío GR"
-    : "PRAGMA · Notificaciones GR";
-  const subject = allOk
-    ? `${subjectPrefix} OK — ${input.propertyLabel}`
-    : `${subjectPrefix} · Revisar — ${input.propertyLabel}`;
+  const codeExists = Boolean(input.accessCodePlain?.trim());
+  // If a synced code is already in DB, treat TTLock as OK even when this run's
+  // generate step returned a transient/env failure (common after first GR fail).
+  const ttlockOk = input.ttlock.ok || codeExists;
+  const allOk = input.reception.ok && input.accessCode.ok && ttlockOk;
+  const generatedAt = new Date().toISOString();
+  const subject = buildTenantRegistrationCompletedSubject({
+    guestName: input.guestName,
+    propertyLabel: input.propertyLabel,
+    allOk,
+    forceResend: input.forceResend,
+  });
+
+  const ttlockLine = input.ttlock.ok
+    ? stepLabel(input.ttlock)
+    : codeExists
+      ? `OK — código ya sincronizado (${input.accessCodePlain})`
+      : stepLabel(input.ttlock);
 
   const lines = [
+    "Registro completado",
+    `Reporte generado: ${generatedAt}`,
+    "",
     `Reserva: ${input.reservationCode ?? input.reservationId}`,
     `Huésped: ${input.guestName ?? "—"}`,
     `Propiedad: ${input.propertyLabel}`,
-    input.forceResend ? "Origen: reenvío manual desde el panel" : "Origen: completado de registro",
+    input.checkIn ? `Check-in: ${input.checkIn}` : null,
+    input.checkOut ? `Check-out: ${input.checkOut}` : null,
+    input.forceResend
+      ? "Origen: reenvío manual desde el panel"
+      : "Origen: completado de registro",
     "",
-    `1) Correo a recepción (registro completado): ${stepLabel(input.reception)}`,
-    `2) Generación TTLock: ${stepLabel(input.ttlock)}`,
-    `3) Correo de código (huésped + recepción): ${stepLabel(input.accessCode)}`,
+    `Registro de huéspedes: completado`,
+    `Código TTLock generado: ${ttlockOk ? "Sí" : "No"}`,
+    `Código: ${input.accessCodePlain ?? "—"}`,
+    input.accessValidFrom || input.accessValidTo
+      ? `Vigencia: ${input.accessValidFrom ?? "—"} → ${input.accessValidTo ?? "—"}`
+      : null,
+    "",
+    `Confirmación envío a recepción: ${stepLabel(input.reception)}`,
+    `Confirmación envío al huésped: ${stepLabel(input.accessCode)}`,
+    `Generación TTLock: ${ttlockLine}`,
     "",
     allOk
-      ? "Ambas notificaciones se enviaron correctamente."
+      ? "El proceso terminó correctamente. Recepción y huésped fueron notificados según el estado anterior."
       : "Hay fallos o pendientes. Revisa recepción / TTLock / correo del huésped en el panel.",
   ];
 
   const html = `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:640px">
       ${pragmaEmailHeaderHtml()}
-      <h1 style="font-size:20px;margin:0 0 16px">Estado de notificaciones · Registro de huéspedes</h1>
+      <h1 style="font-size:20px;margin:0 0 16px">Registro completado</h1>
+      <p style="margin:0 0 8px;font-size:12px;color:#6b7280"><strong>Reporte generado:</strong> ${escapeHtml(generatedAt)}</p>
       <p style="margin:0 0 8px"><strong>Reserva:</strong> ${escapeHtml(input.reservationCode ?? input.reservationId)}</p>
       <p style="margin:0 0 8px"><strong>Huésped:</strong> ${escapeHtml(input.guestName ?? "—")}</p>
       <p style="margin:0 0 8px"><strong>Propiedad:</strong> ${escapeHtml(input.propertyLabel)}</p>
+      ${
+        input.checkIn
+          ? `<p style="margin:0 0 8px"><strong>Check-in:</strong> ${escapeHtml(input.checkIn)}</p>`
+          : ""
+      }
+      ${
+        input.checkOut
+          ? `<p style="margin:0 0 8px"><strong>Check-out:</strong> ${escapeHtml(input.checkOut)}</p>`
+          : ""
+      }
+      <p style="margin:0 0 8px"><strong>Registro:</strong> Completado</p>
+      <p style="margin:0 0 8px"><strong>Código TTLock generado:</strong> ${escapeHtml(
+        ttlockOk ? "Sí" : "No",
+      )}</p>
+      <p style="margin:0 0 8px"><strong>Código:</strong> <span style="font-family:ui-monospace,Menlo,Consolas,monospace">${escapeHtml(
+        input.accessCodePlain ?? "—",
+      )}</span></p>
+      ${
+        input.accessValidFrom || input.accessValidTo
+          ? `<p style="margin:0 0 16px"><strong>Vigencia:</strong> ${escapeHtml(
+              `${input.accessValidFrom ?? "—"} → ${input.accessValidTo ?? "—"}`,
+            )}</p>`
+          : `<p style="margin:0 0 16px"></p>`
+      }
       <p style="margin:0 0 16px"><strong>Origen:</strong> ${escapeHtml(
         input.forceResend
           ? "Reenvío manual desde el panel"
           : "Completado de registro",
       )}</p>
       <ol style="margin:0 0 16px;padding-left:20px;line-height:1.6">
-        <li>Correo a recepción (registro): ${escapeHtml(stepLabel(input.reception))}</li>
-        <li>Generación TTLock: ${escapeHtml(stepLabel(input.ttlock))}</li>
-        <li>Correo de código (huésped + recepción): ${escapeHtml(stepLabel(input.accessCode))}</li>
+        <li>Confirmación envío a recepción: ${escapeHtml(stepLabel(input.reception))}</li>
+        <li>Confirmación envío al huésped: ${escapeHtml(stepLabel(input.accessCode))}</li>
+        <li>Generación TTLock: ${escapeHtml(ttlockLine)}</li>
       </ol>
       <p style="margin:0 0 8px">${escapeHtml(
         allOk
-          ? "Ambas notificaciones se enviaron correctamente."
+          ? "El proceso terminó correctamente. Recepción y huésped fueron notificados según el estado anterior."
           : "Hay fallos o pendientes. Revisa recepción / TTLock / correo del huésped en el panel.",
       )}</p>
       ${pragmaEmailFooterHtml()}
@@ -190,7 +264,7 @@ async function notifyTenantDeliveryReport(input: {
     to: input.tenantEmail,
     subject,
     html,
-    text: lines.join("\n"),
+    text: lines.filter((line) => line !== null).join("\n"),
   });
 
   return {
@@ -204,27 +278,25 @@ async function notifyTenantDeliveryReport(input: {
 function summarizeCommsResult(
   result: GuestRegistrationCompletionCommsResult,
 ): { ok: boolean; message: string } {
-  const coreOk = result.reception.ok && result.accessCode.ok;
   const parts = [
+    `TTLock: ${result.ttlock.ok ? "OK" : result.ttlock.skipped ? "omitido" : "falló"}`,
     `Recepción: ${result.reception.ok ? "OK" : "falló"}`,
     `Código: ${result.accessCode.ok ? "OK" : "falló"}`,
     `Tenant: ${result.tenantReport.ok ? "OK" : "falló"}`,
   ];
-  if (coreOk && result.tenantReport.ok) {
+  // Guest access is the critical path; recepción/tenant are ops notifications.
+  if (result.accessCode.ok && result.ttlock.ok) {
+    const opsOk = result.reception.ok && result.tenantReport.ok;
     return {
       ok: true,
-      message: `Secuencia post-registro enviada (${parts.join(" · ")})`,
-    };
-  }
-  if (coreOk) {
-    return {
-      ok: true,
-      message: `Recepción y código OK; reporte al tenant: ${result.tenantReport.message}`,
+      message: opsOk
+        ? `Secuencia post-registro completa (${parts.join(" · ")})`
+        : `Código generado y enviado; ops parcial (${parts.join(" · ")})`,
     };
   }
   return {
     ok: false,
-    message: `Secuencia incompleta (${parts.join(" · ")}). ${result.reception.ok ? result.accessCode.message : result.reception.message}`,
+    message: `Secuencia incompleta (${parts.join(" · ")}). ${result.accessCode.message || result.ttlock.message}`,
   };
 }
 
@@ -232,7 +304,8 @@ function summarizeCommsResult(
  * Post-GR communications (ordered):
  * 1) Generate TTLock code (without email)
  * 2) Email recepción about completed registration
- * 3) Only if (2) ok → email access code to guest + recepción
+ * 3) Email access code to guest + recepción when credential exists
+ *    (independent of recepción success — guest must receive the code)
  * 4) Always → email tenant owner with delivery status of (2) and (3)
  */
 export async function runGuestRegistrationCompletionComms(
@@ -249,6 +322,8 @@ export async function runGuestRegistrationCompletionComms(
       guestName: true,
       guestRegistrationCompletedAt: true,
       propertyId: true,
+      checkIn: true,
+      checkOut: true,
       property: {
         select: {
           name: true,
@@ -289,7 +364,8 @@ export async function runGuestRegistrationCompletionComms(
       ttlock = {
         ok: false,
         skipped: true,
-        message: "Generación TTLock desactivada (generateAfterGuestRegistration=false)",
+        message:
+          "Generación TTLock desactivada (generateAfterGuestRegistration=false)",
       };
     } else {
       ttlock = {
@@ -305,58 +381,69 @@ export async function runGuestRegistrationCompletionComms(
     };
   }
 
+  // Code is persisted (or confirmed) here — refresh reservation detail surfaces
+  // so AccessCredential appears on the next getReservationForInbox read.
+  if (ttlock.ok) {
+    revalidateAccessCodeSurfaces();
+  }
+
   const reception = await notifyReceptionWithRetry(reservation.id, options);
 
   let accessCode: GuestRegistrationCommsStepStatus = {
     ok: false,
     skipped: true,
-    message: "Esperando correo de recepción exitoso",
+    message: "Sin código TTLock para enviar",
   };
 
-  if (reception.ok) {
-    const credentialId =
-      (ttlock.ok
-        ? (
-            await db.accessCredential.findFirst({
-              where: { reservationId: reservation.id, ttlockCodeId: { not: null } },
-              orderBy: { createdAt: "desc" },
-              select: { id: true },
-            })
-          )?.id
-        : null) ?? (await resolveActiveCredentialId(reservation.id));
+  // Always resolve credential from DB after the TTLock step — do not gate on
+  // ttlock.ok. Generation may fail while a prior synced code still exists, and
+  // a successful generate must be found even if the status message varies.
+  const credentialId =
+    (
+      await db.accessCredential.findFirst({
+        where: {
+          reservationId: reservation.id,
+          ttlockCodeId: { not: null },
+          status: {
+            in: ["GENERATED", "SENT", "ACTIVE"],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      })
+    )?.id ?? (await resolveActiveCredentialId(reservation.id));
 
-    if (!credentialId) {
+  if (!credentialId) {
+    accessCode = {
+      ok: false,
+      message:
+        "No hay código TTLock sincronizado (ttlockCodeId) para enviar por correo",
+    };
+  } else {
+    const existing = await db.accessCredential.findUnique({
+      where: { id: credentialId },
+      select: { deliveryStatus: true },
+    });
+    if (
+      !forceResend &&
+      existing?.deliveryStatus === AccessCredentialDeliveryStatus.SENT
+    ) {
       accessCode = {
-        ok: false,
-        message:
-          "No hay código TTLock sincronizado (ttlockCodeId) para enviar por correo",
+        ok: true,
+        skipped: true,
+        message: "Código ya había sido enviado",
       };
     } else {
-      const existing = await db.accessCredential.findUnique({
-        where: { id: credentialId },
-        select: { deliveryStatus: true },
+      // Guest (+ ops) must get the code even if recepción notification failed.
+      const sent = await notifyAccessCodeEmailForCredential(credentialId, {
+        ignoreAutoSendFlag: true,
+        forceResend,
       });
-      if (
-        !forceResend &&
-        existing?.deliveryStatus === AccessCredentialDeliveryStatus.SENT
-      ) {
-        accessCode = {
-          ok: true,
-          skipped: true,
-          message: "Código ya había sido enviado",
-        };
-      } else {
-        // Completion pipeline always sends (guest + recepción), even if autoSendCode is off.
-        const sent = await notifyAccessCodeEmailForCredential(credentialId, {
-          ignoreAutoSendFlag: true,
-          forceResend,
-        });
-        accessCode = {
-          ok: sent.ok,
-          skipped: sent.skipped,
-          message: sent.message,
-        };
-      }
+      accessCode = {
+        ok: sent.ok,
+        skipped: sent.skipped,
+        message: sent.message,
+      };
     }
   }
 
@@ -364,11 +451,51 @@ export async function runGuestRegistrationCompletionComms(
     reservation.property.organizationId,
   );
 
+  const credentialForTenant = credentialId
+    ? await db.accessCredential.findUnique({
+        where: { id: credentialId },
+        select: {
+          codeEncrypted: true,
+          validFrom: true,
+          validTo: true,
+        },
+      })
+    : await db.accessCredential.findFirst({
+        where: {
+          reservationId: reservation.id,
+          ttlockCodeId: { not: null },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          codeEncrypted: true,
+          validFrom: true,
+          validTo: true,
+        },
+      });
+
+  const accessCodePlain = credentialForTenant
+    ? formatAccessCode(decryptTTLockSecret(credentialForTenant.codeEncrypted))
+    : null;
+
   let tenantReport: GuestRegistrationCommsStepStatus;
   if (!tenantEmail) {
     tenantReport = {
       ok: false,
       message: "Tenant sin account owner con email activo",
+    };
+  } else if (
+    !forceResend &&
+    ttlock.ok &&
+    reception.ok &&
+    reception.skipped === true &&
+    accessCode.ok &&
+    accessCode.skipped === true
+  ) {
+    // Idempotent: recepción + código ya enviados → no reenviar reporte tenant.
+    tenantReport = {
+      ok: true,
+      skipped: true,
+      message: "Reporte tenant ya cubierto en el ciclo anterior",
     };
   } else {
     tenantReport = await notifyTenantDeliveryReport({
@@ -376,6 +503,15 @@ export async function runGuestRegistrationCompletionComms(
       propertyLabel,
       guestName: reservation.guestName,
       reservationCode: reservation.reservationCode,
+      checkIn: formatDate(reservation.checkIn),
+      checkOut: formatDate(reservation.checkOut),
+      accessCodePlain,
+      accessValidFrom: credentialForTenant?.validFrom
+        ? formatDateTime(credentialForTenant.validFrom)
+        : null,
+      accessValidTo: credentialForTenant?.validTo
+        ? formatDateTime(credentialForTenant.validTo)
+        : null,
       tenantEmail,
       reception,
       accessCode,
@@ -426,4 +562,71 @@ export function scheduleGuestRegistrationCompletionComms(
   void runGuestRegistrationCompletionComms(reservationId).catch((error) => {
     console.error("[gr-completion-comms] Unhandled", reservationId, error);
   });
+}
+
+/**
+ * Historical SSOT after GR complete:
+ * 1) Await TTLock generation + DB persist + cache revalidation (code visible in
+ *    reservation detail immediately).
+ * 2) Fire-and-forget recepción / guest code / tenant emails so the guest form
+ *    is not blocked on Resend latency. Idempotent if emails already ran.
+ */
+export async function settleGuestRegistrationCompletionComms(
+  reservationId: string,
+): Promise<GuestRegistrationCommsStepStatus> {
+  const reservation = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: {
+      id: true,
+      guestRegistrationCompletedAt: true,
+      propertyId: true,
+      property: { select: { ownerId: true } },
+    },
+  });
+
+  if (!reservation?.guestRegistrationCompletedAt || !reservation.property) {
+    return {
+      ok: false,
+      message: "Registro incompleto o sin propiedad",
+    };
+  }
+
+  let ttlock: GuestRegistrationCommsStepStatus = {
+    ok: false,
+    message: "Pendiente",
+  };
+
+  try {
+    const gen = await processReservationAccessAfterRegistration({
+      reservationId: reservation.id,
+      propertyId: reservation.propertyId,
+      ownerId: reservation.property.ownerId,
+      skipAccessCodeEmail: true,
+    });
+    if (!gen) {
+      ttlock = {
+        ok: false,
+        skipped: true,
+        message:
+          "Generación TTLock desactivada (generateAfterGuestRegistration=false)",
+      };
+    } else {
+      ttlock = { ok: gen.ok, message: gen.message };
+    }
+  } catch (error) {
+    ttlock = {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Error generando código TTLock",
+    };
+  }
+
+  if (ttlock.ok) {
+    revalidateAccessCodeSurfaces();
+  }
+
+  // Emails + tenant report (idempotent). TTLock step inside will reuse credential.
+  scheduleGuestRegistrationCompletionComms(reservationId);
+
+  return ttlock;
 }

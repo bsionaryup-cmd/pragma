@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { OwnerShellHeader } from "@/components/owner/owner-shell-header";
+import { ClerkSessionKeepAliveLazy } from "@/components/providers/clerk-session-keepalive-lazy";
 import { requireDbUser } from "@/lib/auth";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { OWNER_LOGIN_PATH } from "@/lib/platform/constants";
@@ -22,6 +23,7 @@ export default async function OwnerDashboardLayout({
 
   return (
     <div className="min-h-dvh bg-pragma-soft-gray text-foreground">
+      <ClerkSessionKeepAliveLazy />
       <OwnerShellHeader
         user={{
           firstName: user.firstName,

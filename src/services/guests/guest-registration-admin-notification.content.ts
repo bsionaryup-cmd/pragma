@@ -25,16 +25,23 @@ export type GuestRegistrationAdminEmailPayload = {
     phone: string | null;
   };
   companions: GuestRegistrationAdminCompanion[];
+  /** TTLock guest code when already persisted for this reservation. */
+  accessCode: string | null;
+  accessValidFrom: string | null;
+  accessValidTo: string | null;
 };
 
+/** Asunto operativo: identificación sin abrir el mensaje. */
 export function buildGuestRegistrationAdminEmailSubject(
   propertyLabel: string,
-  reservationCode: string | null,
+  guestName: string | null,
+  reservationCode?: string | null,
 ): string {
+  const property = propertyLabel.trim() || "Alojamiento";
+  const guest = guestName?.trim() || "Huésped";
   const code = reservationCode?.trim();
-  return code
-    ? `Registro de huéspedes — ${propertyLabel} (${code})`
-    : `Registro de huéspedes — ${propertyLabel}`;
+  const base = `Check-in registrado | ${property} | ${guest}`;
+  return code ? `${base} (${code})` : base;
 }
 
 export function buildGuestRegistrationAdminEmailHtml(
@@ -75,21 +82,26 @@ export function buildGuestRegistrationAdminEmailHtml(
       `.trim()
       : `<p style="margin:16px 0 0;font-size:13px;color:#6b7280">Sin acompañantes registrados.</p>`;
 
+  const accessStatus = payload.accessCode
+    ? "Código TTLock generado y listo"
+    : "Código TTLock pendiente";
+
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:640px">
       ${pragmaEmailHeaderHtml()}
-      <h1 style="font-size:20px;margin:0 0 8px">Registro de huéspedes completado</h1>
+      <h1 style="font-size:20px;margin:0 0 8px">Check-in registrado</h1>
       <p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.5">
-        Correo generado automáticamente por PRAGMA PMS.
+        Notificación operativa de registro de huéspedes.
       </p>
 
       <h2 style="font-size:15px;margin:0 0 12px;color:#111827">Información de la reserva</h2>
       <table style="border-collapse:collapse;font-size:14px;line-height:1.5;width:100%">
         ${codeRow}
-        ${infoRow("Propiedad", `<strong>${escapeHtml(payload.propertyLabel)}</strong>`)}
-        ${infoRow("Check-in", escapeHtml(payload.checkIn))}
-        ${infoRow("Check-out", escapeHtml(payload.checkOut))}
-        ${infoRow("Huéspedes registrados", `<strong>${payload.guestCount}</strong>`)}
+        ${infoRow("Alojamiento", `<strong>${escapeHtml(payload.propertyLabel)}</strong>`)}
+        ${infoRow("Entrada", escapeHtml(payload.checkIn))}
+        ${infoRow("Salida", escapeHtml(payload.checkOut))}
+        ${infoRow("Cantidad de huéspedes", `<strong>${payload.guestCount}</strong>`)}
+        ${infoRow("Estado del acceso", escapeHtml(accessStatus))}
       </table>
 
       <h2 style="font-size:15px;margin:24px 0 12px;color:#111827">Huésped principal</h2>
@@ -107,6 +119,26 @@ export function buildGuestRegistrationAdminEmailHtml(
 
       ${companionsSection}
 
+      <h2 style="font-size:15px;margin:24px 0 12px;color:#111827">Código de acceso TTLock</h2>
+      <table style="border-collapse:collapse;font-size:14px;line-height:1.5;width:100%">
+        ${infoRow(
+          "Código",
+          payload.accessCode
+            ? `<strong style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;letter-spacing:0.04em">${escapeHtml(payload.accessCode)}</strong>`
+            : "Pendiente de generación",
+        )}
+        ${
+          payload.accessValidFrom || payload.accessValidTo
+            ? infoRow(
+                "Vigencia",
+                escapeHtml(
+                  `${payload.accessValidFrom ?? "—"} → ${payload.accessValidTo ?? "—"}`,
+                ),
+              )
+            : ""
+        }
+      </table>
+
       ${pragmaEmailFooterHtml()}
     </div>
   `.trim();
@@ -116,14 +148,19 @@ export function buildGuestRegistrationAdminEmailText(
   payload: GuestRegistrationAdminEmailPayload,
 ): string {
   const lines = [
-    "Registro de huéspedes completado — PRAGMA PMS",
+    "Check-in registrado",
     payload.reservationCode?.trim()
       ? `Reserva: ${payload.reservationCode.trim()}`
       : null,
-    `Propiedad: ${payload.propertyLabel}`,
-    `Check-in: ${payload.checkIn}`,
-    `Check-out: ${payload.checkOut}`,
-    `Huéspedes registrados: ${payload.guestCount}`,
+    `Alojamiento: ${payload.propertyLabel}`,
+    `Entrada: ${payload.checkIn}`,
+    `Salida: ${payload.checkOut}`,
+    `Cantidad de huéspedes: ${payload.guestCount}`,
+    `Estado del acceso: ${
+      payload.accessCode
+        ? "Código TTLock generado y listo"
+        : "Código TTLock pendiente"
+    }`,
     "",
     "Huésped principal:",
     `- Nombre: ${payload.primaryGuest.fullName}`,
@@ -139,7 +176,11 @@ export function buildGuestRegistrationAdminEmailText(
         `- ${guest.fullName} · ${getGuestDocumentTypeLabel(guest.documentType)} ${guest.documentNumber} · ${guest.nationality ?? "—"} · ${guest.dateOfBirth ?? "—"}`,
     ),
     "",
-    "Correo generado automáticamente por PRAGMA PMS.",
+    "Código de acceso TTLock:",
+    `- Código: ${payload.accessCode ?? "Pendiente de generación"}`,
+    payload.accessValidFrom || payload.accessValidTo
+      ? `- Vigencia: ${payload.accessValidFrom ?? "—"} → ${payload.accessValidTo ?? "—"}`
+      : null,
   ];
 
   return lines.filter((line) => line !== null).join("\n");

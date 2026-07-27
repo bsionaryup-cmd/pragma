@@ -56,11 +56,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   }));
 
   const reservationParam = params.reservation?.trim() ?? null;
-  const initialReservationId =
-    reservationParam &&
-    data.reservations.some((r) => r.id === reservationParam)
-      ? reservationParam
-      : null;
+  // Always attempt deep-link open; detail fetch is org-scoped and independent of viewport.
+  const initialReservationId = reservationParam || null;
 
   return (
     <ModuleShellFill>

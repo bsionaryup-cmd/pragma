@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight, PanelLeft, Plus, Settings2 } from "lucide-react";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import {
   formatMonthYear,
   shiftAnchor,
@@ -22,6 +22,7 @@ type CalendarToolbarProps = {
   onCreateClick?: () => void;
   onGoToToday?: () => void;
   onOpenViewSettings?: () => void;
+  reservationSearch?: ReactNode;
 };
 
 function CalendarToolbarComponent({
@@ -34,6 +35,7 @@ function CalendarToolbarComponent({
   onCreateClick,
   onGoToToday,
   onOpenViewSettings,
+  reservationSearch,
 }: CalendarToolbarProps) {
   const monthLabel = formatMonthYear(displayYear, displayMonth).toLowerCase();
   const prevAnchor = shiftAnchor(viewport.anchor, -NAV_SHIFT_DAYS);
@@ -41,7 +43,7 @@ function CalendarToolbarComponent({
 
   return (
     <div className="flex min-h-[var(--cal-toolbar-height,3rem)] shrink-0 items-center justify-between gap-2 border-b border-[var(--cal-border)] bg-white px-2 py-2 sm:gap-3 sm:px-4 md:px-5">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
         {showPropertiesToggle ? (
           <Button
             type="button"
@@ -57,6 +59,7 @@ function CalendarToolbarComponent({
         <h2 className="truncate text-sm font-bold tracking-tight text-[var(--cal-text-day)] sm:text-base">
           {monthLabel}
         </h2>
+        {reservationSearch}
       </div>
 
       <div className="flex shrink-0 items-center gap-1">

@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
   fetchAirbnbSyncStatus,
+  isAirbnbAutoSyncAuthError,
   runAirbnbAutoSync,
   runAirbnbAutoSyncCleanup,
 } from "@/lib/airbnb/auto-sync-client";
@@ -114,9 +115,22 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
           console.info("[ical-sync:auto]", trigger, summary);
         }
       } catch (error) {
+        // 401 right after login / expired __session: retry on next interval.
+        // Do not surface as a hard failure (Next overlay was showing `failed {}`).
+        if (isAirbnbAutoSyncAuthError(error)) {
+          if (process.env.NODE_ENV === "development") {
+            console.info(
+              `[ical-sync:auto] skip — sin sesión (${trigger}): ${error.message}`,
+            );
+          }
+          return;
+        }
+
         const message =
-          error instanceof Error ? error.message : "Error al sincronizar Airbnb";
-        console.error("[ical-sync:auto] failed", { trigger, message });
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Error al sincronizar Airbnb";
+        console.error(`[ical-sync:auto] failed (${trigger}): ${message}`);
         dispatchAirbnbSyncFailed(message);
       } finally {
         syncingRef.current = false;

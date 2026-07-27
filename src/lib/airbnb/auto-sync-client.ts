@@ -39,12 +39,35 @@ type PropertySyncResponse = {
 
 const CLIENT_TIMEOUT_MS = 92_000;
 
+/** Session not ready / signed out — auto-sync should skip, not alarm. */
+export class AirbnbAutoSyncAuthError extends Error {
+  readonly status: number;
+
+  constructor(
+    message = "Sesión no disponible para sincronizar Airbnb",
+    status = 401,
+  ) {
+    super(message);
+    this.name = "AirbnbAutoSyncAuthError";
+    this.status = status;
+  }
+}
+
+export function isAirbnbAutoSyncAuthError(
+  error: unknown,
+): error is AirbnbAutoSyncAuthError {
+  return error instanceof AirbnbAutoSyncAuthError;
+}
+
 function formatFetchError(error: unknown): string {
+  if (error instanceof AirbnbAutoSyncAuthError) {
+    return error.message;
+  }
   if (error instanceof Error) {
     if (error.name === "AbortError") {
       return "La sincronización Airbnb superó el tiempo máximo. Reintenta en unos segundos.";
     }
-    return error.message;
+    return error.message || "Error al sincronizar Airbnb";
   }
   return "Error de red al sincronizar Airbnb";
 }
@@ -67,9 +90,21 @@ async function postAutoSync<T>(body: Record<string, string>): Promise<T> {
       success?: boolean;
     };
 
+    if (res.status === 401 || res.status === 403) {
+      throw new AirbnbAutoSyncAuthError(
+        typeof payload?.error === "string" && payload.error.trim()
+          ? payload.error
+          : "Sesión no disponible para sincronizar Airbnb",
+        res.status,
+      );
+    }
+
     if (!res.ok) {
       throw new Error(
-        typeof payload === "object" && payload && "error" in payload && payload.error
+        typeof payload === "object" &&
+          payload &&
+          "error" in payload &&
+          payload.error
           ? String(payload.error)
           : `Auto-sync HTTP ${res.status}`,
       );
@@ -77,6 +112,10 @@ async function postAutoSync<T>(body: Record<string, string>): Promise<T> {
 
     return payload;
   } catch (error) {
+    if (isAirbnbAutoSyncAuthError(error)) throw error;
+    if (error instanceof Error && error.name !== "AbortError" && !(error instanceof TypeError)) {
+      throw error;
+    }
     throw new Error(formatFetchError(error));
   } finally {
     window.clearTimeout(timer);

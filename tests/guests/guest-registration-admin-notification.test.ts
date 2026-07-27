@@ -35,26 +35,37 @@ const payload = {
       dateOfBirth: "5 ago 1992",
     },
   ],
+  accessCode: "294527#",
+  accessValidFrom: "02/06/2026, 3:00 p. m.",
+  accessValidTo: "05/06/2026, 1:00 p. m.",
 };
 
 describe("guest registration admin notification content", () => {
-  it("builds subject with reservation code when present", () => {
-    assert.match(
-      buildGuestRegistrationAdminEmailSubject("Don Samuel · 801", "HM123"),
-      /HM123/,
+  it("builds operational subject with property and guest", () => {
+    assert.equal(
+      buildGuestRegistrationAdminEmailSubject(
+        "Don Samuel · 801",
+        "Juan Pérez",
+        "HM123",
+      ),
+      "Check-in registrado | Don Samuel · 801 | Juan Pérez (HM123)",
     );
   });
 
-  it("builds subject without code when missing", () => {
+  it("builds subject without reservation code when missing", () => {
     const subject = buildGuestRegistrationAdminEmailSubject(
       "Don Samuel · 801",
+      "María López",
       null,
     );
+    assert.equal(
+      subject,
+      "Check-in registrado | Don Samuel · 801 | María López",
+    );
     assert.ok(!subject.includes("()"));
-    assert.match(subject, /Don Samuel/);
   });
 
-  it("includes primary guest, companions and branding in html", () => {
+  it("includes primary guest, companions, access code and branding in html", () => {
     const html = buildGuestRegistrationAdminEmailHtml(payload);
     assert.match(html, /HM123/);
     assert.match(html, /Don Samuel/);
@@ -66,15 +77,19 @@ describe("guest registration admin notification content", () => {
     assert.match(html, /Juan Pérez/);
     assert.match(html, /9876543210/);
     assert.match(html, /Acompañantes/);
-    assert.match(html, /PRAGMA PMS/i);
+    assert.match(html, /294527#/);
+    assert.match(html, /Código de acceso TTLock/);
+    assert.match(html, /Check-in registrado/);
+    assert.match(html, /Estado del acceso/);
     assert.match(html, />3</);
   });
 
-  it("includes companion data in plain text", () => {
+  it("includes companion data and access code in plain text", () => {
     const text = buildGuestRegistrationAdminEmailText(payload);
     assert.match(text, /Juan Pérez/);
     assert.match(text, /9876543210/);
-    assert.match(text, /PRAGMA PMS/);
+    assert.match(text, /294527#/);
+    assert.match(text, /Check-in registrado/);
   });
 
   it("escapes html in guest data", () => {

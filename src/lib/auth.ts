@@ -92,7 +92,21 @@ export const getCurrentDbUser = currentDbUser;
 /** Sesión Clerk + usuario DB sincronizado y login actualizado */
 export const requireDbUser = cache(async (): Promise<User> => {
   const { userId, sessionClaims } = await auth();
-  if (!userId) redirect("/sign-in");
+  if (!userId) {
+    // Cookie race: send back to product login so the form stays usable.
+    const headerStore = await headers();
+    const pathname = headerStore.get("x-pathname") || "/panel";
+    const next =
+      pathname.startsWith("/sign-in") ||
+      pathname.startsWith("/auth/") ||
+      pathname.startsWith("/owner-login")
+        ? "/panel"
+        : pathname;
+    if (next.startsWith("/owner-dashboard") || next.startsWith("/owner")) {
+      redirect(`/owner-login?next=${encodeURIComponent(next)}`);
+    }
+    redirect(`/sign-in?redirect_url=${encodeURIComponent(next)}`);
+  }
 
   let dbUser = await fetchDbUserByClerkId(userId);
 
@@ -170,6 +184,7 @@ export const requireDbUser = cache(async (): Promise<User> => {
     if (!dbUser) {
       dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
         touchLogin: true,
+        authenticatedRelink: true,
       });
     } else {
       const metadata = clerkUser.publicMetadata as ClerkPublicMetadata | undefined;
@@ -181,6 +196,7 @@ export const requireDbUser = cache(async (): Promise<User> => {
       dbUser = await upsertUserFromClerk(mapClerkUserToPayload(clerkUser), {
         touchLogin: true,
         syncClerkMetadata: needsMetadataSync,
+        authenticatedRelink: true,
       });
     }
   } catch (error) {

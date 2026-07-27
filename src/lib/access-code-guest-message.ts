@@ -127,6 +127,8 @@ export function buildAccessCodeGuestMessage(
   return [
     "Bienvenido,",
     "",
+    "Tu registro de huéspedes fue completado correctamente.",
+    "",
     `Tu código de acceso para ${location} es ${codePhrase}`,
     "",
     "Será válido durante este período:",

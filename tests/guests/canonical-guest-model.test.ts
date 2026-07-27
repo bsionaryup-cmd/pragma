@@ -5,6 +5,7 @@ import {
   mapCanonicalGuestToSirePayload,
   mapCanonicalGuestToTraPayload,
   mapReservationGuestToCanonical,
+  resolveAccommodationType,
   toE164Phone,
 } from "@/lib/guest-registration/canonical-guest";
 import { guestStepSchema } from "@/features/guests/schemas/guest-registration.schema";
@@ -13,6 +14,14 @@ describe("canonical guest model", () => {
   it("normalizes phones to E.164", () => {
     assert.equal(toE164Phone("+57 3001234567"), "+573001234567");
     assert.equal(toE164Phone("+573001234567"), "+573001234567");
+  });
+
+  it("maps propertyType enum to human accommodationType labels", () => {
+    assert.equal(resolveAccommodationType("APARTMENT"), "Apartamento");
+    assert.equal(resolveAccommodationType("LOFT"), "Loft");
+    assert.equal(resolveAccommodationType("Casa"), "Casa");
+    assert.equal(resolveAccommodationType(null), null);
+    assert.equal(resolveAccommodationType(""), null);
   });
 
   it("maps reservation guest to SIRE and TRA payloads without re-asking", () => {
@@ -60,6 +69,7 @@ describe("canonical guest model", () => {
       currency: "COP",
       paymentMedium: "PLATFORM",
       bookingMedium: "AIRBNB",
+      propertyType: "APARTMENT",
     };
 
     const sire = mapCanonicalGuestToSirePayload(guest, stay);
@@ -71,6 +81,7 @@ describe("canonical guest model", () => {
     assert.equal(tra.travelMotive, "LEISURE");
     assert.equal(tra.residenceAdminArea, "Antioquia");
     assert.equal(tra.role, "PRIMARY");
+    assert.equal(tra.accommodationType, "Apartamento");
   });
 
   it("validates guest step with canonical required fields", () => {

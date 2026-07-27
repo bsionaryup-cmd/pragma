@@ -36,7 +36,7 @@ export async function savePaymentMethodsSettingsAction(raw: {
   try {
     const methods = await saveOrganizationPaymentMethods(parsed.methods);
     revalidatePath("/settings");
-    revalidatePath("/reservations");
+    revalidatePath("/calendar");
     return { success: true as const, methods };
   } catch (error) {
     return {

@@ -206,6 +206,7 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         select: { id: true, fullName: true, isReservationOwner: true, isPrimary: true },
       },
       accessCredentials: {
+        where: { ttlockCodeId: { not: null } },
         orderBy: { createdAt: "desc" },
         take: 1,
         select: {

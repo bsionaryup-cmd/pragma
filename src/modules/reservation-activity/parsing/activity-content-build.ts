@@ -5,7 +5,7 @@ import {
 } from "@/modules/reservation-events/parsing/modification-metadata-extract";
 import type { ExtractedReservationSignals } from "@/modules/airbnb-email/types";
 import type { ActivityMetadata } from "@/modules/reservation-activity/types";
-import { isPreReservationInquirySubject } from "@/services/novedades/novedades-unlinked-inquiry.logic";
+import { isPreReservationInquirySubject } from "@/services/reservations/inquiry-pending.logic";
 import { normalizeGuestMessageBody } from "@/services/novedades/operational-feed.message";
 
 function stripNoise(value: string): string {

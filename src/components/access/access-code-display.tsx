@@ -9,12 +9,15 @@ import {
   copyAccessCodeGuestMessage,
   type AccessCodeCopyContext,
 } from "@/lib/access-code-guest-message";
+import { formatDateTime } from "@/lib/helpers/date";
 import { cn } from "@/lib/utils";
 
 type AccessCodeDisplayProps = {
   code: string | null | undefined;
   status?: string;
   isActive?: boolean;
+  validFrom?: string | null;
+  validTo?: string | null;
   className?: string;
   defaultVisible?: boolean;
   variant?: "card" | "inline";
@@ -22,10 +25,37 @@ type AccessCodeDisplayProps = {
   copyContext?: Omit<AccessCodeCopyContext, "code">;
 };
 
+function resolveAccessStatusLabel(input: {
+  status?: string;
+  isActive?: boolean;
+}): string {
+  const status = (input.status ?? "").toUpperCase();
+  switch (status) {
+    case "EXPIRED":
+      return "Expirado";
+    case "REVOKED":
+      return "Eliminado";
+    case "SUSPENDED":
+      return "Suspendido";
+    case "PENDING":
+      return "Pendiente";
+    case "GENERATED":
+    case "SENT":
+    case "ACTIVE":
+      return input.isActive === false ? "Inactivo" : "Activo";
+    default:
+      if (input.isActive === true) return "Activo";
+      if (input.isActive === false) return "Inactivo";
+      return input.status?.trim() || "—";
+  }
+}
+
 export function AccessCodeDisplay({
   code,
   status,
   isActive,
+  validFrom,
+  validTo,
   className,
   defaultVisible = false,
   variant = "card",
@@ -34,12 +64,11 @@ export function AccessCodeDisplay({
   const [visible, setVisible] = useState(defaultVisible);
   const displayCode = formatAccessCode(code);
   const hasCode = Boolean(displayCode);
-  const statusLabel =
-    isActive !== undefined
-      ? isActive
-        ? "Activo"
-        : (status ?? "Suspendido")
-      : (status ?? "—");
+  const statusLabel = resolveAccessStatusLabel({ status, isActive });
+  const validityLabel =
+    validFrom || validTo
+      ? `${formatDateTime(validFrom)} → ${formatDateTime(validTo)}`
+      : null;
 
   async function copyCode() {
     if (!displayCode) return;
@@ -54,9 +83,7 @@ export function AccessCodeDisplay({
           return;
         }
         toast.success(
-          usedFullMessage
-            ? "Mensaje de acceso copiado"
-            : "Código copiado",
+          usedFullMessage ? "Mensaje de acceso copiado" : "Código copiado",
         );
         return;
       }
@@ -74,7 +101,7 @@ export function AccessCodeDisplay({
     return (
       <div
         className={cn(
-          "inline-flex w-fit max-w-full items-center gap-2 rounded-md border border-border/70 bg-muted/25 px-2.5 py-1.5",
+          "inline-flex w-fit max-w-full flex-wrap items-center gap-2 rounded-md border border-border/70 bg-muted/25 px-2.5 py-1.5",
           className,
         )}
       >
@@ -82,7 +109,7 @@ export function AccessCodeDisplay({
           Código
         </span>
         <span className="shrink-0 font-mono text-sm tracking-wider text-foreground">
-          {visible ? displayCode : "••••••#"}
+          {visible ? displayCode : "••••••••"}
         </span>
         <div className="flex shrink-0 items-center gap-0.5">
           <Button
@@ -120,6 +147,11 @@ export function AccessCodeDisplay({
         >
           {statusLabel}
         </span>
+        {validityLabel ? (
+          <span className="w-full text-[10px] text-muted-foreground">
+            Vigencia: {validityLabel}
+          </span>
+        ) : null}
       </div>
     );
   }
@@ -141,13 +173,18 @@ export function AccessCodeDisplay({
           </p>
           {hasCode ? (
             <p className="mt-1 font-mono text-base font-bold tracking-widest text-foreground">
-              {visible ? displayCode : "••••••#"}
+              {visible ? displayCode : "••••••••"}
             </p>
           ) : (
             <p className="mt-1 text-xs text-muted-foreground">
               Aún no generado
             </p>
           )}
+          {validityLabel ? (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Vigencia: {validityLabel}
+            </p>
+          ) : null}
         </div>
         {hasCode ? (
           <div className="flex shrink-0 gap-1">

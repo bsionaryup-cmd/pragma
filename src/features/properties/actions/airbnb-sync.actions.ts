@@ -38,7 +38,6 @@ export async function disconnectPropertyAirbnbIcalAction(propertyId: string) {
   const result = await disconnectPropertyAirbnbIcal(propertyId, user.dbUserId);
   const { revalidatePath } = await import("next/cache");
   revalidatePath("/properties");
-  revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/");
   return { success: true as const, result };

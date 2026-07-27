@@ -1,0 +1,14 @@
+{
+  "at": "2026-07-26T07:11:47.722Z",
+  "summary": {
+    "prodProxyOk": true,
+    "prodSignInHasProxy": true,
+    "localSignInNoProxy": true,
+    "localNoHostInvalid": true
+  },
+  "notes": [
+    "prod /__clerk 200",
+    "local sign-in no proxy attr",
+    "local /__clerk 307 no host_invalid"
+  ]
+}

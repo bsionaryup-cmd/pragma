@@ -16,7 +16,7 @@ import {
 
 function revalidateSmartAccess() {
   revalidatePath("/smart-access");
-  revalidatePath("/reservations");
+  revalidatePath("/calendar");
 }
 
 async function assertAccessReservationInScope(reservationId: string) {

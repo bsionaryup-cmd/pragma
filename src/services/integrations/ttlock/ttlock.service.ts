@@ -328,7 +328,7 @@ async function loadTTLockOverview(
     mappedCount,
     propertyCount: properties.length,
     generateAfterGuestRegistration:
-      settings?.generateAfterGuestRegistration ?? false,
+      settings?.generateAfterGuestRegistration ?? true,
     callbackValid: callbackValidation.valid,
   });
 

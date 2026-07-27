@@ -1,4 +1,4 @@
-export type { User, Property, Reservation, Task } from "@prisma/client";
+export type { User, Property, Reservation } from "@prisma/client";
 
 export {
   UserRole,
@@ -6,7 +6,6 @@ export {
   PropertyStatus,
   BookingPlatform,
   ReservationStatus,
-  TaskType,
   TaskStatus,
 } from "@prisma/client";
 

@@ -45,14 +45,6 @@ export const propertyFormSchema = z.object({
     .optional(),
   guestRegistrationContactKey: z.string().trim().optional(),
   receptionWhatsapp: z.string().optional(),
-  useDefaultQuickMessages: z.boolean().optional(),
-  quickMessageWELCOME: z.string().optional(),
-  quickMessageREGISTRATION: z.string().optional(),
-  quickMessageACCESS: z.string().optional(),
-  quickMessageFOLLOW_UP: z.string().optional(),
-  quickMessageHOUSE_RULES: z.string().optional(),
-  quickMessageCHECKOUT: z.string().optional(),
-  quickMessageREVIEW: z.string().optional(),
 });
 
 export type PropertyFormValues = z.infer<typeof propertyFormSchema>;

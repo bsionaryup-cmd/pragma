@@ -22,6 +22,15 @@ const nextConfig: NextConfig = {
       "date-fns",
       "zod",
     ],
+    serverActions: {
+      // Localhost + prod + tunnels: avoid CSRF abort when APP_URL drifts.
+      allowedOrigins: [
+        "localhost:3000",
+        "127.0.0.1:3000",
+        "www.pragmapms.com",
+        "pragmapms.com",
+      ],
+    },
   },
   images: {
     formats: ["image/avif", "image/webp"],
@@ -64,28 +73,13 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: "/tasks/compras",
-        destination: "/tasks",
+        source: "/reservations",
+        destination: "/calendar",
         permanent: false,
       },
       {
-        source: "/tasks/mantenimiento",
-        destination: "/tasks",
-        permanent: false,
-      },
-      {
-        source: "/tasks/limpieza",
-        destination: "/tasks",
-        permanent: false,
-      },
-      {
-        source: "/tasks/inventario",
-        destination: "/tasks",
-        permanent: false,
-      },
-      {
-        source: "/tasks/:id/edit",
-        destination: "/tasks/edit/:id",
+        source: "/reservations/:path*",
+        destination: "/calendar",
         permanent: false,
       },
     ];

@@ -465,10 +465,10 @@ export async function generateAccessCodeForReservation(
   const lockPasscode = formatAccessCodeForLockApi(passcode);
   const apiSession = await resolveAccessTokenForProperty(reservation.propertyId);
   let ttlockCodeId: string | null = null;
-  const liveApiRequired = isTTLockLiveApiEnabled();
 
-  // Fail closed: never persist a "fake" local code that looks real in the UI.
-  if (!liveApiRequired) {
+  // Fail closed: never persist a fake local code. Live calls require a real session.
+  // isTTLockLiveApiEnabled() is an explicit kill-switch (TTLOCK_API_ENABLED=false).
+  if (!isTTLockLiveApiEnabled()) {
     await db.accessEvent.create({
       data: {
         reservationId: reservation.id,
@@ -477,18 +477,18 @@ export async function generateAccessCodeForReservation(
         payload: {
           step: "live_api_disabled",
           message:
-            "TTLock API deshabilitada; no se crea código local falso",
+            "TTLock API deshabilitada (TTLOCK_API_ENABLED=false); no se crea código local falso",
         },
       },
     });
     return {
       ok: false,
       message:
-        "TTLock API no está habilitada. Configura TTLOCK_CLIENT_ID/SECRET y TTLOCK_API_ENABLED=true. No se genera código falso.",
+        "TTLock API deshabilitada (TTLOCK_API_ENABLED=false). No se genera código falso.",
     };
   }
 
-  if (!apiSession) {
+  if (!apiSession || apiSession.accessToken === "placeholder-token") {
     await db.accessEvent.create({
       data: {
         reservationId: reservation.id,
@@ -571,6 +571,18 @@ export async function generateAccessCodeForReservation(
         },
       },
     });
+
+    // Successful passcode API proves OAuth tokens work — clear stale SYNC_ERROR
+    // so other paths that still gate on CONNECTED/READY stay healthy.
+    if (integration.status === TTLockIntegrationStatus.SYNC_ERROR) {
+      await db.tTLockIntegration.update({
+        where: { id: integration.id },
+        data: {
+          status: TTLockIntegrationStatus.READY,
+          lastError: null,
+        },
+      });
+    }
   }
 
   if (ttlockCodeId && !options?.skipAccessCodeEmail) {

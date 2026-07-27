@@ -196,6 +196,8 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                             code={item.credential!.code}
                             status={item.credential!.status}
                             isActive={codeIsActive}
+                            validFrom={item.credential!.validFrom}
+                            validTo={item.credential!.validTo}
                             copyContext={{
                               propertyType: item.propertyType,
                               propertyName: item.propertyName,
@@ -291,7 +293,7 @@ export function SmartAccessDashboard({ data, canManage }: SmartAccessDashboardPr
                         className="border-border bg-muted/30 text-foreground shadow-none hover:bg-muted/50"
                         asChild
                       >
-                        <Link href={`/reservations?reservation=${item.id}`}>
+                        <Link href={`/calendar?reservation=${item.id}`}>
                           <ClipboardList className="mr-1 h-3.5 w-3.5" />
                           Reserva
                         </Link>

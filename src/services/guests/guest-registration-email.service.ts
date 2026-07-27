@@ -1,7 +1,6 @@
 import "server-only";
 
 import { BookingPlatform, ReservationStatus } from "@prisma/client";
-import { pragmaEmailFooterHtml, pragmaEmailHeaderHtml } from "@/lib/brand-email";
 import { sendEmail } from "@/lib/email/send-email";
 import { formatMoney } from "@/lib/format-currency";
 import {
@@ -13,11 +12,13 @@ import {
 import { formatDate } from "@/lib/helpers/date";
 import { db } from "@/lib/db";
 import { formatPropertyLabel } from "@/lib/property-display";
+import { GUEST_RESERVATION_CONFIRMATION_SUBJECT } from "@/lib/guest-registration/reservation-event-email-subjects";
 import {
   buildGuestRegistrationUrl,
   isGuestRegistrationEligibleStatus,
 } from "@/services/guests/guest-registration.service";
 
+export { GUEST_RESERVATION_CONFIRMATION_SUBJECT };
 export type SendGuestRegistrationInviteOptions = {
   force?: boolean;
   triggeredBy?: "auto" | "manual";
@@ -117,38 +118,54 @@ async function releaseInviteClaim(
   });
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function buildInviteEmailHtml(input: {
   guestName: string;
   propertyLabel: string;
+  reservationCode: string | null;
   checkInLabel: string;
   checkOutLabel: string;
   registrationUrl: string;
   cleaningNote: string;
 }): string {
+  const codeRow = input.reservationCode?.trim()
+    ? `<p style="margin:0 0 12px;line-height:1.5">Número de reserva: <strong>${escapeHtml(input.reservationCode.trim())}</strong></p>`
+    : "";
+
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;max-width:560px;margin:0 auto">
-      ${pragmaEmailHeaderHtml()}
-      <h1 style="font-size:20px;margin:0 0 12px">Tu reserva en ${input.propertyLabel}</h1>
+      <h1 style="font-size:20px;margin:0 0 12px">Reserva confirmada</h1>
       <p style="margin:0 0 12px;line-height:1.5">
-        Hola ${input.guestName}, gracias por reservar con nosotros.
+        Hola ${escapeHtml(input.guestName)}, tu reserva en
+        <strong>${escapeHtml(input.propertyLabel)}</strong> está confirmada.
       </p>
+      ${codeRow}
       <p style="margin:0 0 12px;line-height:1.5">
-        Estancia: <strong>${input.checkInLabel}</strong> →
-        <strong>${input.checkOutLabel}</strong>
+        Huésped: <strong>${escapeHtml(input.guestName)}</strong>
       </p>
       <p style="margin:0 0 16px;line-height:1.5">
-        Para completar tu llegada, regístrate con el enlace seguro de PRAGMA (datos de huéspedes y acceso):
+        Fechas: <strong>${escapeHtml(input.checkInLabel)}</strong> →
+        <strong>${escapeHtml(input.checkOutLabel)}</strong>
+      </p>
+      <p style="margin:0 0 16px;line-height:1.5">
+        Solo falta completar el registro de huéspedes para tu llegada.
       </p>
       <p style="margin:0 0 20px">
-        <a href="${input.registrationUrl}" style="display:inline-block;background:#0ea5e9;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600">
+        <a href="${escapeHtml(input.registrationUrl)}" style="display:inline-block;background:#0ea5e9;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600">
           Completar registro de huéspedes
         </a>
       </p>
       <p style="margin:0;font-size:12px;color:#6b7280;word-break:break-all">
-        ${input.registrationUrl}
+        ${escapeHtml(input.registrationUrl)}
       </p>
       ${input.cleaningNote}
-      ${pragmaEmailFooterHtml()}
     </div>
   `;
 }
@@ -163,6 +180,7 @@ export async function sendGuestRegistrationInviteEmail(input: {
       guestEmail: true,
       guestFirstName: true,
       guestName: true,
+      reservationCode: true,
       checkIn: true,
       checkOut: true,
       property: {
@@ -205,17 +223,22 @@ export async function sendGuestRegistrationInviteEmail(input: {
   const html = buildInviteEmailHtml({
     guestName,
     propertyLabel,
+    reservationCode: reservation.reservationCode,
     checkInLabel: formatDate(reservation.checkIn),
     checkOutLabel: formatDate(reservation.checkOut),
     registrationUrl: input.registrationUrl,
     cleaningNote,
   });
 
+  const codeHint = reservation.reservationCode?.trim()
+    ? ` Número de reserva: ${reservation.reservationCode.trim()}.`
+    : "";
+
   return sendEmail({
     to,
-    subject: `Registro de huéspedes — ${propertyLabel}`,
+    subject: GUEST_RESERVATION_CONFIRMATION_SUBJECT,
     html,
-    text: `Hola ${guestName}. Completa tu registro: ${input.registrationUrl}`,
+    text: `Hola ${guestName}. Tu reserva en ${propertyLabel} está confirmada.${codeHint} Completa el registro de huéspedes: ${input.registrationUrl}`,
   }).then((result) => ({
     ok: result.ok,
     message: result.message,

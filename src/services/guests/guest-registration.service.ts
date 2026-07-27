@@ -559,10 +559,13 @@ async function finalizeGuestRegistration(
   });
 
   if (reservationMeta.property) {
-    const { scheduleGuestRegistrationCompletionComms } = await import(
+    const { settleGuestRegistrationCompletionComms } = await import(
       "@/services/guests/guest-registration-completion-comms.service"
     );
-    scheduleGuestRegistrationCompletionComms(reservationId);
+    // Await TTLock persist + revalidate before returning so reservation detail
+    // already has AccessCredential when the guest completes (historical SSOT).
+    // Emails remain non-blocking after the code is stored.
+    await settleGuestRegistrationCompletionComms(reservationId);
   }
 }
 
@@ -1228,9 +1231,9 @@ export async function submitGuestRegistration(
   });
 
   if (reservation.property) {
-    const { scheduleGuestRegistrationCompletionComms } = await import(
+    const { settleGuestRegistrationCompletionComms } = await import(
       "@/services/guests/guest-registration-completion-comms.service"
     );
-    scheduleGuestRegistrationCompletionComms(reservation.id);
+    await settleGuestRegistrationCompletionComms(reservation.id);
   }
 }

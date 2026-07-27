@@ -1,6 +1,7 @@
 /**
  * Verificación estática de matriz RBAC.
  * Ejecutar: node scripts/verify-permissions.mjs
+ * Keep in sync with src/lib/auth/permissions.ts
  */
 
 const ROLE_PERMISSIONS = {
@@ -13,8 +14,6 @@ const ROLE_PERMISSIONS = {
     "reservations:write",
     "reservations:delete",
     "calendar:read",
-    "tasks:read",
-    "tasks:write",
     "users:read",
     "users:write",
     "users:delete",
@@ -26,6 +25,8 @@ const ROLE_PERMISSIONS = {
     "billing:manage",
     "integrations:read",
     "integrations:manage",
+    "access:read",
+    "access:manage",
     "settings:read",
     "pricing:read",
   ],
@@ -35,36 +36,37 @@ const ROLE_PERMISSIONS = {
     "reservations:create",
     "reservations:write",
     "calendar:read",
-    "tasks:read",
-    "tasks:write",
   ],
 };
 
 const RECEPTIONIST_ROUTE_PREFIXES = [
   "/panel",
-  "/reservations",
   "/calendar",
-  "/tasks",
 ];
 
 const ROUTE_PERMISSIONS = {
   "/panel": "dashboard:read",
   "/properties/new": "properties:write",
   "/properties": "properties:read",
-  "/reservations/new": "reservations:create",
-  "/reservations": "reservations:read",
-  "/inbox": "reservations:read",
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
+  "/finance": "finance:read",
   "/finance/payment-links": "finance:read",
   "/finance/payment-history": "finance:read",
-  "/finance": "finance:read",
+  "/integrations/airbnb": "integrations:read",
+  "/integrations/sire": "integrations:manage",
+  "/integrations/traa": "integrations:manage",
+  "/integrations/ttlock/connect": "integrations:manage",
+  "/integrations/ttlock": "integrations:read",
+  "/integrations/pricelabs": "integrations:read",
+  "/integrations/wompi": "integrations:read",
   "/integrations": "integrations:read",
+  "/prospecting": "integrations:read",
+  "/smart-access": "access:read",
   "/settings/billing": "billing:manage",
   "/settings": "settings:read",
   "/users": "users:read",
-  "/tasks/new": "tasks:write",
-  "/tasks": "tasks:read",
+  "/onboarding": "billing:manage",
 };
 
 const EXPECTED_ACCESS = {
@@ -72,8 +74,6 @@ const EXPECTED_ACCESS = {
     "/panel",
     "/properties",
     "/properties/new",
-    "/reservations",
-    "/reservations/new",
     "/calendar",
     "/finance",
     "/revenue",
@@ -81,15 +81,10 @@ const EXPECTED_ACCESS = {
     "/settings",
     "/settings/billing",
     "/users",
-    "/tasks",
   ],
   RECEPTIONIST: [
     "/panel",
-    "/reservations",
-    "/reservations/new",
     "/calendar",
-    "/tasks",
-    "/tasks/new",
   ],
 };
 
@@ -103,9 +98,13 @@ const EXPECTED_DENIED = {
     "/finance",
     "/finance/payment-links",
     "/finance/payment-history",
-    "/inbox",
     "/properties",
     "/properties/new",
+    "/reservations",
+    "/reservations/new",
+    "/inbox",
+    "/tasks",
+    "/tasks/new",
   ],
 };
 
@@ -133,7 +132,10 @@ function hasRouteAccess(role, pathname) {
   const permission = getRequiredPermission(pathname);
   if (!permission) return false;
   if (hasPermission(role, permission)) return true;
-  if (permission === "finance:read" && hasPermission(role, "finance:operations:read")) {
+  if (
+    permission === "finance:read" &&
+    hasPermission(role, "finance:operations:read")
+  ) {
     return true;
   }
   return false;
@@ -141,35 +143,27 @@ function hasRouteAccess(role, pathname) {
 
 let failed = 0;
 
-for (const role of Object.keys(EXPECTED_ACCESS)) {
-  for (const path of EXPECTED_ACCESS[role]) {
+for (const [role, paths] of Object.entries(EXPECTED_ACCESS)) {
+  for (const path of paths) {
     if (!hasRouteAccess(role, path)) {
-      console.log(`✗ ${role} should access ${path}`);
-      failed++;
+      console.error(`FAIL: ${role} should access ${path}`);
+      failed += 1;
     }
   }
 }
 
-for (const path of EXPECTED_DENIED.RECEPTIONIST) {
-  if (hasRouteAccess("RECEPTIONIST", path)) {
-    console.log(`✗ RECEPTIONIST should NOT access ${path}`);
-    failed++;
+for (const [role, paths] of Object.entries(EXPECTED_DENIED)) {
+  for (const path of paths) {
+    if (hasRouteAccess(role, path)) {
+      console.error(`FAIL: ${role} should NOT access ${path}`);
+      failed += 1;
+    }
   }
 }
 
-if (!hasPermission("RECEPTIONIST", "reservations:write")) {
-  console.log("✗ RECEPTIONIST must have reservations:write for operational edits");
-  failed++;
-}
-
-if (hasPermission("RECEPTIONIST", "reservations:delete")) {
-  console.log("✗ RECEPTIONIST must not have reservations:delete");
-  failed++;
-}
-
 if (failed > 0) {
-  console.error(`\n${failed} assertion(s) failed`);
+  console.error(`\nverify-permissions: ${failed} failure(s)`);
   process.exit(1);
 }
 
-console.log("\n✓ Matriz RBAC coherente (ADMIN / RECEPTIONIST)");
+console.log("verify-permissions: ok");

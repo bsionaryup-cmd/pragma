@@ -15,7 +15,7 @@ const CLERK_ERROR_MESSAGES: Record<string, string> = {
   form_identifier_not_found:
     "No encontramos una cuenta con ese correo. Revisa el email o crea una cuenta nueva.",
   session_exists:
-    "Ya hay una sesión activa. Cierra sesión e intenta de nuevo.",
+    "Había una sesión residual. Cerrándola para que puedas entrar de nuevo…",
   form_param_format_invalid:
     "El formato del correo no es válido. Revisa e intenta de nuevo.",
   too_many_requests:
@@ -110,6 +110,37 @@ export function getSignUpGlobalErrorMessage(
     return CLERK_ERROR_MESSAGES.client_state_invalid ?? globalMessage;
   }
   return globalMessage;
+}
+
+export function isAlreadySignedInAuthError(error: unknown): boolean {
+  if (isClerkAPIResponseError(error)) {
+    const code = error.errors[0]?.code;
+    if (code === "session_exists" || code === "identifier_already_signed_in") {
+      return true;
+    }
+    const message = `${error.errors[0]?.message ?? ""} ${error.errors[0]?.longMessage ?? ""}`;
+    if (/already signed in/i.test(message)) return true;
+  }
+
+  if (error && typeof error === "object" && "error" in error) {
+    const nested = (error as { error?: ClerkAPIError | null }).error;
+    if (nested?.code === "session_exists" || nested?.code === "identifier_already_signed_in") {
+      return true;
+    }
+    if (/already signed in/i.test(`${nested?.message ?? ""} ${nested?.longMessage ?? ""}`)) {
+      return true;
+    }
+  }
+
+  if (error instanceof Error && /already signed in|session_exists/i.test(error.message)) {
+    return true;
+  }
+
+  if (typeof error === "string" && /already signed in|session_exists/i.test(error)) {
+    return true;
+  }
+
+  return false;
 }
 
 export function incompleteSignInStatusMessage(status: string | null | undefined): string {

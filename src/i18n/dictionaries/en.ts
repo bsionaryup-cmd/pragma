@@ -24,17 +24,9 @@ export const en = {
   },
   nav: {
     overview: "Today",
-    aiConcierge: "AI Concierge",
     operations: "Operations",
-    reservations: "Reservations",
-    novedades: "Inbox",
     properties: "Properties",
     calendar: "Calendar",
-    tasks: "Tasks",
-    purchases: "Purchases",
-    maintenance: "Maintenance",
-    cleaning: "Cleaning",
-    inventory: "Inventory",
     revenue: "Rates",
     smartAccess: "Access codes",
     integrations: "Integrations",
@@ -109,7 +101,7 @@ export const en = {
       today: "Today",
       todayDesc: "Arrivals and departures scheduled for today.",
       upcoming: "Upcoming stays",
-      upcomingDesc: "Arrivals, departures, and in-stay guests over the next 7 days.",
+      upcomingDesc: "Excluding today · next 7 days",
       calendar: "Daily activity",
       calendarDesc: "Arrivals, departures, and guests in stay.",
       alerts: "Needs attention",
@@ -120,6 +112,7 @@ export const en = {
     today: {
       arrivals: "Arriving today",
       departures: "Departing today",
+      summaryCounts: "{{arrivals}} arriving · {{departures}} departing",
       emptyArrivals: "No arrivals scheduled for today.",
       emptyDepartures: "No departures scheduled for today.",
       statusArrival: "Arrival",
@@ -148,14 +141,14 @@ export const en = {
       smartLockPending: "Not configured",
     },
     tabs: {
-      checkIns: "Upcoming arrivals",
-      checkOuts: "Upcoming departures",
-      active: "Currently hosted",
+      checkIns: "Arrivals",
+      checkOuts: "Departures",
+      active: "In stay",
     },
     tabDesc: {
-      checkIns: "Confirmed arrivals in the next 7 days.",
-      checkOuts: "Scheduled departures in the next 7 days.",
-      active: "Guests currently in active properties.",
+      checkIns: "Confirmed arrivals after today (7 days).",
+      checkOuts: "Scheduled departures after today (7 days).",
+      active: "Guests currently in stay.",
     },
     download: {
       checkIns: "Download arrivals",
@@ -211,6 +204,10 @@ export const en = {
     links: {
       history: "Payment history",
       chargeLinks: "Payment links",
+    },
+    actions: {
+      addExpense: "Add expense",
+      addOtherIncome: "Add other income",
     },
     kpi: {
       revenue: "Revenue",
@@ -502,13 +499,7 @@ export const en = {
     comingSoon: "This module will be connected soon.",
     managementNav: "Management access",
   },
-  inbox: {
-    title: "Messages",
-  },
   calendar: {
     title: "Calendar",
-  },
-  tasks: {
-    title: "Cleaning",
   },
 } as const satisfies Dictionary;

@@ -121,3 +121,15 @@ export function propertyMatchesQuery(
     address.includes(q)
   );
 }
+
+/** Dirección para mensajes / registro (calle/número; no solo ciudad). */
+export function formatPropertyAddressForMessage(input: {
+  address: string;
+  neighborhood?: string | null;
+}): string {
+  const street = input.address.trim();
+  const neighborhood = input.neighborhood?.trim();
+  if (!street) return "";
+  if (!neighborhood) return street;
+  return `${street}, ${neighborhood}`;
+}

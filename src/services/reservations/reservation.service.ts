@@ -17,6 +17,7 @@ import {
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   mergeReservationScope,
+  type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
 import { emitBookingCancelled, emitBookingConfirmed } from "@/modules/integrations/ttlock/ttlock.events";
@@ -42,8 +43,7 @@ import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
-import { parsePropertyQuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
-import { formatPropertyAddressForMessage } from "@/lib/reservations/quick-message-templates";
+import { formatPropertyAddressForMessage } from "@/lib/property-display";
 import {
   isOtaImportedReservation,
   OTA_RESERVATION_DELETE_MESSAGE,
@@ -184,22 +184,33 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
     guestRegistrationAdminNotification:
       r.guestRegistrationCompletedAt &&
       "guestRegistrationAdminNotifiedAt" in r
-        ? buildGuestRegistrationAdminNotificationStatus({
-            guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
-            guestRegistrationAdminNotifiedAt:
-              r.guestRegistrationAdminNotifiedAt ?? null,
-            guestRegistrationAdminNotificationError:
-              r.guestRegistrationAdminNotificationError ?? null,
-            guestRegistrationAdminNotificationLog:
-              r.guestRegistrationAdminNotificationLog ?? [],
-            notificationEmails: r.property.notificationEmails ?? [],
-            operationalContacts: r.property.operationalContacts ?? [],
-            guestRegistrationContactKey:
-              r.property.guestRegistrationContactKey ?? null,
-          })
+        ? (() => {
+            try {
+              return buildGuestRegistrationAdminNotificationStatus({
+                guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
+                guestRegistrationAdminNotifiedAt:
+                  r.guestRegistrationAdminNotifiedAt ?? null,
+                guestRegistrationAdminNotificationError:
+                  r.guestRegistrationAdminNotificationError ?? null,
+                guestRegistrationAdminNotificationLog:
+                  r.guestRegistrationAdminNotificationLog ?? [],
+                notificationEmails: r.property.notificationEmails ?? [],
+                operationalContacts: r.property.operationalContacts ?? [],
+                guestRegistrationContactKey:
+                  r.property.guestRegistrationContactKey ?? null,
+              });
+            } catch (error) {
+              console.warn(
+                "[toInboxItem] admin notification status skipped:",
+                error,
+              );
+              return null;
+            }
+          })()
         : null,
     guestRegistration: r.guestRegistration ?? null,
     guestRegistrationProgress: progress,
+    accessCode: r.accessCode ?? null,
     property: {
       id: r.property.id,
       name: r.property.name,
@@ -233,10 +244,6 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
         "wifiPassword" in r.property ? r.property.wifiPassword : undefined,
       receptionWhatsapp:
         "receptionWhatsapp" in r.property ? r.property.receptionWhatsapp : undefined,
-      quickMessageTemplates:
-        "quickMessageTemplates" in r.property
-          ? parsePropertyQuickMessageTemplates(r.property.quickMessageTemplates)
-          : null,
     },
     activityUnreadCount: r.activityUnreadCount ?? 0,
     activityUnreadHint: r.activityUnreadHint ?? null,
@@ -306,6 +313,68 @@ async function getRegistrationsByReservationIds(reservationIds: string[]) {
 
 const INBOX_RESERVATION_LIMIT = 1000;
 
+export type ReservationSearchHit = {
+  id: string;
+  guestName: string;
+  reservationCode: string | null;
+  checkIn: string;
+  checkOut: string;
+  propertyName: string;
+  propertyUnitNumber: string | null;
+};
+
+const CALENDAR_SEARCH_LIMIT = 20;
+
+/** Búsqueda ligera org-scoped para el calendario (huésped / código / id). */
+export async function searchReservationsForCalendar(
+  query: string,
+  limit = CALENDAR_SEARCH_LIMIT,
+): Promise<ReservationSearchHit[]> {
+  const q = query.trim();
+  if (q.length < 1) return [];
+
+  const scope = await requireTenantDataScope();
+  const take = Math.min(Math.max(limit, 1), 50);
+  const rows = await db.reservation.findMany({
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        OR: [
+          { guestName: { contains: q, mode: "insensitive" } },
+          { guestFirstName: { contains: q, mode: "insensitive" } },
+          { guestLastName: { contains: q, mode: "insensitive" } },
+          { reservationCode: { contains: q, mode: "insensitive" } },
+          { id: { contains: q, mode: "insensitive" } },
+        ],
+      }),
+    ),
+    take,
+    select: {
+      id: true,
+      guestName: true,
+      reservationCode: true,
+      checkIn: true,
+      checkOut: true,
+      property: {
+        select: {
+          name: true,
+          unitNumber: true,
+        },
+      },
+    },
+    orderBy: [{ checkIn: "desc" }],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    guestName: row.guestName,
+    reservationCode: row.reservationCode,
+    checkIn: prismaDateToKey(row.checkIn),
+    checkOut: prismaDateToKey(row.checkOut),
+    propertyName: row.property.name,
+    propertyUnitNumber: row.property.unitNumber ?? null,
+  }));
+}
+
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const scope = await requireTenantDataScope();
   await purgeGhostReservationsThrottled(scope);
@@ -360,9 +429,6 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       property: {
         ...row.property,
         neighborhood: row.property.neighborhood,
-        quickMessageTemplates: parsePropertyQuickMessageTemplates(
-          row.property.quickMessageTemplates,
-        ),
       },
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registrationsByReservation.get(row.id) ?? null,
@@ -431,9 +497,10 @@ export async function getReservationMutationContext(id: string) {
 /** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
 export async function getReservationForInbox(
   id: string,
+  scopeOverride?: TenantDataScope,
 ): Promise<ReservationDetailItem | null> {
-  const scope = await requireTenantDataScope();
-  const row = await db.reservation.findFirst({
+  const scope = scopeOverride ?? (await requireTenantDataScope());
+  let row = await db.reservation.findFirst({
     where: withVisibleReservationsFilter(
       mergeReservationScope(scope, { id }),
     ),
@@ -441,6 +508,15 @@ export async function getReservationForInbox(
       property: true,
     },
   });
+
+  // Calendar already showed this bar — if the orphan filter races with iCal
+  // disconnect, still open detail within tenant scope (SSOT: don't 404 the click).
+  if (!row) {
+    row = await db.reservation.findFirst({
+      where: mergeReservationScope(scope, { id }),
+      include: { property: true },
+    });
+  }
   if (!row) return null;
 
   const blockRows = await db.reservation.findMany({
@@ -469,52 +545,102 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  const [guestsByReservation, registration, accessCredential, airbnbGuestByReservation, activityUnreadMap] =
-    await Promise.all([
-    getGuestsByReservationIds([row.id]),
-    getActiveGuestRegistrationForReservation(row.id),
-    db.accessCredential.findFirst({
-      where: { reservationId: row.id },
-      orderBy: { createdAt: "desc" },
-      select: { status: true, codeEncrypted: true, ttlockCodeId: true },
+  const emptyGuests = new Map<string, ReservationDetailItem["guests"]>();
+  const emptyAirbnbNames = new Map<string, string>();
+  const emptyActivity = new Map<
+    string,
+    { unreadCount: number; hint: string | null }
+  >();
+
+  const [
+    guestsByReservation,
+    registration,
+    accessCredential,
+    airbnbGuestByReservation,
+    activityUnreadMap,
+  ] = await Promise.all([
+    getGuestsByReservationIds([row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] guests skipped:", error);
+      return emptyGuests;
     }),
-    getAirbnbEnrichedGuestNameByReservationIds([row.id]),
-    getReservationActivityUnreadMap(scope, [row.id]),
+    getActiveGuestRegistrationForReservation(row.id).catch((error) => {
+      console.warn("[getReservationForInbox] registration skipped:", error);
+      return null;
+    }),
+    db.accessCredential
+      .findFirst({
+        where: {
+          reservationId: row.id,
+          ttlockCodeId: { not: null },
+          status: {
+            in: ["GENERATED", "SENT", "ACTIVE"],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          status: true,
+          codeEncrypted: true,
+          ttlockCodeId: true,
+          validFrom: true,
+          validTo: true,
+        },
+      })
+      .catch((error) => {
+        console.warn("[getReservationForInbox] access skipped:", error);
+        return null;
+      }),
+    getAirbnbEnrichedGuestNameByReservationIds([row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] airbnb name skipped:", error);
+      return emptyAirbnbNames;
+    }),
+    getReservationActivityUnreadMap(scope, [row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] activity skipped:", error);
+      return emptyActivity;
+    }),
   ]);
 
-  const accessCode = accessCredential
-    ? {
-        status: accessCredential.status,
-        code: accessCredential.ttlockCodeId
-          ? formatAccessCode(decryptTTLockSecret(accessCredential.codeEncrypted))
-          : null,
-        isActive:
-          Boolean(accessCredential.ttlockCodeId) &&
-          ["GENERATED", "SENT", "ACTIVE"].includes(accessCredential.status),
-      }
-    : null;
+  let accessCode: ReservationDetailItem["accessCode"] = null;
+  try {
+    accessCode = accessCredential
+      ? {
+          status: accessCredential.status,
+          code: formatAccessCode(
+            decryptTTLockSecret(accessCredential.codeEncrypted),
+          ),
+          isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
+            accessCredential.status,
+          ),
+          validFrom: accessCredential.validFrom?.toISOString() ?? null,
+          validTo: accessCredential.validTo?.toISOString() ?? null,
+        }
+      : null;
+  } catch (error) {
+    console.warn("[getReservationForInbox] access code skipped:", error);
+  }
 
   const unread = activityUnreadMap.get(row.id);
 
-  return toDetailItem(
-    {
-      ...row,
-      property: {
-        ...row.property,
-        neighborhood: row.property.neighborhood,
-        quickMessageTemplates: parsePropertyQuickMessageTemplates(
-          row.property.quickMessageTemplates,
-        ),
+  try {
+    return toDetailItem(
+      {
+        ...row,
+        property: {
+          ...row.property,
+          neighborhood: row.property.neighborhood,
+        },
+        guests: guestsByReservation.get(row.id) ?? [],
+        guestRegistration: registration,
+        accessCode,
+        airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
+        activityUnreadCount: unread?.unreadCount ?? 0,
+        activityUnreadHint: unread?.hint ?? null,
       },
-      guests: guestsByReservation.get(row.id) ?? [],
-      guestRegistration: registration,
-      accessCode,
-      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
-      activityUnreadCount: unread?.unreadCount ?? 0,
-      activityUnreadHint: unread?.hint ?? null,
-    },
-    relatedBlocks,
-  );
+      relatedBlocks,
+    );
+  } catch (error) {
+    console.error("[getReservationForInbox] toDetailItem failed:", id, error);
+    throw error;
+  }
 }
 
 export async function createReservation(data: ReservationWizardValues) {

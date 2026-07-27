@@ -10,13 +10,16 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getSignInFlowErrorMessage } from "@/lib/clerk-auth-errors";
+import { getSignInFlowErrorMessage, isAlreadySignedInAuthError } from "@/lib/clerk-auth-errors";
 import {
   formatResendCooldown,
   isVerificationCodeActive,
   sanitizeAuthRedirectPath,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from "@/lib/auth/verification-flow";
+import {
+  settleClerkSessionThenGo,
+} from "@/lib/auth/post-auth-navigation";
 
 const DEFAULT_POST_AUTH_PATH = "/panel";
 
@@ -29,6 +32,11 @@ type EmailPasswordSignInFormProps = {
   clearStaleSession?: boolean;
   /** When false, hides the PMS sign-up link. Default true. */
   showSignUpLink?: boolean;
+  /**
+   * Server already saw a Clerk userId. Show Continuar — never auto-navigate
+   * (document GET to /panel before cookies settle wipes the session).
+   */
+  serverSessionActive?: boolean;
 };
 
 function requiresSecondFactor(status: SignInFutureResource["status"]): boolean {
@@ -132,14 +140,15 @@ export function EmailPasswordSignInForm({
   postAuthPath = DEFAULT_POST_AUTH_PATH,
   clearStaleSession = false,
   showSignUpLink = true,
+  serverSessionActive = false,
 }: EmailPasswordSignInFormProps) {
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() ?? "";
   const redirectFromQuery =
     searchParams.get("next") ?? searchParams.get("redirect_url");
 
-  const { isLoaded: authLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
+  const { signOut, setActive, session } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
 
   const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
@@ -192,7 +201,8 @@ export function EmailPasswordSignInForm({
     staleSessionCleanupRef.current = true;
 
     if (isSignedIn && !loginSucceededRef.current) {
-      // Ya estamos en /sign-in tras cerrar sesión: limpiar sesión sin redirigir de nuevo.
+      // Only after explicit logout (?signed_out=1). Clearing on every /sign-in
+      // visit caused a bounce loop: module → sign-in → signOut → login again.
       void signOut().catch(() => {
         // El formulario debe seguir usable aunque falle el cierre residual.
       });
@@ -243,22 +253,31 @@ export function EmailPasswordSignInForm({
     setResendCooldown(Math.ceil(VERIFICATION_RESEND_COOLDOWN_MS / 1000));
   }
 
+  async function goAfterAuth(path: string = redirectPath) {
+    loginSucceededRef.current = true;
+    setError(null);
+    setInfo("Entrando…");
+    await settleClerkSessionThenGo({
+      getToken,
+      touchSession: () => session?.touch?.() ?? Promise.resolve(null),
+      path,
+      onPending: () => {
+        loginSucceededRef.current = false;
+        setInfo(null);
+        setError(
+          "No se pudo sincronizar la sesión. Intenta Entrar de nuevo.",
+        );
+      },
+    });
+  }
+
   async function finalizeSignIn() {
     if (!signIn) {
       throw new Error("El servicio de autenticación no está listo.");
     }
 
     const result = await signIn.finalize({
-      navigate: ({ decorateUrl }) => {
-        // Always navigate. Skipping on `currentTask` left tenants stuck on
-        // /sign-in after a successful password check ("no abre").
-        const url = decorateUrl(redirectPath);
-        if (url.startsWith("http")) {
-          window.location.href = url;
-        } else {
-          window.location.assign(url);
-        }
-      },
+      navigate: async () => undefined,
     });
 
     const message = getSignInFlowErrorMessage(
@@ -271,8 +290,34 @@ export function EmailPasswordSignInForm({
       throw new Error(message);
     }
 
-    // Hard fallback if Clerk navigate did not leave the page.
-    window.location.assign(redirectPath);
+    await goAfterAuth(redirectPath);
+  }
+
+  /**
+   * Production Clerk uses single_session_mode. If the identifier already has a
+   * live session (other tab/device, incomplete logout), password() surfaces
+   * "You're already signed in" / existingSession — activate that session and
+   * enter the app instead of blocking login.
+   */
+  async function activateExistingSession(sessionId: string) {
+    loginSucceededRef.current = true;
+    await setActive({
+      session: sessionId,
+      navigate: async () => undefined,
+    });
+    await goAfterAuth(redirectPath);
+  }
+
+  function extractExistingSessionId(result?: { error?: unknown } | null): string | null {
+    const fromSignIn = signIn?.existingSession?.sessionId;
+    if (fromSignIn) return fromSignIn;
+
+    const error = result?.error;
+    if (!error || typeof error !== "object") return null;
+    const meta =
+      "meta" in error ? (error as { meta?: Record<string, unknown> | null }).meta : null;
+    const fromMeta = meta && typeof meta.sessionId === "string" ? meta.sessionId : null;
+    return fromMeta;
   }
 
   async function sendVerificationCode(strategy: VerificationStrategy) {
@@ -403,14 +448,58 @@ export function EmailPasswordSignInForm({
 
     startTransition(async () => {
       try {
-        if (signIn.status !== "needs_identifier") {
-          await signIn.reset();
+        // Live client session: enter app. Do not signOut first (that caused
+        // login → cookie wipe → bounce back to /sign-in).
+        if (isSignedIn && !loginSucceededRef.current) {
+          await goAfterAuth(redirectPath);
+          return;
         }
 
-        const result = await signIn.password({
-          emailAddress: normalizedEmail,
-          password,
-        });
+        async function attemptPasswordSignIn() {
+          if (!signIn) {
+            throw new Error("El servicio de autenticación no está listo.");
+          }
+
+          if (signIn.status !== "needs_identifier") {
+            await signIn.reset();
+          }
+
+          return signIn.password({
+            emailAddress: normalizedEmail,
+            password,
+          });
+        }
+
+        let result = await attemptPasswordSignIn();
+
+        const existingSessionId = extractExistingSessionId(result);
+        if (existingSessionId && (result.error || signIn.existingSession)) {
+          await activateExistingSession(existingSessionId);
+          return;
+        }
+
+        if (result.error && isAlreadySignedInAuthError(result)) {
+          const retrySessionId = extractExistingSessionId(result);
+          if (retrySessionId) {
+            await activateExistingSession(retrySessionId);
+            return;
+          }
+          // Prefer entering the app over wiping the live Clerk client.
+          if (isSignedIn) {
+            await goAfterAuth(redirectPath);
+            return;
+          }
+          await signIn.reset().catch(() => undefined);
+          result = await signIn.password({
+            emailAddress: normalizedEmail,
+            password,
+          });
+          const afterRetrySession = extractExistingSessionId(result);
+          if (afterRetrySession && (result.error || signIn.existingSession)) {
+            await activateExistingSession(afterRetrySession);
+            return;
+          }
+        }
 
         const message = getSignInFlowErrorMessage(
           result,
@@ -425,6 +514,38 @@ export function EmailPasswordSignInForm({
 
         await completeSignInIfReady();
       } catch (err) {
+        if (isAlreadySignedInAuthError(err)) {
+          try {
+            const sessionId = extractExistingSessionId();
+            if (sessionId) {
+              await activateExistingSession(sessionId);
+              return;
+            }
+            if (isSignedIn) {
+              await goAfterAuth(redirectPath);
+              return;
+            }
+            if (signIn) {
+              await signIn.reset().catch(() => undefined);
+              const retry = await signIn.password({
+                emailAddress: normalizedEmail,
+                password,
+              });
+              const retrySession = extractExistingSessionId(retry);
+              if (retrySession) {
+                await activateExistingSession(retrySession);
+                return;
+              }
+              if (!retry.error) {
+                await completeSignInIfReady();
+                return;
+              }
+            }
+          } catch {
+            // fall through to generic error
+          }
+        }
+
         setError(
           err instanceof Error
             ? err.message
@@ -685,9 +806,32 @@ export function EmailPasswordSignInForm({
         </p>
       </div>
 
+      {serverSessionActive || (isSignedIn && !clearStaleSession) ? (
+        <div className="space-y-2 rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-3 text-center">
+          <p className="text-sm text-foreground">
+            Ya hay una sesión en este navegador.
+          </p>
+          <Button
+            type="button"
+            variant="brand"
+            className="h-10 w-full"
+            disabled={isFetching}
+            onClick={() => void goAfterAuth(redirectPath)}
+          >
+            Continuar al panel
+          </Button>
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-center text-sm text-destructive">
           {error}
+        </div>
+      ) : null}
+
+      {info ? (
+        <div className="rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-2.5 text-center text-sm text-foreground">
+          {info}
         </div>
       ) : null}
 

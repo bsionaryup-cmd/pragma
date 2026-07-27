@@ -23,17 +23,9 @@ export const es = {
   },
   nav: {
     overview: "HOY",
-    aiConcierge: "AI Concierge",
     operations: "Operaciones",
-    reservations: "Reservas",
-    novedades: "Bandeja de entrada",
     properties: "Propiedades",
     calendar: "Calendario",
-    tasks: "Tareas",
-    purchases: "Compras",
-    maintenance: "Mantenimientos",
-    cleaning: "Limpieza",
-    inventory: "Inventario",
     revenue: "Tarifas",
     smartAccess: "Códigos de acceso",
     integrations: "Integraciones",
@@ -109,7 +101,7 @@ export const es = {
       today: "Hoy",
       todayDesc: "Llegadas y salidas programadas para hoy.",
       upcoming: "Próximas estancias",
-      upcomingDesc: "Llegadas, salidas y huéspedes alojados en los próximos 7 días.",
+      upcomingDesc: "Sin contar hoy · próximos 7 días",
       calendar: "Actividad diaria",
       calendarDesc: "Llegadas, salidas y huéspedes alojados.",
       alerts: "Atención requerida",
@@ -120,6 +112,7 @@ export const es = {
     today: {
       arrivals: "Llegan hoy",
       departures: "Salen hoy",
+      summaryCounts: "{{arrivals}} llegan · {{departures}} salen",
       emptyArrivals: "No hay llegadas programadas para hoy.",
       emptyDepartures: "No hay salidas programadas para hoy.",
       statusArrival: "Llegada",
@@ -148,13 +141,13 @@ export const es = {
       smartLockPending: "Sin configurar",
     },
     tabs: {
-      checkIns: "Próximas llegadas",
-      checkOuts: "Próximas salidas",
-      active: "Alojados actualmente",
+      checkIns: "Llegadas",
+      checkOuts: "Salidas",
+      active: "Alojados",
     },
     tabDesc: {
-      checkIns: "Llegadas confirmadas en los próximos 7 días.",
-      checkOuts: "Salidas programadas en los próximos 7 días.",
+      checkIns: "Llegadas confirmadas después de hoy (7 días).",
+      checkOuts: "Salidas programadas después de hoy (7 días).",
       active: "Huéspedes alojados actualmente.",
     },
     download: {
@@ -212,6 +205,10 @@ export const es = {
     links: {
       history: "Historial de cobros",
       chargeLinks: "Enlaces de cobro",
+    },
+    actions: {
+      addExpense: "Agregar gasto",
+      addOtherIncome: "Agregar otro ingreso",
     },
     kpi: {
       revenue: "Ingresos",
@@ -508,13 +505,7 @@ export const es = {
     comingSoon: "Este módulo se conectará próximamente.",
     managementNav: "Accesos de gestión",
   },
-  inbox: {
-    title: "Mensajes",
-  },
   calendar: {
     title: "Calendario",
-  },
-  tasks: {
-    title: "Tareas",
   },
 } as const;

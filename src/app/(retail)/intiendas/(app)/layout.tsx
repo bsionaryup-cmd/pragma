@@ -1,6 +1,10 @@
-import { requireRetailContext } from "@/domains/retail/auth/require-retail-context";
+import { redirect } from "next/navigation";
 
-export default async function RetailAppLayout({ children }: { children: React.ReactNode }) {
-  await requireRetailContext();
-  return <div className="intiendas-tiendas-on min-h-dvh bg-[#f3f5f7]">{children}</div>;
+/** INTIENDAS POS retired — keep route tree for now but send users to PMS. */
+export default async function RetailAppLayout({
+  children: _children,
+}: {
+  children: React.ReactNode;
+}) {
+  redirect("/panel");
 }

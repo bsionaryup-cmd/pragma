@@ -343,7 +343,10 @@ export async function POST() {
         dateOfBirth: formatDate(new Date(Date.UTC(1992, 7, 5))),
       },
     ],
-  } as any);
+    accessCode: null,
+    accessValidFrom: null,
+    accessValidTo: null,
+  });
 
   return NextResponse.json({
     ok: true,

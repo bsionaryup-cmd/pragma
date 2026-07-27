@@ -1,48 +1,24 @@
 import "server-only";
 
 import type { Locale } from "@/i18n/types";
-import { buildAttentionItems } from "@/services/dashboard/operations-center.attention";
 import { getCommandCenterData } from "@/services/dashboard/command-center.service";
 import type {
   OperationsCenterSnapshot,
   OperationsFinanceSummary,
 } from "@/services/dashboard/operations-center.types";
 import { getFinanceOverview } from "@/services/finance/finance.service";
-import { getSmartAccessOverview } from "@/services/access/smart-access.service";
-import { listOperationalFeedCardsForTenant } from "@/services/novedades/operational-feed.service";
-import { countInboxAttentionFromFeedCards } from "@/services/dashboard/operations-center.feed-attention";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 
 export async function getOperationsCenterSnapshot(input: {
   locale: Locale;
   canReadFinance: boolean;
-  canReadAccess: boolean;
 }): Promise<OperationsCenterSnapshot> {
-  const scope = await requireTenantDataScope();
+  await requireTenantDataScope();
 
-  const feedCardsAll = await listOperationalFeedCardsForTenant(scope, 80);
-  const inboxAttentionCount = countInboxAttentionFromFeedCards(feedCardsAll);
-  const feedCards = feedCardsAll.slice(0, 8);
-
-  const [commandCenter, financeOverview, smartAccessOverview] = await Promise.all([
+  const [commandCenter, financeOverview] = await Promise.all([
     getCommandCenterData(input.locale),
     input.canReadFinance ? getFinanceOverview(input.locale) : Promise.resolve(null),
-    input.canReadAccess ? getSmartAccessOverview() : Promise.resolve(null),
   ]);
-
-  const smartAccessPending = smartAccessOverview
-    ? smartAccessOverview.metrics.awaitingRegistration +
-      smartAccessOverview.metrics.readyForCode
-    : 0;
-
-  const pendingIncome = financeOverview?.kpis.pendingIncome ?? 0;
-
-  const attention = buildAttentionItems({
-    commandCenter,
-    inboxAttentionCount,
-    smartAccessPending,
-    pendingIncome,
-  });
 
   let finance: OperationsFinanceSummary | null = null;
   if (financeOverview) {
@@ -58,11 +34,6 @@ export async function getOperationsCenterSnapshot(input: {
 
   return {
     commandCenter,
-    attention,
-    attentionTotal: attention.reduce((sum, row) => sum + Math.max(row.count, 1), 0),
-    inboxAttentionCount,
-    feedCards,
     finance,
-    smartAccessPending,
   };
 }

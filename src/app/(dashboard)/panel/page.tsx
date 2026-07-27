@@ -22,13 +22,11 @@ export default async function PanelControlPage() {
   const locale = await getServerLocale();
   const auth = await requirePermission("dashboard:read");
   const canReadFinance = hasPermission(auth.role, "finance:read");
-  const canReadAccess = hasPermission(auth.role, "access:read");
 
   const [snapshot, novedades] = await Promise.all([
     getOperationsCenterSnapshot({
       locale,
       canReadFinance,
-      canReadAccess,
     }),
     Promise.resolve(getActiveSystemAnnouncements(locale)),
   ]);

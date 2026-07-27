@@ -1,0 +1,59 @@
+{
+  "at": "2026-07-27T05:07:34.853Z",
+  "productionHost": "https://www.pragmapms.com",
+  "rootCause": "settle-bridge redirects /sign-in?redirect_url=/panel → same URL when __client_uat present without __session → ERR_TOO_MANY_REDIRECTS",
+  "confidence": 0.98,
+  "productionLoopConfirmedBeforeDeploy": true,
+  "probes": [
+    {
+      "label": "panel_clean",
+      "status": 307,
+      "location": "/sign-in?redirect_url=%2Fpanel",
+      "bypass": null,
+      "clerkStatus": "signed-out",
+      "clerkReason": "session-token-and-uat-missing"
+    },
+    {
+      "label": "panel_uat",
+      "status": 307,
+      "location": "/sign-in?redirect_url=%2Fpanel",
+      "bypass": "settle-bridge",
+      "clerkStatus": null,
+      "clerkReason": null
+    },
+    {
+      "label": "sign_in_uat",
+      "status": 307,
+      "location": "/sign-in?redirect_url=%2Fpanel",
+      "bypass": "settle-bridge",
+      "clerkStatus": null,
+      "clerkReason": null
+    },
+    {
+      "label": "sign_in_clean",
+      "status": 200,
+      "location": null,
+      "bypass": null,
+      "clerkStatus": "signed-out",
+      "clerkReason": "session-token-and-uat-missing"
+    }
+  ],
+  "localFixDecision": {
+    "action": "pass-through",
+    "marker": "auth-surface-pass"
+  },
+  "expectedAfterDeploy": {
+    "sign_in_uat": {
+      "status": 200,
+      "bypass": "auth-surface-pass",
+      "note": "pass-through + expire __client_uat; no self-redirect"
+    },
+    "panel_uat": {
+      "status": 307,
+      "location": "/sign-in?redirect_url=%2Fpanel",
+      "bypass": "settle-bridge",
+      "note": "single hop + Set-Cookie expire UAT"
+    }
+  },
+  "ok": true
+}

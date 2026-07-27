@@ -92,7 +92,8 @@ export async function onReservationCancelledForTTLock(
   await revokeAccessCodeForReservation(ctx.reservationId, { force: true });
 }
 
-/** Triggers TTLock passcode flow once guest registration is complete. */
+/** @deprecated Prefer scheduleGuestRegistrationCompletionComms (includes emails).
+ * Kept as thin alias for TTLock-only generation after GR. */
 export async function onGuestRegistrationCompletedForTTLock(
   ctx: Pick<
     TTLockReservationAccessContext,

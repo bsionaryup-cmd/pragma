@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth, useSignIn } from "@clerk/nextjs";
+import { useAuth, useClerk, useSignIn } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Shield, Mail, KeyRound } from "lucide-react";
@@ -8,8 +8,12 @@ import Link from "next/link";
 import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getSignInFlowErrorMessage } from "@/lib/clerk-auth-errors";
+import {
+  getSignInFlowErrorMessage,
+  isAlreadySignedInAuthError,
+} from "@/lib/clerk-auth-errors";
 import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
+import { settleClerkSessionThenGo } from "@/lib/auth/post-auth-navigation";
 import {
   PLATFORM_OWNER_EMAIL,
   OWNER_DASHBOARD_PATH,
@@ -23,12 +27,19 @@ type CodeMode = "first_factor" | "second_factor";
  * The legacy `@clerk/nextjs/legacy` hook gated the CTA on `isLoaded`, which
  * can stay false forever on production Custom Domains → botón nunca habilita.
  */
-export function OwnerLoginForm() {
-  const { isLoaded: authLoaded } = useAuth();
+export function OwnerLoginForm({
+  serverSessionActive = false,
+  postAuthPath,
+}: {
+  serverSessionActive?: boolean;
+  postAuthPath?: string;
+} = {}) {
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
+  const { session } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
   const searchParams = useSearchParams();
   const nextPath = sanitizeAuthRedirectPath(
-    searchParams.get("next"),
+    postAuthPath ?? searchParams.get("next"),
     OWNER_DASHBOARD_PATH,
   );
 
@@ -58,20 +69,29 @@ export function OwnerLoginForm() {
     return false;
   }
 
+  async function goAfterAuth(path: string = nextPath) {
+    setError(null);
+    setInfo("Entrando…");
+    await settleClerkSessionThenGo({
+      getToken,
+      touchSession: () => session?.touch?.() ?? Promise.resolve(null),
+      path,
+      onPending: () => {
+        setInfo(null);
+        setError(
+          "No se pudo sincronizar la sesión. Intenta Entrar de nuevo.",
+        );
+      },
+    });
+  }
+
   async function finalizeAndGo() {
     if (!signIn) {
       throw new Error("El servicio de autenticación no está listo.");
     }
 
     const result = await signIn.finalize({
-      navigate: ({ decorateUrl }) => {
-        const url = decorateUrl(nextPath);
-        if (url.startsWith("http")) {
-          window.location.href = url;
-        } else {
-          window.location.assign(url);
-        }
-      },
+      navigate: async () => undefined,
     });
 
     const message = getSignInFlowErrorMessage(
@@ -83,7 +103,7 @@ export function OwnerLoginForm() {
       throw new Error(message);
     }
 
-    window.location.assign(nextPath);
+    await goAfterAuth(nextPath);
   }
 
   async function completeIfReady() {
@@ -144,14 +164,31 @@ export function OwnerLoginForm() {
 
     startTransition(async () => {
       try {
+        if (isSignedIn) {
+          await goAfterAuth(nextPath);
+          return;
+        }
         if (signIn.status !== "needs_identifier") {
           await signIn.reset();
         }
 
-        const result = await signIn.password({
+        let result = await signIn.password({
           emailAddress: normalizedEmail,
           password,
         });
+
+        if (result.error && isAlreadySignedInAuthError(result)) {
+          // Never signOut here: wiping cookies mid-login caused bounce to /owner-login.
+          if (isSignedIn) {
+            await goAfterAuth(nextPath);
+            return;
+          }
+          await signIn.reset().catch(() => undefined);
+          result = await signIn.password({
+            emailAddress: normalizedEmail,
+            password,
+          });
+        }
 
         const message = getSignInFlowErrorMessage(
           result,
@@ -335,6 +372,21 @@ export function OwnerLoginForm() {
       {info ? (
         <div className="rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-2.5 text-sm text-foreground">
           {info}
+        </div>
+      ) : null}
+
+      {serverSessionActive || isSignedIn ? (
+        <div className="space-y-2 rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-3 text-center">
+          <p className="text-sm text-foreground">Ya hay una sesión owner activa.</p>
+          <Button
+            type="button"
+            variant="brand"
+            className="w-full"
+            disabled={isFetching}
+            onClick={() => void goAfterAuth(nextPath)}
+          >
+            Continuar al panel owner
+          </Button>
         </div>
       ) : null}
 

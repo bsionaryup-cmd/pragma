@@ -29,40 +29,31 @@ describe("ownerCommercialOrganizationWhere", () => {
   });
 });
 
-describe("sumConfirmedReservationRevenue", () => {
-  it("counts only reservations with check-in on or before today", async () => {
-    const { sumConfirmedReservationRevenue } = await import(
-      "@/lib/finance/confirmed-reservation-revenue"
-    );
-    const today = new Date(Date.UTC(2026, 5, 22));
-    const pastCheckIn = new Date(Date.UTC(2026, 5, 10));
-    const futureCheckIn = new Date(Date.UTC(2026, 5, 25));
-
-    const total = sumConfirmedReservationRevenue(
-      [
-        {
-          id: "past",
-          totalAmount: 100000,
-          platform: "AIRBNB",
-          icalUid: null,
-          reservationCode: null,
-          checkIn: pastCheckIn,
-          paymentStatus: "PAID",
-        },
-        {
-          id: "future",
-          totalAmount: 500000,
-          platform: "AIRBNB",
-          icalUid: null,
-          reservationCode: null,
-          checkIn: futureCheckIn,
-          paymentStatus: "PAID",
-        },
-      ],
-      new Map(),
-      today,
+describe("loadOwnerCommercialScope", () => {
+  it("soft-fails when retail_stores table is missing (P2021)", async () => {
+    const { loadOwnerCommercialScope } = await import(
+      "@/services/platform/owner-dashboard-scope"
     );
 
-    assert.equal(total, 100000);
+    const client = {
+      organization: {
+        findMany: async () => [{ id: "seeded-org" }],
+      },
+      retailStore: {
+        findMany: async () => {
+          const err = new Error("table missing") as Error & { code: string };
+          err.code = "P2021";
+          throw err;
+        },
+      },
+      property: {
+        findMany: async () => {
+          throw new Error("property.findMany should not run when retail is empty");
+        },
+      },
+    };
+
+    const scope = await loadOwnerCommercialScope(client as never);
+    assert.deepEqual(scope.organizationWhere.id, { notIn: ["seeded-org"] });
   });
 });

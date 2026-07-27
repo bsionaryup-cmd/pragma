@@ -165,7 +165,7 @@ export async function POST(request: Request) {
       })
         .then((result) => {
           if (result.recorded) {
-            revalidatePath("/novedades");
+            revalidatePath("/calendar");
           }
         })
         .catch((error) => {
@@ -191,10 +191,10 @@ export async function POST(request: Request) {
 
     revalidatePath("/integrations/airbnb");
     if (outcome.auditId) {
-      revalidatePath("/novedades");
+      revalidatePath("/calendar");
     }
     if (outcome.reservationId) {
-      revalidatePath("/reservations");
+      revalidatePath("/calendar");
     }
 
     return NextResponse.json({ ok: true, outcome });

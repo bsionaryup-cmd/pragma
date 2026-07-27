@@ -6,8 +6,7 @@ type RefreshSource = "ical_sync" | "email_enrichment" | "reservation_linkage";
 
 export function invalidateReservationCaches(source: RefreshSource): void {
   try {
-    revalidatePath("/reservations");
-    revalidatePath("/inbox");
+    revalidatePath("/calendar");
     icalSyncLog.info("reservation_ui_refresh_triggered", { source });
   } catch (error) {
     icalSyncLog.warn("reservation_ui_refresh_skipped", {

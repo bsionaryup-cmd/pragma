@@ -45,13 +45,7 @@ model Organization {
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
-  inboxAiDrafts          InboxAiDraft[]
   prospectingLeads       ProspectingLead[]
-  conciergeConfiguration ConciergeConfiguration?
-  conciergeExtensionLinks ConciergeExtensionLink[]
-  conciergeConversationStates ConciergeConversationState[]
-  conciergeAuditEvents   ConciergeAuditEvent[]
-  assistantDefinitions   AssistantDefinition[]
 
   @@map("organizations")
 }
@@ -85,7 +79,6 @@ model User {
 
   organization         Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   properties           Property[]
-  assignedTasks        Task[]                 @relation("TaskAssignee")
   ttlockIntegrations   TTLockIntegration[]
   ttlockConfigured     TTLockIntegration[]  @relation("TTLockConfigurator")
   loginActivities      LoginActivity[]
@@ -113,162 +106,11 @@ model User {
   mobilityServicesCreated MobilityService[] @relation("MobilityServiceCreator")
   airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
   reservationActivitySeen          ReservationActivitySeen[]
-  inboxAiDraftsCreated             InboxAiDraft[] @relation("InboxAiDraftCreator")
-  inboxAiDraftAuditEvents          InboxAiDraftAuditEvent[] @relation("InboxAiDraftAuditActor")
-  conciergeConfigurationsUpdated   ConciergeConfiguration[] @relation("ConciergeConfigurationUpdater")
-  conciergeExtensionLinksCreated   ConciergeExtensionLink[] @relation("ConciergeExtensionLinkCreator")
 
   @@index([role, isActive])
   @@index([organizationId])
   @@index([platformRole])
   @@map("users")
-}
-
-enum ConciergeOperationMode {
-  OBSERVE
-  MANUAL
-  ASSISTED
-  AUTONOMOUS
-}
-
-enum ConciergeExtensionLinkStatus {
-  PENDING
-  ACTIVE
-  REVOKED
-}
-
-enum ConciergeConversationStatus {
-  ACTIVE
-  ESCALATED
-  COMPLETED
-}
-
-enum ConciergeRuntimeStatus {
-  OFF
-  STARTING
-  RUNNING
-  RECOVERING
-  ERROR
-  STOPPING
-}
-
-model ConciergeConfiguration {
-  organizationId     String                 @id
-  enabled            Boolean                @default(false)
-  paused             Boolean                @default(false)
-  mode               ConciergeOperationMode @default(MANUAL)
-  whatsappEnabled    Boolean                @default(true)
-  airbnbEnabled      Boolean                @default(true)
-  allowedPropertyIds String[]               @default([])
-  allowedTools       Json                   @default("[]")
-  aiEnabled          Boolean                @default(false)
-  auditorEnabled     Boolean                @default(true)
-  activeHours        Json?
-  /// Owner wants autonomous runtime ON (separate from reply mode).
-  runtimeDesiredOn   Boolean                @default(false)
-  runtimeStatus      ConciergeRuntimeStatus @default(OFF)
-  runtimeLastTransitionAt DateTime?
-  runtimeLastError   String?
-  runtimeWatchdogAt  DateTime?
-  runtimeMeta        Json?
-  updatedById        String?
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  updatedBy    User?        @relation("ConciergeConfigurationUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-
-  @@map("concierge_configurations")
-}
-
-model ConciergeExtensionLink {
-  id               String                        @id @default(cuid())
-  organizationId   String
-  linkedByUserId   String
-  deviceIdHash     String?
-  pairingTokenHash String?                       @unique
-  pairingExpiresAt DateTime?
-  pairedAt         DateTime?
-  status           ConciergeExtensionLinkStatus @default(PENDING)
-  version          String?
-  lastHeartbeatAt  DateTime?
-  lastSyncAt       DateTime?
-  lastError        String?
-  channelStatus    Json?
-  revokedAt        DateTime?
-  createdAt        DateTime                      @default(now())
-  updatedAt        DateTime                      @updatedAt
-
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  linkedBy     User                  @relation("ConciergeExtensionLinkCreator", fields: [linkedByUserId], references: [id], onDelete: Cascade)
-  auditEvents  ConciergeAuditEvent[]
-
-  @@unique([organizationId, deviceIdHash])
-  @@index([organizationId, status])
-  @@index([lastHeartbeatAt])
-  @@map("concierge_extension_links")
-}
-
-model ConciergeConversationState {
-  id                 String                       @id @default(cuid())
-  organizationId     String
-  channel            String
-  threadHash         String
-  status             ConciergeConversationStatus @default(ACTIVE)
-  messageCount       Int                          @default(0)
-  pendingCount       Int                          @default(0)
-  escalationCount    Int                          @default(0)
-  deterministicCount Int                          @default(0)
-  llmCount           Int                          @default(0)
-  errorCount         Int                          @default(0)
-  totalResponseMs    Int                          @default(0)
-  lastIntent         String?
-  lastPath           String?
-  lastProcessedAt    DateTime?
-  /// Ephemeral facts (TTL). Never full transcripts.
-  factsJson          Json                         @default("{}")
-  /// Conversational state machine (topic/flow/pending).
-  conversationStateJson Json                      @default("{}")
-  /// Capped recent message snippets for context (not full history).
-  recentMessagesJson Json                         @default("[]")
-  factsExpiresAt     DateTime?
-  propertyId         String?
-  reservationId      String?
-  createdAt          DateTime                     @default(now())
-  updatedAt          DateTime                     @updatedAt
-
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  auditEvents  ConciergeAuditEvent[]
-
-  @@unique([organizationId, channel, threadHash])
-  @@index([organizationId, status])
-  @@index([organizationId, lastProcessedAt])
-  @@index([factsExpiresAt])
-  @@map("concierge_conversation_states")
-}
-
-model ConciergeAuditEvent {
-  id                  String   @id @default(cuid())
-  organizationId      String
-  extensionLinkId     String?
-  conversationStateId String?
-  runId               String?
-  idempotencyKey      String?  @unique
-  eventType           String
-  result              String
-  toolName            String?
-  durationMs          Int?
-  metadata            Json?
-  createdAt           DateTime @default(now())
-
-  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  extensionLink     ConciergeExtensionLink?     @relation(fields: [extensionLinkId], references: [id], onDelete: SetNull)
-  conversationState ConciergeConversationState? @relation(fields: [conversationStateId], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, createdAt])
-  @@index([extensionLinkId, createdAt])
-  @@index([conversationStateId, createdAt])
-  @@map("concierge_audit_events")
 }
 
 enum PlatformRole {
@@ -347,7 +189,6 @@ model Property {
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   reservations Reservation[]
-  tasks        Task[]
   propertyLock PropertyLock?
   priceLabs      PropertyPriceLabs?
   guestPaymentLinks GuestPaymentLink[]
@@ -425,7 +266,6 @@ model Reservation {
   guestRegistrationLegalAcceptance GuestRegistrationLegalAcceptance?
   accessCredentials       AccessCredential[]
   accessEvents            AccessEvent[]
-  tasks                   Task[]
   paymentInvoices         PaymentInvoice[]
   guestPaymentLinks       GuestPaymentLink[]
   reservationPayments     ReservationPayment[]
@@ -438,7 +278,6 @@ model Reservation {
   observabilityEvents     ReservationEvent[]
   activityEntries         ReservationActivity[]
   activitySeenByUsers     ReservationActivitySeen[]
-  inboxAiDrafts           InboxAiDraft[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -615,7 +454,7 @@ model PropertyLock {
 model TTLockAutomationSettings {
   id                                   String                   @id @default(cuid())
   integrationId                        String                   @unique
-  generateAfterGuestRegistration        Boolean                  @default(false)
+  generateAfterGuestRegistration        Boolean                  @default(true)
   revokeAfterCheckout                  Boolean                  @default(true)
   requireManualApproval                Boolean                  @default(true)
   autoSendCode                         Boolean                  @default(false)
@@ -1122,39 +961,7 @@ model ExternalIntegration {
   @@map("external_integrations")
 }
 
-// ─── Task ─────────────────────────────────────────────────────
-
-model Task {
-  id            String     @id @default(cuid())
-  propertyId    String?
-  reservationId String?
-  assigneeId    String?
-  type          TaskType
-  title         String
-  description   String?
-  dueDate       DateTime?
-  status        TaskStatus @default(PENDING)
-  completedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-  property    Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
-  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-
-  @@index([assigneeId, status])
-  @@index([propertyId, status])
-  @@map("tasks")
-}
-
-enum TaskType {
-  CLEANING
-  CHECK_IN
-  MAINTENANCE
-  LAUNDRY
-  PURCHASE
-  INVENTORY
-}
+// ─── Task status (shared by AirbnbEmailTask) ─────────────────
 
 enum TaskStatus {
   PENDING
@@ -2306,65 +2113,6 @@ model AirbnbFinancialBackfillLog {
   @@map("airbnb_financial_backfill_logs")
 }
 
-// ─── Inbox AI (borradores + auditoría) ───────────────────────
-
-enum InboxAiDraftStatus {
-  GENERATED
-  EDITED
-  DISCARDED
-}
-
-enum InboxAiDraftAuditAction {
-  GENERATED
-  EDITED
-  COPIED
-  DISCARDED
-}
-
-model InboxAiDraft {
-  id                 String             @id @default(cuid())
-  organizationId     String
-  reservationId      String
-  guestMessageId     String?
-  guestMessageBody   String             @db.Text
-  detectedIntent     String
-  intentConfidence   Decimal?           @db.Decimal(5, 4)
-  intentSource       String?
-  contextSnapshot    Json
-  generatedText      String             @db.Text
-  editedText         String?            @db.Text
-  generationProvider String
-  generationModel    String?
-  status             InboxAiDraftStatus @default(GENERATED)
-  createdById        String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reservation  Reservation             @relation(fields: [reservationId], references: [id], onDelete: Cascade)
-  createdBy    User                    @relation("InboxAiDraftCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  auditEvents  InboxAiDraftAuditEvent[]
-
-  @@index([reservationId, createdAt(sort: Desc)])
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@map("inbox_ai_drafts")
-}
-
-model InboxAiDraftAuditEvent {
-  id          String                  @id @default(cuid())
-  draftId     String
-  action      InboxAiDraftAuditAction
-  actorUserId String
-  payload     Json?
-  createdAt   DateTime                @default(now())
-
-  draft InboxAiDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  actor User         @relation("InboxAiDraftAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-
-  @@index([draftId, createdAt])
-  @@map("inbox_ai_draft_audit_events")
-}
-
 // ─── QR Mobility (platform owner module — isolated from PMS domain) ───
 
 enum MobilityRecordStatus {
@@ -3267,98 +3015,4 @@ model RetailIntelFeedback {
   @@index([storeId, createdAt])
   @@index([productId])
   @@map("retail_intel_feedback")
-}
-
-// ─── Assistant Platform v1 (additive — Owner Studio) ─────────
-
-enum AssistantStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
-}
-
-/// Platform-level or org-scoped assistant (Concierge is the first).
-model AssistantDefinition {
-  id                 String          @id @default(cuid())
-  slug               String
-  name               String
-  description        String?
-  /// null = platform catalog template; set = tenant-bound assistant
-  organizationId     String?
-  status             AssistantStatus @default(DRAFT)
-  /// Points at the live playbook version (null until first publish).
-  publishedVersionId String?         @unique
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-
-  organization     Organization?                       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  publishedVersion AssistantPlaybookVersion?           @relation("AssistantPublishedVersion", fields: [publishedVersionId], references: [id], onDelete: SetNull)
-  versions         AssistantPlaybookVersion[]          @relation("AssistantPlaybookVersions")
-  articles         AssistantKnowledgeArticle[]
-  providers        AssistantKnowledgeProviderBinding[]
-
-  @@unique([organizationId, slug])
-  @@index([organizationId, status])
-  @@map("assistant_definitions")
-}
-
-model AssistantPlaybookVersion {
-  id                   String    @id @default(cuid())
-  assistantId          String
-  version              Int
-  label                String?
-  identityJson         Json      @default("{}")
-  promptJson           Json      @default("{}")
-  guardRailsJson       Json      @default("{}")
-  messageTemplatesJson Json      @default("{}")
-  protocolsJson        Json      @default("{}")
-  publishedAt          DateTime?
-  createdById          String?
-  createdAt            DateTime  @default(now())
-
-  assistant    AssistantDefinition  @relation("AssistantPlaybookVersions", fields: [assistantId], references: [id], onDelete: Cascade)
-  publishedFor AssistantDefinition? @relation("AssistantPublishedVersion")
-
-  @@unique([assistantId, version])
-  @@index([assistantId, publishedAt])
-  @@map("assistant_playbook_versions")
-}
-
-model AssistantKnowledgeArticle {
-  id          String   @id @default(cuid())
-  assistantId String
-  category    String   @default("FAQ")
-  title       String
-  body        String
-  tags        String[] @default([])
-  propertyId  String?
-  enabled     Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  assistant AssistantDefinition @relation(fields: [assistantId], references: [id], onDelete: Cascade)
-
-  @@index([assistantId, category, enabled])
-  @@index([propertyId])
-  @@map("assistant_knowledge_articles")
-}
-
-model AssistantKnowledgeProviderBinding {
-  id          String   @id @default(cuid())
-  assistantId String
-  /// e.g. pragma-pms | ecommerce | crm | docs
-  providerKey String
-  displayName String
-  enabled     Boolean  @default(true)
-  configJson  Json     @default("{}")
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  assistant AssistantDefinition @relation(fields: [assistantId], references: [id], onDelete: Cascade)
-
-  @@unique([assistantId, providerKey])
-  @@index([assistantId, enabled])
-  @@map("assistant_knowledge_provider_bindings")
 }

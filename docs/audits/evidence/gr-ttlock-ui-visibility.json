@@ -1,0 +1,95 @@
+{
+  "startedAt": "2026-07-27T01:01:07.632Z",
+  "liveApiEnabled": true,
+  "to": "magvillafuerte@gmail.com",
+  "property": {
+    "id": "cmpmqaeea000004jvytqozsq1",
+    "name": "Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+    "unitNumber": "801",
+    "ttlockLockId": "21859167"
+  },
+  "reservationId": "cms2itr2k0000wwtyy44hlo66",
+  "immediateAfterSettle": {
+    "settleMs": 8239,
+    "credential": {
+      "id": "cms2itygc0005wwtysrt5nerk",
+      "status": "GENERATED",
+      "deliveryStatus": "NOT_SENT",
+      "ttlockCodeId": "98034410",
+      "validFrom": "2026-09-27T20:00:00.000Z",
+      "validTo": "2026-09-29T18:00:00.000Z"
+    },
+    "detailDto": {
+      "status": "GENERATED",
+      "code": "332644#",
+      "isActive": true,
+      "validFrom": "2026-09-27T20:00:00.000Z",
+      "validTo": "2026-09-29T18:00:00.000Z"
+    },
+    "uiCapabilities": {
+      "hiddenByDefault": true,
+      "eyeToggle": true,
+      "copyButton": true,
+      "statusLabel": true,
+      "validityDates": true
+    },
+    "immediateUiOk": true
+  },
+  "emails": {
+    "receptionNotified": true,
+    "receptionProviderId": "13d34f8d-f7da-492e-b46d-c532f1d34e52",
+    "receptionResend": {
+      "skipped": false,
+      "httpStatus": 200,
+      "id": "13d34f8d-f7da-492e-b46d-c532f1d34e52",
+      "to": [
+        "bionaturaltraining@gmail.com"
+      ],
+      "subject": "Registro de huéspedes — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "last_event": "delivered",
+      "checks": {
+        "pragmaBrand": true,
+        "hasCode": true,
+        "registrationCompleted": true,
+        "accessCodeSection": true
+      }
+    },
+    "accessDelivery": "SENT",
+    "guestAccessSent": true
+  },
+  "idempotency": {
+    "ttlock": {
+      "ok": true,
+      "message": "Ya existe un código activo sincronizado con TTLock"
+    },
+    "reception": {
+      "ok": true,
+      "skipped": true,
+      "message": "Ya se notificó a administración"
+    },
+    "accessCode": {
+      "ok": true,
+      "skipped": true,
+      "message": "Código ya había sido enviado"
+    },
+    "tenantReport": {
+      "ok": true,
+      "message": "Reporte enviado a urbanovaloft@gmail.com"
+    },
+    "receptionSkipped": true,
+    "accessSkipped": true
+  },
+  "verdict": {
+    "generated": true,
+    "stored": true,
+    "visibleInReservationDetailDto": true,
+    "validityDatesInDto": true,
+    "receptionEmail": true,
+    "receptionEmailHasCode": true,
+    "guestAccessEmail": true,
+    "tenantReportOk": true,
+    "idempotentRetries": true
+  },
+  "ok": true,
+  "finishedAt": "2026-07-27T01:01:25.588Z"
+}

@@ -1,4 +1,4 @@
-import { isPreReservationInquirySubject } from "@/services/novedades/novedades-unlinked-inquiry.logic";
+import { isPreReservationInquirySubject } from "@/services/reservations/inquiry-pending.logic";
 
 export { isPreReservationInquirySubject };
 

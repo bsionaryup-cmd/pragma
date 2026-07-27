@@ -260,11 +260,12 @@ export async function getPanelCounts(scope: TenantDataScope): Promise<PanelCount
   const today = startOfDay();
   const weekAhead = addCalendarDays(today, 7);
 
+  // Upcoming excludes today (shown in the Hoy panel) to avoid redundancy.
   const [arrivals, departures, current] = await Promise.all([
     db.reservation.count({
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
-          checkIn: { gte: today, lte: weekAhead },
+          checkIn: { gt: today, lte: weekAhead },
           status: ReservationStatus.CONFIRMED,
         }),
       ),
@@ -272,7 +273,7 @@ export async function getPanelCounts(scope: TenantDataScope): Promise<PanelCount
     db.reservation.count({
       where: withVisibleReservationsFilter(
         mergeReservationScope(scope, {
-          checkOut: { gte: today, lte: weekAhead },
+          checkOut: { gt: today, lte: weekAhead },
           status: {
             in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
           },
@@ -416,12 +417,13 @@ export async function getCommandCenterPanelReservationLists(
   const today = startOfDay();
   const weekAhead = addCalendarDays(today, 7);
 
+  // Upcoming lists start after today; Hoy panel owns today's arrivals/departures.
   const [arrivals, departures, current, todayArrivals, todayDepartures] =
     await Promise.all([
       db.reservation.findMany({
         where: withVisibleReservationsFilter(
           mergeReservationScope(scope, {
-            checkIn: { gte: today, lte: weekAhead },
+            checkIn: { gt: today, lte: weekAhead },
             status: ReservationStatus.CONFIRMED,
           }),
         ),
@@ -432,7 +434,7 @@ export async function getCommandCenterPanelReservationLists(
       db.reservation.findMany({
         where: withVisibleReservationsFilter(
           mergeReservationScope(scope, {
-            checkOut: { gte: today, lte: weekAhead },
+            checkOut: { gt: today, lte: weekAhead },
             status: {
               in: [ReservationStatus.CONFIRMED, ReservationStatus.CHECKED_IN],
             },

@@ -3,8 +3,6 @@ import {
   PropertyStatus,
   PropertyType,
   ReservationStatus,
-  TaskStatus,
-  TaskType,
 } from "@prisma/client";
 
 export const propertyTypeLabels: Record<PropertyType, string> = {
@@ -35,20 +33,4 @@ export const reservationStatusLabels: Record<ReservationStatus, string> = {
   CHECKED_OUT: "Finalizada",
   CANCELLED: "Cancelada",
   BLOCKED: "Bloqueada",
-};
-
-export const taskTypeLabels: Record<TaskType, string> = {
-  CLEANING: "Limpieza",
-  CHECK_IN: "Check-in",
-  MAINTENANCE: "Mantenimiento",
-  LAUNDRY: "Lavandería",
-  PURCHASE: "Compra",
-  INVENTORY: "Inventario",
-};
-
-export const taskStatusLabels: Record<TaskStatus, string> = {
-  PENDING: "Pendiente",
-  IN_PROGRESS: "En progreso",
-  COMPLETED: "Completada",
-  CANCELLED: "Cancelada",
 };

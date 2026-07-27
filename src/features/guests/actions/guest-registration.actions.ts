@@ -31,10 +31,8 @@ import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 
 function revalidateGuestRegistrationPaths() {
-  revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/panel");
-  revalidatePath("/inbox");
   revalidatePath("/smart-access");
 }
 
@@ -190,7 +188,7 @@ export async function resendGuestRegistrationAdminNotificationAction(
       tenant.userId,
     );
     revalidateGuestRegistrationPaths();
-    revalidatePath("/reservations");
+    revalidatePath("/calendar");
     revalidatePath("/smart-access");
 
     if (!result.ok) {

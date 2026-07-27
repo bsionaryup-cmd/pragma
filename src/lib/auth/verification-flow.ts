@@ -37,6 +37,12 @@ export function sanitizeAuthRedirectPath(
     return fallback;
   }
 
+  const lower = trimmed.toLowerCase();
+  // INTIENDAS product retired — never soft-land there after PMS/owner login.
+  if (lower === "/intiendas" || lower.startsWith("/intiendas/")) {
+    return fallback;
+  }
+
   return trimmed;
 }
 

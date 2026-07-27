@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "at": "2026-07-27T04:39:38.568Z",
+  "subjects": {
+    "guestConfirmation": "Reserva confirmada — Solo falta completar el registro de huéspedes",
+    "guestAccess": "Bienvenido — Tu código de acceso ya está disponible",
+    "reception": "Check-in registrado | Loft 801 | Juan Pérez (HM123)",
+    "tenant": "Registro completado | Juan Pérez | Loft 801"
+  },
+  "checks": {
+    "guestConfirmationNoPragma": true,
+    "guestAccessNoPragmaInSubject": true,
+    "receptionOperationalSubject": true,
+    "receptionIncludesTtlock": true,
+    "tenantSubjectExact": true
+  },
+  "ssotPostGr": "finalizeGuestRegistration → settleGuestRegistrationCompletionComms → TTLock → recepción → guest access → tenant",
+  "airbnbIngress": "Universal /guest-registration + reservation code → same finalize/settle SSOT as Direct"
+}

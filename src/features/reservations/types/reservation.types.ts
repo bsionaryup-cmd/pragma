@@ -6,7 +6,6 @@ import type {
   ReservationGuestStatus,
   ReservationStatus,
 } from "@prisma/client";
-import type { QuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
 
 export type ReservationPropertyDto = {
   id: string;
@@ -25,7 +24,6 @@ export type ReservationPropertyDto = {
   wifiName?: string | null;
   wifiPassword?: string | null;
   receptionWhatsapp?: string | null;
-  quickMessageTemplates?: QuickMessageTemplates | null;
 };
 
 export type ReservationRelatedBlock = {
@@ -55,6 +53,8 @@ export type ReservationAccessCodeDto = {
   status: string;
   code: string | null;
   isActive: boolean;
+  validFrom: string | null;
+  validTo: string | null;
 };
 
 export type ReservationGuestRegistrationDto = {

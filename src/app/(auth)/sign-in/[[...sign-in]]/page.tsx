@@ -28,13 +28,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const showClerkUnavailableHint = params.clerk_unavailable === "1";
   const showExistingAccountHint = params.existing_account === "1";
   const showTrialConsumedHint = params.trial_consumed === "1";
-  const postAuthPath = sanitizeAuthRedirectPath(
+  let postAuthPath = sanitizeAuthRedirectPath(
     params.next ?? params.redirect_url,
     "/panel",
   );
   const { userId } = await auth();
 
-  // After logout, allow the sign-in form even if a stale server session cookie lingers.
+  let serverSessionActive = false;
+
+  // Keep the login form mounted — never hard-redirect to /panel (cookie race).
   if (userId && !showInactiveHint && !showSignedOutHint) {
     const dbUser = await getUserByClerkId(userId);
 
@@ -43,10 +45,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     }
 
     if (dbUser?.isActive) {
-      redirect(await resolvePostAuthHomePathForUser(dbUser));
+      postAuthPath = await resolvePostAuthHomePathForUser(dbUser);
+      serverSessionActive = true;
+    } else if (userId) {
+      serverSessionActive = true;
     }
-
-    redirect(postAuthPath);
   }
 
   return (
@@ -89,6 +92,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <EmailPasswordSignInForm
           postAuthPath={postAuthPath}
           clearStaleSession={showSignedOutHint}
+          serverSessionActive={serverSessionActive}
         />
       </Suspense>
     </PragmaAuthLayout>

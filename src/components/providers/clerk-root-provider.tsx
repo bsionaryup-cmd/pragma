@@ -4,32 +4,14 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { ClerkErrorBoundary } from "@/components/providers/clerk-error-boundary";
 import { getClerkAllowedDevOrigins } from "@/lib/clerk-dev-origins";
 import { pragmaClerkAppearance } from "@/lib/clerk-appearance";
+import { resolveClerkProviderProxyUrl } from "@/lib/auth/clerk-proxy-config";
 
 type ClerkRootProviderProps = {
   children: React.ReactNode;
 };
 
-/**
- * In production, route ClerkJS + FAPI through same-origin `/__clerk` so login
- * does not depend on clerk.pragmapms.com SSL (which can fail while DNS CNAME
- * already points at frontend-api.clerk.services).
- *
- * Prefer absolute apex URL when configured — Clerk Production domain is
- * pragmapms.com (not www), and proxy_url must match that domain.
- */
-function resolveClerkProxyUrl(): string | undefined {
-  const fromEnv = process.env.NEXT_PUBLIC_CLERK_PROXY_URL?.trim();
-  if (fromEnv) return fromEnv;
-  // Absolute www proxy — required so cookies/handshake match the live host
-  // (apex pragmapms.com 307-redirects to www and would break /__clerk).
-  if (process.env.NODE_ENV === "production") {
-    return "https://www.pragmapms.com/__clerk";
-  }
-  return undefined;
-}
-
 export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
-  const proxyUrl = resolveClerkProxyUrl();
+  const proxyUrl = resolveClerkProviderProxyUrl();
 
   return (
     <ClerkProvider
