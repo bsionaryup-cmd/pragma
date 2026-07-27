@@ -33,7 +33,7 @@ export function QuickActionsCard({
           key: "maps",
           title: "Abrir mapa",
           subtitle: "Cómo llegar",
-          icon: <MapPin className="h-5 w-5" />,
+          icon: <MapPin className="h-6 w-6" />,
           href: mapsUrl,
           external: true,
           accent: "blue" as const,
@@ -44,7 +44,7 @@ export function QuickActionsCard({
           key: "wifi",
           title: "WiFi",
           subtitle: "Ver contraseña",
-          icon: <Wifi className="h-5 w-5" />,
+          icon: <Wifi className="h-6 w-6" />,
           onClick: () => {
             document
               .getElementById("stay-wifi")
@@ -58,7 +58,7 @@ export function QuickActionsCard({
           key: "whatsapp",
           title: "WhatsApp",
           subtitle: "Recepción",
-          icon: <MessageCircle className="h-5 w-5" />,
+          icon: <MessageCircle className="h-6 w-6" />,
           href: whatsappUrl,
           external: true,
           accent: "green" as const,
@@ -69,7 +69,7 @@ export function QuickActionsCard({
           key: "call",
           title: "Llamar",
           subtitle: "Recepción",
-          icon: <Phone className="h-5 w-5" />,
+          icon: <Phone className="h-6 w-6" />,
           href: telUrl,
           accent: "blue" as const,
         }
@@ -89,10 +89,9 @@ export function QuickActionsCard({
             <>
               <span
                 className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-xl",
                   action.accent === "green"
-                    ? "bg-emerald-50 text-emerald-600"
-                    : "bg-primary/10 text-primary",
+                    ? "text-emerald-600"
+                    : "text-primary",
                 )}
                 aria-hidden
               >
@@ -108,7 +107,7 @@ export function QuickActionsCard({
           );
 
           const className = cn(
-            "flex min-h-[108px] flex-col items-center justify-center rounded-2xl border border-border bg-card px-3 py-4 text-center shadow-pragma-soft transition-colors",
+            "flex min-h-[104px] flex-col items-center justify-center rounded-2xl border border-border bg-card px-3 py-4 text-center shadow-pragma-soft transition-colors",
             "hover:border-primary/30 hover:bg-primary/[0.03] active:scale-[0.99]",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           );

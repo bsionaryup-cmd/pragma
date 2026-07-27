@@ -7,7 +7,7 @@ type ReservationSummaryProps = {
   checkOutTime: string | null;
   guestName: string | null;
   reservationCode: string | null;
-  /** embedded = grid inside property header (mockup); card = standalone section */
+  /** embedded = grid inside property header (mockup) */
   variant?: "card" | "embedded";
 };
 
@@ -36,22 +36,25 @@ export function ReservationSummary({
   checkOutTime,
   guestName,
   reservationCode,
-  variant = "card",
+  variant = "embedded",
 }: ReservationSummaryProps) {
+  const checkInClock = formatClock(checkInTime);
+  const checkOutClock = formatClock(checkOutTime);
+
   const items = [
     {
       key: "check-in",
       icon: <CalendarDays className="h-3.5 w-3.5" />,
       label: "Entrada",
       value: checkInLabel,
-      hint: checkInTime ? formatClock(checkInTime) : null,
+      hint: checkInClock ? `Desde ${checkInClock}` : null,
     },
     {
       key: "check-out",
       icon: <CalendarDays className="h-3.5 w-3.5" />,
       label: "Salida",
       value: checkOutLabel,
-      hint: checkOutTime ? formatClock(checkOutTime) : null,
+      hint: checkOutClock ? `Hasta ${checkOutClock}` : null,
     },
     {
       key: "guest",
@@ -74,10 +77,7 @@ export function ReservationSummary({
   const grid = (
     <dl className="grid grid-cols-2 gap-2">
       {items.map((item) => (
-        <div
-          key={item.key}
-          className="rounded-xl bg-muted/50 px-3 py-2.5"
-        >
+        <div key={item.key} className="rounded-xl bg-slate-50 px-3 py-2.5">
           <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="text-primary" aria-hidden>
               {item.icon}
@@ -98,17 +98,8 @@ export function ReservationSummary({
   if (variant === "embedded") return grid;
 
   return (
-    <section
-      aria-labelledby="stay-reservation-summary-title"
-      className="rounded-2xl border border-border bg-card p-4 shadow-pragma-soft sm:p-5"
-    >
-      <h2
-        id="stay-reservation-summary-title"
-        className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        Información de la reserva
-      </h2>
-      <div className="mt-3">{grid}</div>
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-pragma-soft sm:p-5">
+      {grid}
     </section>
   );
 }

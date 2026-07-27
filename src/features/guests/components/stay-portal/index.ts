@@ -11,5 +11,7 @@ export { WifiCard } from "./wifi-card";
 export {
   DEFAULT_DOOR_STEPS,
   DEFAULT_HOUSE_RULES,
-  splitStayPortalLines,
+  DOOR_FOOTER,
+  HOUSE_RULES_FOOTER,
+  STAY_SECURITY_FOOTER,
 } from "./stay-portal-ui-helpers";

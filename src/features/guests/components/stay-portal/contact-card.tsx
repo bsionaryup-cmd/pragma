@@ -14,6 +14,10 @@ export function ContactCard({
 }: ContactCardProps) {
   if (!whatsappUrl && !telUrl) return null;
 
+  const helpLine = contactName
+    ? `${contactName} está lista para ayudarte.`
+    : "Recepción está lista para ayudarte.";
+
   return (
     <section
       aria-labelledby="stay-contact-title"
@@ -34,11 +38,7 @@ export function ContactCard({
             >
               ¿Necesitas ayuda?
             </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {contactName
-                ? `${contactName} puede ayudarte.`
-                : "Recepción puede ayudarte."}
-            </p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{helpLine}</p>
           </div>
         </div>
 
