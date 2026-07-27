@@ -1,0 +1,64 @@
+{
+  "at": "2026-07-27T07:44:05.908Z",
+  "databaseHost": "[redacted-neon-host]",
+  "sanitized": true,
+  "keyCandidatesPresent": [
+    {
+      "name": "TTLOCK_ENCRYPTION_KEY",
+      "present": false
+    },
+    {
+      "name": "CLERK_SECRET_KEY",
+      "present": true,
+      "sample": "[redacted]"
+    },
+    {
+      "name": "DATABASE_URL",
+      "present": true,
+      "sample": "[redacted]"
+    }
+  ],
+  "effectiveKeyInLocalRuntime": "CLERK_SECRET_KEY",
+  "rows": [
+    {
+      "reservationId": "[redacted]",
+      "reservationCode": null,
+      "guest": "[redacted]",
+      "status": "SENT",
+      "ttlockCodeId": "[redacted]",
+      "encryptedPrefix": "enc:v1:[redacted]",
+      "decryptByKey": [
+        { "key": "CLERK_SECRET_KEY", "ok": true, "codePreview": "**masked**" },
+        {
+          "key": "DATABASE_URL",
+          "ok": false,
+          "error": "Unsupported state or unable to authenticate data"
+        }
+      ],
+      "effectiveKeyName": "CLERK_SECRET_KEY",
+      "effectiveOk": true
+    },
+    {
+      "reservationId": "[redacted]",
+      "reservationCode": "[redacted]",
+      "guest": "[redacted]",
+      "status": "SENT",
+      "ttlockCodeId": "[redacted]",
+      "encryptedPrefix": "enc:v1:[redacted]",
+      "decryptByKey": [
+        { "key": "CLERK_SECRET_KEY", "ok": true, "codePreview": "**masked**" },
+        {
+          "key": "DATABASE_URL",
+          "ok": false,
+          "error": "Unsupported state or unable to authenticate data"
+        }
+      ],
+      "effectiveKeyName": "CLERK_SECRET_KEY",
+      "effectiveOk": true
+    }
+  ],
+  "sampleRowCount": 5,
+  "hypothesis": "If prod Vercel has different TTLOCK_ENCRYPTION_KEY / CLERK_SECRET_KEY than the key used to encrypt codes, decrypt returns null → accessCode hidden in UI (same catch path).",
+  "allEffectiveOk": true,
+  "note": "PII, hostnames, ciphertext prefixes, and key samples redacted before commit."
+}
