@@ -1,6 +1,6 @@
 # OCP Domain Registry
 
-**Last updated:** 2026-07-17  
+**Last updated:** 2026-07-27  
 **Protocol:** `docs/OCP-MASTER-EXECUTION-PROTOCOL.md`  
 **Global certification:** `docs/ocp/GLOBAL-CERTIFICATION.md`
 
@@ -27,9 +27,9 @@ OPEN → IN_PROGRESS → CERTIFIED → FROZEN → CLOSED
 | **Match / enrichment pipeline** | `applySafeReservationEnrichment` | FROZEN | `6cb5d90` | Prior release |
 | **iCal sync** | `airbnb-ical-sync.service.ts` | CLOSED | prior | stabilization |
 | **Performance / CPU** | stabilization RC | CLOSED | `3d256a3` | stabilization |
-| **AI Concierge native integration** | PRAGMA tenant config + ephemeral extension link | IN_PROGRESS | pending | UX/auth/linking implementation; live channel acceptance pending |
+| **AI Concierge native integration** | Removed in Master Simplification | CLOSED | `0995c7f` ancestry | Module/routes/extension deleted; registry was stale IN_PROGRESS |
 
-**Deploy (Phase 10):** OPEN — awaiting owner localhost approval
+**Deploy (Phase 10):** superseded by later releases — see Stay Portal / auth commits on `cursor/apify-prospecting-engine`
 
 ---
 
