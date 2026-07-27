@@ -7,7 +7,6 @@ import { ContactCard } from "./contact-card";
 import { HouseRulesCard } from "./house-rules-card";
 import { OpenDoorInstructions } from "./open-door-instructions";
 import { QuickActionsCard } from "./quick-actions-card";
-import { ReservationSummary } from "./reservation-summary";
 import { StayPortalPropertyHeader } from "./stay-portal-property-header";
 import { WifiCard } from "./wifi-card";
 
@@ -68,6 +67,12 @@ export function StayPortalViewPanel({ portal }: StayPortalViewProps) {
         addressLine={portal.addressLine}
         statusLabel={portal.statusLabel}
         coverImageUrl={portal.coverImageUrl}
+        checkInLabel={portal.checkInLabel}
+        checkOutLabel={portal.checkOutLabel}
+        checkInTime={portal.checkInTime}
+        checkOutTime={portal.checkOutTime}
+        guestName={portal.guestName}
+        reservationCode={portal.reservationCode}
       />
 
       <AccessCodeCard code={portal.accessCode} validTo={portal.accessValidTo} />
@@ -90,15 +95,6 @@ export function StayPortalViewPanel({ portal }: StayPortalViewProps) {
         contactName={portal.contactName}
         whatsappUrl={portal.whatsappUrl}
         telUrl={portal.telUrl}
-      />
-
-      <ReservationSummary
-        checkInLabel={portal.checkInLabel}
-        checkOutLabel={portal.checkOutLabel}
-        checkInTime={portal.checkInTime}
-        checkOutTime={portal.checkOutTime}
-        guestName={portal.guestName}
-        reservationCode={portal.reservationCode}
       />
 
       <p className="px-2 pb-2 text-center text-xs text-muted-foreground">

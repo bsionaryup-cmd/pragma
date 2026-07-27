@@ -15,7 +15,7 @@ export function AccessCodeCard({ code, validTo }: AccessCodeCardProps) {
   return (
     <section
       aria-labelledby="stay-access-code-title"
-      className="rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4 shadow-pragma-soft sm:p-5"
+      className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 shadow-pragma-soft sm:p-5"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3 sm:items-center">
@@ -47,7 +47,7 @@ export function AccessCodeCard({ code, validTo }: AccessCodeCardProps) {
                   className="mt-0.5 h-3.5 w-3.5 shrink-0 sm:mt-0"
                   aria-hidden
                 />
-                <span>Válido hasta {validTo}</span>
+                <span>Válido hasta el {validTo}</span>
               </p>
             ) : null}
           </div>

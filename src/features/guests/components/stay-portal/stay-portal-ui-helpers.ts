@@ -1,31 +1,15 @@
-export function splitStayPortalLines(
-  value: string | null | undefined,
-  max: number,
-): string[] {
-  if (!value?.trim()) return [];
-  return value
-    .split(/\r?\n+/)
-    .map((line) =>
-      line
-        .replace(/^[\s]*(?:[\d️⃣]+[.\)\-]?\s*|[•\-–*]\s*)/u, "")
-        .trim(),
-    )
-    .filter(Boolean)
-    .slice(0, max);
-}
-
 export const DEFAULT_DOOR_STEPS = [
   {
-    title: "Activa la cerradura",
-    body: "Toca el teclado para activarla.",
+    title: "Toca el teclado",
+    body: "Activa la cerradura tocando el teclado.",
   },
   {
-    title: "Escribe tu código",
-    body: "Ingresa el código de acceso y confirma.",
+    title: "Ingresa tu código",
+    body: "Escribe el código de acceso y confirma.",
   },
   {
-    title: "Si falla tres veces",
-    body: "Espera 3 a 5 minutos e inténtalo de nuevo.",
+    title: "Si el código no funciona",
+    body: "Si ingresas el código incorrectamente 3 veces, la cerradura se bloqueará. Espera 3 a 5 minutos e inténtalo de nuevo.",
   },
 ] as const;
 
@@ -36,3 +20,12 @@ export const DEFAULT_HOUSE_RULES = [
   "Apaga las luces y el aire acondicionado cuando salgas.",
   "Cuida el apartamento y tus pertenencias.",
 ] as const;
+
+export const DOOR_FOOTER =
+  "Antes de salir, verifica que la puerta y las ventanas queden bien cerradas.";
+
+export const HOUSE_RULES_FOOTER =
+  "¡Gracias por cuidar el alojamiento! Esperamos que disfrutes tu estadía.";
+
+export const STAY_SECURITY_FOOTER =
+  "Tu seguridad es nuestra prioridad. Disfruta tu estancia.";

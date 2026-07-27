@@ -7,6 +7,8 @@ type ReservationSummaryProps = {
   checkOutTime: string | null;
   guestName: string | null;
   reservationCode: string | null;
+  /** embedded = grid inside property header (mockup); card = standalone section */
+  variant?: "card" | "embedded";
 };
 
 function formatClock(time: string | null): string | null {
@@ -34,32 +36,33 @@ export function ReservationSummary({
   checkOutTime,
   guestName,
   reservationCode,
+  variant = "card",
 }: ReservationSummaryProps) {
   const items = [
     {
       key: "check-in",
-      icon: <CalendarDays className="h-4 w-4" />,
+      icon: <CalendarDays className="h-3.5 w-3.5" />,
       label: "Entrada",
       value: checkInLabel,
-      hint: checkInTime ? `Desde ${formatClock(checkInTime)}` : null,
+      hint: checkInTime ? formatClock(checkInTime) : null,
     },
     {
       key: "check-out",
-      icon: <CalendarDays className="h-4 w-4" />,
+      icon: <CalendarDays className="h-3.5 w-3.5" />,
       label: "Salida",
       value: checkOutLabel,
-      hint: checkOutTime ? `Hasta ${formatClock(checkOutTime)}` : null,
+      hint: checkOutTime ? formatClock(checkOutTime) : null,
     },
     {
       key: "guest",
-      icon: <UserRound className="h-4 w-4" />,
+      icon: <UserRound className="h-3.5 w-3.5" />,
       label: "Huésped",
       value: guestName,
       hint: null as string | null,
     },
     {
       key: "code",
-      icon: <Bookmark className="h-4 w-4" />,
+      icon: <Bookmark className="h-3.5 w-3.5" />,
       label: "Reserva",
       value: reservationCode,
       hint: null as string | null,
@@ -67,6 +70,32 @@ export function ReservationSummary({
   ].filter((item) => item.value);
 
   if (items.length === 0) return null;
+
+  const grid = (
+    <dl className="grid grid-cols-2 gap-2">
+      {items.map((item) => (
+        <div
+          key={item.key}
+          className="rounded-xl bg-muted/50 px-3 py-2.5"
+        >
+          <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="text-primary" aria-hidden>
+              {item.icon}
+            </span>
+            {item.label}
+          </dt>
+          <dd className="mt-1 truncate text-sm font-semibold text-foreground">
+            {item.value}
+          </dd>
+          {item.hint ? (
+            <p className="text-xs text-muted-foreground">{item.hint}</p>
+          ) : null}
+        </div>
+      ))}
+    </dl>
+  );
+
+  if (variant === "embedded") return grid;
 
   return (
     <section
@@ -79,30 +108,7 @@ export function ReservationSummary({
       >
         Información de la reserva
       </h2>
-      <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {items.map((item) => (
-          <div
-            key={item.key}
-            className="flex items-start gap-3 rounded-xl bg-muted/40 px-3 py-2.5"
-          >
-            <span
-              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"
-              aria-hidden
-            >
-              {item.icon}
-            </span>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{item.label}</dt>
-              <dd className="truncate text-sm font-semibold text-foreground">
-                {item.value}
-              </dd>
-              {item.hint ? (
-                <p className="text-xs text-muted-foreground">{item.hint}</p>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </dl>
+      <div className="mt-3">{grid}</div>
     </section>
   );
 }
