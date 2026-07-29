@@ -33,26 +33,18 @@ async function withRevenueOrg<T>(fn: () => Promise<T>): Promise<T> {
   return runWithPriceLabsOrganization(scope.organizationId, fn);
 }
 
+/**
+ * Panel mutations (bounds/overrides) must NOT share the org sync lock.
+ * That lock is for pipeline sync only; coupling caused false
+ * "Sincronización ya en curso" while Tarifas could not save.
+ */
 async function runRevenueMutation(
   fn: () => Promise<ActionResult>,
 ): Promise<ActionResult> {
   try {
     await requirePermission("finance:write");
     await assertBillingUnlocked();
-    const scope = await requireTenantDataScope();
-    if (!scope.organizationId) {
-      return { ok: false, message: "Organización no disponible" };
-    }
-
-    const locked = await runWithPriceLabsSyncLock(
-      () => withRevenueOrg(fn),
-      scope.organizationId,
-    );
-    if (!locked.ok) {
-      return { ok: false, message: locked.message };
-    }
-
-    const result = locked.value;
+    const result = await withRevenueOrg(fn);
     if (result.ok) {
       revalidateRevenuePaths();
     }
@@ -95,11 +87,71 @@ export async function deletePriceLabsOverridesAction(input: {
   return runRevenueMutation(() => deletePriceLabsOverridesFromPanel(input));
 }
 
+/** Listing refresh still uses the sync lock to avoid overlapping pipelines. */
 export async function syncSinglePriceLabsListingAction(
   propertyId: string,
 ): Promise<ActionResult & { listingId?: string }> {
-  return runRevenueMutation(async () => {
-    const result = await syncSingleListing(propertyId);
+  try {
+    await requirePermission("finance:write");
+    await assertBillingUnlocked();
+    const scope = await requireTenantDataScope();
+    if (!scope.organizationId) {
+      return { ok: false, message: "Organización no disponible" };
+    }
+
+    const locked = await runWithPriceLabsSyncLock(
+      () => withRevenueOrg(() => syncSingleListing(propertyId)),
+      scope.organizationId,
+    );
+    if (!locked.ok) {
+      return { ok: false, message: locked.message };
+    }
+    if (locked.value.ok) {
+      revalidateRevenuePaths();
+    }
+    return locked.value;
+  } catch (error) {
+    if (isBillingLockedError(error)) {
+      return { ok: false, message: error.message };
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Error inesperado",
+    };
+  }
+}
+
+/** Portfolio price refresh from Tarifas (finance:write) — pricesOnly pipeline. */
+export async function syncRevenuePricesAction(): Promise<ActionResult> {
+  try {
+    await requirePermission("finance:write");
+    await assertBillingUnlocked();
+    const scope = await requireTenantDataScope();
+    if (!scope.organizationId) {
+      return { ok: false, message: "Organización no disponible" };
+    }
+    const { runPriceLabsSyncPipeline } = await import(
+      "@/services/integrations/pricelabs/pricelabs-orchestrator"
+    );
+    const result = await runWithPriceLabsOrganization(scope.organizationId, () =>
+      runPriceLabsSyncPipeline({
+        source: "manual",
+        skipConnectionTest: true,
+        mode: "pricesOnly",
+        organizationId: scope.organizationId!,
+      }),
+    );
+    if (result.ok) {
+      revalidateRevenuePaths();
+    }
     return result;
-  });
+  } catch (error) {
+    if (isBillingLockedError(error)) {
+      return { ok: false, message: error.message };
+    }
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Error inesperado",
+    };
+  }
 }

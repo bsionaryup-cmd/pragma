@@ -6,7 +6,8 @@ import type {
 } from "@/integrations/pricelabs/types";
 
 const STALE_SYNC_MS = 24 * 60 * 60 * 1000;
-const PREVIEW_DAYS = 14;
+/** ~6 weeks for monthly calendar workspace in Tarifas */
+const PREVIEW_DAYS = 42;
 
 export type PriceLabsDayPreview = {
   date: string;
@@ -16,6 +17,11 @@ export type PriceLabsDayPreview = {
   demandLevel: string | null;
   pricingReason: string | null;
   hasOverride: boolean;
+  bookingStatus: string | null;
+  checkIn: boolean;
+  checkOut: boolean;
+  weeklyDiscount: number | null;
+  monthlyDiscount: number | null;
 };
 
 export type PriceLabsPropertyInsights = {
@@ -140,6 +146,11 @@ export function buildPropertyInsights(meta: unknown): PriceLabsPropertyInsights 
       demandLevel: day?.demand_level ?? null,
       pricingReason: day?.pricing_reason ?? null,
       hasOverride: Boolean(override),
+      bookingStatus: day?.booking_status ?? null,
+      checkIn: Boolean(day?.check_in),
+      checkOut: Boolean(day?.check_out),
+      weeklyDiscount: toNumber(day?.weekly_discount),
+      monthlyDiscount: toNumber(day?.monthly_discount),
     });
   }
 
