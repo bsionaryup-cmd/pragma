@@ -32,6 +32,7 @@ import {
 import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
 import { ReservationActivityTimeline } from "@/features/reservations/components/reservation-activity-timeline";
 import { dispatchDashboardDataRefresh } from "@/lib/dashboard-refresh";
+import { getAirbnbUniversalGuestRegistrationUrl } from "@/lib/app-url";
 import { formatDateTime as formatDateTimeInBogota } from "@/lib/helpers/date";
 import {
   countNights,
@@ -625,14 +626,13 @@ export function ReservationDetailPanel({
               onClick={async () => {
                 const tokenUrl =
                   registration?.url ?? reservation.guestRegistrationUrl;
-                const appOrigin =
-                  (typeof window !== "undefined"
-                    ? window.location.origin
-                    : process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "")) ||
-                  "";
                 const isAirbnb = reservation.platform === "AIRBNB";
+                // Regression 0995c7f: `${window.location.origin}/guest-registration`
+                // leaked http:// → Android ERR_CLEARTEXT_NOT_PERMITTED.
                 const registrationUrl = isAirbnb
-                  ? `${appOrigin}/guest-registration`
+                  ? getAirbnbUniversalGuestRegistrationUrl(
+                      window.location.origin,
+                    )
                   : tokenUrl;
                 if (!registrationUrl) return;
                 const welcome = isAirbnb

@@ -1,10 +1,11 @@
 import { BRAND } from "@/lib/brand";
 import { BRAND_ASSETS } from "@/lib/brand-assets";
+import { ensureHttpsPublicOrigin } from "@/lib/app-url";
 
-const siteUrl =
+const siteUrl = ensureHttpsPublicOrigin(
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://pragma-pms.vercel.app";
-
+    "https://www.pragmapms.com",
+);
 /** Cabecera HTML reutilizable para correos del sistema. */
 export function pragmaEmailHeaderHtml(): string {
   const logoUrl = `${siteUrl}${BRAND_ASSETS.logoFullLight}`;
