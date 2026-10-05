@@ -453,6 +453,8 @@ export async function getOwnerClientDetail(organizationId: string) {
           status: true,
           trialEndsAt: true,
           currentPeriodEnd: true,
+          gracePeriodEndsAt: true,
+          billingLockedAt: true,
           metadata: true,
           invoices: {
             orderBy: { dueAt: "desc" },
@@ -530,6 +532,10 @@ export async function getOwnerClientDetail(organizationId: string) {
           trialEndsAt: org.billingAccount.trialEndsAt?.toISOString() ?? null,
           currentPeriodEnd:
             org.billingAccount.currentPeriodEnd?.toISOString() ?? null,
+          gracePeriodEndsAt:
+            org.billingAccount.gracePeriodEndsAt?.toISOString() ?? null,
+          billingLockedAt:
+            org.billingAccount.billingLockedAt?.toISOString() ?? null,
           metadata: org.billingAccount.metadata,
           trialRetrial,
           invoices: org.billingAccount.invoices.map((inv) => ({

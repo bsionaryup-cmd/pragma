@@ -14,9 +14,18 @@ import { ensureOrganizationBillingAccount } from "@/services/organizations/organ
 import { mergeSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
 import { syncOpenInvoiceAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
 import { SUBSCRIPTION_TRIAL_DAYS } from "@/modules/billing/domain/subscription-pricing";
-import { ensureOpenSubscriptionInvoice } from "@/modules/billing/services/billing-lifecycle.service";
+import {
+  ensureOpenSubscriptionInvoice,
+  reconcileBillingLifecycle,
+} from "@/modules/billing/services/billing-lifecycle.service";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { cancelOrganizationSubscription } from "@/modules/billing/services/subscription-cancel.service";
+import { resolveBillingLocked } from "@/lib/billing/billing-access";
+import type { TenantValidityKind } from "@/lib/billing/tenant-account-state";
+import {
+  reactivateTenant,
+  suspendTenant,
+} from "@/services/platform/tenant-impersonation.service";
 
 export async function setTenantPropertySlotsByOwner(input: {
   platformUser: User;
@@ -246,6 +255,16 @@ export async function reactivateTenantSubscriptionByOwner(input: {
       ? BillingSubscriptionStatus.ACTIVE
       : BillingSubscriptionStatus.TRIAL;
 
+  if (
+    nextStatus === BillingSubscriptionStatus.TRIAL &&
+    account.trialEndsAt &&
+    account.trialEndsAt.getTime() <= Date.now()
+  ) {
+    throw new Error(
+      "No hay período vigente: define 'Vigente hasta' con una fecha futura para reactivar.",
+    );
+  }
+
   await db.billingAccount.update({
     where: { id: account.id },
     data: {
@@ -263,6 +282,112 @@ export async function reactivateTenantSubscriptionByOwner(input: {
     newState: { status: nextStatus },
     metadata: { reason: input.reason ?? "owner_ops" },
   });
+}
+
+/**
+ * Fija la vigencia del tenant (fin de prueba o fin del período pagado).
+ * Fecha futura → acceso habilitado hasta esa fecha.
+ * Fecha pasada → aplica el ciclo de vida normal (vencido con gracia / bloqueado).
+ */
+export async function setTenantValidUntilByOwner(input: {
+  platformUser: User;
+  organizationId: string;
+  validUntil: Date;
+  kind: TenantValidityKind;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+  const account = await ensureOrganizationBillingAccount(input.organizationId);
+
+  const updated = await db.billingAccount.update({
+    where: { id: account.id },
+    data:
+      input.kind === "trial"
+        ? {
+            status: BillingSubscriptionStatus.TRIAL,
+            trialEndsAt: input.validUntil,
+            gracePeriodEndsAt: null,
+            billingLockedAt: null,
+          }
+        : {
+            status: BillingSubscriptionStatus.ACTIVE,
+            currentPeriodEnd: input.validUntil,
+            trialEndsAt: null,
+            gracePeriodEndsAt: null,
+            billingLockedAt: null,
+          },
+  });
+
+  const final =
+    input.validUntil.getTime() <= Date.now()
+      ? await reconcileBillingLifecycle(updated)
+      : updated;
+
+  await writePlatformAuditLog({
+    platformUserId: input.platformUser.id,
+    ownerEmail: input.platformUser.email,
+    action: "billing_valid_until_set",
+    targetTenantId: input.organizationId,
+    previousState: {
+      status: account.status,
+      trialEndsAt: account.trialEndsAt?.toISOString() ?? null,
+      currentPeriodEnd: account.currentPeriodEnd?.toISOString() ?? null,
+    },
+    newState: {
+      status: final.status,
+      kind: input.kind,
+      validUntil: input.validUntil.toISOString(),
+    },
+    metadata: { reason: input.reason ?? "owner_ops" },
+  });
+}
+
+/**
+ * Desactivar: bloquea el acceso al PMS (Organization SUSPENDED).
+ * Activar: quita la desactivación y, si la suscripción está bloqueada,
+ * exige una fecha de vigencia futura para no dejar el tenant bloqueado.
+ */
+export async function setTenantAccessByOwner(input: {
+  platformUser: User;
+  organizationId: string;
+  active: boolean;
+  validUntil?: Date | null;
+  kind?: TenantValidityKind;
+  reason?: string;
+}) {
+  assertSuperAdminOwner(input.platformUser);
+
+  if (!input.active) {
+    await suspendTenant(input.platformUser, input.organizationId);
+    return;
+  }
+
+  const account = await ensureOrganizationBillingAccount(input.organizationId);
+  const billingLocked = resolveBillingLocked({
+    status: account.status,
+    trialEndsAt: account.trialEndsAt,
+    gracePeriodEndsAt: account.gracePeriodEndsAt,
+    billingLockedAt: account.billingLockedAt,
+  });
+
+  if (input.validUntil) {
+    if (input.validUntil.getTime() <= Date.now()) {
+      throw new Error("Para activar, 'Vigente hasta' debe ser una fecha futura.");
+    }
+    await setTenantValidUntilByOwner({
+      platformUser: input.platformUser,
+      organizationId: input.organizationId,
+      validUntil: input.validUntil,
+      kind: input.kind ?? "subscription",
+      reason: input.reason,
+    });
+  } else if (billingLocked) {
+    throw new Error(
+      "La suscripción está vencida o bloqueada. Indica 'Vigente hasta' (fecha futura) para activar el tenant.",
+    );
+  }
+
+  await reactivateTenant(input.platformUser, input.organizationId);
 }
 
 export async function cancelTenantSubscriptionByOwner(input: {

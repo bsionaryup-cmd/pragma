@@ -34,6 +34,11 @@ import {
 import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
 import { computeTrialDaysRemaining } from "@/lib/billing/trial-days-remaining";
 import { trialRetrialPolicyLabel } from "@/lib/billing/trial-retrial-policy";
+import {
+  resolveTenantAccountState,
+  toBogotaDateInputValue,
+  type TenantValidityKind,
+} from "@/lib/billing/tenant-account-state";
 import type { TrialRetrialPolicy } from "@prisma/client";
 
 type TenantDetail = NonNullable<
@@ -52,7 +57,17 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState(tenant.status);
+  const accountState = resolveTenantAccountState({
+    organizationStatus: tenant.status,
+    billing: tenant.billing,
+  });
+  const isSuspended = tenant.status === "SUSPENDED";
+  const [validUntilInput, setValidUntilInput] = useState(() =>
+    toBogotaDateInputValue(accountState.validUntil),
+  );
+  const [validityKind, setValidityKind] = useState<TenantValidityKind>(
+    accountState.validityKind,
+  );
   const [plan, setPlan] = useState(tenant.billing?.plan ?? "STARTER");
   const [billingStatus, setBillingStatus] = useState(
     tenant.billing?.status ?? "TRIAL",
@@ -157,12 +172,41 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     });
   }
 
-  function suspend() {
-    runAction(`/api/owner/tenant/${tenant.id}/suspend`, () => setStatus("SUSPENDED"));
+  function saveValidUntil() {
+    if (!validUntilInput) {
+      setError("Selecciona la fecha 'Vigente hasta'");
+      return;
+    }
+    runAction(
+      `/api/owner/tenant/${tenant.id}/billing-actions/valid-until`,
+      () => toast.success("Vigencia actualizada"),
+      { validUntil: validUntilInput, kind: validityKind, reason: "owner_ops" },
+    );
   }
 
-  function reactivate() {
-    runAction(`/api/owner/tenant/${tenant.id}/reactivate`, () => setStatus("ACTIVE"));
+  function deactivateTenant() {
+    if (!confirm(`¿Desactivar ${tenant.name}? Perderá el acceso al PMS de inmediato.`)) {
+      return;
+    }
+    runAction(
+      `/api/owner/tenant/${tenant.id}/access`,
+      () => toast.success("Tenant desactivado"),
+      { active: false, reason: "owner_ops" },
+    );
+  }
+
+  function activateTenant() {
+    runAction(
+      `/api/owner/tenant/${tenant.id}/access`,
+      () => toast.success("Tenant activado"),
+      {
+        active: true,
+        ...(accountState.billingLocked && validUntilInput
+          ? { validUntil: validUntilInput, kind: validityKind }
+          : {}),
+        reason: "owner_ops",
+      },
+    );
   }
 
   async function inviteUser() {
@@ -337,8 +381,16 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
           <h1 className="font-heading truncate text-2xl font-semibold">{tenant.name}</h1>
           <p className="text-sm text-muted-foreground">{tenant.mainEmail ?? "—"}</p>
         </div>
-        <Badge variant={status === "SUSPENDED" ? "destructive" : "default"}>
-          {status === "SUSPENDED" ? "Suspendido" : "Activo"}
+        <Badge
+          variant={
+            accountState.tone === "danger"
+              ? "destructive"
+              : accountState.tone === "warn"
+                ? "outline"
+                : "default"
+          }
+        >
+          {accountState.label}
         </Badge>
       </div>
 
@@ -349,22 +401,96 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
       ) : null}
 
       <div className="mb-6 flex flex-wrap gap-2">
-        <Button type="button" variant="brand" disabled={pending || status === "SUSPENDED"} onClick={impersonate}>
+        <Button type="button" variant="brand" disabled={pending || isSuspended} onClick={impersonate}>
           <Eye className="h-4 w-4" />
           Acceder al PMS (impersonación)
         </Button>
-        {status === "ACTIVE" ? (
-          <Button type="button" variant="outline" disabled={pending} onClick={suspend}>
-            <PauseCircle className="h-4 w-4" />
-            Suspender tenant
-          </Button>
-        ) : (
-          <Button type="button" variant="outline" disabled={pending} onClick={reactivate}>
-            <PlayCircle className="h-4 w-4" />
-            Reactivar tenant
-          </Button>
-        )}
       </div>
+
+      <section className="mb-8 rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-heading text-lg font-semibold">Estado y vigencia</h2>
+            <p className="mt-1 text-sm">
+              <span
+                className={
+                  accountState.tone === "danger"
+                    ? "font-semibold text-destructive"
+                    : accountState.tone === "warn"
+                      ? "font-semibold text-amber-700"
+                      : "font-semibold text-emerald-700"
+                }
+              >
+                {accountState.label}
+              </span>
+              {accountState.validUntil ? (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {accountState.validityKind === "trial" ? "Prueba" : "Suscripción"} vigente hasta{" "}
+                  {formatDate(accountState.validUntil)}
+                </span>
+              ) : null}
+              {accountState.code === "PAST_DUE" && accountState.gracePeriodEndsAt ? (
+                <span className="text-muted-foreground">
+                  {" · "}se bloquea el {formatDate(accountState.gracePeriodEndsAt)}
+                </span>
+              ) : null}
+            </p>
+            {isSuspended && accountState.billingLocked ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Además, la suscripción está bloqueada: al activar indica una fecha futura.
+              </p>
+            ) : null}
+          </div>
+          {isSuspended ? (
+            <Button type="button" variant="brand" disabled={pending} onClick={activateTenant}>
+              <PlayCircle className="h-4 w-4" />
+              Activar tenant
+            </Button>
+          ) : accountState.billingLocked ? (
+            <Button type="button" variant="brand" disabled={pending} onClick={activateTenant}>
+              <PlayCircle className="h-4 w-4" />
+              Activar con la fecha indicada
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" disabled={pending} onClick={deactivateTenant}>
+              <PauseCircle className="h-4 w-4" />
+              Desactivar tenant
+            </Button>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-muted-foreground">Vigente hasta</span>
+            <input
+              type="date"
+              className="h-10 rounded-xl border border-input bg-background px-3"
+              value={validUntilInput}
+              onChange={(e) => setValidUntilInput(e.target.value)}
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="text-muted-foreground">Tipo de vigencia</span>
+            <select
+              className="h-10 rounded-xl border border-input bg-white px-3 dark:bg-card"
+              value={validityKind}
+              onChange={(e) => setValidityKind(e.target.value as TenantValidityKind)}
+            >
+              <option value="subscription">Suscripción pagada</option>
+              <option value="trial">Prueba gratuita</option>
+            </select>
+          </label>
+          <Button type="button" disabled={pending} onClick={saveValidUntil}>
+            Guardar fecha
+          </Button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Fecha futura: el tenant queda habilitado hasta ese día. Si vence una suscripción pagada
+          sin pago, queda vencida 7 días (gracia) y luego se bloquea sola; si vence una prueba, se
+          bloquea al terminar. &quot;Desactivar&quot; bloquea el acceso de inmediato sin importar la fecha.
+        </p>
+      </section>
 
       <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="Propiedades" value={String(tenant.propertyCount)} icon={Building2} />
@@ -476,47 +602,52 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                     })}
                   </select>
                 </label>
-                <label className="grid gap-1.5 text-sm">
-                  <span className="text-muted-foreground">Estado facturación</span>
-                  <select
-                    value={billingStatus}
-                    onChange={(e) =>
-                      setBillingStatus(
-                        e.target.value as
-                          | "TRIAL"
-                          | "ACTIVE"
-                          | "PAST_DUE"
-                          | "CANCELED"
-                          | "LOCKED",
-                      )
-                    }
-                    className="h-10 rounded-xl border border-input bg-white px-3 dark:bg-card"
-                  >
-                    <option value="TRIAL">TRIAL</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="PAST_DUE">PAST_DUE</option>
-                    <option value="LOCKED">LOCKED</option>
-                    <option value="CANCELED">CANCELED</option>
-                  </select>
-                </label>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button type="button" size="sm" disabled={pending} onClick={savePlan}>
                   Guardar plan
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={saveBillingStatus}
-                >
-                  Guardar estado billing
-                </Button>
               </div>
 
-              <div className="mt-6 grid gap-3 rounded-xl border border-border/70 bg-muted/20 p-3">
-                <p className="text-sm font-semibold">Acciones billing (Owner)</p>
+              <details className="mt-6 rounded-xl border border-border/70 bg-muted/20 p-3">
+                <summary className="cursor-pointer text-sm font-semibold">
+                  Avanzado (acciones billing)
+                </summary>
+                <div className="mt-3 grid gap-3">
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Estado facturación (manual)</span>
+                    <select
+                      value={billingStatus}
+                      onChange={(e) =>
+                        setBillingStatus(
+                          e.target.value as
+                            | "TRIAL"
+                            | "ACTIVE"
+                            | "PAST_DUE"
+                            | "CANCELED"
+                            | "LOCKED",
+                        )
+                      }
+                      className="h-10 rounded-xl border border-input bg-white px-3 dark:bg-card"
+                    >
+                      <option value="TRIAL">TRIAL</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="PAST_DUE">PAST_DUE</option>
+                      <option value="LOCKED">LOCKED</option>
+                      <option value="CANCELED">CANCELED</option>
+                    </select>
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={saveBillingStatus}
+                  >
+                    Guardar estado billing
+                  </Button>
+                </div>
                 <label className="grid gap-1.5 text-sm">
                   <span className="text-muted-foreground">Límite facturable (propertySlots)</span>
                   <div className="flex gap-2">
@@ -693,7 +824,8 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
                     Cancelar
                   </Button>
                 </div>
-              </div>
+                </div>
+              </details>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Sin cuenta de facturación.</p>
