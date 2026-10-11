@@ -31,7 +31,7 @@ import {
   getPlanDefinition,
   PLAN_CATALOG,
 } from "@/modules/billing/domain/plan-catalog";
-import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { parseSalesBillingMetadata } from "@/modules/billing/domain/sales-billing-metadata";
 import { computeTrialDaysRemaining } from "@/lib/billing/trial-days-remaining";
 import { trialRetrialPolicyLabel } from "@/lib/billing/trial-retrial-policy";
 import {

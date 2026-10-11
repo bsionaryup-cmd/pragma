@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
 import { buildTrialBillingMetadata } from "@/lib/billing/trial-eligibility-metadata";
 import { assertSuperAdminOwner } from "@/lib/platform/platform-owner";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
-import { mergeSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { mergeSalesBillingMetadata } from "@/modules/billing/domain/sales-billing-metadata";
 import { syncOpenInvoiceAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
 import { SUBSCRIPTION_TRIAL_DAYS } from "@/modules/billing/domain/subscription-pricing";
 import {

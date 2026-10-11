@@ -1,16 +1,14 @@
 import { db } from "@/lib/db";
 import { isValidPhoneNumber } from "@/lib/phone/phone-number";
 import { clampPropertyCountForBillingPlan } from "@/modules/billing/domain/plan-catalog";
-import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { parseSalesBillingMetadata } from "@/modules/billing/domain/sales-billing-metadata";
 import { syncOpenInvoiceAmountForAccount } from "@/modules/billing/domain/subscription-property-count";
-import { applySalesOfferToOrganization } from "@/modules/sales/services/sales-offer-redemption.service";
 import { ensureBillingAccount } from "@/services/billing/billing.service";
 
 export type OnboardingProfileInput = {
   companyName: string;
   phone: string;
   propertyCount: number;
-  offerToken?: string;
 };
 
 export function userNeedsOnboarding(
@@ -74,27 +72,6 @@ export async function completeOnboarding(
         },
       });
       await syncOpenInvoiceAmountForAccount(billingAccount.id);
-
-      const offerToken = input.offerToken?.trim();
-      if (offerToken) {
-        const metaAfter = parseSalesBillingMetadata(
-          (
-            await db.billingAccount.findUnique({
-              where: { id: billingAccount.id },
-              select: { metadata: true },
-            })
-          )?.metadata,
-        );
-        if (!metaAfter.salesQuoteId) {
-          await applySalesOfferToOrganization({
-            organizationId: user.organizationId,
-            offerToken,
-            actorUserId: userId,
-            prospectEmail: user.email,
-          });
-          await syncOpenInvoiceAmountForAccount(billingAccount.id);
-        }
-      }
     }
   } else {
     await ensureBillingAccount();

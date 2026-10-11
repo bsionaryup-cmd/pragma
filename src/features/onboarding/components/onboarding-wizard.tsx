@@ -7,7 +7,6 @@ import { ArrowLeft, Building2, CalendarDays, CheckCircle2, Loader2 } from "lucid
 import { toast } from "sonner";
 import { completeOnboardingAction } from "@/features/onboarding/actions/onboarding.actions";
 import { recordSignupLegalAcceptanceAction } from "@/features/legal/actions/legal.actions";
-import { applySalesOfferForCurrentUserAction } from "@/features/sales/actions/sales.actions";
 import { SUBSCRIPTION_TRIAL_LABEL } from "@/lib/constants";
 import { consumeSignupLegalAcceptedPending } from "@/lib/legal/signup-acceptance";
 import { Button } from "@/components/ui/button";
@@ -19,13 +18,11 @@ import { PhoneInput } from "@/components/ui/phone-input";
 type OnboardingWizardProps = {
   displayName: string;
   email: string;
-  offerToken?: string;
 };
 
 export function OnboardingWizard({
   displayName,
   email,
-  offerToken,
 }: OnboardingWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -33,7 +30,6 @@ export function OnboardingWizard({
   const [companyName, setCompanyName] = useState(displayName);
   const [phone, setPhone] = useState("");
   const [propertyCount, setPropertyCount] = useState("1");
-  const [offerApplied, setOfferApplied] = useState(false);
 
   useEffect(() => {
     if (!consumeSignupLegalAcceptedPending()) return;
@@ -41,23 +37,6 @@ export function OnboardingWizard({
       /* best-effort audit trail */
     });
   }, []);
-
-  useEffect(() => {
-    if (!offerToken || offerApplied) return;
-    startTransition(async () => {
-      const result = await applySalesOfferForCurrentUserAction(offerToken);
-      if (result.success) {
-        setOfferApplied(true);
-        if (result.propertyCount) {
-          setPropertyCount(String(result.propertyCount));
-        }
-        toast.success("Oferta privada aplicada a tu suscripción");
-      } else {
-        toast.error(result.error ?? "No se pudo aplicar la oferta");
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [offerToken]);
 
   const onSubmitProfile = () => {
     const count = Number.parseInt(propertyCount, 10);
@@ -67,7 +46,6 @@ export function OnboardingWizard({
           companyName,
           phone,
           propertyCount: count,
-          offerToken,
         });
         if (result.ok) {
           toast.success(result.message);

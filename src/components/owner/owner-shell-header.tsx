@@ -20,11 +20,6 @@ const PLATFORM_NAV = [
     exact: true,
   },
   {
-    href: "/owner-dashboard/quotes",
-    label: "Cotizaciones",
-    activePrefix: "/owner-dashboard/quotes",
-  },
-  {
     href: "/owner-dashboard/support",
     label: "Soporte",
     activePrefix: "/owner-dashboard/support",
@@ -48,7 +43,6 @@ export function OwnerShellHeader({
   const onOwnerHome =
     pathname === OWNER_DASHBOARD_PATH ||
     (pathname.startsWith(`${OWNER_DASHBOARD_PATH}/`) &&
-      !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/quotes`) &&
       !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/support`) &&
       !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/billing`) &&
       !pathname.startsWith(`${OWNER_DASHBOARD_PATH}/tenant`));

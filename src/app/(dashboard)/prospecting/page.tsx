@@ -6,7 +6,7 @@ import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 export default async function ProspectingPage() {
   const user = await requireDbUser();
   if (isSuperAdminOwner(user)) {
-    redirect("/owner-dashboard/sales");
+    redirect("/owner-dashboard");
   }
   redirect("/unauthorized");
 }
