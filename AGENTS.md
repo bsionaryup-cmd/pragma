@@ -16,3 +16,13 @@ For certification, consistency, or cross-module coherence work, follow **`docs/O
 - **Deploy to production** requires explicit owner approval; do not auto-deploy.
 - On failure: rollback the current phase only, restore baseline, document, continue.
 <!-- END:ocp-rules -->
+
+<!-- BEGIN:cloud-agent -->
+# Cloud Agent
+
+The environment boots local PostgreSQL and the Next.js dev server. Dependency install is `npm ci` from `/agent/repos/pragma` (Node is already on `PATH`).
+
+- App: http://localhost:3000 — open `localhost`, not `127.0.0.1` (Next.js dev origin). `npm run dev` uses webpack.
+- Database: `postgresql://pragma:pragma@127.0.0.1:5432/pragma`. Boot creates the role and database if needed, then runs `npx prisma migrate deploy`. Keep this local URL; do not point it at production.
+- Clerk runs in keyless mode until `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are present. Public pages and lead capture work without those keys.
+<!-- END:cloud-agent -->
