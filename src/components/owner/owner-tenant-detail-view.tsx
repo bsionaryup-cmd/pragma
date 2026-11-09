@@ -27,7 +27,6 @@ import { formatDate } from "@/lib/helpers/date";
 import type { BillingPlanCode } from "@prisma/client";
 import type { UserRole } from "@prisma/client";
 import {
-  formatCop,
   getPlanDefinition,
   PLAN_CATALOG,
 } from "@/modules/billing/domain/plan-catalog";
@@ -72,6 +71,11 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     tenant.billing?.trialEndsAt,
   );
   const [extendTrialDays, setExtendTrialDays] = useState("7");
+  const [newInvoiceAmount, setNewInvoiceAmount] = useState("");
+  const [newInvoiceDescription, setNewInvoiceDescription] = useState("");
+  const [newInvoiceDueDays, setNewInvoiceDueDays] = useState("3");
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [editInvoiceAmount, setEditInvoiceAmount] = useState("");
 
   function formatCop(amount: number) {
     return new Intl.NumberFormat("es-CO", {
@@ -79,6 +83,10 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
       currency: "COP",
       maximumFractionDigits: 0,
     }).format(amount);
+  }
+
+  function canManageInvoice(status: string) {
+    return status === "OPEN" || status === "FAILED" || status === "DRAFT";
   }
 
   async function patchJson(url: string, body: Record<string, string>) {
@@ -291,6 +299,149 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     billingAction("extend-trial", { days, reason: "owner_ops" });
   }
 
+  function invoiceAction(
+    path: string,
+    body?: unknown,
+    successMessage?: string,
+  ) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(
+          `/api/owner/tenant/${tenant.id}/invoices${path}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body ?? { reason: "owner_ops" }),
+          },
+        );
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          const message = data.error ?? "Acción de factura no completada";
+          setError(message);
+          toast.error(message);
+          return;
+        }
+        if (successMessage) toast.success(successMessage);
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
+  }
+
+  function createInvoice() {
+    const amountRaw = newInvoiceAmount.trim();
+    const amountCop = amountRaw
+      ? Number.parseInt(amountRaw.replace(/\D/g, ""), 10)
+      : undefined;
+    if (amountRaw && (!Number.isFinite(amountCop) || (amountCop ?? 0) <= 0)) {
+      setError("Monto de factura inválido");
+      return;
+    }
+    const dueInDays = Number.parseInt(newInvoiceDueDays || "3", 10);
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/owner/tenant/${tenant.id}/invoices`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amountCop,
+            description: newInvoiceDescription.trim() || undefined,
+            dueInDays: Number.isFinite(dueInDays) ? dueInDays : 3,
+            reason: "owner_ops",
+          }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          const message = data.error ?? "No se pudo crear la factura";
+          setError(message);
+          toast.error(message);
+          return;
+        }
+        setNewInvoiceAmount("");
+        setNewInvoiceDescription("");
+        setNewInvoiceDueDays("3");
+        toast.success("Factura creada");
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
+  }
+
+  function saveInvoiceAmount(invoiceId: string) {
+    const amountCop = Number.parseInt(editInvoiceAmount.replace(/\D/g, ""), 10);
+    if (!Number.isFinite(amountCop) || amountCop <= 0) {
+      setError("Monto de factura inválido");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch(
+          `/api/owner/tenant/${tenant.id}/invoices/${invoiceId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ amountCop, reason: "owner_ops" }),
+          },
+        );
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          const message = data.error ?? "No se pudo actualizar la factura";
+          setError(message);
+          toast.error(message);
+          return;
+        }
+        setEditingInvoiceId(null);
+        setEditInvoiceAmount("");
+        toast.success("Monto actualizado");
+        router.refresh();
+      } catch {
+        setError("Error de red");
+      }
+    });
+  }
+
+  function markInvoicePaid(invoiceId: string) {
+    if (
+      !window.confirm(
+        "¿Marcar esta factura como pagada y activar la suscripción del cliente?",
+      )
+    ) {
+      return;
+    }
+    invoiceAction(
+      `/${invoiceId}/mark-paid`,
+      { activateSubscription: true, reason: "owner_ops" },
+      "Factura marcada como pagada",
+    );
+  }
+
+  function voidInvoice(invoiceId: string) {
+    if (!window.confirm("¿Anular esta factura? Esta acción no se puede deshacer.")) {
+      return;
+    }
+    invoiceAction(`/${invoiceId}/void`, { reason: "owner_ops" }, "Factura anulada");
+  }
+
+  function confirmManualPayment(invoiceId: string) {
+    if (
+      !window.confirm(
+        "¿Confirmar el comprobante de transferencia y activar la suscripción?",
+      )
+    ) {
+      return;
+    }
+    invoiceAction(
+      `/${invoiceId}/confirm-manual`,
+      { reason: "owner_ops" },
+      "Pago manual confirmado",
+    );
+  }
+
   async function saveTenantName() {
     setError(null);
     startTransition(async () => {
@@ -436,7 +587,10 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
+        <section
+          id="facturacion"
+          className="scroll-mt-24 rounded-2xl border border-border bg-card p-5 shadow-pragma-soft"
+        >
           <h2 className="mb-4 font-heading text-lg font-semibold">Facturación</h2>
           {tenant.billing ? (
             <>
@@ -699,30 +853,195 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
             <p className="text-sm text-muted-foreground">Sin cuenta de facturación.</p>
           )}
 
-          {tenant.billing?.invoices?.length ? (
-            <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Factura</TableHead>
-                    <TableHead>Monto</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Vence</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenant.billing.invoices.map((inv) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="text-xs">{inv.description ?? inv.id.slice(0, 8)}</TableCell>
-                      <TableCell>
-                        {inv.amount} {inv.currency}
-                      </TableCell>
-                      <TableCell>{inv.status}</TableCell>
-                      <TableCell>{formatDate(inv.dueAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          {tenant.billing ? (
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border border-border/70 bg-muted/20 p-3">
+                <p className="mb-3 text-sm font-semibold">Gestionar facturas</p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="grid gap-1.5 text-sm sm:col-span-2 lg:col-span-1">
+                    <span className="text-muted-foreground">Monto (COP)</span>
+                    <input
+                      className="h-10 rounded-xl border border-input bg-background px-3"
+                      inputMode="numeric"
+                      placeholder="Catálogo del plan"
+                      value={newInvoiceAmount}
+                      onChange={(e) =>
+                        setNewInvoiceAmount(e.target.value.replace(/\D/g, "").slice(0, 12))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Vence en (días)</span>
+                    <input
+                      className="h-10 rounded-xl border border-input bg-background px-3"
+                      inputMode="numeric"
+                      value={newInvoiceDueDays}
+                      onChange={(e) =>
+                        setNewInvoiceDueDays(e.target.value.replace(/\D/g, "").slice(0, 2))
+                      }
+                    />
+                  </label>
+                  <label className="grid gap-1.5 text-sm sm:col-span-2">
+                    <span className="text-muted-foreground">Descripción</span>
+                    <input
+                      className="h-10 rounded-xl border border-input bg-background px-3"
+                      placeholder="Opcional"
+                      value={newInvoiceDescription}
+                      onChange={(e) => setNewInvoiceDescription(e.target.value.slice(0, 160))}
+                    />
+                  </label>
+                </div>
+                <div className="mt-3">
+                  <Button type="button" size="sm" disabled={pending} onClick={createInvoice}>
+                    Crear factura abierta
+                  </Button>
+                </div>
+              </div>
+
+              {tenant.billing.invoices?.length ? (
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Factura</TableHead>
+                        <TableHead>Monto</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Vence</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tenant.billing.invoices.map((inv) => {
+                        const manageable = canManageInvoice(inv.status);
+                        const isEditing = editingInvoiceId === inv.id;
+                        return (
+                          <TableRow key={inv.id}>
+                            <TableCell className="max-w-[220px]">
+                              <div className="text-xs font-medium">
+                                {inv.description ?? inv.id.slice(0, 8)}
+                              </div>
+                              {inv.manualPaymentRef ? (
+                                <div className="mt-1 text-[11px] text-amber-700">
+                                  Comprobante: {inv.manualPaymentRef}
+                                  {inv.manualSubmittedAt
+                                    ? ` · ${formatDate(inv.manualSubmittedAt)}`
+                                    : ""}
+                                </div>
+                              ) : null}
+                              {inv.failureReason ? (
+                                <div className="mt-1 text-[11px] text-destructive">
+                                  {inv.failureReason}
+                                </div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell>
+                              {isEditing ? (
+                                <div className="flex min-w-[140px] gap-1">
+                                  <input
+                                    className="h-8 w-28 rounded-lg border border-input bg-background px-2 text-sm"
+                                    inputMode="numeric"
+                                    value={editInvoiceAmount}
+                                    onChange={(e) =>
+                                      setEditInvoiceAmount(
+                                        e.target.value.replace(/\D/g, "").slice(0, 12),
+                                      )
+                                    }
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() => saveInvoiceAmount(inv.id)}
+                                  >
+                                    OK
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span>
+                                  {formatCop(Number(inv.amount))} {inv.currency}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  inv.status === "PAID"
+                                    ? "default"
+                                    : inv.status === "FAILED" || inv.status === "VOID"
+                                      ? "destructive"
+                                      : "outline"
+                                }
+                              >
+                                {inv.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {inv.paidAt ? formatDate(inv.paidAt) : formatDate(inv.dueAt)}
+                            </TableCell>
+                            <TableCell>
+                              {manageable ? (
+                                <div className="flex flex-wrap justify-end gap-1">
+                                  {inv.manualPaymentRef ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={pending}
+                                      onClick={() => confirmManualPayment(inv.id)}
+                                    >
+                                      Confirmar transferencia
+                                    </Button>
+                                  ) : null}
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() => markInvoicePaid(inv.id)}
+                                  >
+                                    Marcar pagada
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={pending}
+                                    onClick={() => {
+                                      setEditingInvoiceId(inv.id);
+                                      setEditInvoiceAmount(
+                                        String(Math.round(Number(inv.amount))),
+                                      );
+                                    }}
+                                  >
+                                    Editar monto
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    disabled={pending}
+                                    onClick={() => voidInvoice(inv.id)}
+                                  >
+                                    Anular
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="block text-right text-xs text-muted-foreground">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Este cliente aún no tiene facturas. Crea una arriba para cobrar.
+                </p>
+              )}
             </div>
           ) : null}
         </section>

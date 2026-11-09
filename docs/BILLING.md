@@ -64,9 +64,10 @@ Security: `x-event-checksum`, events secret, idempotency, rate limit, timestamp 
 
 ## Owner flow
 
-- **Owner Dashboard** (`/owner-dashboard`) — MRR, subscriptions, revenue, clients
-- **Billing infra** (`/owner-dashboard/billing`) — Wompi credentials, webhook monitor, failed payments
-- APIs: `/api/owner/billing/webhooks`, `/api/owner/billing/failed-payments`
+- **Owner Dashboard** (`/owner-dashboard`) — MRR, subscriptions, revenue, clients, open invoices
+- **Tenant detail** (`/owner-dashboard/tenant/[id]#facturacion`) — create / edit amount / mark paid / void invoices; confirm bank-transfer proofs
+- **Billing infra** (`/owner-dashboard/billing`) — Wompi/ePayco credentials, pending manual proofs, webhook monitor, failed payments
+- APIs: `/api/owner/billing/webhooks`, `/api/owner/billing/failed-payments`, `/api/owner/tenant/[id]/invoices*`
 
 ## Cron
 
