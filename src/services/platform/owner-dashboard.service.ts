@@ -455,7 +455,7 @@ export async function getOwnerClientDetail(organizationId: string) {
           metadata: true,
           invoices: {
             orderBy: { dueAt: "desc" },
-            take: 10,
+            take: 20,
             select: {
               id: true,
               amount: true,
@@ -464,6 +464,10 @@ export async function getOwnerClientDetail(organizationId: string) {
               dueAt: true,
               paidAt: true,
               description: true,
+              failureReason: true,
+              manualPaymentRef: true,
+              manualPaymentNote: true,
+              manualSubmittedAt: true,
             },
           },
         },
@@ -539,6 +543,10 @@ export async function getOwnerClientDetail(organizationId: string) {
             dueAt: inv.dueAt.toISOString(),
             paidAt: inv.paidAt?.toISOString() ?? null,
             description: inv.description,
+            failureReason: inv.failureReason,
+            manualPaymentRef: inv.manualPaymentRef,
+            manualPaymentNote: inv.manualPaymentNote,
+            manualSubmittedAt: inv.manualSubmittedAt?.toISOString() ?? null,
           })),
         }
       : null,
