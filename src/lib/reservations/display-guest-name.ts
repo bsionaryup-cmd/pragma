@@ -12,26 +12,19 @@ export type ReservationDisplayGuestNameInput = {
   guestRegistrationCompletedAt?: Date | string | null;
 };
 
-function hasRegisteredGuestDisplayName(input: {
-  platform: BookingPlatform;
-  guestName?: string | null;
-  guestRegistrationCompletedAt?: Date | string | null;
-}): boolean {
-  if (input.platform !== BookingPlatform.AIRBNB) return false;
-  if (!input.guestRegistrationCompletedAt) return false;
-  const reservationGuest = input.guestName?.trim();
-  if (!reservationGuest) return false;
-  return (
-    !isPlaceholderGuestName(reservationGuest) &&
-    isPlausibleGuestName(reservationGuest)
-  );
-}
-
 export function resolveReservationDisplayGuestName(
   input: ReservationDisplayGuestNameInput,
 ): string {
-  if (hasRegisteredGuestDisplayName(input)) {
-    return input.guestName!.trim();
+  // After guest registration, prefer ReservationGuest (primary/owner).
+  // OCP Phase 2 no longer copies that name onto reservation.guestName, so using
+  // reservation.guestName here would keep iCal pseudo-names (e.g. "UIVis Guest-…").
+  const registeredPrimary = input.primaryGuestName?.trim();
+  if (
+    input.guestRegistrationCompletedAt &&
+    registeredPrimary &&
+    isPlausibleGuestName(registeredPrimary)
+  ) {
+    return registeredPrimary;
   }
 
   const airbnbEnrichment =
@@ -56,8 +49,7 @@ export function resolveReservationDisplayGuestName(
     return reservationGuest;
   }
 
-  const primaryGuest = input.primaryGuestName?.trim();
-  if (primaryGuest) return primaryGuest;
+  if (registeredPrimary) return registeredPrimary;
 
   return input.platform === BookingPlatform.AIRBNB
     ? "Huésped Airbnb"
