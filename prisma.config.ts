@@ -4,7 +4,12 @@ import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
 
 config();
-config({ path: ".env.local", override: true });
+// Staging isolation: never let operational .env.local override a staging run.
+if (process.env.PRAGMA_WEB_BUILDER_STAGING === "1") {
+  config({ path: ".env.staging", override: true });
+} else {
+  config({ path: ".env.local", override: true });
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

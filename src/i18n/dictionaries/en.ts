@@ -28,6 +28,7 @@ export const en = {
     reservations: "Reservations",
     novedades: "Inbox",
     properties: "Properties",
+    webBuilder: "WEB BUILDER",
     calendar: "Calendar",
     tasks: "Tasks",
     purchases: "Purchases",

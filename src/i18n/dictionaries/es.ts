@@ -27,6 +27,7 @@ export const es = {
     reservations: "Reservas",
     novedades: "Bandeja de entrada",
     properties: "Propiedades",
+    webBuilder: "WEB BUILDER",
     calendar: "Calendario",
     tasks: "Tareas",
     purchases: "Compras",

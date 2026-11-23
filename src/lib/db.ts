@@ -6,7 +6,7 @@ import { Pool, type PoolConfig } from "pg";
  * Debe coincidir con la última migración de schema.
  * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
  */
-const PRISMA_SCHEMA_VERSION = "20260713180000_intiendas_supplier_whatsapp_r2";
+const PRISMA_SCHEMA_VERSION = "20260823120000_pragma_web_builder";
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;

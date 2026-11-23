@@ -3,6 +3,16 @@ export const PLATFORM_OWNER_SELF_SERVICE_PREFIXES = [
   "/settings",
   "/integrations",
   "/users",
+  "/web-builder",
+  "/panel",
+  "/calendar",
+  "/reservations",
+  "/properties",
+  "/novedades",
+  "/tasks",
+  "/finance",
+  "/revenue",
+  "/smart-access",
 ] as const;
 
 export function isPlatformOwnerSelfServicePath(pathname: string): boolean {

@@ -29,6 +29,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "a0.muscache.com" },
       { protocol: "https", hostname: "**.muscache.com" },
       { protocol: "https", hostname: "img.clerk.com" },
+      { protocol: "https", hostname: "placehold.co" },
     ],
   },
   // Dev uses webpack (--webpack in scripts/dev.mjs); production build must match.

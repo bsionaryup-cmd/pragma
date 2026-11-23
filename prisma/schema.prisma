@@ -47,6 +47,8 @@ model Organization {
   paymentMethodConfig    OrganizationPaymentMethodConfig?
   inboxAiDrafts          InboxAiDraft[]
   prospectingLeads       ProspectingLead[]
+  tenantWebSite          TenantWebSite?
+  tenantWebMedia         TenantWebMedia[]
 
   @@map("organizations")
 }
@@ -203,6 +205,8 @@ model Property {
   pendingActivityEntries ReservationActivityPending[]
   monthlyFinanceMetrics MonthlyFinanceMetric[]
   financialPlanningSettings FinancialPlanningSetting[]
+  webSiteLinks TenantWebSiteProperty[]
+  webMedia     TenantWebMedia[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -3027,4 +3031,165 @@ model RetailIntelFeedback {
   @@index([storeId, createdAt])
   @@index([productId])
   @@map("retail_intel_feedback")
+}
+
+// ─── PRAGMA WEB BUILDER (tenant public sites) ─────────────────
+
+enum WebSiteStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum WebSiteTemplate {
+  URBAN_BOUTIQUE
+}
+
+enum WebMediaCategory {
+  HERO
+  LOGO
+  GALLERY
+  LOCATION
+  PROPERTY
+  SOCIAL
+  OTHER
+}
+
+enum WebMediaProvenance {
+  UPLOAD
+  PROPERTY_IMPORT
+  CSV_IMPORT
+  JSON_IMPORT
+  EXTERNAL_URL
+  ADMIN_PROVIDED
+}
+
+enum WebContentReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model TenantWebSite {
+  id             String          @id @default(cuid())
+  organizationId String          @unique
+  slug           String          @unique
+  siteName       String
+  template       WebSiteTemplate @default(URBAN_BOUTIQUE)
+  status         WebSiteStatus   @default(DRAFT)
+
+  logoUrl      String?
+  primaryColor String @default("#1F1F1F")
+  accentColor  String @default("#6B7F3B")
+  softWhite    String @default("#F6F4F1")
+  sandOak      String @default("#D8C7AE")
+  urbanGray    String @default("#7C7A78")
+  stoneTaupe   String @default("#8B7E72")
+  matteBlack   String @default("#1F1F1F")
+  fontFamily   String @default("editorial")
+
+  heroTitle       String?
+  heroSubtitle    String?
+  heroImageUrl    String?
+  aboutText       String?
+  locationNeighborhood String?
+  locationCity    String?
+  locationCountry String? @default("Colombia")
+  locationDescription String?
+  locationImageUrl String?
+  locationMapUrl  String?
+
+  whatsapp      String?
+  contactEmail  String?
+  instagramUrl  String?
+  facebookUrl   String?
+
+  seoTitle         String?
+  seoDescription   String?
+  seoCanonicalUrl  String?
+  ogImageUrl       String?
+
+  bookingEnabled Boolean @default(true)
+  currency       String  @default("COP")
+  locale         String  @default("es")
+
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pages        TenantWebPage[]
+  media        TenantWebMedia[]
+  propertyLinks TenantWebSiteProperty[]
+
+  @@index([status])
+  @@map("tenant_web_sites")
+}
+
+model TenantWebPage {
+  id        String         @id @default(cuid())
+  siteId    String
+  slug      String
+  title     String
+  body      String?        @db.Text
+  sortOrder Int            @default(0)
+  isVisible Boolean        @default(true)
+  status    WebSiteStatus  @default(DRAFT)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  site TenantWebSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, slug])
+  @@index([siteId, sortOrder])
+  @@map("tenant_web_pages")
+}
+
+model TenantWebMedia {
+  id            String                 @id @default(cuid())
+  organizationId String
+  siteId        String?
+  propertyId    String?
+  url           String
+  thumbnailUrl  String?
+  category      WebMediaCategory       @default(GALLERY)
+  sortOrder     Int                    @default(0)
+  alt           String?
+  description   String?
+  provenance    WebMediaProvenance     @default(EXTERNAL_URL)
+  rightsNote    String?
+  reviewStatus  WebContentReviewStatus @default(PENDING_REVIEW)
+  isPublished   Boolean                @default(false)
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         TenantWebSite? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  property     Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, category])
+  @@index([siteId, sortOrder])
+  @@index([propertyId])
+  @@map("tenant_web_media")
+}
+
+model TenantWebSiteProperty {
+  id                String   @id @default(cuid())
+  siteId            String
+  propertyId        String
+  sortOrder         Int      @default(0)
+  isPublished       Boolean  @default(true)
+  customTitle       String?
+  customDescription String?  @db.Text
+  customCoverUrl    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  site     TenantWebSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  property Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, propertyId])
+  @@index([siteId, sortOrder])
+  @@map("tenant_web_site_properties")
 }

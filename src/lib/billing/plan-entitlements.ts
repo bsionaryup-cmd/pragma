@@ -14,7 +14,8 @@ export type PlanFeature =
   | "pricelabs"
   | "reports"
   | "sire"
-  | "traa";
+  | "traa"
+  | "website";
 
 export type PlanLimits = {
   maxProperties: number;
@@ -49,6 +50,7 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
     "reports",
     "sire",
     "traa",
+    "website",
   ]),
   SCALE: new Set([
     "calendar",
@@ -64,6 +66,7 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
     "reports",
     "sire",
     "traa",
+    "website",
   ]),
 };
 
@@ -88,6 +91,7 @@ export const ROUTE_PLAN_FEATURE: Record<string, PlanFeature | null> = {
   "/users": null,
   "/settings": null,
   "/settings/billing": null,
+  "/web-builder": null,
 };
 
 export function getPlanLimits(plan: BillingPlanCode): PlanLimits {

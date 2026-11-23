@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
 import {
   ChevronDown,
   CreditCard,
@@ -30,6 +29,7 @@ import {
   getUserDisplayName,
   getUserInitials,
 } from "@/lib/helpers/user-display";
+import { useClientSignOut } from "@/lib/auth/use-client-sign-out";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +51,7 @@ export function OwnerAccountMenu({
   hasOwnOrganization,
   variant = "default",
 }: OwnerAccountMenuProps) {
-  const { signOut } = useClerk();
+  const signOut = useClientSignOut({ redirectUrl: "/owner-login" });
   const pathname = usePathname();
   const displayName = getUserDisplayName(
     user.firstName,
@@ -61,8 +61,8 @@ export function OwnerAccountMenu({
   const initials = getUserInitials(user.firstName, user.lastName, user.email);
   const onOwnerDashboard = pathname.startsWith(OWNER_DASHBOARD_PATH);
 
-  async function handleLogout() {
-    await signOut({ redirectUrl: "/owner-login" });
+  function handleLogout() {
+    void signOut();
   }
 
   return (

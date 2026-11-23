@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getRoleFromSessionClaims } from "@/lib/auth/session-claims";
 import {
   getRequiredPermissionForPath,
+  hasPermission,
   hasRouteAccess,
   isProtectedDashboardPath,
 } from "@/lib/auth/permissions";
@@ -44,6 +45,8 @@ const isPublicRoute = createRouteMatcher([
   "/m/(.*)",
   "/offer/(.*)",
   "/landing-product-screenshot-preview",
+  "/urbanovaloft",
+  "/api/web-builder(.*)",
 ]);
 
 const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
@@ -65,6 +68,14 @@ const clerkMiddlewareOptions = useClerkProxy
   ? { frontendApiProxy: { enabled: true as const } }
   : {};
 
+/** Public tenant sites: `/w/{slug}` only (not `/w/{slug}/preview`). */
+function isPublicTenantWebSitePath(pathname: string): boolean {
+  if (!pathname.startsWith("/w/")) return false;
+  if (pathname.includes("/preview")) return false;
+  const segments = pathname.slice(3).split("/").filter(Boolean);
+  return segments.length === 1;
+}
+
 function forwardWithPathname(request: Request, pathname: string) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-pathname", pathname);
@@ -75,7 +86,7 @@ export default clerkMiddleware(
   async (auth, request) => {
     const pathname = request.nextUrl.pathname;
 
-    if (isPublicRoute(request)) {
+    if (isPublicRoute(request) || isPublicTenantWebSitePath(pathname)) {
       return forwardWithPathname(request, pathname);
     }
 
@@ -118,6 +129,23 @@ export default clerkMiddleware(
     if (!authState.userId) {
       await auth.protect();
       return;
+    }
+
+    if (
+      pathname.startsWith("/w/") &&
+      pathname.endsWith("/preview")
+    ) {
+      const permission = getRequiredPermissionForPath("/web-builder");
+      const role = getRoleFromSessionClaims(authState.sessionClaims);
+      if (
+        !role ||
+        !permission ||
+        !hasPermission(role, permission)
+      ) {
+        const url = new URL("/unauthorized", request.url);
+        return NextResponse.redirect(url);
+      }
+      return forwardWithPathname(request, pathname);
     }
 
     if (!isProtectedDashboardPath(pathname)) {

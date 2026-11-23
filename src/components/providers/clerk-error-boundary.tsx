@@ -1,9 +1,9 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { Button } from "@/components/ui/button";
+import { redirectToSignOut } from "@/lib/auth/use-client-sign-out";
 
 type Props = { children: ReactNode };
 
@@ -41,7 +41,7 @@ export class ClerkErrorBoundary extends Component<Props, State> {
 }
 
 function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
-  const { signOut } = useClerk();
+  const signedOutUrl = "/sign-in?signed_out=1";
 
   return (
     <div
@@ -65,7 +65,7 @@ function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
           variant="outline"
           onClick={() => {
             onRetry();
-            void signOut({ redirectUrl: "/sign-in?signed_out=1" });
+            redirectToSignOut(signedOutUrl);
           }}
         >
           Cerrar sesión

@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  Globe,
   KeyRound,
   LayoutDashboard,
   ListChecks,
@@ -34,6 +35,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   wallet: Wallet,
   settings: Settings,
   "scan-search": ScanSearch,
+  globe: Globe,
 };
 
 type NavIconProps = {

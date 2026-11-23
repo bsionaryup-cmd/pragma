@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useClerk } from "@clerk/nextjs";
 import { LogOut, Settings, User } from "lucide-react";
 import {
   DropdownMenu,
@@ -17,6 +16,7 @@ import {
   getUserInitials,
 } from "@/lib/helpers/user-display";
 import { hasPermission } from "@/lib/auth/permissions";
+import { useClientSignOut } from "@/lib/auth/use-client-sign-out";
 import { cn } from "@/lib/utils";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 
@@ -26,7 +26,7 @@ type SidebarUserMenuProps = {
 };
 
 export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
-  const { signOut } = useClerk();
+  const signOut = useClientSignOut({ redirectUrl: "/sign-in?signed_out=1" });
   const initials = getUserInitials(user.firstName, user.lastName, user.email);
   const displayName = getUserDisplayName(
     user.firstName,
@@ -35,8 +35,8 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
   );
   const canAccessSettings = hasPermission(user.role ?? "RECEPTIONIST", "settings:read");
 
-  async function handleLogout() {
-    await signOut({ redirectUrl: "/sign-in?signed_out=1" });
+  function handleLogout() {
+    void signOut();
   }
 
   return (

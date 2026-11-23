@@ -33,6 +33,11 @@ export async function enforceTenantDashboardAccess(
   if (isSuperAdminOwner(user)) {
     const ctx = await buildTenantContext(user);
     if (!ctx.isImpersonating) {
+      // Owner with a linked organization operates their own PMS tenant
+      // (settings + modules like WEB BUILDER), without requiring impersonation.
+      if (platformOwnerCanUseOwnTenantSettings(user) && user.organizationId) {
+        return ctx;
+      }
       if (
         platformOwnerCanUseOwnTenantSettings(user) &&
         pathname &&

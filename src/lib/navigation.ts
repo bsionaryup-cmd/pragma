@@ -27,7 +27,8 @@ export type NavIconName =
   | "credit-card"
   | "list-checks"
   | "bell"
-  | "scan-search";
+  | "scan-search"
+  | "globe";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */
@@ -118,6 +119,13 @@ const propertiesNavItem: NavItem = {
   href: "/properties",
   icon: "building-2",
   permission: "properties:read",
+};
+
+const webBuilderNavItem: NavItem = {
+  labelKey: "nav.webBuilder",
+  href: "/web-builder",
+  icon: "globe",
+  permission: "website:read",
 };
 
 const accessCodesNavItem: NavItem = {
@@ -340,6 +348,10 @@ export function getNavigationModulesForRole(
 
   if (navLinkAllowed(propertiesNavItem, role, plan)) {
     modules.push(navLinkModule(propertiesNavItem));
+  }
+
+  if (navLinkAllowed(webBuilderNavItem, role, plan)) {
+    modules.push(navLinkModule(webBuilderNavItem));
   }
 
   if (navLinkAllowed(integrationsNavItem, role, plan)) {
