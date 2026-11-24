@@ -59,6 +59,7 @@ type OwnerDashboardViewProps = {
   initialSnapshot: OwnerDashboardSnapshot;
   initialLogs: PlatformAuditLog[];
   isImpersonating?: boolean;
+  impersonationError?: string | null;
 };
 
 const billingStatusOptions = [
@@ -95,6 +96,7 @@ export function OwnerDashboardView({
   initialSnapshot,
   initialLogs,
   isImpersonating = false,
+  impersonationError = null,
 }: OwnerDashboardViewProps) {
   const [activeTab, setActiveTab] = useState<OwnerDashboardTab>("overview");
   const [search, setSearch] = useState("");
@@ -181,6 +183,14 @@ export function OwnerDashboardView({
             todos los clientes. Usa el menú de cuenta Owner para configuración, pagos
             Wompi e integraciones.
           </p>
+          {impersonationError ? (
+            <p
+              role="alert"
+              className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            >
+              {impersonationError}
+            </p>
+          ) : null}
           {isImpersonating ? (
             <div className="mt-4">
               <Button asChild variant="brandOutline" size="sm">

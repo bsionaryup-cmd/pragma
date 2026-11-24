@@ -17,8 +17,8 @@ import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { decryptTTLockSecret } from "@/services/integrations/ttlock/ttlock-crypto";
 import {
-  ensureTTLockIntegrationForScope,
   isTTLockIntegrationConnected,
+  resolveTTLockIntegrationForScope,
 } from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export type SmartAccessStage =
@@ -143,11 +143,22 @@ function resolveStage(input: {
 
 export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
   const scope = await requireTenantDataScope();
-  await expireStaleAccessCredentials(scope);
+  try {
+    await expireStaleAccessCredentials(scope);
+  } catch (error) {
+    console.error(
+      "[smart-access] expireStaleAccessCredentials failed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
   const today = dateKeyToPrismaDate(todayDateKeyInTimezone());
 
-  const integration = await ensureTTLockIntegrationForScope(scope);
-  const integrationConnected = isTTLockIntegrationConnected(integration);
+  // Read-only: never ensure/create TTLock rows from the panel overview path
+  // (especially dangerous under platform Owner impersonation).
+  const integration = await resolveTTLockIntegrationForScope(scope);
+  const integrationConnected = integration
+    ? isTTLockIntegrationConnected(integration)
+    : false;
 
   const propertyScope = scope.organizationId
     ? { organizationId: scope.organizationId }

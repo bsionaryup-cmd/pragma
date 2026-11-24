@@ -34,4 +34,11 @@ export type OperationsCenterSnapshot = {
   feedCards: OperationalFeedCard[];
   finance: OperationsFinanceSummary | null;
   smartAccessPending: number;
+  /**
+   * Cheap property count independent of command-center soft-fail.
+   * `null` = unknown (do not show “empty org” banner).
+   */
+  reliablePropertyCount: number | null;
+  /** True when command-center fell back to empty snapshot. */
+  commandCenterDegraded: boolean;
 };

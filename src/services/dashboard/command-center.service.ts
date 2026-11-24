@@ -5,7 +5,10 @@ import {
   TaskType,
   TTLockIntegrationStatus,
 } from "@prisma/client";
-import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
+import {
+  activeIcalUrlOnPropertyFilter,
+  withVisibleReservationsFilter,
+} from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { clampPercent, formatMoney } from "@/lib/format-currency";
 import { sumConfirmedReservationRevenue } from "@/lib/finance/confirmed-reservation-revenue";
@@ -104,6 +107,49 @@ export type CommandCenterData = {
   totalPropertyCount: number;
 };
 
+/** Degraded empty snapshot so /panel never hard-crashes the error boundary. */
+export function createEmptyCommandCenterData(
+  locale: Locale = "es",
+): CommandCenterData {
+  return {
+    kpis: {
+      occupancyCurrent: 0,
+      occupancyMonthly: 0,
+      occupancyTrend: 0,
+      monthlyRevenue: 0,
+      monthlyRevenueFormatted: formatMoney(0, undefined, locale),
+      revenueTrend: 0,
+      monthlyExpenses: 0,
+      monthlyExpensesFormatted: formatMoney(0, undefined, locale),
+      expenseTrend: 0,
+      netFlow: 0,
+      netFlowFormatted: formatMoney(0, undefined, locale),
+      netFlowTrend: 0,
+      criticalAlerts: 0,
+      automationActive: false,
+    },
+    trendPoints: [],
+    operational: {
+      upcomingCheckIns: 0,
+      upcomingCheckOuts: 0,
+      activeReservations: 0,
+      pendingCleaning: 0,
+      incidents: 0,
+      smartLockConfigured: false,
+    },
+    alerts: [],
+    activity: [],
+    arrivals: [],
+    departures: [],
+    currentStays: [],
+    todayArrivals: [],
+    todayDepartures: [],
+    todayCounts: { arrivals: 0, departures: 0 },
+    counts: { arrivals: 0, departures: 0, current: 0 },
+    totalPropertyCount: 0,
+  };
+}
+
 function monthBounds(reference = new Date()) {
   return monthBoundsInTimezone(reference);
 }
@@ -171,8 +217,8 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     todayCounts,
     pendingCleaning,
     propertiesWithStaleSync,
-    pendingGuestRegistration,
     ttlockConnected,
+    pendingGuestRegistration,
     currentMonthRevenueReservations,
     previousMonthRevenueReservations,
     recentReservations,
@@ -213,13 +259,17 @@ export async function getCommandCenterData(locale: Locale = "es"): Promise<Comma
     db.property.count({
       where: mergePropertyScope(scope, {
         status: PropertyStatus.ACTIVE,
-        icalUrl: { not: null },
-        OR: [
-          { lastIcalSyncedAt: null },
+        AND: [
+          activeIcalUrlOnPropertyFilter(),
           {
-            lastIcalSyncedAt: {
-              lt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-            },
+            OR: [
+              { lastIcalSyncedAt: null },
+              {
+                lastIcalSyncedAt: {
+                  lt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+                },
+              },
+            ],
           },
         ],
       }),

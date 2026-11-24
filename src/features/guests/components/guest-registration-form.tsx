@@ -31,16 +31,21 @@ import { PhoneInput } from "@/components/ui/phone-input";
 
 type WizardStep = "intro" | "register" | "hub" | "confirm" | "success";
 
-function emptyGuestForm(): Omit<GuestStepValues, "token"> {
+function emptyGuestForm(
+  prefill?: GuestRegistrationReservation["bookingPrefill"],
+): Omit<GuestStepValues, "token"> {
   return {
-    firstName: "",
-    lastName: "",
+    firstName: prefill?.firstName ?? "",
+    lastName: prefill?.lastName ?? "",
     documentType: "CC",
     documentNumber: "",
-    email: "",
-    phone: "",
+    email: prefill?.email ?? "",
+    phone: prefill?.phone ?? "",
     nationality: "",
     dateOfBirth: "",
+    cityOfResidence: "",
+    cityOfOrigin: "",
+    travelPurpose: "",
   };
 }
 
@@ -62,7 +67,13 @@ export function GuestRegistrationForm({
   const [step, setStep] = useState<WizardStep>(() =>
     resolveInitialStep(initialReservation),
   );
-  const [form, setForm] = useState(emptyGuestForm);
+  const [form, setForm] = useState(() =>
+    emptyGuestForm(
+      initialReservation.registeredCount === 0
+        ? initialReservation.bookingPrefill
+        : null,
+    ),
+  );
   const [isPending, startTransition] = useTransition();
 
   const isOwnerStep = reservation.registeredCount === 0;
@@ -130,6 +141,12 @@ export function GuestRegistrationForm({
           {registeredGuests.length === 1 ? "" : "es"}. El anfitrión ya puede
           ver la información en PRAGMA y preparar tu acceso.
         </p>
+        <a
+          href={`/stay/${encodeURIComponent(reservation.token)}`}
+          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary text-sm font-medium text-primary-foreground"
+        >
+          Ver mi página de estadía
+        </a>
       </section>
     );
   }
@@ -416,6 +433,45 @@ export function GuestRegistrationForm({
               onChange={(e) => updateForm({ dateOfBirth: e.target.value })}
             />
           </div>
+          {isOwnerStep ? (
+            <>
+              <div className="space-y-2 sm:col-span-2">
+                <p className="text-xs leading-5 text-muted-foreground">
+                  Datos TRA (Tarjeta de Registro de Alojamiento — MINCIT).
+                  Obligatorios para el titular.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Ciudad de residencia</Label>
+                <Input
+                  required
+                  value={form.cityOfResidence ?? ""}
+                  onChange={(e) =>
+                    updateForm({ cityOfResidence: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Ciudad de procedencia</Label>
+                <Input
+                  required
+                  value={form.cityOfOrigin ?? ""}
+                  onChange={(e) => updateForm({ cityOfOrigin: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Motivo del viaje</Label>
+                <Input
+                  required
+                  placeholder="Turismo, trabajo, visita familiar…"
+                  value={form.travelPurpose ?? ""}
+                  onChange={(e) =>
+                    updateForm({ travelPurpose: e.target.value })
+                  }
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </section>
 

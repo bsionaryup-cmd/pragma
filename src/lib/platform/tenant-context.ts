@@ -2,7 +2,10 @@ import "server-only";
 
 import { cache } from "react";
 import type { User } from "@prisma/client";
-import { PlatformImpersonationStatus } from "@prisma/client";
+import {
+  OrganizationStatus,
+  PlatformImpersonationStatus,
+} from "@prisma/client";
 import { db } from "@/lib/db";
 import { currentDbUser, requireDbUser } from "@/lib/auth";
 import { readImpersonationSessionIdFromCookies } from "@/lib/platform/impersonation-cookie";
@@ -46,7 +49,7 @@ async function loadActiveImpersonationSession(
     select: { id: true, status: true },
   });
 
-  if (!org) return null;
+  if (!org || org.status === OrganizationStatus.SUSPENDED) return null;
   return session;
 }
 

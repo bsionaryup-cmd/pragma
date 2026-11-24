@@ -9,6 +9,10 @@ import { planHasFeature } from "@/lib/billing/plan-entitlements";
 import { getOrganizationPlanContextForUser } from "@/lib/billing/organization-plan";
 import { BRAND_ASSETS } from "@/lib/brand-assets";
 import type { AppUserRole } from "@/types/auth";
+import { IntegrationHealthSection } from "@/features/integrations/components/integration-health-section";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { getAllIntegrationHealth } from "@/services/integrations/integration-health/integration-health.service";
+import type { IntegrationHealthProvider } from "@/services/integrations/integration-health/types";
 
 export default async function IntegrationsPage() {
   const [auth, user, planContext] = await Promise.all([
@@ -27,6 +31,17 @@ export default async function IntegrationsPage() {
   const showTraa = planHasFeature(plan, "traa");
   const showFinance = planHasFeature(plan, "finance");
 
+  const healthProviders: IntegrationHealthProvider[] = ["AIRBNB_ICAL"];
+  if (showTtlock) healthProviders.push("TTLOCK");
+  if (showPriceLabs) healthProviders.push("PRICELABS");
+  if (canManage && showSire) healthProviders.push("SIRE");
+  if (canManage && showTraa) healthProviders.push("TRAA");
+  const healthReports = await requireTenantDataScope()
+    .then((scope) =>
+      getAllIntegrationHealth(scope, { providers: healthProviders, canManage }),
+    )
+    .catch(() => []);
+
   return (
     <ModuleShellFlow className="bg-background px-4 py-6 pb-10 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -43,6 +58,8 @@ export default async function IntegrationsPage() {
             módulo.
           </p>
         </header>
+
+        <IntegrationHealthSection reports={healthReports} canManage={canManage} />
 
         <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Link

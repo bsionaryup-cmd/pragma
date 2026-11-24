@@ -7,9 +7,16 @@ import {
 } from "@/services/platform/owner-dashboard.service";
 import { listPlatformAuditLogs } from "@/services/platform/platform-audit.service";
 
-export default async function OwnerDashboardPage() {
+type OwnerDashboardPageProps = {
+  searchParams: Promise<{ impersonation_error?: string }>;
+};
+
+export default async function OwnerDashboardPage({
+  searchParams,
+}: OwnerDashboardPageProps) {
   const user = await requireDbUser();
   const tenantContext = await buildTenantContext(user);
+  const params = await searchParams;
 
   const [clients, snapshot, logs] = await Promise.all([
     listOwnerClients({ page: 1, pageSize: 20 }),
@@ -17,12 +24,19 @@ export default async function OwnerDashboardPage() {
     listPlatformAuditLogs({ limit: 20 }),
   ]);
 
+  const impersonationError =
+    params.impersonation_error === "cookie_missing" ||
+    params.impersonation_error === "session_inactive"
+      ? "No se pudo activar la impersonación (cookie/sesión). Intenta de nuevo."
+      : null;
+
   return (
     <OwnerDashboardView
       initialClients={clients}
       initialSnapshot={snapshot}
       initialLogs={logs}
       isImpersonating={tenantContext.isImpersonating}
+      impersonationError={impersonationError}
     />
   );
 }

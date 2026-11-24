@@ -18,15 +18,20 @@ export async function getRequestAuditMeta(): Promise<{
   userAgent: string | null;
   deviceLabel: string | null;
 }> {
-  const headerStore = await headers();
-  const forwarded = headerStore.get("x-forwarded-for");
-  const ip =
-    forwarded?.split(",")[0]?.trim() ||
-    headerStore.get("x-real-ip") ||
-    null;
-  const userAgent = headerStore.get("user-agent");
-  const deviceLabel = userAgent?.includes("Mobile") ? "Mobile" : "Desktop";
-  return { ipAddress: ip, userAgent, deviceLabel };
+  try {
+    const headerStore = await headers();
+    const forwarded = headerStore.get("x-forwarded-for");
+    const ip =
+      forwarded?.split(",")[0]?.trim() ||
+      headerStore.get("x-real-ip") ||
+      null;
+    const userAgent = headerStore.get("user-agent");
+    const deviceLabel = userAgent?.includes("Mobile") ? "Mobile" : "Desktop";
+    return { ipAddress: ip, userAgent, deviceLabel };
+  } catch {
+    // Scripts / background jobs have no Next request store.
+    return { ipAddress: null, userAgent: null, deviceLabel: null };
+  }
 }
 
 export async function writePlatformAuditLog(input: PlatformAuditInput): Promise<void> {

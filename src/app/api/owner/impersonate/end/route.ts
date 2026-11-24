@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { requirePlatformOwnerUser, platformOwnerErrorResponse } from "@/lib/platform/require-platform-owner";
 import {
-  buildImpersonationClearCookieHeader,
+  requirePlatformOwnerUser,
+  platformOwnerErrorResponse,
+} from "@/lib/platform/require-platform-owner";
+import {
+  clearImpersonationCookie,
+  readImpersonationSessionIdFromCookies,
 } from "@/lib/platform/impersonation-cookie";
-import { readImpersonationSessionIdFromCookies } from "@/lib/platform/impersonation-cookie";
 import { endTenantImpersonation } from "@/services/platform/tenant-impersonation.service";
 
 export async function POST() {
@@ -18,7 +21,7 @@ export async function POST() {
       ok: true,
       redirectUrl: "/owner-dashboard",
     });
-    response.headers.set("Set-Cookie", buildImpersonationClearCookieHeader());
+    clearImpersonationCookie(response);
     return response;
   } catch (error) {
     return platformOwnerErrorResponse(error);

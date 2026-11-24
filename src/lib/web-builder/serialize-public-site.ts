@@ -6,6 +6,8 @@ import {
   WebSiteTemplate,
 } from "@prisma/client";
 
+import { parseHostProfile, type HostProfile } from "@/lib/web-builder/host-profile";
+
 function decimalToNumber(value: { toNumber(): number } | number | null | undefined): number {
   if (value == null) return 0;
   if (typeof value === "number") return value;
@@ -43,6 +45,7 @@ export type PublicSitePayload = {
   heroSubtitle: string | null;
   heroImageUrl: string | null;
   aboutText: string | null;
+  hostProfile: HostProfile | null;
   locationNeighborhood: string | null;
   locationCity: string | null;
   locationCountry: string | null;
@@ -150,6 +153,7 @@ function baseSiteFields(site: PublishedSiteRow | PreviewSiteRow): Omit<PublicSit
     heroSubtitle: site.heroSubtitle,
     heroImageUrl: site.heroImageUrl,
     aboutText: site.aboutText,
+    hostProfile: parseHostProfile(site.hostProfile),
     locationNeighborhood: site.locationNeighborhood,
     locationCity: site.locationCity,
     locationCountry: site.locationCountry,

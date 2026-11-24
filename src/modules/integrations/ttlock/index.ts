@@ -15,6 +15,8 @@ export {
   resolveOrganizationIdForProperty,
   resolveTTLockIntegrationForProperty,
   resolveTTLockAutomationSettingsForProperty,
+  resolveTTLockIntegrationForScope,
+  shouldAllowTTLockIntegrationMutation,
 } from "@/modules/integrations/ttlock/ttlock.persistence";
 
 export {

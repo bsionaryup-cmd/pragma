@@ -15,9 +15,12 @@ execSync("node scripts/staging/assert-staging-db.mjs", {
 
 async function main() {
   const { db } = await import("@/lib/db");
-  const { WebSiteStatus, ReservationStatus, BookingPlatform } = await import(
-    "@prisma/client"
-  );
+  const {
+    WebSiteStatus,
+    ReservationStatus,
+    BookingPlatform,
+    GuestRegistrationStatus,
+  } = await import("@prisma/client");
   const {
     searchWebAvailability,
     createWebDirectReservation,
@@ -117,12 +120,42 @@ async function main() {
       platform: true,
       status: true,
       paymentStatus: true,
+      reservationCode: true,
       checkIn: true,
       checkOut: true,
       propertyId: true,
       property: { select: { organizationId: true, unitNumber: true } },
     },
   });
+
+  if (!created.reservationCode || !created.guestRegistrationUrl) {
+    throw new Error(
+      "Expected reservationCode + guestRegistrationUrl from web booking",
+    );
+  }
+  if (!created.guestRegistrationUrl.includes("/guest-registration/")) {
+    throw new Error(`Unexpected guestRegistrationUrl: ${created.guestRegistrationUrl}`);
+  }
+  const tokenMatch = /\/guest-registration\/([^/?#]+)/.exec(
+    created.guestRegistrationUrl,
+  );
+  const registrationToken = tokenMatch?.[1]
+    ? decodeURIComponent(tokenMatch[1])
+    : null;
+  if (!registrationToken) {
+    throw new Error("Could not parse guest registration token from URL");
+  }
+  const registrationRow = await db.guestRegistrationToken.findFirst({
+    where: {
+      token: registrationToken,
+      reservationId: created.reservationId,
+      status: GuestRegistrationStatus.ACTIVE,
+    },
+    select: { id: true, reservationId: true },
+  });
+  if (!registrationRow) {
+    throw new Error("Guest registration token not persisted for web booking");
+  }
 
   const replay = await createWebDirectReservation({
     slug: "urbanovaloft",
@@ -169,6 +202,18 @@ async function main() {
       checkOut: dateKeyToPrismaDate(raceCheckOut),
     },
   });
+  const raceAvailability = await searchWebAvailability({
+    slug: "urbanovaloft",
+    checkIn: raceCheckIn,
+    checkOut: raceCheckOut,
+    guests: 1,
+  });
+  const raceQuote = raceAvailability.available.find(
+    (row) => row.propertyId === propertyId,
+  )?.quote;
+  if (!raceQuote) {
+    throw new Error("Expected property available for race window");
+  }
   const raceResults = await Promise.allSettled([
     createWebDirectReservation({
       slug: "urbanovaloft",
@@ -180,7 +225,7 @@ async function main() {
       infants: 0,
       guestFirstName: "Race",
       guestLastName: "A",
-      totalAmount: quote.total,
+      totalAmount: raceQuote.total,
       policiesAccepted: true,
       idempotencyKey: "stg-race-a",
     }),
@@ -194,7 +239,7 @@ async function main() {
       infants: 0,
       guestFirstName: "Race",
       guestLastName: "B",
-      totalAmount: quote.total,
+      totalAmount: raceQuote.total,
       policiesAccepted: true,
       idempotencyKey: "stg-race-b",
     }),
@@ -235,19 +280,36 @@ async function main() {
     guests: 2,
   });
 
-  // Keep PUBLISHED for browser validation of this phase
+  // Pilot policy: leave staging site DRAFT after E2E (no accidental publish).
+  await db.tenantWebSite.update({
+    where: { id: site.id },
+    data: {
+      status: WebSiteStatus.DRAFT,
+      publishedAt: null,
+      bookingEnabled: true,
+    },
+  });
+  await db.tenantWebPage.updateMany({
+    where: { siteId: site.id },
+    data: { status: WebSiteStatus.DRAFT },
+  });
+
   console.log(
     JSON.stringify(
       {
         ok: true,
         unit,
         reservationId: calendarRow?.id,
+        reservationCode: calendarRow?.reservationCode ?? created.reservationCode,
+        guestRegistrationUrl: created.guestRegistrationUrl,
+        guestRegistrationPersisted: Boolean(registrationRow),
         platform: calendarRow?.platform,
         organizationId: calendarRow?.property.organizationId,
         appearsInCalendarQuery: Boolean(calendarRow),
         paymentStatus: calendarRow?.paymentStatus,
         idempotentReplay: replay.idempotentReplay === true,
         idempotentSameId: replay.reservationId === created.reservationId,
+        idempotentHasRegistrationUrl: Boolean(replay.guestRegistrationUrl),
         doubleBookingBlocked,
         overlapMatchedCreated: overlap?.id === created.reservationId,
         raceWins,
@@ -257,7 +319,7 @@ async function main() {
           (r) => r.propertyId === propertyId,
         ),
         expectedPlatform: BookingPlatform.DIRECT,
-        siteStatus: "PUBLISHED",
+        siteStatusAfterE2E: "DRAFT",
       },
       null,
       2,

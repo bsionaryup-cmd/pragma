@@ -112,6 +112,44 @@ export function getSignUpGlobalErrorMessage(
   return globalMessage;
 }
 
+export function isAlreadySignedInAuthError(error: unknown): boolean {
+  if (isClerkAPIResponseError(error)) {
+    const code = error.errors[0]?.code;
+    if (code === "session_exists" || code === "identifier_already_signed_in") {
+      return true;
+    }
+    const message = `${error.errors[0]?.message ?? ""} ${error.errors[0]?.longMessage ?? ""}`;
+    if (/already signed in/i.test(message)) return true;
+  }
+
+  if (error && typeof error === "object" && "error" in error) {
+    const nested = (error as { error?: ClerkAPIError | null }).error;
+    if (
+      nested?.code === "session_exists" ||
+      nested?.code === "identifier_already_signed_in"
+    ) {
+      return true;
+    }
+    if (
+      /already signed in/i.test(
+        `${nested?.message ?? ""} ${nested?.longMessage ?? ""}`,
+      )
+    ) {
+      return true;
+    }
+  }
+
+  if (error instanceof Error && /already signed in|session_exists/i.test(error.message)) {
+    return true;
+  }
+
+  if (typeof error === "string" && /already signed in|session_exists/i.test(error)) {
+    return true;
+  }
+
+  return false;
+}
+
 export function incompleteSignInStatusMessage(status: string | null | undefined): string {
   switch (status) {
     case "needs_second_factor":

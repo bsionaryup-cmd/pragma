@@ -7,8 +7,10 @@ import {
   CalendarDays,
   MapPin,
   Search,
+  Star,
   Users,
 } from "lucide-react";
+import { hostProfileHasContent } from "@/lib/web-builder/host-profile";
 import type { PublicSitePayload } from "@/lib/web-builder/serialize-public-site";
 import { URBAN_BOUTIQUE_HERO_EYEBROW } from "@/lib/web-builder/urban-boutique-defaults";
 import { UrbaNovaMark } from "@/modules/web-builder/templates/urban-boutique/urba-nova-mark";
@@ -168,6 +170,8 @@ export function UrbanBoutiqueSite({ site, preview }: UrbanBoutiqueSiteProps) {
         error?: string;
         data?: {
           reservationId?: string;
+          reservationCode?: string | null;
+          guestRegistrationUrl?: string | null;
           paymentHold?: {
             paymentRequired?: boolean;
             checkoutUrl?: string | null;
@@ -179,21 +183,34 @@ export function UrbanBoutiqueSite({ site, preview }: UrbanBoutiqueSiteProps) {
         throw new Error(json.error ?? "No se pudo crear la reserva");
       }
       const hold = json.data?.paymentHold;
+      const code = json.data?.reservationCode?.trim();
+      const registrationUrl = json.data?.guestRegistrationUrl?.trim();
+
       if (hold?.paymentRequired && hold.checkoutUrl) {
-        setBookingMessage(
-          `Reserva creada (${json.data?.reservationId ?? ""}). Completa el depósito para confirmar la estadía.`,
-        );
         window.open(hold.checkoutUrl, "_blank", "noopener,noreferrer");
-      } else if (hold?.paymentRequired) {
+      }
+
+      // Web channel: redirect straight to guest registration (no email/WhatsApp).
+      if (registrationUrl) {
         setBookingMessage(
-          `Reserva creada (${json.data?.reservationId ?? ""}). ${
+          code
+            ? `Reserva ${code} creada. Te llevamos al registro de huéspedes…`
+            : "Reserva creada. Te llevamos al registro de huéspedes…",
+        );
+        window.location.assign(registrationUrl);
+        return;
+      }
+
+      if (hold?.paymentRequired) {
+        setBookingMessage(
+          `Reserva creada${code ? ` (${code})` : ""}. ${
             hold.reason ??
-            "Pago pendiente: el equipo te contactará con el enlace de Wompi."
+            "Pago pendiente: el equipo te contactará con el enlace de pago."
           }`,
         );
       } else {
         setBookingMessage(
-          `Reserva creada. Referencia ${json.data?.reservationId ?? ""}.`,
+          `Reserva creada${code ? `: ${code}` : `. Referencia ${json.data?.reservationId ?? ""}`}.`,
         );
       }
       setAvailable([]);
@@ -539,6 +556,8 @@ export function UrbanBoutiqueSite({ site, preview }: UrbanBoutiqueSiteProps) {
           </div>
         </section>
 
+        <HostSection site={site} />
+
         <section id="ubicacion" className="scroll-mt-24 px-4 py-6 md:px-8 md:py-10">
           <div className="mx-auto grid max-w-6xl overflow-hidden rounded-[1.5rem] md:grid-cols-2">
             <div className="flex flex-col justify-center bg-[var(--wb-soft-white)] px-6 py-12 md:px-10 lg:px-14">
@@ -711,6 +730,119 @@ type BookingPillProps = {
   loading: boolean;
   error: string | null;
 };
+
+/**
+ * Editorial host block. Renders only with real content:
+ * - full host profile when any host field is present
+ * - minimal "about" block when only aboutText exists
+ * - nothing otherwise
+ */
+function HostSection({ site }: { site: PublicSitePayload }) {
+  const host = site.hostProfile;
+  const about = site.aboutText?.trim() || null;
+  const hasHost = hostProfileHasContent(host);
+
+  if (!hasHost && !about) return null;
+
+  const eyebrow = hasHost ? "TU ANFITRIÓN" : "SOBRE NOSOTROS";
+  const heading = host?.hostName?.trim() || site.siteName;
+  const body = host?.hostBio?.trim() || about;
+  const rating = host?.hostRating ?? null;
+  const reviewCount = host?.hostReviewCount ?? null;
+  const testimonials = host?.hostTestimonials ?? [];
+  const showAboutExtra = Boolean(host?.hostBio?.trim() && about);
+
+  return (
+    <section
+      id="anfitrion"
+      className="mx-auto max-w-6xl scroll-mt-24 px-4 py-12 md:px-8 md:py-16"
+    >
+      <div
+        className={cn(
+          "grid items-center gap-8 md:gap-12",
+          host?.hostPhotoUrl ? "md:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]" : "",
+        )}
+      >
+        {host?.hostPhotoUrl ? (
+          <div className="relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-[1.5rem] bg-[var(--wb-sand-oak)]/40 md:max-w-none">
+            <Image
+              src={host.hostPhotoUrl}
+              alt={host.hostName ? `Anfitrión ${host.hostName}` : "Anfitrión"}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, 40vw"
+              unoptimized
+            />
+          </div>
+        ) : null}
+
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--wb-accent)]">
+            {eyebrow}
+          </p>
+          <h2 className="mt-3 font-[family-name:var(--wb-font-display)] text-3xl font-medium leading-tight tracking-tight md:text-4xl">
+            {heading}
+          </h2>
+
+          {rating != null || reviewCount != null ? (
+            <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--wb-urban-gray)]">
+              {rating != null ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-[var(--wb-matte-black)]">
+                  <Star
+                    className="h-4 w-4 fill-[var(--wb-accent)] text-[var(--wb-accent)]"
+                    aria-hidden
+                  />
+                  {rating.toFixed(2).replace(/\.?0+$/, "")}
+                </span>
+              ) : null}
+              {reviewCount != null ? (
+                <span>
+                  {reviewCount} {reviewCount === 1 ? "reseña" : "reseñas"}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+
+          {body ? (
+            <p className="mt-5 max-w-xl whitespace-pre-line text-sm leading-relaxed text-[var(--wb-urban-gray)] md:text-base">
+              {body}
+            </p>
+          ) : null}
+
+          {showAboutExtra ? (
+            <p className="mt-4 max-w-xl whitespace-pre-line text-sm leading-relaxed text-[var(--wb-urban-gray)]">
+              {about}
+            </p>
+          ) : null}
+
+          {host?.hostExperience ? (
+            <p className="mt-5 max-w-xl border-l-2 border-[var(--wb-accent)] pl-4 text-sm font-medium text-[var(--wb-matte-black)]">
+              {host.hostExperience}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {testimonials.length > 0 ? (
+        <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {testimonials.map((item, index) => (
+            <figure
+              key={`${item.guestName}-${index}`}
+              className="rounded-[1.15rem] bg-[var(--wb-sand-oak)]/30 p-5 md:p-6"
+            >
+              <blockquote className="text-sm leading-relaxed text-[var(--wb-matte-black)]">
+                &ldquo;{item.quote}&rdquo;
+              </blockquote>
+              <figcaption className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--wb-urban-gray)]">
+                {item.guestName}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
 
 function BookingPill(props: BookingPillProps) {
   const {

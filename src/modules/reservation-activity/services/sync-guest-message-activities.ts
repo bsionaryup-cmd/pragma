@@ -259,14 +259,23 @@ function shouldSkipHeavyFeedSyncInDev(): boolean {
 export async function syncGuestMessageActivitiesForFeed(
   scope: TenantDataScope,
 ): Promise<void> {
-  if (shouldSkipHeavyFeedSyncInDev()) {
-    await promotePendingGuestMessageActivities(scope);
-    return;
-  }
+  try {
+    if (shouldSkipHeavyFeedSyncInDev()) {
+      await promotePendingGuestMessageActivities(scope);
+      return;
+    }
 
-  await repairMisclassifiedGuestMessageActivities(scope);
-  await relinkUnlinkedGuestMessageAudits(scope);
-  await promotePendingGuestMessageActivities(scope);
-  await ensureLinkedGuestMessageActivities(scope);
-  await repairUnparseableGuestMessageActivities(scope);
+    await repairMisclassifiedGuestMessageActivities(scope);
+    await relinkUnlinkedGuestMessageAudits(scope);
+    await promotePendingGuestMessageActivities(scope);
+    await ensureLinkedGuestMessageActivities(scope);
+    await repairUnparseableGuestMessageActivities(scope);
+  } catch (error) {
+    // Feed reads must remain available even when repair/relink fails
+    // (common under heavy pilot tenants / Owner impersonation on /panel).
+    console.error(
+      "[syncGuestMessageActivitiesForFeed] soft-failed:",
+      error instanceof Error ? error.message : error,
+    );
+  }
 }

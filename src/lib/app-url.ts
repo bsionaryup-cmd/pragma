@@ -101,6 +101,18 @@ export function getPublicAppUrl(): string {
     return PRAGMA_CANONICAL_PUBLIC_APP_ORIGIN;
   }
 
+  // WEB BUILDER staging (Neon isolated + :3005): honor APP_URL even on localhost.
+  // Otherwise isAllowedPublicAppUrl rejects localhost and falls back to :3000.
+  if (process.env.PRAGMA_WEB_BUILDER_STAGING === "1") {
+    const stagingOrigin =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      process.env.APP_URL?.trim() ||
+      process.env.NEXT_PUBLIC_DEV_ORIGIN?.trim();
+    if (stagingOrigin) {
+      return normalizeBaseUrl(stagingOrigin);
+    }
+  }
+
   const devOrigin = process.env.NEXT_PUBLIC_DEV_ORIGIN?.trim();
   if (devOrigin && isLocalhostUrl(devOrigin)) {
     return normalizeBaseUrl(devOrigin);

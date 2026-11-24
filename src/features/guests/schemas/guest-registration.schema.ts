@@ -16,6 +16,10 @@ export const guestStepSchema = z.object({
   phone: z.string().trim().optional(),
   nationality: z.string().trim().optional(),
   dateOfBirth: z.string().trim().optional(),
+  /** TRA Res. 409 — required for titular (enforced in superRefine / server). */
+  cityOfResidence: z.string().trim().optional(),
+  cityOfOrigin: z.string().trim().optional(),
+  travelPurpose: z.string().trim().optional(),
 });
 
 export const completeGuestRegistrationSchema = z.object({
@@ -36,6 +40,9 @@ const guestSchema = z.object({
   phone: z.string().trim().optional(),
   nationality: z.string().trim().optional(),
   dateOfBirth: z.string().trim().optional(),
+  cityOfResidence: z.string().trim().optional(),
+  cityOfOrigin: z.string().trim().optional(),
+  travelPurpose: z.string().trim().optional(),
 });
 
 /** Legacy bulk submit — kept for compatibility; capped by property capacity server-side. */

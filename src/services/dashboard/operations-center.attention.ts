@@ -14,7 +14,7 @@ export function buildAttentionItems(input: {
       id: "messages",
       kind: "messages",
       count: input.inboxAttentionCount,
-      href: "/novedades",
+      href: "/panel",
       severity: input.inboxAttentionCount > 2 ? "critical" : "warning",
     });
   }
@@ -26,7 +26,7 @@ export function buildAttentionItems(input: {
         id: alert.id,
         kind: "registration",
         count: 1,
-        href: "/novedades",
+        href: "/smart-access",
         severity: alert.severity,
       });
     }
@@ -35,7 +35,7 @@ export function buildAttentionItems(input: {
         id: alert.id,
         kind: "cleaning",
         count: input.commandCenter.operational.pendingCleaning,
-        href: "/tasks",
+        href: "/calendar",
         severity: alert.severity,
       });
     }

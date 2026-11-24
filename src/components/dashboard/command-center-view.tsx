@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { DashboardNovedadesSheet } from "@/components/dashboard/dashboard-novedades-sheet";
 import { OperationsAttentionSection } from "@/components/dashboard/operations-attention-section";
+import { OperationsDonutStrip } from "@/components/dashboard/operations-donut-strip";
 import { OperationsFeedSection } from "@/components/dashboard/operations-feed-section";
 import { OperationsFinanceSection } from "@/components/dashboard/operations-finance-section";
 import { OperationsTodaySection } from "@/components/dashboard/operations-today-section";
@@ -93,6 +94,11 @@ export function CommandCenterView({
         {showEmptyBanner ? (
           <FirstPropertyBanner canCreate={canCreateProperties} />
         ) : null}
+
+        <OperationsDonutStrip
+          data={data}
+          degraded={snapshot.commandCenterDegraded}
+        />
 
         <div
           className={cn(

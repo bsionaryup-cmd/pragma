@@ -123,6 +123,7 @@ async function finalizeGuestRegistrationAfterHold(reservationId: string) {
       platform: true,
       status: true,
       guestEmail: true,
+      internalNotes: true,
     },
   });
   if (!row) return;
@@ -135,6 +136,12 @@ async function finalizeGuestRegistrationAfterHold(reservationId: string) {
   }
 
   await ensureGuestRegistrationForReservation(reservationId);
+
+  // WEB BUILDER: guest is redirected to /guest-registration from the site —
+  // never send an extra email/WhatsApp for that channel.
+  const isWebBuilder = Boolean(row.internalNotes?.includes("[WEB_BUILDER]"));
+  if (isWebBuilder) return;
+
   if (row.guestEmail?.trim()) {
     await sendGuestRegistrationEmailForReservation(reservationId).catch((err) => {
       console.warn("[guest-registration-email] Post-hold", reservationId, err);

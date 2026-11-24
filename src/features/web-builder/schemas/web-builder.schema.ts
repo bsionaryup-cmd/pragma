@@ -1,5 +1,6 @@
 import { WebMediaCategory, WebSiteStatus } from "@prisma/client";
 import { z } from "zod";
+import { hostProfileSchema } from "@/lib/web-builder/host-profile";
 
 const slugField = z
   .string()
@@ -38,6 +39,7 @@ export const updateWebSiteSchema = z.object({
   heroSubtitle: z.string().trim().max(500).optional().nullable(),
   heroImageUrl: optionalUrl,
   aboutText: z.string().trim().max(8000).optional().nullable(),
+  hostProfile: hostProfileSchema.optional().nullable(),
   locationNeighborhood: z.string().trim().max(120).optional().nullable(),
   locationCity: z.string().trim().max(120).optional().nullable(),
   locationCountry: z.string().trim().max(120).optional().nullable(),

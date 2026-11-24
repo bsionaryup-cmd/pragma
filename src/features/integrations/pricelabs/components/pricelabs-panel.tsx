@@ -24,6 +24,7 @@ import { PriceLabsApiKeyCard } from "@/features/integrations/pricelabs/component
 import { PriceLabsMappingSummary } from "@/features/integrations/pricelabs/components/pricelabs-mapping-summary";
 import { formatPriceLabsDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
+import { mapPriceLabsOverviewToHealth } from "@/services/integrations/integration-health/derive-health";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getSemanticBadgeClass } from "@/lib/ui/status-badge-styles";
@@ -65,8 +66,27 @@ function HealthBadge({ overview }: { overview: PriceLabsOverviewDto }) {
       </Badge>
     );
   }
-  if (status === "CONNECTED") {
-    return <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>;
+  if (status === "CONNECTED" || status === "DEGRADED") {
+    // Prefer the unified health report over the naive org status.
+    const health = mapPriceLabsOverviewToHealth(overview);
+    if (health.status === "CONNECTED") {
+      return <Badge className={getSemanticBadgeClass("success")}>Conectado</Badge>;
+    }
+    const label =
+      health.status === "DEGRADED"
+        ? "Degradado"
+        : health.status === "VERIFYING"
+          ? "Verificando"
+          : "Requiere atención";
+    return (
+      <Badge
+        variant="outline"
+        className={getSemanticBadgeClass("warning")}
+        title={health.evidence.join(" · ")}
+      >
+        {label}
+      </Badge>
+    );
   }
   if (status === "SYNC_REQUIRED") {
     return (

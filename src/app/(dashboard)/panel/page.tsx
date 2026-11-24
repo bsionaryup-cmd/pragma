@@ -35,11 +35,22 @@ export default async function PanelControlPage() {
 
   const canCreateProperties = hasPermission(auth.role, "properties:write");
 
+  // Empty-org banner only when we positively know there are zero properties.
+  // Never show it when finance/ops already prove the tenant is active
+  // (guards against soft-fail / stale client bundles claiming "no properties").
+  const knownEmpty =
+    snapshot.reliablePropertyCount === 0 &&
+    !snapshot.finance &&
+    snapshot.attentionTotal === 0 &&
+    snapshot.commandCenter.counts.current === 0 &&
+    snapshot.commandCenter.todayCounts.arrivals === 0 &&
+    snapshot.commandCenter.todayCounts.departures === 0;
+
   return (
     <CommandCenterView
       firstName={auth.firstName}
       snapshot={snapshot}
-      showEmptyBanner={snapshot.commandCenter.totalPropertyCount === 0}
+      showEmptyBanner={knownEmpty}
       canCreateProperties={canCreateProperties}
       novedades={novedades}
     />

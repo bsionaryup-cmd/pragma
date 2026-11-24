@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildAttentionItems } from "@/services/dashboard/operations-center.attention";
+import { countInboxAttentionFromFeedCards } from "@/services/dashboard/operations-center.feed-attention";
 
 describe("operations center compose", () => {
   it("builds attention items from inbox and alerts", () => {
@@ -32,5 +33,9 @@ describe("operations center compose", () => {
     assert.ok(items.some((row) => row.kind === "cleaning" && row.count === 2));
     assert.ok(items.some((row) => row.kind === "ttlock"));
     assert.ok(items.some((row) => row.kind === "payment"));
+  });
+
+  it("treats empty soft-failed feed as zero inbox attention", () => {
+    assert.equal(countInboxAttentionFromFeedCards([]), 0);
   });
 });

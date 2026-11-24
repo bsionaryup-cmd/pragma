@@ -1,10 +1,23 @@
 import type { TTLockIntegration } from "@prisma/client";
 import { TTLockEnvironment, TTLockIntegrationStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { getCurrentTenantContext } from "@/lib/platform/tenant-context";
 import type { TenantDataScope } from "@/lib/platform/tenant-data-scope";
+import { shouldAllowTTLockIntegrationMutation } from "@/modules/integrations/ttlock/ttlock-mutation-policy";
 import {
   rethrowUnlessTTLockSchemaDrift,
 } from "@/services/integrations/ttlock/ttlock-prisma-guard";
+
+export { shouldAllowTTLockIntegrationMutation } from "@/modules/integrations/ttlock/ttlock-mutation-policy";
+
+async function isActivePlatformImpersonation(): Promise<boolean> {
+  try {
+    const ctx = await getCurrentTenantContext();
+    return Boolean(ctx?.isImpersonating);
+  } catch {
+    return false;
+  }
+}
 
 function isTTLockSchemaMissing(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
@@ -93,6 +106,22 @@ export async function resolveTTLockAutomationSettingsForProperty(
   });
 }
 
+/** Read-only org/user lookup — never creates or reassigns rows. */
+export async function resolveTTLockIntegrationForScope(
+  scope: TenantDataScope,
+): Promise<TTLockIntegration | null> {
+  try {
+    if (scope.organizationId) {
+      return getTTLockIntegrationForOrganization(scope.organizationId);
+    }
+    return getTTLockIntegrationForUser(scope.userId);
+  } catch (error) {
+    if (isTTLockSchemaMissing(error)) return null;
+    rethrowUnlessTTLockSchemaDrift(error);
+    throw error;
+  }
+}
+
 /** Org-first integration ensure; falls back to legacy user-scoped row. */
 export async function ensureTTLockIntegrationForScope(
   scope: TenantDataScope,
@@ -104,8 +133,26 @@ export async function ensureTTLockIntegrationForScope(
       );
       if (existing) return existing;
 
+      const impersonating = await isActivePlatformImpersonation();
+      if (
+        !shouldAllowTTLockIntegrationMutation({ isImpersonating: impersonating })
+      ) {
+        throw new Error(
+          "TTLock no está configurado para este tenant (impersonación de solo lectura)",
+        );
+      }
+
       const legacy = await getTTLockIntegrationForUser(scope.userId);
       if (legacy) {
+        // Never steal a row already bound to a different organization.
+        if (
+          legacy.organizationId != null &&
+          legacy.organizationId !== scope.organizationId
+        ) {
+          throw new Error(
+            "TTLock del usuario ya pertenece a otra organización",
+          );
+        }
         return db.tTLockIntegration.update({
           where: { id: legacy.id },
           data: {
@@ -132,6 +179,17 @@ export async function ensureTTLockIntegrationForScope(
         },
         include: { automationSettings: true },
       });
+    }
+
+    const impersonating = await isActivePlatformImpersonation();
+    if (
+      !shouldAllowTTLockIntegrationMutation({ isImpersonating: impersonating })
+    ) {
+      const existing = await getTTLockIntegrationForUser(scope.userId);
+      if (existing) return existing;
+      throw new Error(
+        "TTLock no está configurado para este tenant (impersonación de solo lectura)",
+      );
     }
 
     const byUser = await db.tTLockIntegration.upsert({

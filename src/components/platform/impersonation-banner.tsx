@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { ShieldAlert, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ type ImpersonationBannerProps = {
 export function ImpersonationBanner({
   organizationName,
 }: ImpersonationBannerProps) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -20,14 +18,19 @@ export function ImpersonationBanner({
     setError(null);
     startTransition(async () => {
       try {
-        const res = await fetch("/api/owner/impersonate/end", { method: "POST" });
-        const data = (await res.json()) as { redirectUrl?: string; error?: string };
+        const res = await fetch("/api/owner/impersonate/end", {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = (await res.json()) as {
+          redirectUrl?: string;
+          error?: string;
+        };
         if (!res.ok) {
           setError(data.error ?? "No se pudo salir del modo Super Admin");
           return;
         }
-        router.push(data.redirectUrl ?? "/owner-dashboard");
-        router.refresh();
+        window.location.assign(data.redirectUrl ?? "/owner-dashboard");
       } catch {
         setError("Error de red al salir del modo Super Admin");
       }

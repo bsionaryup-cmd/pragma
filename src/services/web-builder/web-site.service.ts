@@ -1,7 +1,8 @@
 import "server-only";
 
-import { PropertyStatus, WebSiteStatus, type Prisma } from "@prisma/client";
+import { Prisma, PropertyStatus, WebSiteStatus } from "@prisma/client";
 import { db } from "@/lib/db";
+import { hostProfileHasContent, type HostProfile } from "@/lib/web-builder/host-profile";
 import { requireTenantContext } from "@/lib/platform/tenant-context";
 import {
   isProtectedHomePageSlug,
@@ -52,6 +53,7 @@ export type UpdateTenantWebSiteInput = {
   heroSubtitle?: string | null;
   heroImageUrl?: string | null;
   aboutText?: string | null;
+  hostProfile?: HostProfile | null;
   locationNeighborhood?: string | null;
   locationCity?: string | null;
   locationCountry?: string | null;
@@ -231,6 +233,11 @@ export async function updateTenantWebSite(input: UpdateTenantWebSiteInput) {
   if (input.heroSubtitle !== undefined) data.heroSubtitle = input.heroSubtitle;
   if (input.heroImageUrl !== undefined) data.heroImageUrl = input.heroImageUrl;
   if (input.aboutText !== undefined) data.aboutText = input.aboutText;
+  if (input.hostProfile !== undefined) {
+    data.hostProfile = hostProfileHasContent(input.hostProfile)
+      ? (input.hostProfile as unknown as Prisma.InputJsonValue)
+      : Prisma.DbNull;
+  }
   if (input.locationNeighborhood !== undefined) {
     data.locationNeighborhood = input.locationNeighborhood;
   }

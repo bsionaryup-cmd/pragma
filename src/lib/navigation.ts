@@ -78,20 +78,6 @@ const panelNavItem: NavItem = {
   permission: "dashboard:read",
 };
 
-const reservationsNavItem: NavItem = {
-  labelKey: "nav.reservations",
-  href: "/reservations",
-  icon: "clipboard-list",
-  permission: "reservations:read",
-};
-
-const novedadesNavItem: NavItem = {
-  labelKey: "nav.novedades",
-  href: "/novedades",
-  icon: "message-circle",
-  permission: "reservations:read",
-};
-
 const integrationsNavItem: NavItem = {
   labelKey: "nav.integrations",
   href: "/integrations",
@@ -104,14 +90,6 @@ const calendarNavItem: NavItem = {
   href: "/calendar",
   icon: "calendar-days",
   permission: "calendar:read",
-};
-
-const tasksNavItem: NavItem = {
-  labelKey: "nav.tasks",
-  href: "/tasks",
-  icon: "list-checks",
-  permission: "tasks:read",
-  planFeature: "tasks",
 };
 
 const propertiesNavItem: NavItem = {
@@ -316,20 +294,10 @@ export function getNavigationModulesForRole(
     modules.push(navLinkModule(panelNavItem));
   }
 
-  if (navLinkAllowed(novedadesNavItem, role, plan)) {
-    modules.push(navLinkModule(novedadesNavItem));
-  }
-
-  if (navLinkAllowed(reservationsNavItem, role, plan)) {
-    modules.push(navLinkModule(reservationsNavItem));
-  }
-
+  // Master Simplification (local 0995c7f): retire Bandeja/Reservas/Tareas from
+  // sidebar. Calendar is the reservations surface; feed lives inside /panel.
   if (navLinkAllowed(calendarNavItem, role, plan)) {
     modules.push(navLinkModule(calendarNavItem));
-  }
-
-  if (navLinkAllowed(tasksNavItem, role, plan)) {
-    modules.push(navLinkModule(tasksNavItem));
   }
 
   if (

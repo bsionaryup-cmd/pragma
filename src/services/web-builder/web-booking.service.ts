@@ -24,6 +24,12 @@ import {
   resolveWebBookingPaymentHold,
   type WebBookingPaymentHold,
 } from "@/services/web-builder/web-booking-payment.service";
+import {
+  ensureGuestRegistrationForReservation,
+  isGuestRegistrationEligiblePlatform,
+  isGuestRegistrationEligibleStatus,
+} from "@/services/guests/guest-registration.service";
+import { generateWebDirectReservationCode } from "@/lib/web-builder/web-reservation-code";
 
 export type SearchWebAvailabilityInput = {
   slug: string;
@@ -208,6 +214,14 @@ export async function createWebDirectReservation(input: CreateWebDirectReservati
   }
 
   const property = link.property;
+  // Defense in depth: linked property must belong to the site organization.
+  const propertyOrg = await db.property.findFirst({
+    where: { id: property.id, organizationId: site.organizationId },
+    select: { id: true },
+  });
+  if (!propertyOrg) {
+    throw new Error("Propiedad no pertenece a este tenant");
+  }
   const guestTotal = input.adults + input.children + input.infants;
   if (guestTotal > property.maxGuests) {
     throw new Error(
@@ -231,7 +245,20 @@ export async function createWebDirectReservation(input: CreateWebDirectReservati
     checkOutTime: property.checkOutTime,
   });
 
-  const totalAmount = Math.max(0, input.totalAmount);
+  // Never trust client totals — underpaying (or totalAmount: 0) would mark PAID.
+  const nights = countNights(checkIn, checkOut);
+  const baseRate = decimalToNumber(property.baseRate);
+  const cleaningFee = decimalToNumber(property.cleaningFee);
+  const quote = quoteStay(nights, baseRate, cleaningFee, property.currency || site.currency);
+  const totalAmount = Math.max(0, quote.total);
+  if (
+    Number.isFinite(input.totalAmount) &&
+    Math.abs(input.totalAmount - totalAmount) > 1
+  ) {
+    throw new Error(
+      "El total enviado no coincide con la tarifa actual. Actualiza la cotización e intenta de nuevo.",
+    );
+  }
   const paymentStatus: PaymentStatus =
     totalAmount > 0 ? PaymentStatus.PENDING : PaymentStatus.PAID;
   const idem = input.idempotencyKey?.trim() || null;
@@ -252,25 +279,27 @@ export async function createWebDirectReservation(input: CreateWebDirectReservati
       select: { id: true, status: true, paymentStatus: true },
     });
     if (existing) {
-      const replayTotal = decimalToNumber(
-        (
-          await db.reservation.findUnique({
-            where: { id: existing.id },
-            select: { totalAmount: true },
-          })
-        )?.totalAmount,
-      );
+      const existingRow = await db.reservation.findUnique({
+        where: { id: existing.id },
+        select: { totalAmount: true, reservationCode: true },
+      });
+      const replayTotal = decimalToNumber(existingRow?.totalAmount);
       const paymentHold = await loadWebBookingPaymentHoldForReservation({
         organizationId: site.organizationId,
         reservationId: existing.id,
         totalAmount: replayTotal,
       });
+      // Reuse existing registration link; never email/WhatsApp for web bookings.
+      const guestRegistrationUrl =
+        await ensureGuestRegistrationForReservation(existing.id);
       return {
         reservationId: existing.id,
+        reservationCode: existingRow?.reservationCode ?? null,
         status: existing.status,
         paymentStatus: existing.paymentStatus,
         idempotentReplay: true as const,
         paymentHold,
+        guestRegistrationUrl,
       };
     }
   }
@@ -320,6 +349,7 @@ export async function createWebDirectReservation(input: CreateWebDirectReservati
           status,
           paymentStatus,
           totalAmount,
+          reservationCode: generateWebDirectReservationCode(),
           internalNotes,
         },
         include: {
@@ -367,11 +397,25 @@ export async function createWebDirectReservation(input: CreateWebDirectReservati
     });
   }
 
+  // Web bookings: create registration token immediately and return URL for
+  // client redirect. Do NOT send email/WhatsApp (Airbnb keeps its own channel).
+  let guestRegistrationUrl: string | null = null;
+  if (
+    isGuestRegistrationEligiblePlatform(created.platform) &&
+    isGuestRegistrationEligibleStatus(created.status)
+  ) {
+    guestRegistrationUrl = await ensureGuestRegistrationForReservation(
+      created.id,
+    );
+  }
+
   return {
     reservationId: created.id,
+    reservationCode: created.reservationCode,
     status: created.status,
     paymentStatus: created.paymentStatus,
     idempotentReplay: false as const,
     paymentHold,
+    guestRegistrationUrl,
   };
 }

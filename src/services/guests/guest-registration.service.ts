@@ -166,10 +166,19 @@ export type GuestRegistrationGuest = {
   dateOfBirth: string | null;
 };
 
+export type GuestRegistrationBookingPrefill = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+};
+
 export type GuestRegistrationReservation = {
   id: string;
   token: string;
   status: GuestRegistrationStatus;
+  platform: BookingPlatform;
+  reservationCode: string | null;
   propertyName: string;
   checkIn: string;
   checkOut: string;
@@ -180,6 +189,8 @@ export type GuestRegistrationReservation = {
   expiresAt: string | null;
   completedAt: string | null;
   guests: GuestRegistrationGuest[];
+  /** Contact from the original booking — prefill titular form only. */
+  bookingPrefill: GuestRegistrationBookingPrefill | null;
 };
 
 export type GuestRegistrationLookupResult =
@@ -269,12 +280,18 @@ async function buildGuestRegistrationReservationView(input: {
   reservation: {
     id: string;
     platform: BookingPlatform;
+    reservationCode?: string | null;
     checkIn: Date;
     checkOut: Date;
     adults: number;
     children: number;
     infants: number;
     guestRegistrationCompletedAt: Date | null;
+    guestFirstName?: string | null;
+    guestLastName?: string | null;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
+    guestName?: string | null;
     property: { name: string; unitNumber?: string | null; maxGuests: number };
   };
   guests: Parameters<typeof mapGuestRecord>[0][];
@@ -296,10 +313,33 @@ async function buildGuestRegistrationReservationView(input: {
     registeredCount,
   );
 
+  const splitName = (input.reservation.guestName ?? "").trim().split(/\s+/);
+  const prefillFirst =
+    input.reservation.guestFirstName?.trim() ||
+    splitName[0] ||
+    "";
+  const prefillLast =
+    input.reservation.guestLastName?.trim() ||
+    (splitName.length > 1 ? splitName.slice(1).join(" ") : "");
+  const bookingPrefill: GuestRegistrationBookingPrefill | null =
+    prefillFirst ||
+    prefillLast ||
+    input.reservation.guestEmail ||
+    input.reservation.guestPhone
+      ? {
+          firstName: prefillFirst,
+          lastName: prefillLast,
+          email: input.reservation.guestEmail?.trim() || "",
+          phone: input.reservation.guestPhone?.trim() || "",
+        }
+      : null;
+
   return {
     id: input.reservation.id,
     token: input.token,
     status: input.registration.status,
+    platform: input.reservation.platform,
+    reservationCode: input.reservation.reservationCode ?? null,
     propertyName: formatPropertyLabel(input.reservation.property),
     checkIn: prismaDateToKey(input.reservation.checkIn),
     checkOut: prismaDateToKey(input.reservation.checkOut),
@@ -310,6 +350,7 @@ async function buildGuestRegistrationReservationView(input: {
     expiresAt: input.registration.expiresAt?.toISOString() ?? null,
     completedAt: input.registration.usedAt?.toISOString() ?? null,
     guests: mappedGuests,
+    bookingPrefill,
   };
 }
 
@@ -580,11 +621,17 @@ export async function getGuestRegistrationLookupResult(
     select: {
       id: true,
       platform: true,
+      reservationCode: true,
       checkIn: true,
       checkOut: true,
       adults: true,
       children: true,
       infants: true,
+      guestName: true,
+      guestFirstName: true,
+      guestLastName: true,
+      guestEmail: true,
+      guestPhone: true,
       guestRegistrationCompletedAt: true,
       property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
@@ -637,11 +684,17 @@ export async function registerGuestStep(
     select: {
       id: true,
       platform: true,
+      reservationCode: true,
       checkIn: true,
       checkOut: true,
       adults: true,
       children: true,
       infants: true,
+      guestName: true,
+      guestFirstName: true,
+      guestLastName: true,
+      guestEmail: true,
+      guestPhone: true,
       guestRegistrationCompletedAt: true,
       property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
@@ -684,6 +737,22 @@ export async function registerGuestStep(
         "Teléfono inválido. Selecciona el código de país.",
       );
     }
+    // TRA (Res. 409/2022) — titular must declare residence, origin, and travel purpose.
+    if (!parsed.cityOfResidence?.trim()) {
+      throw new GuestRegistrationError(
+        "Ciudad de residencia requerida (TRA / Migración)",
+      );
+    }
+    if (!parsed.cityOfOrigin?.trim()) {
+      throw new GuestRegistrationError(
+        "Ciudad de procedencia requerida (TRA / Migración)",
+      );
+    }
+    if (!parsed.travelPurpose?.trim()) {
+      throw new GuestRegistrationError(
+        "Motivo del viaje requerido (TRA / Migración)",
+      );
+    }
   }
 
   const documentNumber = parsed.documentNumber.trim();
@@ -718,6 +787,9 @@ export async function registerGuestStep(
         phone: parsed.phone?.trim() || null,
         nationality: parsed.nationality?.trim() || null,
         dateOfBirth: parseOptionalDateOfBirth(parsed.dateOfBirth),
+        cityOfResidence: parsed.cityOfResidence?.trim() || null,
+        cityOfOrigin: parsed.cityOfOrigin?.trim() || null,
+        travelPurpose: parsed.travelPurpose?.trim() || null,
       },
     });
 
@@ -794,11 +866,17 @@ export async function completeGuestRegistration(
     select: {
       id: true,
       platform: true,
+      reservationCode: true,
       checkIn: true,
       checkOut: true,
       adults: true,
       children: true,
       infants: true,
+      guestName: true,
+      guestFirstName: true,
+      guestLastName: true,
+      guestEmail: true,
+      guestPhone: true,
       guestRegistrationCompletedAt: true,
       property: { select: { name: true, unitNumber: true, maxGuests: true } },
     },
@@ -899,6 +977,9 @@ export async function submitGuestRegistration(
         phone: guest.phone?.trim() || null,
         nationality: guest.nationality?.trim() || null,
         dateOfBirth: parseOptionalDateOfBirth(guest.dateOfBirth),
+        cityOfResidence: guest.cityOfResidence?.trim() || null,
+        cityOfOrigin: guest.cityOfOrigin?.trim() || null,
+        travelPurpose: guest.travelPurpose?.trim() || null,
       })),
     });
 

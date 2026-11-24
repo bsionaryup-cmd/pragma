@@ -124,6 +124,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
     url: string,
     onSuccess?: () => void,
     body?: unknown,
+    options?: { hardRedirect?: boolean },
   ) {
     setError(null);
     startTransition(async () => {
@@ -134,13 +135,23 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
           headers: body ? { "Content-Type": "application/json" } : undefined,
           body: body ? JSON.stringify(body) : undefined,
         });
-        const data = (await res.json()) as { ok?: boolean; error?: string; redirectUrl?: string };
+        const data = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          redirectUrl?: string;
+        };
         if (!res.ok) {
           setError(data.error ?? "Acción no completada");
           return;
         }
         onSuccess?.();
         if (data.redirectUrl) {
+          // Full navigation so the impersonation HttpOnly cookie is always sent
+          // on the next document request (router.push can race soft navigations).
+          if (options?.hardRedirect) {
+            window.location.assign(data.redirectUrl);
+            return;
+          }
           router.push(data.redirectUrl);
           router.refresh();
         } else {
@@ -153,10 +164,12 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
   }
 
   function impersonate() {
-    runAction(`/api/owner/tenant/${tenant.id}/impersonate`, () => {
-      router.push("/panel");
-      router.refresh();
-    });
+    runAction(
+      `/api/owner/tenant/${tenant.id}/impersonate`,
+      undefined,
+      undefined,
+      { hardRedirect: true },
+    );
   }
 
   function suspend() {

@@ -306,6 +306,12 @@ model ReservationGuest {
   phone              String?
   nationality        String?
   dateOfBirth        DateTime?              @db.Date
+  /// TRA (Res. 409/2022): ciudad de residencia
+  cityOfResidence    String?
+  /// TRA: ciudad de procedencia
+  cityOfOrigin       String?
+  /// TRA: motivo del viaje
+  travelPurpose      String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
@@ -3093,6 +3099,8 @@ model TenantWebSite {
   heroSubtitle    String?
   heroImageUrl    String?
   aboutText       String?
+  /// Optional editorial host profile (see src/lib/web-builder/host-profile.ts)
+  hostProfile     Json?
   locationNeighborhood String?
   locationCity    String?
   locationCountry String? @default("Colombia")

@@ -23,6 +23,7 @@ import {
   type WebBuilderHubMedia,
   type WebBuilderHubSite,
 } from "@/features/web-builder/actions/web-builder.actions";
+import { parseHostProfile } from "@/lib/web-builder/host-profile";
 import { isProtectedHomePageSlug } from "@/lib/web-builder/protected-home-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,32 @@ const SECTIONS = [
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
+
+const NEW_MEDIA_CATEGORIES = [
+  { value: "GALLERY", label: "Galería" },
+  { value: "HERO", label: "Hero" },
+  { value: "LOCATION", label: "Ubicación" },
+  { value: "PROPERTY", label: "Alojamiento" },
+  { value: "OTHER", label: "Otra" },
+] as const;
+
+type NewMediaCategory = (typeof NEW_MEDIA_CATEGORIES)[number]["value"];
+
+/** "cita | nombre" per line -> testimonials (blank/invalid lines dropped). */
+function parseTestimonialLines(
+  raw: string,
+): Array<{ quote: string; guestName: string }> {
+  return raw
+    .split("\n")
+    .flatMap((line) => {
+      const idx = line.lastIndexOf("|");
+      if (idx < 0) return [];
+      const quote = line.slice(0, idx).trim();
+      const guestName = line.slice(idx + 1).trim();
+      return quote && guestName ? [{ quote, guestName }] : [];
+    })
+    .slice(0, 6);
+}
 
 type WebBuilderHubProps = {
   initialSite: WebBuilderHubSite;
@@ -819,7 +846,28 @@ function ContentSection({
   const [locationDescription, setLocationDescription] = useState(
     site.locationDescription ?? "",
   );
+  const initialHost = parseHostProfile(site.hostProfile);
+  const [aboutText, setAboutText] = useState(site.aboutText ?? "");
+  const [hostName, setHostName] = useState(initialHost?.hostName ?? "");
+  const [hostPhotoUrl, setHostPhotoUrl] = useState(initialHost?.hostPhotoUrl ?? "");
+  const [hostBio, setHostBio] = useState(initialHost?.hostBio ?? "");
+  const [hostExperience, setHostExperience] = useState(
+    initialHost?.hostExperience ?? "",
+  );
+  const [hostRating, setHostRating] = useState(
+    initialHost?.hostRating != null ? String(initialHost.hostRating) : "",
+  );
+  const [hostReviewCount, setHostReviewCount] = useState(
+    initialHost?.hostReviewCount != null ? String(initialHost.hostReviewCount) : "",
+  );
+  const [hostTestimonials, setHostTestimonials] = useState(
+    (initialHost?.hostTestimonials ?? [])
+      .map((item) => `${item.quote} | ${item.guestName}`)
+      .join("\n"),
+  );
   const [newMediaUrl, setNewMediaUrl] = useState("");
+  const [newMediaCategory, setNewMediaCategory] =
+    useState<NewMediaCategory>("GALLERY");
   const [coverLinkId, setCoverLinkId] = useState(
     site.propertyLinks[0]?.id ?? "",
   );
@@ -853,6 +901,73 @@ function ContentSection({
         />
       </SectionForm>
 
+      <SectionForm
+        title="Anfitrión y sobre nosotros"
+        onSubmit={() => {
+          const ratingValue = Number.parseFloat(hostRating.replace(",", "."));
+          const reviewCountValue = Number.parseInt(hostReviewCount, 10);
+          onSave({
+            aboutText: aboutText || null,
+            hostProfile: {
+              hostName: hostName || null,
+              hostPhotoUrl: hostPhotoUrl || null,
+              hostBio: hostBio || null,
+              hostExperience: hostExperience || null,
+              hostRating: Number.isFinite(ratingValue) ? ratingValue : null,
+              hostReviewCount: Number.isFinite(reviewCountValue)
+                ? reviewCountValue
+                : null,
+              hostTestimonials: parseTestimonialLines(hostTestimonials),
+            },
+          });
+        }}
+        canManage={canManage}
+        pending={pending}
+      >
+        <TextAreaField
+          label="Sobre nosotros (texto general)"
+          value={aboutText}
+          onChange={setAboutText}
+        />
+        <Field label="Nombre del anfitrión" value={hostName} onChange={setHostName} />
+        <Field
+          label="Foto del anfitrión (URL)"
+          value={hostPhotoUrl}
+          onChange={setHostPhotoUrl}
+        />
+        <TextAreaField
+          label="Mensaje de bienvenida / bio"
+          value={hostBio}
+          onChange={setHostBio}
+        />
+        <Field
+          label="Experiencia (ej. 5 años recibiendo huéspedes)"
+          value={hostExperience}
+          onChange={setHostExperience}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            label="Calificación (0-5, opcional)"
+            value={hostRating}
+            onChange={setHostRating}
+          />
+          <Field
+            label="Número de reseñas (opcional)"
+            value={hostReviewCount}
+            onChange={setHostReviewCount}
+          />
+        </div>
+        <TextAreaField
+          label="Testimonios reales (uno por línea: cita | nombre del huésped)"
+          value={hostTestimonials}
+          onChange={setHostTestimonials}
+        />
+        <p className="text-xs text-muted-foreground">
+          Si dejas todo vacío, la sección del anfitrión no se muestra. Usa solo
+          testimonios reales y autorizados.
+        </p>
+      </SectionForm>
+
       <HubListBlock title="Fotografías">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row">
           <Input
@@ -862,6 +977,19 @@ function ContentSection({
             onChange={(e) => setNewMediaUrl(e.target.value)}
             className="rounded-sm"
           />
+          <select
+            aria-label="Categoría de la foto"
+            className="h-9 rounded-sm border border-input bg-background px-2 text-sm"
+            disabled={!canManage}
+            value={newMediaCategory}
+            onChange={(e) => setNewMediaCategory(e.target.value as NewMediaCategory)}
+          >
+            {NEW_MEDIA_CATEGORIES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <Button
             type="button"
             size="sm"
@@ -869,7 +997,10 @@ function ContentSection({
             className="rounded-sm"
             onClick={() => {
               void (async () => {
-                const result = await createWebMediaAction({ url: newMediaUrl });
+                const result = await createWebMediaAction({
+                  url: newMediaUrl,
+                  category: newMediaCategory,
+                });
                 if (!result.ok) {
                   onError(result.error);
                   return;

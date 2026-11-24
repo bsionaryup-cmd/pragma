@@ -117,6 +117,17 @@ export const es = {
       activity: "Actividad reciente",
       activityDesc: "Últimos eventos en tu operación.",
     },
+    donuts: {
+      title: "Indicadores de hoy",
+      occupancy: "Ocupación actual",
+      occupancyDetail: "{{month}}% en el mes",
+      arrivals: "Llegadas hoy",
+      departures: "Salidas hoy",
+      activeStays: "Estancias activas",
+      ofProperties: "{{count}} propiedades",
+      ofPropertiesOne: "{{count}} propiedad",
+      degradedNote: "Algunas métricas pueden estar incompletas por ahora.",
+    },
     today: {
       arrivals: "Llegan hoy",
       departures: "Salen hoy",

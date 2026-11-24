@@ -46,6 +46,8 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
     let cancelled = false;
     let timerId: number | undefined;
+    let intervalId: number | undefined;
+    let stoppedForNoIcal = false;
 
     function shouldThrottle(trigger: string): boolean {
       if (trigger === "initial") return false;
@@ -71,7 +73,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
     }
 
     async function runSync(trigger: string) {
-      if (syncingRef.current || cancelled) return;
+      if (syncingRef.current || cancelled || stoppedForNoIcal) return;
       if (shouldThrottle(trigger)) return;
 
       syncingRef.current = true;
@@ -87,9 +89,16 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
         const currentPath = pathnameRef.current ?? "";
 
         if (status.linkedCount === 0) {
+          // No active icalUrl: one-shot orphan cleanup, then stop polling.
+          // Empty/null ical must not keep fetching or interval sync traffic.
           await runAirbnbAutoSyncCleanup();
+          stoppedForNoIcal = true;
+          if (intervalId != null) window.clearInterval(intervalId);
           if (process.env.NODE_ENV === "development") {
-            console.info("[ical-sync:auto] skip — sin iCal; huérfanos archivados", trigger);
+            console.info(
+              "[ical-sync:auto] stop — sin iCal activo; sin más polling",
+              trigger,
+            );
           }
           return;
         }
@@ -144,7 +153,7 @@ export function AirbnbAutoSync({ enabled }: AirbnbAutoSyncProps) {
 
     document.addEventListener("visibilitychange", onVisible);
 
-    const intervalId = window.setInterval(() => {
+    intervalId = window.setInterval(() => {
       void runSync("interval");
     }, AIRBNB_AUTO_SYNC_MS);
 
