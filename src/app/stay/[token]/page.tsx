@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { GuestBrandMark } from "@/components/brand/guest-brand-mark";
 import { StayPortalViewPanel } from "@/features/guests/components/stay-portal-view";
-import { getGuestRegistrationLookupResult } from "@/services/guests/guest-registration.service";
 import { getStayPortalByToken } from "@/services/guests/stay-portal.service";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +19,14 @@ export default async function StayPortalTokenPage({
   // Legacy links: /stay/{guestRegistrationToken} (WEB BUILDER / older emails).
   // Resolve to the secure stay-portal token — never expose by reservationCode.
   if (portal.state === "not_found") {
-    const legacy = await getGuestRegistrationLookupResult(token).catch(() => null);
-    if (legacy?.state === "completed" && legacy.stayPortalUrl) {
-      redirect(legacy.stayPortalUrl);
+    const { getStayPortalUrlForGuestRegistrationToken } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const legacyStayUrl = await getStayPortalUrlForGuestRegistrationToken(
+      token,
+    ).catch(() => null);
+    if (legacyStayUrl) {
+      redirect(legacyStayUrl);
     }
   }
 

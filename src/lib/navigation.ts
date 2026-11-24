@@ -277,9 +277,9 @@ export function getActiveNavGroupId(
   pathname: string,
   modules: NavModule[],
 ): string | null {
-  for (const module of modules) {
-    if (!isNavGroupModule(module)) continue;
-    if (isNavModuleActive(pathname, module)) return module.id;
+  for (const navModule of modules) {
+    if (!isNavGroupModule(navModule)) continue;
+    if (isNavModuleActive(pathname, navModule)) return navModule.id;
   }
   return null;
 }
