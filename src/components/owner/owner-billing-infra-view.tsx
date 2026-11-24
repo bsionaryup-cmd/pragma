@@ -1,10 +1,12 @@
 "use client";
 
-import { AlertTriangle, Radio, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Banknote, Radio, ShieldAlert } from "lucide-react";
 import { WompiCredentialsCard } from "@/features/billing/components/wompi-credentials-card";
 import { EpaycoCredentialsCard } from "@/features/billing/components/epayco-credentials-card";
 import type { OwnerBillingInfraSnapshot } from "@/services/platform/owner-billing-infra.service";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -22,7 +24,14 @@ type OwnerBillingInfraViewProps = {
 };
 
 export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) {
-  const { wompi, epayco, webhookStats, failedPayments, recentWebhooks } = snapshot;
+  const {
+    wompi,
+    epayco,
+    webhookStats,
+    failedPayments,
+    pendingManualPayments,
+    recentWebhooks,
+  } = snapshot;
 
   return (
     <div className="space-y-6">
@@ -81,6 +90,77 @@ export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
+            <Banknote className="h-4 w-4" />
+            Comprobantes de transferencia pendientes
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {pendingManualPayments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay comprobantes pendientes de verificación.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Organización</TableHead>
+                    <TableHead>Referencia</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Enviado</TableHead>
+                    <TableHead className="text-right">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingManualPayments.map((row) => (
+                    <TableRow key={row.invoiceId}>
+                      <TableCell>
+                        <div className="font-medium">
+                          {row.organizationName ?? "—"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {row.status}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {row.manualPaymentRef}
+                      </TableCell>
+                      <TableCell>
+                        {formatOwnerCop(row.amount)} {row.currency}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {row.manualSubmittedAt
+                          ? formatDateTime(row.manualSubmittedAt, "—", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.organizationId ? (
+                          <Button asChild size="sm" variant="outline">
+                            <Link
+                              href={`/owner-dashboard/tenant/${row.organizationId}#facturacion`}
+                            >
+                              Revisar
+                            </Link>
+                          </Button>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
             <ShieldAlert className="h-4 w-4" />
             Pagos fallidos y pendientes vencidos
           </CardTitle>
@@ -100,6 +180,7 @@ export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) 
                     <TableHead>Monto</TableHead>
                     <TableHead>Vence</TableHead>
                     <TableHead>Motivo</TableHead>
+                    <TableHead className="text-right">Gestión</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -133,6 +214,19 @@ export function OwnerBillingInfraView({ snapshot }: OwnerBillingInfraViewProps) 
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
                         {row.failureReason ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.organizationId ? (
+                          <Button asChild size="sm" variant="outline">
+                            <Link
+                              href={`/owner-dashboard/tenant/${row.organizationId}#facturacion`}
+                            >
+                              Gestionar
+                            </Link>
+                          </Button>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

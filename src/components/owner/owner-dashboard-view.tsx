@@ -577,6 +577,7 @@ function RevenuePanel({ snapshot }: { snapshot: OwnerDashboardSnapshot }) {
           title="Facturas abiertas"
           emptyLabel="No hay facturas pendientes de cobro."
           rows={snapshot.openInvoices}
+          showManageActions
         />
         <InvoiceTable
           title="Pagos recientes"
@@ -592,10 +593,12 @@ function InvoiceTable({
   title,
   emptyLabel,
   rows,
+  showManageActions = false,
 }: {
   title: string;
   emptyLabel: string;
   rows: OwnerDashboardSnapshot["openInvoices"];
+  showManageActions?: boolean;
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
@@ -611,6 +614,7 @@ function InvoiceTable({
                 <TableHead>Monto</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Fecha</TableHead>
+                {showManageActions ? <TableHead className="text-right">Gestión</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -629,6 +633,15 @@ function InvoiceTable({
                   <TableCell>
                     {inv.paidAt ? formatDate(inv.paidAt) : formatDate(inv.dueAt)}
                   </TableCell>
+                  {showManageActions ? (
+                    <TableCell className="text-right">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/owner-dashboard/tenant/${inv.organizationId}#facturacion`}>
+                          Gestionar
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
             </TableBody>

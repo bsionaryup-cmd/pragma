@@ -37,6 +37,19 @@ export type OwnerFailedPaymentRow = {
   wompiTransactionId: string | null;
 };
 
+export type OwnerPendingManualPaymentRow = {
+  invoiceId: string;
+  organizationId: string | null;
+  organizationName: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  manualPaymentRef: string;
+  manualPaymentNote: string | null;
+  manualSubmittedAt: string | null;
+  dueAt: string;
+};
+
 export type OwnerBillingInfraSnapshot = {
   wompi: WompiCredentialSnapshot;
   epayco: EpaycoCredentialSnapshot;
@@ -47,6 +60,7 @@ export type OwnerBillingInfraSnapshot = {
     duplicate24h: number;
   };
   failedPayments: OwnerFailedPaymentRow[];
+  pendingManualPayments: OwnerPendingManualPaymentRow[];
   recentWebhooks: OwnerWebhookLogRow[];
 };
 
@@ -57,19 +71,26 @@ export async function getOwnerBillingInfraSnapshot(): Promise<OwnerBillingInfraS
   ]);
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [failedPayments, recentWebhooks, webhookStats] = await Promise.all([
-    listFailedSubscriptionPayments(30),
-    listRecentWebhookLogs(40),
-    aggregateWebhookStats(since24h),
-  ]);
+  const [failedPayments, pendingManualPayments, recentWebhooks, webhookStats] =
+    await Promise.all([
+      listFailedSubscriptionPayments(30),
+      listPendingManualPayments(30),
+      listRecentWebhookLogs(40),
+      aggregateWebhookStats(since24h),
+    ]);
 
   return {
     wompi,
     epayco,
     webhookStats,
     failedPayments,
+    pendingManualPayments,
     recentWebhooks,
   };
+}
+
+function isCommercialOrganizationName(name: string | null | undefined) {
+  return name !== PLATFORM_WOMPI_ORG_NAME && name !== PLATFORM_EPAYCO_ORG_NAME;
 }
 
 async function listFailedSubscriptionPayments(
@@ -99,11 +120,7 @@ async function listFailedSubscriptionPayments(
   });
 
   return rows
-    .filter(
-      (row) =>
-        row.account.organization?.name !== PLATFORM_WOMPI_ORG_NAME &&
-        row.account.organization?.name !== PLATFORM_EPAYCO_ORG_NAME,
-    )
+    .filter((row) => isCommercialOrganizationName(row.account.organization?.name))
     .map((row) => ({
       invoiceId: row.id,
       organizationId: row.account.organizationId,
@@ -115,6 +132,47 @@ async function listFailedSubscriptionPayments(
       dueAt: row.dueAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       wompiTransactionId: row.wompiTransactionId,
+    }));
+}
+
+async function listPendingManualPayments(
+  limit: number,
+): Promise<OwnerPendingManualPaymentRow[]> {
+  const rows = await db.billingInvoice.findMany({
+    where: {
+      status: { in: [BillingInvoiceStatus.OPEN, BillingInvoiceStatus.FAILED] },
+      manualPaymentRef: { not: null },
+    },
+    orderBy: [{ manualSubmittedAt: "desc" }, { updatedAt: "desc" }],
+    take: limit,
+    include: {
+      account: {
+        include: {
+          organization: {
+            select: { id: true, name: true },
+          },
+        },
+      },
+    },
+  });
+
+  return rows
+    .filter(
+      (row) =>
+        Boolean(row.manualPaymentRef) &&
+        isCommercialOrganizationName(row.account.organization?.name),
+    )
+    .map((row) => ({
+      invoiceId: row.id,
+      organizationId: row.account.organizationId,
+      organizationName: row.account.organization?.name ?? null,
+      amount: Number(row.amount),
+      currency: row.currency,
+      status: row.status,
+      manualPaymentRef: row.manualPaymentRef!,
+      manualPaymentNote: row.manualPaymentNote,
+      manualSubmittedAt: row.manualSubmittedAt?.toISOString() ?? null,
+      dueAt: row.dueAt.toISOString(),
     }));
 }
 
