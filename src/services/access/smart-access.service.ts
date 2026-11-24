@@ -292,7 +292,10 @@ export async function getSmartAccessOverview(): Promise<SmartAccessOverview> {
         ? {
             id: credentialRow.id,
             status: credentialRow.status,
-            code: formatAccessCode(decryptTTLockSecret(credentialRow.codeEncrypted)),
+            // Only show a code that was actually created on TTLock.
+            code: credentialRow.ttlockCodeId
+              ? formatAccessCode(decryptTTLockSecret(credentialRow.codeEncrypted))
+              : null,
             validFrom: credentialRow.validFrom?.toISOString() ?? null,
             validTo: credentialRow.validTo?.toISOString() ?? null,
             ttlockCodeId: credentialRow.ttlockCodeId,

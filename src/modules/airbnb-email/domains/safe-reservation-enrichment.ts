@@ -44,6 +44,8 @@ export function isPlaceholderGuestName(name: string | null | undefined): boolean
   const normalized = trimmed.toLowerCase();
   if (ICAL_PLACEHOLDER_GUEST_NAMES.has(normalized)) return true;
   if (/^airbnb\b/i.test(trimmed) && trimmed.length <= 40) return true;
+  // iCal / listing pseudo-names like "UIVis Guest-06AA2915"
+  if (/\bguest-[0-9a-f]{4,}\b/i.test(trimmed)) return true;
   return false;
 }
 

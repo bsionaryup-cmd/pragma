@@ -18,6 +18,7 @@ describe("safe reservation enrichment helpers", () => {
     assert.equal(isPlaceholderGuestName("Huésped Airbnb"), true);
     assert.equal(isPlaceholderGuestName("Airbnb"), true);
     assert.equal(isPlaceholderGuestName("Airbnb te envió un mensaje"), true);
+    assert.equal(isPlaceholderGuestName("UIVis Guest-06AA2915"), true);
     assert.equal(isPlaceholderGuestName("Ana García"), false);
   });
 
