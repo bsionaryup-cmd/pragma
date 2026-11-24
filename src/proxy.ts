@@ -28,6 +28,7 @@ const isPublicRoute = createRouteMatcher([
   "/demo",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/login(.*)",
   "/forgot-password",
   "/intiendas/login",
   "/intiendas/login/recuperar",
@@ -46,6 +47,7 @@ const isPublicRoute = createRouteMatcher([
   "/offer/(.*)",
   "/landing-product-screenshot-preview",
   "/urbanovaloft",
+  "/urbanovaloft/(.*)",
   "/api/web-builder(.*)",
 ]);
 
@@ -127,8 +129,11 @@ export default clerkMiddleware(
 
     const authState = await auth();
     if (!authState.userId) {
-      await auth.protect();
-      return;
+      // Prefer explicit /sign-in (app route). Avoid Clerk protect-rewrite to /login (404).
+      const signInUrl = new URL("/sign-in", request.url);
+      const nextPath = `${pathname}${request.nextUrl.search}`;
+      signInUrl.searchParams.set("next", nextPath || "/panel");
+      return NextResponse.redirect(signInUrl);
     }
 
     if (
