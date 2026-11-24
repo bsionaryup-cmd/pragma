@@ -7,6 +7,7 @@ import { assertReservationInScope } from "@/lib/platform/tenant-access";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { reservationPropertyWhere } from "@/lib/platform/tenant-data-scope";
 import {
+  adjustAccessWindowForReservation,
   approvePendingAccessCode,
   activateAccessCodeForReservation,
   generateAccessCodeForReservation,
@@ -64,6 +65,17 @@ export async function suspendAccessCodeAction(reservationId: string) {
   await requirePermission("access:manage");
   await assertAccessReservationInScope(reservationId);
   const result = await suspendAccessCodeForReservation(reservationId);
+  revalidateSmartAccess();
+  return result;
+}
+
+export async function adjustAccessWindowAction(
+  reservationId: string,
+  overrides: { earlyCheckInTime?: string | null; lateCheckOutTime?: string | null },
+) {
+  await requirePermission("access:manage");
+  await assertAccessReservationInScope(reservationId);
+  const result = await adjustAccessWindowForReservation(reservationId, overrides);
   revalidateSmartAccess();
   return result;
 }

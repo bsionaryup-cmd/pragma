@@ -3,11 +3,12 @@
  * @clerk/backend emit handshake `client-uat-but-no-session-token`.
  *
  * Following that handshake wipes cookies. PRAGMA intercepts it ("settle-bridge").
- * Redirecting again while already on `/sign-in` causes ERR_TOO_MANY_REDIRECTS:
- *   /sign-in?redirect_url=/panel  →  307  →  /sign-in?redirect_url=/panel
+ * Redirecting again while already on `/login` causes ERR_TOO_MANY_REDIRECTS.
  *
  * Pure decision helper — no Next.js Response objects (unit-testable).
  */
+
+import { APP_LOGIN_PATH } from "@/lib/auth/auth-paths";
 
 export type IncompleteSessionBridgeDecision =
   | {
@@ -17,7 +18,7 @@ export type IncompleteSessionBridgeDecision =
   | {
       action: "redirect";
       marker: "settle-bridge";
-      loginPath: "/sign-in" | "/owner-login";
+      loginPath: typeof APP_LOGIN_PATH | "/sign-in" | "/owner-login" | "/login";
       /** Destination after login (path + optional search). */
       nextPath: string;
       /** Query param name Clerk / our forms already understand. */
@@ -26,10 +27,12 @@ export type IncompleteSessionBridgeDecision =
 
 function isAuthSurfacePath(pathname: string): boolean {
   return (
+    pathname.startsWith("/login") ||
     pathname.startsWith("/sign-in") ||
     pathname.startsWith("/sign-up") ||
     pathname.startsWith("/owner-login") ||
-    pathname.startsWith("/auth/") ||
+    pathname === "/auth/continue" ||
+    pathname.startsWith("/auth/continue/") ||
     pathname.startsWith("/forgot-password")
   );
 }
@@ -46,15 +49,13 @@ export function resolveIncompleteSessionBridge(
   }
 
   const rawPath = `${pathname}${search}` || "/panel";
-  const isOwner =
-    pathname.startsWith("/owner") || pathname.includes("owner-dashboard");
 
   return {
     action: "redirect",
     marker: "settle-bridge",
-    loginPath: isOwner ? "/owner-login" : "/sign-in",
+    loginPath: APP_LOGIN_PATH,
     nextPath: rawPath.startsWith("/") ? rawPath : `/${rawPath}`,
-    redirectParam: isOwner ? "next" : "redirect_url",
+    redirectParam: "redirect_url",
   };
 }
 

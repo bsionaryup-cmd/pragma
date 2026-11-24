@@ -84,7 +84,7 @@ describe("Resend email delivery", () => {
         assert.equal(shouldSimulateEmailDelivery(), false);
 
         const result = await sendEmail({
-          to: "cliente@example.com",
+          to: "cliente@hotel-real.com",
           subject: "Factura PRAGMA",
           html: "<p>test</p>",
         });
@@ -92,6 +92,51 @@ describe("Resend email delivery", () => {
         assert.equal(result.ok, false);
         assert.equal(result.id, undefined);
         assert.match(result.message, /RESEND_API_KEY/i);
+      },
+    );
+  });
+
+  it("treats Vercel preview as non-production (simulates without API key)", async () => {
+    await withEnv(
+      {
+        RESEND_API_KEY: undefined,
+        NODE_ENV: "production",
+        VERCEL: "1",
+        VERCEL_ENV: "preview",
+      },
+      async () => {
+        assert.equal(isProductionEmailRuntime(), false);
+        assert.equal(shouldSimulateEmailDelivery(), true);
+
+        const result = await sendEmail({
+          to: "admin@edificio.com",
+          subject: "Preview",
+          html: "<p>test</p>",
+        });
+
+        assert.equal(result.ok, true);
+        assert.equal(result.id, "simulated");
+      },
+    );
+  });
+
+  it("blocks synthetic recipients in live mode", async () => {
+    await withEnv(
+      {
+        RESEND_API_KEY: "re_test_key",
+        NODE_ENV: "production",
+        VERCEL: undefined,
+        VERCEL_ENV: undefined,
+        EMAIL_ALLOW_TEST_RECIPIENTS: undefined,
+      },
+      async () => {
+        const result = await sendEmail({
+          to: "e2e-owner-abc@example.com",
+          subject: "E2E",
+          html: "<p>x</p>",
+        });
+        assert.equal(result.ok, false);
+        assert.match(result.message, /prueba|bloqueado/i);
       },
     );
   });

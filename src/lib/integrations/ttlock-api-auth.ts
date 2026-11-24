@@ -65,7 +65,7 @@ export async function requireTTLockApiAdmin(
     if (browser) {
       const next = encodeURIComponent("/integrations/ttlock");
       return NextResponse.redirect(
-        resolveTTLockAppRedirectUrl(`/sign-in?next=${next}`, request.url),
+        resolveTTLockAppRedirectUrl(`/login?redirect_url=${next}`, request.url),
       );
     }
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -75,7 +75,7 @@ export async function requireTTLockApiAdmin(
   if (!user?.isActive) {
     if (browser) {
       return NextResponse.redirect(
-        resolveTTLockAppRedirectUrl("/sign-in?inactive=1", request.url),
+        resolveTTLockAppRedirectUrl("/login?inactive=1", request.url),
       );
     }
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { ReservationStatus, BookingPlatform } from "@prisma/client";
-import { buildIcalSyncReservationUpdate } from "@/services/airbnb/ical-guest-name-sync";
+import {
+  buildIcalSyncReservationUpdate,
+  splitIcalSyncUpdateForSafePersist,
+} from "@/services/airbnb/ical-guest-name-sync";
 
 describe("buildIcalSyncReservationUpdate guest name preservation", () => {
   const payload = {
@@ -43,5 +46,15 @@ describe("buildIcalSyncReservationUpdate guest name preservation", () => {
 
     assert.equal("guestName" in update, false);
     assert.equal(update.status, payload.status);
+  });
+
+  it("splitIcalSyncUpdateForSafePersist isolates guestName for guarded write", () => {
+    const update = buildIcalSyncReservationUpdate(payload, {
+      guestName: "Huésped Airbnb",
+      guestRegistrationCompletedAt: null,
+    });
+    const split = splitIcalSyncUpdateForSafePersist(update);
+    assert.equal(split.guestNameOnlyIfUnlocked?.guestName, payload.guestName);
+    assert.equal("guestName" in split.always, false);
   });
 });

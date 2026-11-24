@@ -1,6 +1,7 @@
 import "server-only";
 
 import { BookingPlatform, ReservationStatus } from "@prisma/client";
+import { isSyntheticGuestContext } from "@/lib/email/email-safety";
 import { sendEmail } from "@/lib/email/send-email";
 import { formatMoney } from "@/lib/format-currency";
 import {
@@ -263,6 +264,8 @@ export async function sendGuestRegistrationEmailForReservation(
       platform: true,
       status: true,
       guestEmail: true,
+      guestName: true,
+      guestFirstName: true,
       holdExpiresAt: true,
       guestRegistrationInviteSentAt: true,
       guestRegistrationInviteError: true,
@@ -271,6 +274,21 @@ export async function sendGuestRegistrationEmailForReservation(
 
   if (!reservation) {
     return { ok: false, message: "Reserva no encontrada" };
+  }
+
+  if (
+    !force &&
+    isSyntheticGuestContext({
+      guestEmail: reservation.guestEmail,
+      guestName: reservation.guestName,
+      guestFirstName: reservation.guestFirstName,
+    })
+  ) {
+    return {
+      ok: true,
+      skipped: true,
+      message: "Huésped sintético/E2E — bienvenida omitida",
+    };
   }
 
   if (!force) {

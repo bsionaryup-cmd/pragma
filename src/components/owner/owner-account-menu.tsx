@@ -28,6 +28,7 @@ import {
   getUserDisplayName,
   getUserInitials,
 } from "@/lib/helpers/user-display";
+import { performFullSignOut } from "@/lib/auth/full-sign-out";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
 import { OwnerPmsEntryButton } from "@/components/owner/owner-pms-entry-button";
 import { cn } from "@/lib/utils";
@@ -61,7 +62,7 @@ export function OwnerAccountMenu({
   const onOwnerDashboard = pathname.startsWith(OWNER_DASHBOARD_PATH);
 
   async function handleLogout() {
-    await signOut({ redirectUrl: "/owner-login" });
+    await performFullSignOut(signOut);
   }
 
   return (

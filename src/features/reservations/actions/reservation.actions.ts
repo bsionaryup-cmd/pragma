@@ -6,8 +6,10 @@ import { BookingPlatform } from "@prisma/client";
 import {
   reservationWizardSchema,
   reservationEditSchema,
+  reservationOccupancyEditSchema,
   type ReservationWizardValues,
   type ReservationEditValues,
+  type ReservationOccupancyEditValues,
 } from "@/features/reservations/schemas/reservation.schema";
 import type { ReservationInboxItem, ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
@@ -30,6 +32,10 @@ import {
   updateReservation,
   type ReservationSearchHit,
 } from "@/services/reservations/reservation.service";
+import {
+  ReservationOccupancyError,
+  updateReservationOccupancyManual,
+} from "@/services/reservations/reservation-occupancy-manual.service";
 import { prismaDateToKey } from "@/lib/dates";
 import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
 import { scheduleMonthlyFinanceMetricsRefreshForStay } from "@/services/finance/monthly-finance-metrics-refresh";
@@ -208,6 +214,47 @@ export async function searchReservationsAction(query: string) {
       error: "No se pudo buscar reservas",
       results: [] as ReservationSearchHit[],
     };
+  }
+}
+
+export async function updateReservationOccupancyAction(
+  id: string,
+  data: ReservationOccupancyEditValues,
+) {
+  await requirePermission("reservations:write");
+  await assertBillingUnlocked();
+  const parsed = reservationOccupancyEditSchema.parse(data);
+  const existing = await getReservationMutationContext(id);
+  if (!existing) {
+    return { success: false as const, error: "Reserva no encontrada" };
+  }
+
+  try {
+    const result = await updateReservationOccupancyManual(id, {
+      adults: parsed.adults,
+      children: parsed.children,
+      infants: parsed.infants,
+    });
+    schedulePriceLabsRefresh("reservation");
+    revalidatePath("/calendar");
+    revalidatePath("/properties");
+    revalidatePath("/");
+    revalidatePath("/smart-access");
+    revalidatePath("/panel");
+
+    const reservation = await getReservationForInbox(id);
+    if (!reservation) {
+      return { success: false as const, error: "Reserva no encontrada" };
+    }
+    return { success: true as const, reservation, occupancy: result };
+  } catch (error) {
+    if (error instanceof ReservationOccupancyError) {
+      return { success: false as const, error: error.message };
+    }
+    if (error instanceof Error) {
+      return { success: false as const, error: error.message };
+    }
+    throw error;
   }
 }
 

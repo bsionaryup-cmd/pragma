@@ -46,7 +46,7 @@ async function fetchClerkUser() {
   } catch (error) {
     if (isClerkAPIResponseError(error)) {
       console.error("[auth] Clerk API no disponible:", error.errors ?? error.message);
-      redirect("/sign-in?clerk_unavailable=1");
+      redirect("/login?clerk_unavailable=1");
     }
     throw error;
   }
@@ -97,15 +97,13 @@ export const requireDbUser = cache(async (): Promise<User> => {
     const headerStore = await headers();
     const pathname = headerStore.get("x-pathname") || "/panel";
     const next =
+      pathname.startsWith("/login") ||
       pathname.startsWith("/sign-in") ||
       pathname.startsWith("/auth/") ||
       pathname.startsWith("/owner-login")
         ? "/panel"
         : pathname;
-    if (next.startsWith("/owner-dashboard") || next.startsWith("/owner")) {
-      redirect(`/owner-login?next=${encodeURIComponent(next)}`);
-    }
-    redirect(`/sign-in?redirect_url=${encodeURIComponent(next)}`);
+    redirect(`/login?redirect_url=${encodeURIComponent(next)}`);
   }
 
   let dbUser = await fetchDbUserByClerkId(userId);
@@ -174,11 +172,11 @@ export const requireDbUser = cache(async (): Promise<User> => {
   }
 
   if (dbUser && !dbUser.isActive) {
-    redirect("/sign-in?inactive=1");
+    redirect("/login?inactive=1");
   }
 
   const clerkUser = await fetchClerkUser();
-  if (!clerkUser) redirect("/sign-in");
+  if (!clerkUser) redirect("/login");
 
   try {
     if (!dbUser) {
@@ -201,10 +199,10 @@ export const requireDbUser = cache(async (): Promise<User> => {
     }
   } catch (error) {
     if (error instanceof ExistingAccountConflictError) {
-      redirect("/sign-in?existing_account=1");
+      redirect("/login?existing_account=1");
     }
     if (error instanceof TrialAlreadyConsumedError) {
-      redirect("/sign-in?trial_consumed=1");
+      redirect("/login?trial_consumed=1");
     }
     throw error;
   }

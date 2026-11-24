@@ -7,5 +7,6 @@ export * from "@/integrations/pricelabs/status";
 export * from "@/integrations/pricelabs/listings";
 export * from "@/integrations/pricelabs/pricing";
 export * from "@/integrations/pricelabs/overrides";
+export * from "@/integrations/pricelabs/customizations";
 export * from "@/integrations/pricelabs/neighborhood";
 export * from "@/integrations/pricelabs/service";

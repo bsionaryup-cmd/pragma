@@ -13,7 +13,8 @@ export const maxDuration = 120;
 
 /**
  * Sincronización programada Airbnb → PRAGMA para todos los owners con iCal.
- * Configurar en Vercel Cron con header Authorization: Bearer CRON_SECRET
+ * Cada hora (minuto :20) para importar reservas nuevas sin esperar al día siguiente.
+ * Auth: Authorization: Bearer CRON_SECRET
  */
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {

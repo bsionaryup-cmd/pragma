@@ -1,11 +1,14 @@
 import "server-only";
 
 import { formatAccessCode } from "@/lib/access-code";
+import { isSyntheticGuestContext } from "@/lib/email/email-safety";
 import { sendEmail } from "@/lib/email/send-email";
 import { formatDate, formatDateTime } from "@/lib/helpers/date";
 import {
+  GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS,
   GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
   getLatestGuestRegistrationAdminNotificationLogEntry,
+  isGuestRegistrationAdminNotificationLockStale,
   parseGuestRegistrationAdminNotificationLog,
   type GuestRegistrationAdminNotificationAttemptStatus,
   type GuestRegistrationAdminNotificationLogEntry,
@@ -52,6 +55,10 @@ async function loadAdminNotificationContext(reservationId: string) {
       guestRegistrationAdminNotifiedAt: true,
       guestRegistrationAdminNotificationError: true,
       guestRegistrationAdminNotificationLog: true,
+      updatedAt: true,
+      guestName: true,
+      guestEmail: true,
+      guestFirstName: true,
       checkIn: true,
       checkOut: true,
       property: {
@@ -153,7 +160,11 @@ async function buildEmailPayload(
   };
 }
 
-function claimableAdminNotificationErrorFilter() {
+function claimableAdminNotificationErrorFilter(now = new Date()) {
+  const staleBefore = new Date(
+    now.getTime() -
+      GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS,
+  );
   return {
     OR: [
       { guestRegistrationAdminNotificationError: null },
@@ -161,6 +172,11 @@ function claimableAdminNotificationErrorFilter() {
         guestRegistrationAdminNotificationError: {
           not: GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
         },
+      },
+      {
+        guestRegistrationAdminNotificationError:
+          GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
+        updatedAt: { lte: staleBefore },
       },
     ],
   };
@@ -262,6 +278,21 @@ export async function notifyAdminGuestRegistrationCompleted(
 
     if (
       !force &&
+      isSyntheticGuestContext({
+        guestEmail: reservation.guestEmail,
+        guestName: reservation.guestName,
+        guestFirstName: reservation.guestFirstName,
+      })
+    ) {
+      return {
+        ok: true,
+        skipped: true,
+        message: "Huésped sintético/E2E — notificación admin omitida",
+      };
+    }
+
+    if (
+      !force &&
       reservation.guestRegistrationAdminNotifiedAt &&
       reservation.guestRegistrationAdminNotificationError !==
         GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER
@@ -279,9 +310,15 @@ export async function notifyAdminGuestRegistrationCompleted(
         latest?.guestRegistrationAdminNotificationError ===
         GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER
       ) {
+        const stale = isGuestRegistrationAdminNotificationLockStale({
+          error: latest.guestRegistrationAdminNotificationError,
+          updatedAt: latest.updatedAt,
+        });
         return {
           ok: false,
-          message: "Ya hay un envío en curso para esta reserva",
+          message: stale
+            ? "El envío anterior quedó interrumpido; vuelve a intentar"
+            : "Ya hay un envío en curso para esta reserva",
           skipped: true,
         };
       }
@@ -413,6 +450,7 @@ export function buildGuestRegistrationAdminNotificationStatus(input: {
   notificationEmails: unknown;
   operationalContacts?: unknown;
   guestRegistrationContactKey?: string | null;
+  reservationUpdatedAt?: Date;
 }) {
   const recipientResolution = resolveAdminRecipients({
     notificationEmails: input.notificationEmails,
@@ -426,9 +464,18 @@ export function buildGuestRegistrationAdminNotificationStatus(input: {
   const latest = getLatestGuestRegistrationAdminNotificationLogEntry(
     input.guestRegistrationAdminNotificationLog,
   );
-  const visibleError =
+  const sending =
     input.guestRegistrationAdminNotificationError ===
-    GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER
+    GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER;
+  const sendingStale =
+    sending && input.reservationUpdatedAt
+      ? isGuestRegistrationAdminNotificationLockStale({
+          error: input.guestRegistrationAdminNotificationError,
+          updatedAt: input.reservationUpdatedAt,
+        })
+      : false;
+  const visibleError =
+    sending
       ? null
       : input.guestRegistrationAdminNotificationError;
 
@@ -436,6 +483,8 @@ export function buildGuestRegistrationAdminNotificationStatus(input: {
     completed: Boolean(input.guestRegistrationCompletedAt),
     notifiedAt: input.guestRegistrationAdminNotifiedAt?.toISOString() ?? null,
     error: visibleError,
+    sending,
+    sendingStale,
     recipients,
     recipientSource: recipientResolution.source,
     selectedContact: recipientResolution.selectedContact,

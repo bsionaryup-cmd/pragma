@@ -241,11 +241,11 @@ export function GuestRegistrationForm({
                 Registra a quienes se hospedarán
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Esta propiedad admite hasta{" "}
+                Debes registrar a{" "}
                 <strong>{reservation.maxCapacity}</strong> huésped
-                {reservation.maxCapacity === 1 ? "" : "es"}. Registra al titular
-                primero y luego agrega acompañantes. Solo te pediremos estos
-                datos una vez.
+                {reservation.maxCapacity === 1 ? "" : "es"} de esta reserva.
+                Registra al titular primero y luego agrega acompañantes. Solo te
+                pediremos estos datos una vez.
               </p>
             </div>
           </div>
@@ -329,7 +329,10 @@ export function GuestRegistrationForm({
             type="button"
             className="h-11"
             onClick={() => setStep("confirm")}
-            disabled={registeredGuests.length === 0}
+            disabled={
+              registeredGuests.length === 0 ||
+              reservation.registeredCount !== reservation.maxCapacity
+            }
           >
             Finalizar registro
           </Button>

@@ -3,6 +3,8 @@ import { hasPermission, requirePermission } from "@/lib/auth";
 import { redirectIfMissingPlanFeature } from "@/lib/billing/require-plan-feature";
 import type { AppUserRole } from "@/types/auth";
 import { getSmartAccessOverview } from "@/services/access/smart-access.service";
+import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
+import { getOperationalAccessOverview } from "@/services/integrations/ttlock/ttlock-operational-access.service";
 import { PragmaLoader } from "@/components/brand/pragma-loader";
 
 const SmartAccessDashboard = dynamic(
@@ -23,11 +25,19 @@ const SmartAccessDashboard = dynamic(
 
 export default async function SmartAccessPage() {
   await redirectIfMissingPlanFeature("ttlock", "/smart-access");
-  const [user, data] = await Promise.all([
-    requirePermission("access:read"),
+  const user = await requirePermission("access:read");
+  const scope = await requireTenantDataScope();
+  const [data, operationalData] = await Promise.all([
     getSmartAccessOverview(),
+    getOperationalAccessOverview(scope),
   ]);
   const canManage = hasPermission(user.role as AppUserRole, "access:manage");
 
-  return <SmartAccessDashboard data={data} canManage={canManage} />;
+  return (
+    <SmartAccessDashboard
+      data={data}
+      operationalData={operationalData}
+      canManage={canManage}
+    />
+  );
 }

@@ -23,3 +23,7 @@ public/marketing/screenshots/0f-final/
 src/app/api/cron/guest-registration-admin-notify-e2e/
 src/components/layout/nav-layout-probe.ts
 src/components/layout/nav-sub-sidebar-debug.ts
+
+# Desktop Electron / Chrome extension — local bridges only (large; never upload)
+desktop/
+extensions/

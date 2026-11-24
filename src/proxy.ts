@@ -51,8 +51,11 @@ const CASE_CANONICAL_PREFIXES = [
   "/smart-access",
   "/finance",
   "/settings",
+  "/login",
   "/sign-in",
   "/sign-up",
+  "/owner-login",
+  "/post-login",
   "/auth/continue",
   "/onboarding",
   "/unauthorized",
@@ -75,11 +78,12 @@ const isPublicRoute = createRouteMatcher([
   "/pricing",
   "/contact",
   "/demo",
+  "/login(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/owner-login(.*)",
   "/auth/continue",
   "/forgot-password",
-  `${OWNER_LOGIN_PATH}(.*)`,
   "/account-suspended",
   "/api/auth/session-ready",
   "/api/auth/establish-session",
@@ -95,7 +99,6 @@ const isPublicRoute = createRouteMatcher([
   "/guest-registration/(.*)",
   "/stay",
   "/stay/(.*)",
-  "/offer/(.*)",
   "/landing-product-screenshot-preview",
 ]);
 
@@ -261,14 +264,14 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
     return NextResponse.redirect(url);
   }
 
-  // INTIENDAS product retired: only PMS tenant (/sign-in) and owner (/owner-login).
+  // INTIENDAS product retired: only PMS unified /login.
   if (lowerPath === "/intiendas" || lowerPath.startsWith("/intiendas/")) {
     const url = request.nextUrl.clone();
     if (
       lowerPath === "/intiendas/login" ||
       lowerPath.startsWith("/intiendas/login/")
     ) {
-      url.pathname = "/sign-in";
+      url.pathname = "/login";
       url.search = "";
       return NextResponse.redirect(url);
     }
@@ -301,13 +304,15 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
   }
 
   if (isOwnerRoute(request)) {
+    // Owner APIs authenticate inside requirePlatformOwnerUser (Node). Avoid Edge
+    // middleware 401s that surface as "Unauthorized" while the dashboard RSC is signed-in.
+    if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
+      return forwardWithPathname(request, pathname);
+    }
     const authState = await auth();
     if (!authState.userId) {
-      if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
       const loginUrl = new URL(OWNER_LOGIN_PATH, request.url);
-      loginUrl.searchParams.set("next", pathname);
+      loginUrl.searchParams.set("redirect_url", pathname);
       return NextResponse.redirect(loginUrl);
     }
     return forwardWithPathname(request, pathname);
@@ -322,7 +327,7 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const signInUrl = new URL("/sign-in", request.url);
+    const signInUrl = new URL(OWNER_LOGIN_PATH, request.url);
     signInUrl.searchParams.set("redirect_url", pathname);
     return NextResponse.redirect(signInUrl);
   }

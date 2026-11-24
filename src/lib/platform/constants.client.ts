@@ -4,7 +4,8 @@ export const PLATFORM_OWNER_EMAIL =
   "bsionaryup@gmail.com";
 
 export const OWNER_DASHBOARD_PATH = "/owner-dashboard";
-export const OWNER_LOGIN_PATH = "/owner-login";
+/** Unified login (was /owner-login). */
+export const OWNER_LOGIN_PATH = "/login";
 
 /**
  * Pilot PMS tenant (URBA Nova Loft / urbanovaloft).

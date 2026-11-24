@@ -17,6 +17,7 @@ import {
   getUserInitials,
 } from "@/lib/helpers/user-display";
 import { hasPermission } from "@/lib/auth/permissions";
+import { performFullSignOut } from "@/lib/auth/full-sign-out";
 import { cn } from "@/lib/utils";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
 
@@ -36,7 +37,7 @@ export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
   const canAccessSettings = hasPermission(user.role ?? "RECEPTIONIST", "settings:read");
 
   async function handleLogout() {
-    await signOut({ redirectUrl: "/sign-in?signed_out=1" });
+    await performFullSignOut(signOut);
   }
 
   return (

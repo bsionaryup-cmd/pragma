@@ -18,6 +18,27 @@ export type GuestRegistrationAdminNotificationLogEntry = {
 export const GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER =
   "__SENDING__";
 
+/** A serverless invocation should never hold an email claim this long. */
+export const GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS =
+  5 * 60 * 1000;
+
+export function isGuestRegistrationAdminNotificationLockStale(input: {
+  error: string | null;
+  updatedAt: Date;
+  now?: Date;
+}): boolean {
+  if (
+    input.error !== GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER
+  ) {
+    return false;
+  }
+  const now = input.now ?? new Date();
+  return (
+    now.getTime() - input.updatedAt.getTime() >=
+    GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS
+  );
+}
+
 export function parseGuestRegistrationAdminNotificationLog(
   value: unknown,
 ): GuestRegistrationAdminNotificationLogEntry[] {

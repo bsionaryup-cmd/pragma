@@ -50,6 +50,7 @@ import {
 } from "@/lib/reservations/reservation-ota";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
+import { isGuestRegistrationPendingUpdate } from "@/lib/reservations/guest-registration-pending-update";
 import { buildGuestRegistrationAdminNotificationStatus } from "@/services/guests/guest-registration-admin-notification.service";
 
 function computeGuestRegistrationProgress(input: {
@@ -74,7 +75,12 @@ function computeGuestRegistrationProgress(input: {
     guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
     registeredCount: registered > 0 ? registered : undefined,
   });
-  return { registered, capacity };
+  const pendingUpdate = isGuestRegistrationPendingUpdate({
+    guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
+    registered,
+    capacity,
+  });
+  return { registered, capacity, pendingUpdate };
 }
 
 function buildGuestName(firstName: string, lastName?: string | null): string {
@@ -198,6 +204,7 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
                 operationalContacts: r.property.operationalContacts ?? [],
                 guestRegistrationContactKey:
                   r.property.guestRegistrationContactKey ?? null,
+                reservationUpdatedAt: r.updatedAt,
               });
             } catch (error) {
               console.warn(
@@ -784,9 +791,23 @@ export async function updateReservation(
   await assertReservationInScope(scope, id);
   const existing = await db.reservation.findFirst({
     where: { id },
-    select: { checkIn: true, checkOut: true, status: true, propertyId: true },
+    select: {
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      propertyId: true,
+      adults: true,
+      children: true,
+      infants: true,
+    },
   });
   if (!existing) throw new Error("Reserva no encontrada");
+
+  const previousOccupancy = {
+    adults: existing.adults,
+    children: existing.children,
+    infants: existing.infants,
+  };
 
   const allowHistoricalOverride = canUseHistoricalReservationOverride(tenantCtx);
   const existingCheckIn = prismaDateToKey(existing.checkIn);
@@ -848,6 +869,27 @@ export async function updateReservation(
     );
   }
 
+  const registeredForCapacity = await db.reservationGuest.count({
+    where: {
+      reservationId: id,
+      status: { not: ReservationGuestStatus.PENDING_REGISTRATION },
+    },
+  });
+  const nextExpected = getGuestRegistrationMaxCapacity({
+    platform: BookingPlatform.DIRECT,
+    adults: data.adults,
+    children: data.children,
+    infants: data.infants,
+    propertyMaxGuests: property.maxGuests,
+    registeredCount:
+      registeredForCapacity > 0 ? registeredForCapacity : undefined,
+  });
+  if (registeredForCapacity > nextExpected) {
+    throw new Error(
+      `Ya hay ${registeredForCapacity} huésped${registeredForCapacity === 1 ? "" : "es"} registrado${registeredForCapacity === 1 ? "" : "s"}. No puedes bajar la ocupación de registro por debajo de ese número.`,
+    );
+  }
+
   const checkIn = dateKeyToPrismaDate(data.checkIn);
   const checkOut = dateKeyToPrismaDate(data.checkOut);
   await assertNoReservationOverlap(data.propertyId, checkIn, checkOut, id);
@@ -884,6 +926,21 @@ export async function updateReservation(
     await touchPropertyIcalExport(existing.propertyId);
   }
   await touchPropertyIcalExport(data.propertyId);
+
+  const occupancyChanged =
+    previousOccupancy.adults !== data.adults ||
+    previousOccupancy.children !== data.children ||
+    previousOccupancy.infants !== data.infants;
+  if (occupancyChanged) {
+    const { syncGuestRegistrationAfterOccupancyChange } = await import(
+      "@/services/reservations/reservation-occupancy-manual.service"
+    );
+    await syncGuestRegistrationAfterOccupancyChange(id, {
+      previousOccupancy,
+    }).catch((error) => {
+      console.warn("[updateReservation] occupancy GR sync failed", id, error);
+    });
+  }
 
   return updated;
 }

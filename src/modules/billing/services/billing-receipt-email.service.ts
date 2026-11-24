@@ -290,12 +290,22 @@ export async function sendBillingReceiptEmail(
   });
   const recipient = await resolveBillingRecipient(account?.organizationId);
 
-  if (invoice.invoiceEmailSentAt) {
+  // Claim before send — prevents duplicate receipts under concurrent activation.
+  const claimed = await markReceiptEmailSent(invoice.id);
+  if (!claimed) {
     return { ok: true, message: "Correo de factura ya enviado" };
   }
 
   if (!recipient?.email) {
     console.error("[billing] receipt email: no recipient configured");
+    try {
+      await db.billingInvoice.updateMany({
+        where: { id: invoice.id },
+        data: { invoiceEmailSentAt: null },
+      });
+    } catch (error) {
+      if (!isInvoiceEmailColumnMissing(error)) throw error;
+    }
     return { ok: false, message: "No hay correo de facturación registrado" };
   }
 
@@ -327,6 +337,14 @@ export async function sendBillingReceiptEmail(
   });
 
   if (!result.ok) {
+    try {
+      await db.billingInvoice.updateMany({
+        where: { id: invoice.id },
+        data: { invoiceEmailSentAt: null },
+      });
+    } catch (error) {
+      if (!isInvoiceEmailColumnMissing(error)) throw error;
+    }
     await writePaymentAuditLog({
       entityType: "billing_invoice",
       entityId: invoice.id,
@@ -338,11 +356,6 @@ export async function sendBillingReceiptEmail(
       },
     });
     return result;
-  }
-
-  const marked = await markReceiptEmailSent(invoice.id);
-  if (!marked && (await wasReceiptEmailSent(invoice.id))) {
-    return { ok: true, message: "Correo de factura ya enviado" };
   }
 
   await writePaymentAuditLog({

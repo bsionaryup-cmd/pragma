@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Clock,
   Copy,
   Link2,
   Mail,
@@ -25,9 +26,12 @@ import {
 } from "@/features/guests/actions/guest-registration.actions";
 import { deleteReservationAction } from "@/features/reservations/actions/reservation.actions";
 import { ReservationEditForm } from "@/features/reservations/components/reservation-edit-form";
+import { ReservationOccupancyEditForm } from "@/features/reservations/components/reservation-occupancy-edit-form";
 import {
+  getReservationAccessEventsAction,
   getReservationActivityAction,
   markReservationActivitySeenAction,
+  type AccessEventRow,
 } from "@/features/reservations/actions/reservation-activity.actions";
 import { getReservationEmailEnrichmentAction } from "@/features/reservations/actions/reservation-email-enrichment.actions";
 import { ReservationActivityTimeline } from "@/features/reservations/components/reservation-activity-timeline";
@@ -48,7 +52,9 @@ import type {
   ReservationDetailItem,
   ReservationGuestDto,
 } from "@/features/reservations/types/reservation.types";
+import { adjustAccessWindowAction } from "@/features/smart-access/actions/smart-access.actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { DetailEmptyState } from "@/components/detail/detail-section";
 import { formatCurrency } from "@/lib/helpers";
 import { ReservationSourceBadge } from "@/components/reservations/reservation-source-badge";
@@ -144,6 +150,97 @@ function ReservationStatusBadge({
     >
       {label}
     </span>
+  );
+}
+
+function AccessScheduleSection({
+  reservationId,
+  checkInTime,
+  checkOutTime,
+  validFrom,
+  validTo,
+}: {
+  reservationId: string;
+  checkInTime: string;
+  checkOutTime: string;
+  validFrom: string | null;
+  validTo: string | null;
+}) {
+  const extractTime = (iso: string | null, fallback: string) => {
+    if (!iso) return fallback;
+    const d = new Date(iso);
+    const h = d.getUTCHours() - 5;
+    const adjH = h < 0 ? h + 24 : h;
+    return `${String(adjH).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  };
+
+  const currentIn = extractTime(validFrom, checkInTime);
+  const currentOut = extractTime(validTo, checkOutTime);
+  const [earlyTime, setEarlyTime] = useState(currentIn);
+  const [lateTime, setLateTime] = useState(currentOut);
+  const [saving, startSave] = useTransition();
+  const router = useRouter();
+
+  const hasChanges = earlyTime !== currentIn || lateTime !== currentOut;
+
+  const handleSave = () => {
+    const overrides: { earlyCheckInTime?: string; lateCheckOutTime?: string } = {};
+    if (earlyTime !== currentIn) overrides.earlyCheckInTime = earlyTime;
+    if (lateTime !== currentOut) overrides.lateCheckOutTime = lateTime;
+    if (!overrides.earlyCheckInTime && !overrides.lateCheckOutTime) return;
+
+    startSave(async () => {
+      const result = await adjustAccessWindowAction(reservationId, overrides);
+      if (result.ok) {
+        toast.success(result.message);
+        router.refresh();
+      } else {
+        toast.error(result.message);
+      }
+    });
+  };
+
+  return (
+    <ReservationDetailSection title="Configuración de acceso">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-medium text-muted-foreground">
+            <Clock className="mr-0.5 inline h-3 w-3" />
+            Check-in
+          </label>
+          <Input
+            type="time"
+            value={earlyTime}
+            onChange={(e) => setEarlyTime(e.target.value)}
+            className="h-7 text-xs"
+            disabled={saving}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-medium text-muted-foreground">
+            <Clock className="mr-0.5 inline h-3 w-3" />
+            Check-out
+          </label>
+          <Input
+            type="time"
+            value={lateTime}
+            onChange={(e) => setLateTime(e.target.value)}
+            className="h-7 text-xs"
+            disabled={saving}
+          />
+        </div>
+      </div>
+      {hasChanges ? (
+        <Button
+          size="sm"
+          className="mt-2 h-7 w-full text-xs"
+          disabled={saving}
+          onClick={handleSave}
+        >
+          {saving ? "Guardando…" : "Guardar horario"}
+        </Button>
+      ) : null}
+    </ReservationDetailSection>
   );
 }
 
@@ -335,12 +432,14 @@ export function ReservationDetailPanel({
   const router = useRouter();
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editingOccupancy, setEditingOccupancy] = useState(false);
   const [emailEnrichment, setEmailEnrichment] =
     useState<ReservationEmailEnrichmentDetail | null>(null);
   const [activeTab, setActiveTab] = useState<ReservationDetailTab>("detalles");
   const [activityRows, setActivityRows] = useState<ReservationActivityRow[]>(
     [],
   );
+  const [accessEvents, setAccessEvents] = useState<AccessEventRow[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [isTokenPending, startTokenTransition] = useTransition();
   const displayStatus = resolveDisplayStatus(reservation.status);
@@ -368,7 +467,13 @@ export function ReservationDetailPanel({
   const showPaymentLinks =
     canManagePayments && isPaymentLinkEligibleReservation(reservation.platform);
   const allowDelete = canDelete && !otaImported;
-  const allowManualEdit = canWrite && properties.length > 0 && reservation.platform !== "AIRBNB";
+  const allowFullEdit =
+    canWrite && properties.length > 0 && reservation.platform !== "AIRBNB";
+  const allowOccupancyEdit = canWrite;
+  const isEditingAny = editing || editingOccupancy;
+  const registrationPendingUpdate = Boolean(
+    registrationProgress?.pendingUpdate,
+  );
   const displayReservationId =
     reservation.platform === "AIRBNB"
       ? emailEnrichment?.reservationCodeFromEmail?.trim() ||
@@ -398,18 +503,30 @@ export function ReservationDetailPanel({
   useEffect(() => {
     setActiveTab("detalles");
     setActivityRows([]);
+    setAccessEvents([]);
+    setEditing(false);
+    setEditingOccupancy(false);
   }, [reservation.id]);
 
   useEffect(() => {
     if (activeTab !== "actividad") return;
     let cancelled = false;
     setActivityLoading(true);
-    void getReservationActivityAction(reservation.id)
-      .then((rows) => {
-        if (!cancelled) setActivityRows(rows);
+    void Promise.all([
+      getReservationActivityAction(reservation.id),
+      getReservationAccessEventsAction(reservation.id),
+    ])
+      .then(([rows, events]) => {
+        if (!cancelled) {
+          setActivityRows(rows);
+          setAccessEvents(events);
+        }
       })
       .catch(() => {
-        if (!cancelled) setActivityRows([]);
+        if (!cancelled) {
+          setActivityRows([]);
+          setAccessEvents([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setActivityLoading(false);
@@ -574,6 +691,18 @@ export function ReservationDetailPanel({
           <p className="text-xs font-medium text-foreground">
             Esperando pago · depósito {holdDepositPercentLabel()}
             {holdExpiryLabel ? ` · ${holdExpiryLabel.toLowerCase()}` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {registrationPendingUpdate && !holdActive ? (
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+          <p className="text-xs font-medium text-foreground">
+            Guest Registration · Pendiente de actualización
+            {registrationProgress
+              ? ` · ${registrationProgress.registered}/${registrationProgress.capacity} registrados`
+              : null}
+            . STAY bloqueado hasta completar los huéspedes faltantes.
           </p>
         </div>
       ) : null}
@@ -776,21 +905,38 @@ export function ReservationDetailPanel({
                 {displayReservationId}
               </p>
             ) : null}
-            {allowManualEdit || (allowDelete && !editing) ? (
+            {allowOccupancyEdit || allowFullEdit || (allowDelete && !isEditingAny) ? (
               <div className="flex items-center gap-1">
-              {allowManualEdit ? (
+              {allowOccupancyEdit ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-8 rounded-full px-3 text-xs"
-                  onClick={() => setEditing((v) => !v)}
+                  onClick={() => {
+                    setEditing(false);
+                    setEditingOccupancy((v) => !v);
+                  }}
                 >
                   <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                  {editing ? "Ver detalle" : "Editar"}
+                  {editingOccupancy ? "Ver detalle" : "Editar reserva"}
                 </Button>
               ) : null}
-              {allowDelete && !editing ? (
+              {allowFullEdit && !editingOccupancy ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-full px-3 text-xs"
+                  onClick={() => {
+                    setEditingOccupancy(false);
+                    setEditing((v) => !v);
+                  }}
+                >
+                  {editing ? "Cerrar" : "Más campos"}
+                </Button>
+              ) : null}
+              {allowDelete && !isEditingAny ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -810,7 +956,7 @@ export function ReservationDetailPanel({
         </div>
       </div>
 
-      {!editing ? (
+      {!isEditingAny ? (
         <nav
           className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 px-4"
           aria-label="Secciones de reserva"
@@ -843,6 +989,17 @@ export function ReservationDetailPanel({
       ) : null}
 
       <div className="min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-3">
+        {editingOccupancy && canWrite ? (
+          <ReservationOccupancyEditForm
+            reservation={reservation}
+            onSaved={(updated) => {
+              setEditingOccupancy(false);
+              onUpdated?.(updated);
+            }}
+            onCancel={() => setEditingOccupancy(false)}
+          />
+        ) : null}
+
         {editing && canWrite && properties.length > 0 ? (
           <ReservationEditForm
             reservation={reservation}
@@ -856,7 +1013,7 @@ export function ReservationDetailPanel({
         ) : null}
 
         {/* Visible in every tab so recepción sees/copies the code immediately. */}
-        {!editing && accessCode?.code ? (
+        {!isEditingAny && accessCode?.code ? (
           <div className="mb-3">
             <ReservationDetailSection title="Código de acceso">
               <AccessCodeDisplay
@@ -879,7 +1036,7 @@ export function ReservationDetailPanel({
           </div>
         ) : null}
 
-        {!editing ? (
+        {!isEditingAny ? (
           <>
             {activeTab === "huesped" ? (
               <ReservationDetailSection
@@ -923,12 +1080,23 @@ export function ReservationDetailPanel({
               <ReservationActivityTimeline
                 reservation={reservation}
                 activities={activityRows}
+                accessEvents={accessEvents}
                 loading={activityLoading}
               />
             ) : null}
 
             {activeTab === "detalles" ? (
               <>
+            {accessCode?.isActive ? (
+              <AccessScheduleSection
+                reservationId={reservation.id}
+                checkInTime={reservation.property.checkInTime ?? "15:00"}
+                checkOutTime={reservation.property.checkOutTime ?? "13:00"}
+                validFrom={accessCode.validFrom}
+                validTo={accessCode.validTo}
+              />
+            ) : null}
+
             <ReservationDetailSection title="Enlace de registro">
               {registrationProgress ? (
                 <p className="mb-2 text-xs text-muted-foreground">
@@ -1027,6 +1195,10 @@ export function ReservationDetailPanel({
                     <p className="font-medium">
                       {adminNotification.notifiedAt
                         ? "Enviado"
+                        : adminNotification.sendingStale
+                          ? "Envío interrumpido"
+                          : adminNotification.sending
+                            ? "Enviando"
                         : adminNotification.error
                           ? "Falló el envío"
                           : "Pendiente"}
@@ -1079,6 +1251,11 @@ export function ReservationDetailPanel({
                   {adminNotification.error ? (
                     <p className="text-xs text-destructive">{adminNotification.error}</p>
                   ) : null}
+                  {adminNotification.sendingStale ? (
+                    <p className="text-xs text-amber-700">
+                      El intento anterior venció. Puedes reenviar la secuencia.
+                    </p>
+                  ) : null}
 
                   {canManageGuestRegistration ? (
                     <Button
@@ -1088,7 +1265,10 @@ export function ReservationDetailPanel({
                       className="h-8 text-xs"
                       onClick={resendAdminNotification}
                       disabled={
-                        isTokenPending || adminNotification.recipients.length === 0
+                        isTokenPending ||
+                        (adminNotification.sending &&
+                          !adminNotification.sendingStale) ||
+                        adminNotification.recipients.length === 0
                       }
                     >
                       <Send className="h-3.5 w-3.5" />

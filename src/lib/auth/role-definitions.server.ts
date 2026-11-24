@@ -42,6 +42,7 @@ const TENANT_RECEPTIONIST_SCREENS = [
 const PLATFORM_OWNER_SCREENS = [
   OWNER_DASHBOARD_PATH,
   `${OWNER_DASHBOARD_PATH}/tenant/[id]`,
+  "/login",
   "/owner-login",
 ] as const;
 

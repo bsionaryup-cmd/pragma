@@ -6,7 +6,8 @@ import type {
 } from "@/integrations/pricelabs/types";
 
 const STALE_SYNC_MS = 24 * 60 * 60 * 1000;
-const PREVIEW_DAYS = 14;
+/** ~6 weeks for monthly calendar workspace in Tarifas */
+const PREVIEW_DAYS = 42;
 
 export type PriceLabsDayPreview = {
   date: string;
@@ -16,6 +17,11 @@ export type PriceLabsDayPreview = {
   demandLevel: string | null;
   pricingReason: string | null;
   hasOverride: boolean;
+  bookingStatus: string | null;
+  checkIn: boolean;
+  checkOut: boolean;
+  weeklyDiscount: number | null;
+  monthlyDiscount: number | null;
 };
 
 export type PriceLabsPropertyInsights = {
@@ -37,6 +43,16 @@ export type PriceLabsPropertyInsights = {
   hasDailyPrices: boolean;
   lastPricesSync: string | null;
   lastOverridesSync: string | null;
+  lastCustomizationsSync: string | null;
+  lastCustomizationsWriteAt: string | null;
+  lastCustomizationsWriteSource: "pragma" | "remote" | null;
+  customizations: {
+    lastMinuteOn: boolean | null;
+    lastMinuteProfile: string | null;
+    farOutOn: boolean | null;
+    farOutProfile: string | null;
+    raw: import("@/integrations/pricelabs/types").PriceLabsListingCustomizations | null;
+  };
 };
 
 export type PriceLabsOperationalInsights = {
@@ -140,6 +156,11 @@ export function buildPropertyInsights(meta: unknown): PriceLabsPropertyInsights 
       demandLevel: day?.demand_level ?? null,
       pricingReason: day?.pricing_reason ?? null,
       hasOverride: Boolean(override),
+      bookingStatus: day?.booking_status ?? null,
+      checkIn: Boolean(day?.check_in),
+      checkOut: Boolean(day?.check_out),
+      weeklyDiscount: toNumber(day?.weekly_discount),
+      monthlyDiscount: toNumber(day?.monthly_discount),
     });
   }
 
@@ -158,6 +179,13 @@ export function buildPropertyInsights(meta: unknown): PriceLabsPropertyInsights 
   const pricingReasonSample =
     daily.find((row) => row.pricing_reason)?.pricing_reason ?? null;
 
+  const lm = stored.customizations?.last_minute_prices as
+    | { last_min_factor_on?: boolean; last_min_factor_type?: string }
+    | undefined;
+  const fo = stored.customizations?.far_out_premium as
+    | { far_out_premium_on?: boolean; far_out_premium_type?: string }
+    | undefined;
+
   return {
     overrideCount: overrides.length,
     upcomingOverrides,
@@ -173,6 +201,20 @@ export function buildPropertyInsights(meta: unknown): PriceLabsPropertyInsights 
     hasDailyPrices: daily.length > 0,
     lastPricesSync: stored.lastPricesSync ?? null,
     lastOverridesSync: stored.lastOverridesSync ?? null,
+    lastCustomizationsSync: stored.lastCustomizationsSync ?? null,
+    lastCustomizationsWriteAt: stored.lastCustomizationsWriteAt ?? null,
+    lastCustomizationsWriteSource: stored.lastCustomizationsWriteSource ?? null,
+    customizations: {
+      lastMinuteOn:
+        typeof lm?.last_min_factor_on === "boolean" ? lm.last_min_factor_on : null,
+      lastMinuteProfile:
+        typeof lm?.last_min_factor_type === "string" ? lm.last_min_factor_type : null,
+      farOutOn:
+        typeof fo?.far_out_premium_on === "boolean" ? fo.far_out_premium_on : null,
+      farOutProfile:
+        typeof fo?.far_out_premium_type === "string" ? fo.far_out_premium_type : null,
+      raw: stored.customizations ?? null,
+    },
   };
 }
 

@@ -9,9 +9,9 @@ const CLERK_ERROR_MESSAGES: Record<string, string> = {
   client_state_invalid:
     "Tu registro expiró o se reinició. Vuelve a completar el formulario e intenta de nuevo.",
   form_password_incorrect:
-    "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.",
+    "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo. Si entras como Owner, también puedes usar «Entrar con código al correo».",
   form_password_or_identifier_incorrect:
-    "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo.",
+    "Correo o contraseña incorrectos. Verifica tus datos e intenta de nuevo. Si entras como Owner, también puedes usar «Entrar con código al correo».",
   form_identifier_not_found:
     "No encontramos una cuenta con ese correo. Revisa el email o crea una cuenta nueva.",
   session_exists:
@@ -21,10 +21,25 @@ const CLERK_ERROR_MESSAGES: Record<string, string> = {
   too_many_requests:
     "Demasiados intentos. Espera un momento e intenta de nuevo.",
   strategy_for_user_invalid:
-    "Tu cuenta no admite inicio de sesión con contraseña. Contacta al administrador.",
+    "Tu cuenta no admite este método. Prueba «Entrar con código al correo» o contacta al administrador.",
   form_code_incorrect:
     "Código incorrecto. Revisa el correo e intenta de nuevo.",
+  form_password_pwned:
+    "Esa contraseña no se puede usar. Restablécela o entra con código al correo.",
+  form_password_compromised:
+    "Esa contraseña no se puede usar. Restablécela o entra con código al correo.",
 };
+
+const PASSWORD_INCORRECT_RE =
+  /password is incorrect|incorrect password|try again, or use another method|form_password_incorrect|form_password_or_identifier_incorrect/i;
+
+function localizeClerkMessage(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  if (PASSWORD_INCORRECT_RE.test(raw)) {
+    return CLERK_ERROR_MESSAGES.form_password_incorrect;
+  }
+  return null;
+}
 
 function messageFromClerkError(error: ClerkAPIError | null | undefined): string | null {
   if (!error) return null;
@@ -32,6 +47,10 @@ function messageFromClerkError(error: ClerkAPIError | null | undefined): string 
   if (code && CLERK_ERROR_MESSAGES[code]) {
     return CLERK_ERROR_MESSAGES[code];
   }
+  const fromText =
+    localizeClerkMessage(error.longMessage) ||
+    localizeClerkMessage(error.message);
+  if (fromText) return fromText;
   if (error.longMessage) return error.longMessage;
   if (error.message) return error.message;
   return null;
@@ -52,7 +71,9 @@ export function getSignInFlowErrorMessage(
     fields?.code?.message ??
     fieldErrors?.global?.[0]?.message;
 
-  if (fieldMessage) return fieldMessage;
+  if (fieldMessage) {
+    return localizeClerkMessage(fieldMessage) ?? fieldMessage;
+  }
 
   return fallback;
 }
@@ -86,6 +107,11 @@ export function getClerkAuthErrorMessage(error: unknown, fallback: string): stri
       return CLERK_ERROR_MESSAGES[code];
     }
 
+    const localized =
+      localizeClerkMessage(first?.longMessage) ||
+      localizeClerkMessage(first?.message);
+    if (localized) return localized;
+
     if (first?.longMessage) return first.longMessage;
     if (first?.message) return first.message;
   }
@@ -94,7 +120,7 @@ export function getClerkAuthErrorMessage(error: unknown, fallback: string): stri
     if (isMissingSignUpAttemptMessage(error.message)) {
       return CLERK_ERROR_MESSAGES.client_state_invalid ?? error.message;
     }
-    return error.message;
+    return localizeClerkMessage(error.message) ?? error.message;
   }
 
   return fallback;
@@ -109,7 +135,7 @@ export function getSignUpGlobalErrorMessage(
   if (isMissingSignUpAttemptMessage(globalMessage)) {
     return CLERK_ERROR_MESSAGES.client_state_invalid ?? globalMessage;
   }
-  return globalMessage;
+  return localizeClerkMessage(globalMessage) ?? globalMessage ?? fallback;
 }
 
 export function isAlreadySignedInAuthError(error: unknown): boolean {

@@ -151,7 +151,6 @@ export async function runPlaceholderGuestNameBackfillJob(input?: {
       platform: BookingPlatform.AIRBNB,
       guestName: CANONICAL_AIRBNB_PLACEHOLDER_GUEST_NAME,
       status: { not: ReservationStatus.CANCELLED },
-      guestRegistrationCompletedAt: null,
       ...(orgId ? { property: { organizationId: orgId } } : {}),
     },
     select: {

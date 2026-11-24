@@ -8,15 +8,19 @@ import { Pool, type PoolConfig } from "pg";
  *
  * 20260727020000: StayPortalToken (Guest Stay Portal). Stale clients without
  * this bump left `db.stayPortalToken` undefined → TypeError on findFirst/findUnique.
+ * 20260728160000: DigitalReceptionist* — stale clients left
+ * `db.digitalReceptionistConfig` undefined → TypeError on upsert (Encender/Apagar).
  */
 const PRISMA_SCHEMA_VERSION =
-  "20260727020000_stay_portal_tokens";
+  "20260731120000_digital_receptionist_agent_cloud";
 
 /** Product models that must exist on the live client when present in DMMF. */
 const GENERATED_PRODUCT_DELEGATES: Array<{
   model: string;
   delegate: string;
-}> = [{ model: "StayPortalToken", delegate: "stayPortalToken" }];
+}> = [
+  { model: "StayPortalToken", delegate: "stayPortalToken" },
+];
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;

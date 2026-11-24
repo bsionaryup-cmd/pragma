@@ -1,100 +1,22 @@
-import { Suspense } from "react";
-import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
-import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
-import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
-import { resolvePostAuthHomePathForUser } from "@/lib/billing/post-auth-redirect";
-import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
-import { getUserByClerkId } from "@/services/users/user.service";
+import { APP_LOGIN_PATH } from "@/lib/auth/auth-paths";
 
-type SignInPageProps = {
-  searchParams: Promise<{
-    inactive?: string;
-    signed_out?: string;
-    clerk_unavailable?: string;
-    existing_account?: string;
-    trial_consumed?: string;
-    next?: string;
-    /** Middleware uses `redirect_url`; keep `next` for older links. */
-    redirect_url?: string;
-  }>;
+type LegacySignInProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function SignInPage({ searchParams }: SignInPageProps) {
+/** Legacy alias — permanent redirect to unified /login. */
+export default async function LegacySignInRedirect({
+  searchParams,
+}: LegacySignInProps) {
   const params = await searchParams;
-  const showInactiveHint = params.inactive === "1";
-  const showSignedOutHint = params.signed_out === "1";
-  const showClerkUnavailableHint = params.clerk_unavailable === "1";
-  const showExistingAccountHint = params.existing_account === "1";
-  const showTrialConsumedHint = params.trial_consumed === "1";
-  let postAuthPath = sanitizeAuthRedirectPath(
-    params.next ?? params.redirect_url,
-    "/panel",
-  );
-  const { userId } = await auth();
-
-  let serverSessionActive = false;
-
-  // Keep the login form mounted — never hard-redirect to /panel (cookie race).
-  if (userId && !showInactiveHint && !showSignedOutHint) {
-    const dbUser = await getUserByClerkId(userId);
-
-    if (dbUser && !dbUser.isActive) {
-      redirect("/sign-in?inactive=1");
-    }
-
-    if (dbUser?.isActive) {
-      postAuthPath = await resolvePostAuthHomePathForUser(dbUser);
-      serverSessionActive = true;
-    } else if (userId) {
-      serverSessionActive = true;
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string") qs.set(key, value);
+    else if (Array.isArray(value)) {
+      for (const v of value) qs.append(key, v);
     }
   }
-
-  return (
-    <PragmaAuthLayout
-      backHref="/"
-      backLabel="Inicio"
-      hint={
-        showInactiveHint ? (
-          <div className="space-y-3">
-            <p className="text-sm text-destructive">
-              Tu cuenta fue desactivada. Contacta al administrador de PRAGMA.
-            </p>
-            <div className="flex justify-center">
-              <ClerkSignOutButton>Cerrar sesión</ClerkSignOutButton>
-            </div>
-          </div>
-        ) : showSignedOutHint ? (
-          <p className="text-sm text-muted-foreground">
-            Sesión cerrada correctamente. Puedes iniciar sesión de nuevo.
-          </p>
-        ) : showClerkUnavailableHint ? (
-          <p className="text-sm text-destructive">
-            No se pudo conectar con el servicio de autenticación. Intenta de nuevo en unos
-            momentos.
-          </p>
-        ) : showExistingAccountHint ? (
-          <p className="text-sm text-destructive">
-            Este correo ya está registrado en PRAGMA. Inicia sesión con tu contraseña para
-            continuar.
-          </p>
-        ) : showTrialConsumedHint ? (
-          <p className="text-sm text-destructive">
-            Este correo ya utilizó la prueba gratuita. Inicia sesión para suscribirte en Mi
-            Suscripción o contacta soporte.
-          </p>
-        ) : null
-      }
-    >
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
-        <EmailPasswordSignInForm
-          postAuthPath={postAuthPath}
-          clearStaleSession={showSignedOutHint}
-          serverSessionActive={serverSessionActive}
-        />
-      </Suspense>
-    </PragmaAuthLayout>
-  );
+  const q = qs.toString();
+  redirect(q ? `${APP_LOGIN_PATH}?${q}` : APP_LOGIN_PATH);
 }

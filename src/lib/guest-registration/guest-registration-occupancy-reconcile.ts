@@ -52,8 +52,9 @@ export async function resolveGuestRegistrationMaxCapacityForReservation(input: {
 }
 
 /**
- * Corrige adults/children/infants en reserva cuando hay evidencia de email o techo
- * de propiedad, sin tocar reservas ya completadas ni borrar huéspedes registrados.
+ * Corrige adults/children/infants en reserva cuando hay evidencia de email
+ * (placeholder iCal o DB inflada), sin tocar reservas ya completadas ni borrar
+ * huéspedes registrados. No usa Property.maxGuests como techo de registro.
  */
 export async function reconcileReservationOccupancyIfSafe(
   reservationId: string,

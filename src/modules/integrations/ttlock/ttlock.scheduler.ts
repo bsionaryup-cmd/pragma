@@ -14,6 +14,7 @@ import {
   decryptTTLockSecret,
 } from "@/services/integrations/ttlock/ttlock-crypto";
 import { purgeExpiredTTLockPasscodes } from "@/services/integrations/ttlock/ttlock-access.service";
+import { purgeExpiredOperationalAccessCodes } from "@/services/integrations/ttlock/ttlock-operational-access.service";
 
 const SYNC_INTERVAL_MS = 8 * 60 * 1000;
 
@@ -134,6 +135,9 @@ export async function runTTLockScheduledSync(): Promise<{
   organizationsProcessed: number;
   summaries: TTLockSyncSummary[];
   expiredPasscodes: Awaited<ReturnType<typeof purgeExpiredTTLockPasscodes>>;
+  expiredOperationalPasscodes: Awaited<
+    ReturnType<typeof purgeExpiredOperationalAccessCodes>
+  >;
 }> {
   const integrations = await db.tTLockIntegration.findMany({
     where: {
@@ -157,11 +161,15 @@ export async function runTTLockScheduledSync(): Promise<{
     summaries.push(await syncSmartLocksForOrganization(organizationId));
   }
 
-  const expiredPasscodes = await purgeExpiredTTLockPasscodes({ limit: 40 });
+  const [expiredPasscodes, expiredOperationalPasscodes] = await Promise.all([
+    purgeExpiredTTLockPasscodes({ limit: 40 }),
+    purgeExpiredOperationalAccessCodes({ limit: 40 }),
+  ]);
 
   return {
     organizationsProcessed: orgIds.length,
     summaries,
     expiredPasscodes,
+    expiredOperationalPasscodes,
   };
 }

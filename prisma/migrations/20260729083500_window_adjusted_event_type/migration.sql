@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "AccessEventType" ADD VALUE 'WINDOW_ADJUSTED';

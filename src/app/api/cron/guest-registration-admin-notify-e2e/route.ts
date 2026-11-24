@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 
 import { BookingPlatform, ReservationStatus } from "@prisma/client";
 
+import { isCronAuthorized } from "@/lib/cron-auth";
 import { db } from "@/lib/db";
+import { isProductionEmailRuntime } from "@/lib/email/send-email";
 import { resolveGuestRegistrationAdminRecipients } from "@/lib/operational-contacts";
 import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
 import {
@@ -29,17 +31,19 @@ function extractTokenFromUrl(url: string): string {
   return parts[parts.length - 1]!;
 }
 
-function pickTestRecipients(recipients: string[]): string[] {
-  return recipients.filter((email) => {
-    const e = email.toLowerCase();
-    return (
-      e.includes("test") ||
-      e.includes("example.com") ||
-      e.endsWith("@example.com") ||
-      e.endsWith("@localhost") ||
-      e.endsWith("@test.com")
-    );
-  });
+function isTestRecipient(email: string): boolean {
+  const e = email.toLowerCase();
+  return (
+    e.includes("test") ||
+    e.includes("example.com") ||
+    e.endsWith("@example.com") ||
+    e.endsWith("@localhost") ||
+    e.endsWith("@test.com")
+  );
+}
+
+function allRecipientsAreTest(recipients: string[]): boolean {
+  return recipients.length > 0 && recipients.every(isTestRecipient);
 }
 
 async function waitForAdminNotification(
@@ -71,8 +75,16 @@ async function waitForAdminNotification(
   throw new Error("Timeout esperando log de notificación admin");
 }
 
-export async function POST() {
-  if (process.env.NODE_ENV === "production") {
+export async function POST(request: Request) {
+  if (!isCronAuthorized(request)) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV === "production" ||
+    isProductionEmailRuntime()
+  ) {
     return NextResponse.json(
       { ok: false, error: "E2E endpoint no disponible en producción" },
       { status: 403 },
@@ -204,16 +216,17 @@ export async function POST() {
   if (simulation) {
     chosen = eligible[0];
   } else {
-    chosen = eligible.find(
-      ({ recipients }) => pickTestRecipients(recipients).length > 0,
+    // Live Resend: ALL admin recipients must be test-like (not just one).
+    chosen = eligible.find(({ recipients }) =>
+      allRecipientsAreTest(recipients),
     );
     if (!chosen) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            "RESEND_API_KEY presente (envío real). No encontré destinatarios claramente 'test'. " +
-            "Configura una propiedad de prueba con correos de test o ejecuta de nuevo sin RESEND_API_KEY.",
+            "RESEND_API_KEY presente (envío real). Se requiere una propiedad cuyos destinatarios admin sean 100% test (@example.com / test). " +
+            "No se permite mezclar contactos reales con E2E.",
         },
         { status: 400 },
       );

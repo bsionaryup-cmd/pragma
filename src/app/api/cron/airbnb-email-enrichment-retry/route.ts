@@ -9,7 +9,7 @@ export const maxDuration = 60;
 
 /**
  * Reintenta vincular/enriquecer correos Airbnb ya recibidos pero sin reserva.
- * Programar cada 5 min: GET /api/cron/airbnb-email-enrichment-retry
+ * Durable cron (Hobby): daily — see vercel.json `30 6 * * *`.
  * Authorization: Bearer CRON_SECRET
  */
 export async function GET(request: Request) {

@@ -1,14 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { PriceLabsInsightsSection } from "@/features/integrations/pricelabs/components/pricelabs-insights-section";
 import { SmartpriceRevenueWorkstation } from "@/features/revenue/components/smartprice-revenue-workstation";
+import { syncRevenuePricesAction } from "@/features/revenue/actions/smartprice.actions";
 import { useI18n } from "@/components/providers/i18n-provider";
 import type { PriceLabsOverviewDto } from "@/services/integrations/pricelabs.service";
-import { formatPriceLabsDate } from "@/features/integrations/pricelabs/lib/pricelabs-format";
+import {
+  formatRelativeSync,
+  formatPriceLabsDate,
+} from "@/features/integrations/pricelabs/lib/pricelabs-format";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type SmartpriceDashboardProps = {
   overview: PriceLabsOverviewDto;
@@ -22,44 +30,114 @@ export function SmartpriceDashboard({
   canEditPrices,
 }: SmartpriceDashboardProps) {
   const { t } = useI18n();
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const { integration, properties, insights } = overview;
+  const [pending, startTransition] = useTransition();
+  const { integration, properties, insights, syncing } = overview;
   const reviewCount = insights.listingsNeedingReview;
+  const lastSync =
+    integration.lastPricesSyncAt ??
+    properties.find((p) => p.lastSyncedAt)?.lastSyncedAt ??
+    null;
+  const canSync = canEditPrices && !billingLocked && overview.config.configured;
+
+  const onSyncNow = () => {
+    startTransition(async () => {
+      try {
+        const result = await syncRevenuePricesAction();
+        if (result.ok) {
+          toast.success(result.message);
+          router.refresh();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Error inesperado");
+      }
+    });
+  };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 px-4 py-4 pb-12 sm:px-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div>
+    <div className="mx-auto max-w-[1600px] space-y-4 px-3 py-4 pb-12 sm:px-6">
+      <header className="flex flex-col gap-4 border-b border-border/70 pb-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-pragma-electric">
             {t("smartprice.eyebrow")}
           </p>
           <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
             {t("smartprice.title")}
           </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Dashboard de tarifas · {properties.length} listado
+            {properties.length === 1 ? "" : "s"}
+          </p>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-          <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
-            <span className="rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 font-semibold tabular-nums text-foreground">
+
+        <div className="flex w-full flex-col gap-3 lg:w-auto lg:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm",
+                syncing || pending
+                  ? "border-pragma-electric/40 bg-pragma-light-blue/50 text-pragma-electric"
+                  : insights.lastSyncStatus === "error"
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : "border-border/80 bg-muted/30 text-muted-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  syncing || pending
+                    ? "animate-pulse bg-pragma-electric"
+                    : insights.lastSyncStatus === "fresh"
+                      ? "bg-emerald-500"
+                      : insights.lastSyncStatus === "error"
+                        ? "bg-destructive"
+                        : "bg-amber-500",
+                )}
+              />
+              {syncing || pending
+                ? "Sincronizando…"
+                : `Última sync ${formatRelativeSync(lastSync)}`}
+            </span>
+            <span className="rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 text-sm font-semibold tabular-nums text-foreground">
               {reviewCount} por revisar
             </span>
-            <span className="rounded-full border border-border/80 bg-muted/30 px-3 py-1.5 tabular-nums text-muted-foreground">
-              {t("smartprice.insight.lastSync")}{" "}
-              <span className="font-semibold text-foreground">
-                {formatPriceLabsDate(integration.lastPricesSyncAt)}
-              </span>
-            </span>
+            {canSync ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={pending || syncing}
+                onClick={onSyncNow}
+                className="h-9 gap-1.5 bg-pragma-electric font-semibold hover:bg-pragma-mid-blue"
+              >
+                {pending || syncing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Sincronizar ahora
+              </Button>
+            ) : null}
           </div>
-          <div className="relative w-full sm:w-64">
+
+          <div className="relative w-full sm:w-80">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar APTO, nombre o ciudad…"
+              placeholder="Buscar nombre o ciudad…"
               className="h-9 pl-9 text-sm"
               aria-label="Buscar propiedad"
             />
           </div>
+          {lastSync ? (
+            <p className="text-[11px] text-muted-foreground">
+              Snapshot: {formatPriceLabsDate(lastSync)}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -89,6 +167,8 @@ export function SmartpriceDashboard({
         billingLocked={billingLocked}
         reviewPropertyIds={insights.reviewPropertyIds}
         searchQuery={searchQuery}
+        auditLog={overview.auditLog}
+        syncing={syncing || pending}
       />
     </div>
   );

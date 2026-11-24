@@ -4,8 +4,10 @@ import { QrMobilitySectionShell } from "@/components/qr-mobility/qr-mobility-sec
 import { serializeMobilityServiceForClient } from "@/features/qr-mobility/types/service";
 import {
   PlatformOwnerForbiddenError,
+  PlatformOwnerUnauthorizedError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
+import { OWNER_LOGIN_PATH } from "@/lib/platform/constants";
 import { listMobilityServices } from "@/modules/qr-mobility/services/mobility-service.service";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,9 @@ export default async function QrMobilityServiciosPage({
   try {
     await requirePlatformOwnerUser();
   } catch (error) {
+    if (error instanceof PlatformOwnerUnauthorizedError) {
+      redirect(OWNER_LOGIN_PATH);
+    }
     if (error instanceof PlatformOwnerForbiddenError) {
       redirect("/unauthorized");
     }

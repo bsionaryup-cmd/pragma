@@ -111,6 +111,8 @@ export type ReservationInboxItem = {
     completed: boolean;
     notifiedAt: string | null;
     error: string | null;
+    sending: boolean;
+    sendingStale: boolean;
     recipients: string[];
     recipientSource?: "operational-contact" | "legacy-notification-emails";
     selectedContact?: {
@@ -134,6 +136,8 @@ export type ReservationInboxItem = {
   guestRegistrationProgress?: {
     registered: number;
     capacity: number;
+    /** Reopened after occupancy increase; STAY blocked until complete. */
+    pendingUpdate?: boolean;
   } | null;
   accessCode?: ReservationAccessCodeDto | null;
   property: ReservationPropertyDto & { maxGuests?: number };

@@ -2,11 +2,14 @@ import "server-only";
 
 import { AccessCredentialDeliveryStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { formatAccessCode } from "@/lib/access-code";
 import { pragmaEmailFooterHtml, pragmaEmailHeaderHtml } from "@/lib/brand-email";
 import { db } from "@/lib/db";
 import { sendEmail } from "@/lib/email/send-email";
+import { isSyntheticGuestContext } from "@/lib/email/email-safety";
 import { formatDate, formatDateTime } from "@/lib/helpers/date";
+
 import { formatPropertyLabel } from "@/lib/property-display";
 import { buildTenantRegistrationCompletedSubject } from "@/lib/guest-registration/reservation-event-email-subjects";
 import { notifyAdminGuestRegistrationCompleted } from "@/services/guests/guest-registration-admin-notification.service";
@@ -320,6 +323,8 @@ export async function runGuestRegistrationCompletionComms(
       id: true,
       reservationCode: true,
       guestName: true,
+      guestEmail: true,
+      guestFirstName: true,
       guestRegistrationCompletedAt: true,
       propertyId: true,
       checkIn: true,
@@ -347,6 +352,35 @@ export async function runGuestRegistrationCompletionComms(
       reception: empty("No aplica"),
       accessCode: empty("No aplica"),
       tenantReport: empty("No aplica"),
+    };
+  }
+
+  // Auto path: never email real ops/tenants for synthetic E2E/audit guests.
+  // Manual forceResend from the panel remains available for intentional ops.
+  if (
+    !forceResend &&
+    isSyntheticGuestContext({
+      guestEmail: reservation.guestEmail,
+      guestName: reservation.guestName,
+      guestFirstName: reservation.guestFirstName,
+    })
+  ) {
+    const skipped: GuestRegistrationCommsStepStatus = {
+      ok: true,
+      skipped: true,
+      message: "Huésped sintético/E2E — correos automáticos omitidos",
+    };
+    console.warn("[gr-completion-comms] synthetic guest suppressed", {
+      reservationId,
+      guestName: reservation.guestName,
+      guestEmail: reservation.guestEmail,
+    });
+    return {
+      reservationId,
+      ttlock: skipped,
+      reception: skipped,
+      accessCode: skipped,
+      tenantReport: skipped,
     };
   }
 
@@ -559,17 +593,36 @@ export async function resendGuestRegistrationCompletionComms(
 export function scheduleGuestRegistrationCompletionComms(
   reservationId: string,
 ): void {
-  void runGuestRegistrationCompletionComms(reservationId).catch((error) => {
-    console.error("[gr-completion-comms] Unhandled", reservationId, error);
-  });
+  const task = async () => {
+    try {
+      await runGuestRegistrationCompletionComms(reservationId);
+    } catch (error) {
+      console.error("[gr-completion-comms] Unhandled", reservationId, error);
+    }
+  };
+
+  try {
+    // Next/Vercel extends the serverless invocation through waitUntil, so the
+    // response can finish without abandoning the reception email mid-claim.
+    after(task);
+  } catch (error) {
+    // Scripts and background jobs do not always have a Next request context.
+    // Preserve their historical behavior while keeping request paths durable.
+    console.warn(
+      "[gr-completion-comms] after unavailable; using local fallback",
+      reservationId,
+      error instanceof Error ? error.message : error,
+    );
+    void task();
+  }
 }
 
 /**
  * Historical SSOT after GR complete:
  * 1) Await TTLock generation + DB persist + cache revalidation (code visible in
  *    reservation detail immediately).
- * 2) Fire-and-forget recepción / guest code / tenant emails so the guest form
- *    is not blocked on Resend latency. Idempotent if emails already ran.
+ * 2) Schedule recepción / guest code / tenant emails with Next `after()`, which
+ *    keeps the Vercel invocation alive without blocking the guest response.
  */
 export async function settleGuestRegistrationCompletionComms(
   reservationId: string,

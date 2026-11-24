@@ -4,11 +4,11 @@ import { isDefaultReservationOccupancy } from "@/lib/reservations/display-guest-
 import type { GuestRegistrationCapacityInput } from "@/lib/guest-registration/guest-registration-capacity";
 
 export type ResolvedGuestRegistrationCapacity = {
-  /** Huéspedes requeridos para completar registro (adultos + niños). */
+  /** Huéspedes requeridos para completar registro (adultos + niños + bebés). */
   maxCapacity: number;
-  /** Ocupación usada para el límite (antes de cap). */
+  /** Ocupación usada para el límite (adults + children + infants resueltos). */
   resolvedOccupancy: number;
-  /** Columnas actuales en reserva. */
+  /** Columnas actuales en reserva (adults + children + infants). */
   dbOccupancy: number;
   /** Ocupación derivada del último email Airbnb (si aplica). */
   enrichmentOccupancy: number | null;
@@ -29,8 +29,13 @@ export type ResolveGuestRegistrationCapacityInput = GuestRegistrationCapacityInp
 function dbOccupancyFromInput(input: {
   adults: number;
   children: number;
+  infants: number;
 }): number {
-  return Math.max(0, input.adults) + Math.max(0, input.children);
+  return (
+    Math.max(0, input.adults) +
+    Math.max(0, input.children) +
+    Math.max(0, input.infants)
+  );
 }
 
 /** Ocupación operativa de registro a partir de señales de email. */
@@ -47,7 +52,7 @@ export function occupancyFromEmailEnrichment(
     const adults = adultCount;
     const children = Math.max(0, childCount ?? 0);
     const infants = Math.max(0, infantCount ?? 0);
-    return { adults, children, infants, total: adults + children };
+    return { adults, children, infants, total: adults + children + infants };
   }
 
   const guestTotal = enrichment.guestCountTotal ?? null;
@@ -63,28 +68,12 @@ export function occupancyFromEmailEnrichment(
   return null;
 }
 
-function capOccupancy(
-  occupancy: number,
-  propertyMaxGuests: number | null | undefined,
-): number {
-  if (propertyMaxGuests != null && propertyMaxGuests > 0) {
-    return Math.min(occupancy, propertyMaxGuests);
-  }
-  return occupancy;
-}
-
 function isInflatedDbOccupancy(input: {
   dbOccupancy: number;
-  propertyMaxGuests: number | null | undefined;
   enrichmentTotal: number | null;
   registeredCount?: number;
 }): boolean {
-  const { dbOccupancy, propertyMaxGuests, enrichmentTotal, registeredCount } =
-    input;
-
-  if (propertyMaxGuests != null && propertyMaxGuests > 0 && dbOccupancy > propertyMaxGuests) {
-    return true;
-  }
+  const { dbOccupancy, enrichmentTotal, registeredCount } = input;
 
   if (enrichmentTotal != null && dbOccupancy > enrichmentTotal) {
     return true;
@@ -104,8 +93,8 @@ function isInflatedDbOccupancy(input: {
 
 /**
  * Resuelve capacidad de registro sin side-effects.
- * Prioriza columnas de reserva salvo placeholder iCal, inflación vs propiedad/email,
- * o progreso de huéspedes ya registrados frente a un DB claramente erróneo.
+ * SSOT: adults + children + infants de la reserva (con enrich Airbnb para
+ * placeholder iCal o DB inflada vs email). Nunca usa Property.maxGuests como techo.
  */
 export function resolveGuestRegistrationCapacity(
   input: ResolveGuestRegistrationCapacityInput,
@@ -130,13 +119,12 @@ export function resolveGuestRegistrationCapacity(
     enrichmentOccupancy != null &&
     isInflatedDbOccupancy({
       dbOccupancy,
-      propertyMaxGuests: input.propertyMaxGuests,
       enrichmentTotal: enrichmentOccupancy,
       registeredCount: input.registeredCount,
     })
   ) {
     chosenOccupancy = enrichmentOccupancy;
-    reconcileReason = "db_inflated_vs_email_or_property";
+    reconcileReason = "db_inflated_vs_email";
   } else if (
     input.registeredCount != null &&
     input.registeredCount > 0 &&
@@ -146,17 +134,10 @@ export function resolveGuestRegistrationCapacity(
   ) {
     chosenOccupancy = enrichmentOccupancy;
     reconcileReason = "registration_progress_vs_inflated_db";
-  } else if (
-    input.propertyMaxGuests != null &&
-    input.propertyMaxGuests > 0 &&
-    dbOccupancy > input.propertyMaxGuests
-  ) {
-    chosenOccupancy = input.propertyMaxGuests;
-    reconcileReason = "db_exceeds_property_max";
   }
 
-  const cappedOccupancy = capOccupancy(chosenOccupancy, input.propertyMaxGuests);
-  const resolvedMaxCapacity = Math.max(1, cappedOccupancy);
+  const resolvedOccupancy = chosenOccupancy;
+  const resolvedMaxCapacity = Math.max(1, resolvedOccupancy);
 
   let reconciledOccupancy: ResolvedGuestRegistrationCapacity["reconciledOccupancy"] =
     null;
@@ -165,13 +146,6 @@ export function resolveGuestRegistrationCapacity(
       adults: enrichmentParsed.adults,
       children: enrichmentParsed.children,
       infants: enrichmentParsed.infants,
-    };
-  } else if (reconcileReason === "db_exceeds_property_max") {
-    const adults = Math.min(input.adults, input.propertyMaxGuests ?? input.adults);
-    reconciledOccupancy = {
-      adults: Math.max(1, adults),
-      children: Math.max(0, Math.min(input.children, (input.propertyMaxGuests ?? adults) - adults)),
-      infants: Math.max(0, input.infants),
     };
   }
 
@@ -185,7 +159,7 @@ export function resolveGuestRegistrationCapacity(
 
   return {
     maxCapacity: resolvedMaxCapacity,
-    resolvedOccupancy: cappedOccupancy,
+    resolvedOccupancy,
     dbOccupancy,
     enrichmentOccupancy,
     reconciledOccupancy,

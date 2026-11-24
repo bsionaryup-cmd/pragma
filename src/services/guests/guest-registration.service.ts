@@ -486,12 +486,10 @@ async function finalizeGuestRegistration(
   const acceptedAt = new Date();
 
   await db.$transaction(async (tx) => {
+    // Titular (guestName*) is SSOT from booking channel — GR must not overwrite it.
     await tx.reservation.update({
       where: { id: reservationId },
       data: {
-        guestName: owner.fullName,
-        guestFirstName: owner.firstName,
-        guestLastName: owner.lastName,
         guestEmail: owner.email,
         guestPhone: owner.phone,
         guestCountry: owner.nationality,
@@ -916,12 +914,10 @@ export async function registerGuestStep(
     });
 
     if (isOwner) {
+      // Contact only — never replace channel titular (guestName*).
       await tx.reservation.update({
         where: { id: reservation.id },
         data: {
-          guestName: guestData.fullName,
-          guestFirstName: guestData.firstName,
-          guestLastName: guestData.lastName,
           guestEmail: guestData.email,
           guestPhone: guestData.phone,
           guestCountry: guestData.nationality,
@@ -1177,12 +1173,10 @@ export async function submitGuestRegistration(
       throw new GuestRegistrationError("No se pudo registrar el titular");
     }
 
+    // Titular (guestName*) is SSOT from booking channel — GR must not overwrite it.
     await tx.reservation.update({
       where: { id: reservation.id },
       data: {
-        guestName: primaryData.fullName,
-        guestFirstName: primaryData.firstName,
-        guestLastName: primaryData.lastName,
         guestEmail: primaryData.email,
         guestPhone: primaryData.phone,
         guestCountry: primaryData.nationality,

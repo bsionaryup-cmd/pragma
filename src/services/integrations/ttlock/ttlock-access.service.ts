@@ -169,6 +169,105 @@ async function syncCredentialWindowOnLock(input: {
   return { ok: true };
 }
 
+export async function adjustAccessWindowForReservation(
+  reservationId: string,
+  overrides: { earlyCheckInTime?: string | null; lateCheckOutTime?: string | null },
+): Promise<{ ok: boolean; message: string }> {
+  if (!overrides.earlyCheckInTime && !overrides.lateCheckOutTime) {
+    return { ok: false, message: "Debe indicar al menos un horario de ajuste" };
+  }
+
+  const credential = await loadManagedAccessCredential(reservationId);
+  if (!credential) {
+    return { ok: false, message: "No hay código de acceso activo para esta reserva" };
+  }
+
+  if (
+    credential.status !== AccessCredentialStatus.GENERATED &&
+    credential.status !== AccessCredentialStatus.ACTIVE &&
+    credential.status !== AccessCredentialStatus.SENT
+  ) {
+    return { ok: false, message: "El código no está en un estado que permita ajustar la ventana" };
+  }
+
+  const baseWindow = resolveAccessWindow({
+    checkIn: credential.reservation.checkIn,
+    checkOut: credential.reservation.checkOut,
+    checkInTime: credential.reservation.property.checkInTime,
+    checkOutTime: credential.reservation.property.checkOutTime,
+  });
+
+  let { validFrom, validTo } = baseWindow;
+
+  if (overrides.earlyCheckInTime) {
+    const parsed = (await import("@/lib/stay-schedule")).parseStayTime(overrides.earlyCheckInTime, "15:00");
+    const { prismaDateToKey } = await import("@/lib/dates");
+    const { localColombiaDateTime } = await import("@/lib/stay-schedule");
+    const checkInKey = prismaDateToKey(credential.reservation.checkIn);
+    const newFrom = localColombiaDateTime(checkInKey, parsed.hours, parsed.minutes);
+    const midnightCheckIn = localColombiaDateTime(checkInKey, 0, 0);
+    if (newFrom < midnightCheckIn) {
+      return { ok: false, message: "El check-in anticipado no puede ser antes de la medianoche del día de check-in" };
+    }
+    validFrom = newFrom;
+  }
+
+  if (overrides.lateCheckOutTime) {
+    const parsed = (await import("@/lib/stay-schedule")).parseStayTime(overrides.lateCheckOutTime, "13:00");
+    const { prismaDateToKey } = await import("@/lib/dates");
+    const { localColombiaDateTime } = await import("@/lib/stay-schedule");
+    const checkOutKey = prismaDateToKey(credential.reservation.checkOut);
+    const newTo = localColombiaDateTime(checkOutKey, parsed.hours, parsed.minutes);
+    const midnightAfterCheckout = localColombiaDateTime(checkOutKey, 23, 59);
+    if (newTo > midnightAfterCheckout) {
+      return { ok: false, message: "El check-out tardío no puede ser después de las 23:59 del día de check-out" };
+    }
+    validTo = newTo;
+  }
+
+  if (validFrom >= validTo) {
+    return { ok: false, message: "La ventana resultante es inválida (check-in >= check-out)" };
+  }
+
+  const conflict = await db.accessCredential.findFirst({
+    where: {
+      id: { not: credential.id },
+      propertyLockId: credential.propertyLockId,
+      status: { in: [AccessCredentialStatus.GENERATED, AccessCredentialStatus.ACTIVE, AccessCredentialStatus.SENT] },
+      validFrom: { lt: validTo },
+      validTo: { gt: validFrom },
+    },
+  });
+
+  if (conflict) {
+    return { ok: false, message: "La ventana ajustada se solapa con otro código activo en la misma cerradura" };
+  }
+
+  const previousValidFrom = credential.validFrom;
+  const previousValidTo = credential.validTo;
+
+  const result = await applyAccessWindowUpdate({ credential, validFrom, validTo });
+  if (!result.ok) return result;
+
+  await db.accessEvent.create({
+    data: {
+      reservationId,
+      eventType: AccessEventType.WINDOW_ADJUSTED,
+      payload: {
+        credentialId: credential.id,
+        previousValidFrom,
+        previousValidTo,
+        newValidFrom: validFrom,
+        newValidTo: validTo,
+        earlyCheckInTime: overrides.earlyCheckInTime ?? null,
+        lateCheckOutTime: overrides.lateCheckOutTime ?? null,
+      },
+    },
+  });
+
+  return { ok: true, message: "Ventana de acceso ajustada correctamente" };
+}
+
 export async function tryGenerateAccessCodeForReservation(
   reservationId: string,
 ): Promise<GenerateAccessCodeResult | null> {

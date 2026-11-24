@@ -6,8 +6,10 @@ import {
   buildGuestRegistrationAdminEmailText,
 } from "../../src/services/guests/guest-registration-admin-notification.content";
 import {
+  GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS,
   parseGuestRegistrationAdminNotificationLog,
   GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
+  isGuestRegistrationAdminNotificationLockStale,
 } from "../../src/lib/guest-registration/guest-registration-admin-notification-log";
 import { sendEmail } from "../../src/lib/email/send-email";
 
@@ -131,6 +133,38 @@ describe("guest registration admin notification log", () => {
 
   it("exposes sending marker constant", () => {
     assert.equal(GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER, "__SENDING__");
+  });
+
+  it("recovers only expired sending claims", () => {
+    const now = new Date("2026-08-15T00:00:00.000Z");
+    assert.equal(
+      isGuestRegistrationAdminNotificationLockStale({
+        error: GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
+        updatedAt: new Date(
+          now.getTime() -
+            GUEST_REGISTRATION_ADMIN_NOTIFICATION_LOCK_STALE_MS -
+            1,
+        ),
+        now,
+      }),
+      true,
+    );
+    assert.equal(
+      isGuestRegistrationAdminNotificationLockStale({
+        error: GUEST_REGISTRATION_ADMIN_NOTIFICATION_SENDING_MARKER,
+        updatedAt: new Date(now.getTime() - 1_000),
+        now,
+      }),
+      false,
+    );
+    assert.equal(
+      isGuestRegistrationAdminNotificationLockStale({
+        error: "resend_http_500",
+        updatedAt: new Date(0),
+        now,
+      }),
+      false,
+    );
   });
 });
 

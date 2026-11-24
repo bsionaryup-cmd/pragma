@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import type { User } from "@prisma/client";
-import { requireDbUser } from "@/lib/auth";
+import { currentDbUser } from "@/lib/auth";
 import { isSuperAdminOwner } from "@/lib/platform/platform-owner";
 
-export async function requirePlatformOwnerUser(): Promise<User> {
-  const user = await requireDbUser();
-  if (!isSuperAdminOwner(user)) {
-    throw new PlatformOwnerForbiddenError();
+export class PlatformOwnerUnauthorizedError extends Error {
+  constructor(message = "Unauthorized") {
+    super(message);
+    this.name = "PlatformOwnerUnauthorizedError";
   }
-  return user;
 }
 
 export class PlatformOwnerForbiddenError extends Error {
@@ -18,7 +17,25 @@ export class PlatformOwnerForbiddenError extends Error {
   }
 }
 
+/**
+ * Owner APIs must not call requireDbUser() (it redirects to /login).
+ * Resolve the DB user from the Clerk session and enforce platform role.
+ */
+export async function requirePlatformOwnerUser(): Promise<User> {
+  const user = await currentDbUser();
+  if (!user) {
+    throw new PlatformOwnerUnauthorizedError();
+  }
+  if (!isSuperAdminOwner(user)) {
+    throw new PlatformOwnerForbiddenError();
+  }
+  return user;
+}
+
 export function platformOwnerErrorResponse(error: unknown) {
+  if (error instanceof PlatformOwnerUnauthorizedError) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (error instanceof PlatformOwnerForbiddenError) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }

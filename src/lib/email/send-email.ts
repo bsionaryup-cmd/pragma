@@ -1,3 +1,8 @@
+import {
+  allowTestEmailRecipients,
+  isBlockedTestRecipient,
+} from "@/lib/email/email-safety";
+
 export type SendEmailInput = {
   to: string;
   subject: string;
@@ -12,17 +17,20 @@ export function resolveEmailFromAddress(): string {
   return process.env.EMAIL_FROM?.trim() || INSTITUTIONAL_EMAIL_FROM;
 }
 
-/** Production/staging hosts where simulated delivery must never count as sent. */
+/**
+ * Live Resend only on true production hosts.
+ * Preview/dev (`VERCEL_ENV=preview|development`) must not count as production
+ * even when `VERCEL=1` (otherwise preview deploys with RESEND_API_KEY send real mail).
+ */
 export function isProductionEmailRuntime(): boolean {
-  return (
-    process.env.NODE_ENV === "production" ||
-    process.env.VERCEL === "1" ||
-    process.env.VERCEL_ENV === "production"
-  );
+  const vercelEnv = process.env.VERCEL_ENV?.trim().toLowerCase();
+  if (vercelEnv === "production") return true;
+  if (vercelEnv === "preview" || vercelEnv === "development") return false;
+  return process.env.NODE_ENV === "production";
 }
 
 /**
- * Simulated delivery is allowed only outside production (local dev / tests).
+ * Simulated delivery is allowed only outside production (local dev / tests / preview).
  * In production, missing RESEND_API_KEY always yields sendEmail ok: false.
  */
 export function shouldSimulateEmailDelivery(): boolean {
@@ -39,6 +47,21 @@ export async function sendEmail(input: SendEmailInput): Promise<{
 
   if (!to) {
     return { ok: false, message: "Destinatario de correo inválido" };
+  }
+
+  if (
+    !allowTestEmailRecipients() &&
+    !shouldSimulateEmailDelivery() &&
+    isBlockedTestRecipient(to)
+  ) {
+    console.warn("[email] Bloqueado destinatario sintético/test", {
+      to,
+      subject: input.subject,
+    });
+    return {
+      ok: false,
+      message: "Destinatario de prueba bloqueado en envío real",
+    };
   }
 
   if (shouldSimulateEmailDelivery()) {

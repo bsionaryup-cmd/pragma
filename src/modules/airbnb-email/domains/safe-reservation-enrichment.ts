@@ -341,6 +341,7 @@ export async function applySafeReservationEnrichment(input: {
   }
 
   const guestFieldsLocked = Boolean(reservation.guestRegistrationCompletedAt);
+  const rowStillPlaceholder = isPlaceholderGuestName(reservation.guestName);
   const updates: Prisma.ReservationUpdateInput = {};
   const applied: Record<string, string | number> = {};
   const skipped: string[] = [];
@@ -363,13 +364,17 @@ export async function applySafeReservationEnrichment(input: {
       skipped.push("reservationCode");
     }
 
-    if (!guestFieldsLocked) {
+    // Guest Registration locks contact/occupancy fields, but a canonical iCal
+    // placeholder is not a real titular — still allow CONFIRMED guestName heal.
+    const canMutateGuestContactFields = !guestFieldsLocked;
+
+    if (canMutateGuestContactFields || rowStillPlaceholder) {
       const canApplyGuestName =
         !input.eventKind || GUEST_NAME_SOURCE_EVENT_KINDS.has(input.eventKind);
       const guestNameRaw = input.signals.guestName?.trim();
       if (!canApplyGuestName && guestNameRaw) {
         skipped.push("guestName");
-      } else if (guestNameRaw && isPlaceholderGuestName(reservation.guestName)) {
+      } else if (guestNameRaw && rowStillPlaceholder) {
         const split = splitGuestName(guestNameRaw);
         updates.guestName = split.guestName;
         updates.guestFirstName = split.guestFirstName;
@@ -379,51 +384,56 @@ export async function applySafeReservationEnrichment(input: {
         skipped.push("guestName");
       }
 
-      const email = input.signals.guestEmail?.trim();
-      if (email && !reservation.guestEmail?.trim()) {
-        updates.guestEmail = email;
-        applied.guestEmail = email;
-      } else if (email) {
-        skipped.push("guestEmail");
-      }
+      if (canMutateGuestContactFields) {
+        const email = input.signals.guestEmail?.trim();
+        if (email && !reservation.guestEmail?.trim()) {
+          updates.guestEmail = email;
+          applied.guestEmail = email;
+        } else if (email) {
+          skipped.push("guestEmail");
+        }
 
-      const phone = input.signals.guestPhone?.trim();
-      if (phone && !reservation.guestPhone?.trim()) {
-        updates.guestPhone = phone;
-        applied.guestPhone = phone;
-      } else if (phone) {
-        skipped.push("guestPhone");
-      }
+        const phone = input.signals.guestPhone?.trim();
+        if (phone && !reservation.guestPhone?.trim()) {
+          updates.guestPhone = phone;
+          applied.guestPhone = phone;
+        } else if (phone) {
+          skipped.push("guestPhone");
+        }
 
-      const latestAppliedOccupancyEventAt = await getLatestAppliedOccupancyEventAt(
-        dbClient,
-        input.match.reservationId,
-      );
-      const occupancyResult = resolveOccupancyEnrichmentUpdate({
-        eventKind: input.eventKind,
-        reservation: {
-          adults: reservation.adults,
-          children: reservation.children,
-          infants: reservation.infants,
-        },
-        signals: input.signals,
-        sourceEventAt: input.sourceEventAt,
-        latestAppliedOccupancyEventAt,
-      });
+        const latestAppliedOccupancyEventAt =
+          await getLatestAppliedOccupancyEventAt(
+            dbClient,
+            input.match.reservationId,
+          );
+        const occupancyResult = resolveOccupancyEnrichmentUpdate({
+          eventKind: input.eventKind,
+          reservation: {
+            adults: reservation.adults,
+            children: reservation.children,
+            infants: reservation.infants,
+          },
+          signals: input.signals,
+          sourceEventAt: input.sourceEventAt,
+          latestAppliedOccupancyEventAt,
+        });
 
-      if (occupancyResult.updates.adults != null) {
-        updates.adults = occupancyResult.updates.adults;
-        applied.adults = occupancyResult.applied.adults!;
+        if (occupancyResult.updates.adults != null) {
+          updates.adults = occupancyResult.updates.adults;
+          applied.adults = occupancyResult.applied.adults!;
+        }
+        if (occupancyResult.updates.children != null) {
+          updates.children = occupancyResult.updates.children;
+          applied.children = occupancyResult.applied.children!;
+        }
+        if (occupancyResult.updates.infants != null) {
+          updates.infants = occupancyResult.updates.infants;
+          applied.infants = occupancyResult.applied.infants!;
+        }
+        skipped.push(...occupancyResult.skipped);
+      } else {
+        skipped.push("guestFieldsLocked");
       }
-      if (occupancyResult.updates.children != null) {
-        updates.children = occupancyResult.updates.children;
-        applied.children = occupancyResult.applied.children!;
-      }
-      if (occupancyResult.updates.infants != null) {
-        updates.infants = occupancyResult.updates.infants;
-        applied.infants = occupancyResult.applied.infants!;
-      }
-      skipped.push(...occupancyResult.skipped);
     } else {
       skipped.push("guestFieldsLocked");
     }

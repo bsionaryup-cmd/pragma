@@ -5,21 +5,22 @@ import {
   clientUatExpireTargets,
   resolveIncompleteSessionBridge,
 } from "../../src/lib/auth/clerk-incomplete-session-bridge";
+import { APP_LOGIN_PATH, APP_SIGNED_OUT_LOGIN_PATH } from "../../src/lib/auth/auth-paths";
 
 describe("resolveIncompleteSessionBridge", () => {
-  it("redirects protected /panel to sign-in settle-bridge", () => {
+  it("redirects protected /panel to unified /login settle-bridge", () => {
     const d = resolveIncompleteSessionBridge("/panel", "");
     assert.equal(d.action, "redirect");
     if (d.action !== "redirect") return;
     assert.equal(d.marker, "settle-bridge");
-    assert.equal(d.loginPath, "/sign-in");
+    assert.equal(d.loginPath, APP_LOGIN_PATH);
     assert.equal(d.nextPath, "/panel");
     assert.equal(d.redirectParam, "redirect_url");
   });
 
-  it("pass-through on /sign-in to break ERR_TOO_MANY_REDIRECTS self-loop", () => {
+  it("pass-through on /login to break ERR_TOO_MANY_REDIRECTS self-loop", () => {
     const d = resolveIncompleteSessionBridge(
-      "/sign-in",
+      "/login",
       "?redirect_url=%2Fpanel",
     );
     assert.deepEqual(d, {
@@ -28,7 +29,12 @@ describe("resolveIncompleteSessionBridge", () => {
     });
   });
 
-  it("pass-through on /owner-login and /auth/continue", () => {
+  it("pass-through on legacy /sign-in, /owner-login and /auth/continue", () => {
+    assert.equal(
+      resolveIncompleteSessionBridge("/sign-in", "?redirect_url=%2Fpanel")
+        .action,
+      "pass-through",
+    );
     assert.equal(
       resolveIncompleteSessionBridge("/owner-login", "?next=%2Fowner-dashboard")
         .action,
@@ -40,12 +46,18 @@ describe("resolveIncompleteSessionBridge", () => {
     );
   });
 
-  it("uses owner-login for owner-dashboard paths", () => {
+  it("uses unified /login for owner-dashboard paths", () => {
     const d = resolveIncompleteSessionBridge("/owner-dashboard", "");
     assert.equal(d.action, "redirect");
     if (d.action !== "redirect") return;
-    assert.equal(d.loginPath, "/owner-login");
-    assert.equal(d.redirectParam, "next");
+    assert.equal(d.loginPath, APP_LOGIN_PATH);
+    assert.equal(d.redirectParam, "redirect_url");
+  });
+});
+
+describe("auth path contract", () => {
+  it("signed-out login includes signed_out=1", () => {
+    assert.equal(APP_SIGNED_OUT_LOGIN_PATH, "/login?signed_out=1");
   });
 });
 

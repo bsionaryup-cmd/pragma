@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import { OwnerHealthCheckView } from "@/components/owner/owner-health-check-view";
 import {
   PlatformOwnerForbiddenError,
+  PlatformOwnerUnauthorizedError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
+import { OWNER_LOGIN_PATH } from "@/lib/platform/constants";
 import { getPlatformHealthSnapshot } from "@/services/platform/platform-health.service";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +14,7 @@ export default async function OwnerHealthPage() {
   try {
     await requirePlatformOwnerUser();
   } catch (error) {
+    if (error instanceof PlatformOwnerUnauthorizedError) redirect(OWNER_LOGIN_PATH);
     if (error instanceof PlatformOwnerForbiddenError) redirect("/unauthorized");
     throw error;
   }

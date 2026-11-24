@@ -9,6 +9,8 @@ export function isPublicPostAuthPath(path: string): boolean {
   return (
     path === "/auth/continue" ||
     path.startsWith("/auth/continue?") ||
+    path === "/login" ||
+    path.startsWith("/login?") ||
     path === "/sign-in" ||
     path.startsWith("/sign-in?") ||
     path === "/owner-login" ||

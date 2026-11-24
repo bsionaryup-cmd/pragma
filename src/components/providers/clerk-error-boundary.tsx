@@ -4,6 +4,8 @@ import { useClerk } from "@clerk/nextjs";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { Button } from "@/components/ui/button";
+import { APP_SIGNED_OUT_LOGIN_PATH } from "@/lib/auth/auth-paths";
+import { expireClientUatCookiesInBrowser } from "@/lib/auth/full-sign-out";
 
 type Props = { children: ReactNode };
 
@@ -65,7 +67,8 @@ function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
           variant="outline"
           onClick={() => {
             onRetry();
-            void signOut({ redirectUrl: "/sign-in?signed_out=1" });
+            expireClientUatCookiesInBrowser();
+            void signOut({ redirectUrl: APP_SIGNED_OUT_LOGIN_PATH });
           }}
         >
           Cerrar sesión

@@ -1,0 +1,123 @@
+import { Suspense } from "react";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { ClerkSignOutButton } from "@/components/auth/clerk-sign-out-button";
+import { EmailPasswordSignInForm } from "@/components/auth/email-password-sign-in-form";
+import { PragmaAuthLayout } from "@/components/auth/pragma-auth-layout";
+import { APP_LOGIN_PATH, APP_POST_LOGIN_PATH } from "@/lib/auth/auth-paths";
+import { resolvePostAuthHomePathForUser } from "@/lib/billing/post-auth-redirect";
+import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
+import { getUserByClerkId } from "@/services/users/user.service";
+
+type LoginPageProps = {
+  searchParams: Promise<{
+    inactive?: string;
+    signed_out?: string;
+    clerk_unavailable?: string;
+    existing_account?: string;
+    trial_consumed?: string;
+    forbidden?: string;
+    error?: string;
+    next?: string;
+    /** Middleware uses `redirect_url`; keep `next` for older links. */
+    redirect_url?: string;
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const showInactiveHint = params.inactive === "1";
+  const showSignedOutHint = params.signed_out === "1";
+  const showClerkUnavailableHint = params.clerk_unavailable === "1";
+  const showExistingAccountHint = params.existing_account === "1";
+  const showTrialConsumedHint = params.trial_consumed === "1";
+  const showForbiddenHint =
+    params.error === "forbidden" || params.forbidden === "1";
+  let postAuthPath = sanitizeAuthRedirectPath(
+    params.next ?? params.redirect_url,
+    APP_POST_LOGIN_PATH,
+  );
+  // Never soft-land back on the login surface after a successful auth.
+  if (
+    postAuthPath === APP_LOGIN_PATH ||
+    postAuthPath.startsWith(`${APP_LOGIN_PATH}?`) ||
+    postAuthPath === "/sign-in" ||
+    postAuthPath.startsWith("/sign-in?") ||
+    postAuthPath === "/owner-login" ||
+    postAuthPath.startsWith("/owner-login?")
+  ) {
+    postAuthPath = APP_POST_LOGIN_PATH;
+  }
+  const { userId } = await auth();
+
+  let serverSessionActive = false;
+
+  // Keep the login form mounted — never hard-redirect to panel (cookie race).
+  // After explicit logout (?signed_out=1) never treat residual cookies as "active".
+  if (userId && !showInactiveHint && !showSignedOutHint) {
+    const dbUser = await getUserByClerkId(userId);
+
+    if (dbUser && !dbUser.isActive) {
+      redirect(`${APP_LOGIN_PATH}?inactive=1`);
+    }
+
+    if (dbUser?.isActive) {
+      postAuthPath = await resolvePostAuthHomePathForUser(dbUser);
+      serverSessionActive = true;
+    } else if (userId) {
+      serverSessionActive = true;
+      postAuthPath = APP_POST_LOGIN_PATH;
+    }
+  }
+
+  return (
+    <PragmaAuthLayout
+      backHref="/"
+      backLabel="Inicio"
+      hint={
+        showInactiveHint ? (
+          <div className="space-y-3">
+            <p className="text-sm text-destructive">
+              Tu cuenta fue desactivada. Contacta al administrador de PRAGMA.
+            </p>
+            <div className="flex justify-center">
+              <ClerkSignOutButton>Cerrar sesión</ClerkSignOutButton>
+            </div>
+          </div>
+        ) : showSignedOutHint ? (
+          <p className="text-sm text-muted-foreground">
+            Sesión cerrada correctamente. Puedes iniciar sesión de nuevo.
+          </p>
+        ) : showForbiddenHint ? (
+          <p className="text-sm text-muted-foreground">
+            Inicia sesión con tu correo y contraseña. Owner y usuarios del PMS
+            usan la misma página; el sistema te lleva al panel correcto.
+          </p>
+        ) : showClerkUnavailableHint ? (
+          <p className="text-sm text-destructive">
+            No se pudo conectar con el servicio de autenticación. Intenta de nuevo en unos
+            momentos.
+          </p>
+        ) : showExistingAccountHint ? (
+          <p className="text-sm text-destructive">
+            Este correo ya está registrado en PRAGMA. Inicia sesión con tu contraseña para
+            continuar.
+          </p>
+        ) : showTrialConsumedHint ? (
+          <p className="text-sm text-destructive">
+            Este correo ya utilizó la prueba gratuita. Inicia sesión para suscribirte en Mi
+            Suscripción o contacta soporte.
+          </p>
+        ) : null
+      }
+    >
+      <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
+        <EmailPasswordSignInForm
+          postAuthPath={postAuthPath}
+          clearStaleSession={showSignedOutHint}
+          serverSessionActive={serverSessionActive && !showSignedOutHint}
+        />
+      </Suspense>
+    </PragmaAuthLayout>
+  );
+}

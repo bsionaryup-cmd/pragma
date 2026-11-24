@@ -292,7 +292,7 @@ export function EmailPasswordForgotPasswordForm() {
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
-          <Link href="/sign-in" className="font-medium text-pragma-electric hover:underline">
+          <Link href="/login" className="font-medium text-pragma-electric hover:underline">
             Volver al inicio de sesión
           </Link>
         </p>
@@ -404,7 +404,7 @@ export function EmailPasswordForgotPasswordForm() {
           Usar otro correo
         </Button>
         <p className="text-center text-sm text-muted-foreground">
-          <Link href="/sign-in" className="font-medium text-pragma-electric hover:underline">
+          <Link href="/login" className="font-medium text-pragma-electric hover:underline">
             Volver al inicio de sesión
           </Link>
         </p>

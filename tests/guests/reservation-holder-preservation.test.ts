@@ -40,4 +40,15 @@ describe("reservation holder preservation", () => {
     });
     assert.equal(merged.guestName, "María García");
   });
+
+  it("GR contact-only contract: reservation titular fields are not in contact patch", () => {
+    const contactOnlyPatch = {
+      guestEmail: "a@b.com",
+      guestPhone: "+573000000000",
+      guestCountry: "CO",
+    };
+    assert.equal("guestName" in contactOnlyPatch, false);
+    assert.equal("guestFirstName" in contactOnlyPatch, false);
+    assert.equal("guestLastName" in contactOnlyPatch, false);
+  });
 });

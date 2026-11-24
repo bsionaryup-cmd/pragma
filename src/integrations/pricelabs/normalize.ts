@@ -1,5 +1,6 @@
 import type {
   PriceLabsDailyPrice,
+  PriceLabsListingCustomizations,
   PriceLabsListingRecord,
   PriceLabsListingPricesRow,
   PriceLabsOverrideRecord,
@@ -208,4 +209,23 @@ export function isBenignListingError(code?: string, message?: string): boolean {
     hay.includes("TOGGLE_OFF") ||
     hay.includes("NO_DATA")
   );
+}
+
+export function normalizeListingCustomizations(
+  payload: unknown,
+): PriceLabsListingCustomizations {
+  const root = asRecord(payload);
+  if (!root) return {};
+
+  const nested = asRecord(root.customizations);
+  const source = nested ?? root;
+  const out: PriceLabsListingCustomizations = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    if (value == null) continue;
+    if (typeof value === "object" && !Array.isArray(value)) {
+      out[key] = value as Record<string, unknown>;
+    }
+  }
+  return out;
 }

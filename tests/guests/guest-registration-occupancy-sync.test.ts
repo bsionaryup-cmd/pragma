@@ -37,18 +37,29 @@ describe("guest registration occupancy SSOT", () => {
     assert.equal(after, 4);
   });
 
-  it("counts adults and children for registration limit, not infants", () => {
+  it("counts adults, children and infants for registration limit", () => {
     const capacity = getGuestRegistrationMaxCapacity({
       platform: BookingPlatform.AIRBNB,
       adults: 2,
       children: 1,
       infants: 2,
     });
-    assert.equal(capacity, 3);
+    assert.equal(capacity, 5);
     assert.equal(
       getReservationGuestCount({ adults: 2, children: 1, infants: 2 }),
       5,
     );
+  });
+
+  it("allows registering an infant when adults already fill property capacity", () => {
+    const capacity = getGuestRegistrationMaxCapacity({
+      platform: BookingPlatform.AIRBNB,
+      adults: 4,
+      children: 0,
+      infants: 1,
+      propertyMaxGuests: 4,
+    });
+    assert.equal(capacity, 5);
   });
 
   it("keeps iCal placeholder at 1 until reservation row is enriched", () => {

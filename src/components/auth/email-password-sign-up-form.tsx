@@ -594,8 +594,8 @@ export function EmailPasswordSignUpForm() {
         <Link
           href={
             normalizedEmail
-              ? `/sign-in?email=${encodeURIComponent(normalizedEmail)}`
-              : "/sign-in"
+              ? `/login?email=${encodeURIComponent(normalizedEmail)}`
+              : "/login"
           }
           className="font-medium text-pragma-electric hover:underline"
         >
