@@ -54,49 +54,83 @@ export async function getPlatformHealthSnapshot(): Promise<PlatformHealthSnapsho
     dbOk = false;
   }
 
-  const [
-    orgCount,
-    propertyCount,
-    retailStoreCount,
-    mobilityAllyCount,
-    pending,
-    failed,
-    processing,
-    oldestPending,
-    lastDone,
-    recentFailed,
-  ] = await Promise.all([
+  const [orgCount, propertyCount, mobilityAllyCount] = await Promise.all([
     db.organization.count({ where: { deletedAt: null } }),
     db.property.count(),
-    db.retailStore.count({ where: { deletedAt: null, status: "ACTIVE" } }),
     db.mobilityAlly.count(),
-    db.retailIntelOutbox.count({ where: { status: "PENDING" } }),
-    db.retailIntelOutbox.count({ where: { status: "FAILED" } }),
-    db.retailIntelOutbox.count({ where: { status: "PROCESSING" } }),
-    db.retailIntelOutbox.findFirst({
-      where: { status: "PENDING" },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true },
-    }),
-    db.retailIntelOutbox.findFirst({
-      where: { status: "DONE" },
-      orderBy: { processedAt: "desc" },
-      select: { processedAt: true },
-    }),
-    db.retailIntelOutbox.findMany({
-      where: { status: "FAILED" },
-      orderBy: { createdAt: "desc" },
-      take: 8,
-      select: {
-        id: true,
-        type: true,
-        storeId: true,
-        lastError: true,
-        attempts: true,
-        createdAt: true,
-      },
-    }),
   ]);
+
+  let retailStoreCount = 0;
+  let pending = 0;
+  let failed = 0;
+  let processing = 0;
+  let oldestPending: { createdAt: Date } | null = null;
+  let lastDone: { processedAt: Date | null } | null = null;
+  let recentFailed: Array<{
+    id: string;
+    type: string;
+    storeId: string;
+    lastError: string | null;
+    attempts: number;
+    createdAt: Date;
+  }> = [];
+  let retailSchemaMissing = false;
+
+  try {
+    [
+      retailStoreCount,
+      pending,
+      failed,
+      processing,
+      oldestPending,
+      lastDone,
+      recentFailed,
+    ] = await Promise.all([
+      db.retailStore.count({ where: { deletedAt: null, status: "ACTIVE" } }),
+      db.retailIntelOutbox.count({ where: { status: "PENDING" } }),
+      db.retailIntelOutbox.count({ where: { status: "FAILED" } }),
+      db.retailIntelOutbox.count({ where: { status: "PROCESSING" } }),
+      db.retailIntelOutbox.findFirst({
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true },
+      }),
+      db.retailIntelOutbox.findFirst({
+        where: { status: "DONE" },
+        orderBy: { processedAt: "desc" },
+        select: { processedAt: true },
+      }),
+      db.retailIntelOutbox.findMany({
+        where: { status: "FAILED" },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: {
+          id: true,
+          type: true,
+          storeId: true,
+          lastError: true,
+          attempts: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      (error &&
+        typeof error === "object" &&
+        "code" in error &&
+        String((error as { code?: unknown }).code) === "P2021") ||
+      /does not exist in the current database/i.test(message)
+    ) {
+      retailSchemaMissing = true;
+      console.warn(
+        "[platform-health] retail schema unavailable; INTIENDAS checks degraded",
+      );
+    } else {
+      throw error;
+    }
+  }
 
   const oldestPendingAgeMinutes = oldestPending
     ? Math.round((Date.now() - oldestPending.createdAt.getTime()) / 60_000)
@@ -132,8 +166,14 @@ export async function getPlatformHealthSnapshot(): Promise<PlatformHealthSnapsho
     {
       id: "retail",
       label: "Retail (INTIENDAS)",
-      status: retailStoreCount > 0 ? "PASS" : "WARN",
-      detail: `${retailStoreCount} tiendas ACTIVE`,
+      status: retailSchemaMissing
+        ? "FAIL"
+        : retailStoreCount > 0
+          ? "PASS"
+          : "WARN",
+      detail: retailSchemaMissing
+        ? "Tablas retail ausentes en DB (migración marcada pero sin tablas)"
+        : `${retailStoreCount} tiendas ACTIVE`,
     },
     {
       id: "qr-mobility",

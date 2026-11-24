@@ -28,19 +28,40 @@ type OrganizationReader = Pick<PrismaClient, "organization" | "retailStore" | "p
  * resolve seeded org ids with the positive filter and exclude by id.
  * Also excludes retail-only orgs (active store, zero properties).
  */
+function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = "code" in error ? String((error as { code?: unknown }).code) : "";
+  if (code === "P2021") return true;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+  return /does not exist in the current database/i.test(message);
+}
+
 export async function loadOwnerCommercialScope(
   client: OrganizationReader,
 ): Promise<OwnerCommercialScope> {
-  const [seededOrgs, retailStores] = await Promise.all([
-    client.organization.findMany({
-      where: { billingAccount: SEEDED_BILLING_ACCOUNT_WHERE },
-      select: { id: true },
-    }),
-    client.retailStore.findMany({
+  const seededOrgs = await client.organization.findMany({
+    where: { billingAccount: SEEDED_BILLING_ACCOUNT_WHERE },
+    select: { id: true },
+  });
+
+  let retailStores: Array<{ organizationId: string }> = [];
+  try {
+    retailStores = await client.retailStore.findMany({
       where: { deletedAt: null, status: "ACTIVE" },
       select: { organizationId: true },
-    }),
-  ]);
+    });
+  } catch (error) {
+    // INTIENDAS tables may be absent on a PMS-only DB; never crash Owner Dashboard.
+    if (!isMissingRelationError(error)) throw error;
+    console.warn(
+      "[owner-dashboard-scope] retail_stores unavailable; skipping retail-only org filter",
+    );
+  }
 
   const retailOrgIds = [...new Set(retailStores.map((s) => s.organizationId))];
   const orgsWithProperties =
