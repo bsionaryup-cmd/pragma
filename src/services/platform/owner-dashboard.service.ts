@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { BillingPlanCode, BillingSubscriptionStatus } from "@prisma/client";
+import { withVisibleReservationsFilter } from "@/lib/airbnb/ical-sync-utils";
 import { db } from "@/lib/db";
 import { calculateSubscriptionAmount } from "@/modules/billing/domain/plan-catalog";
 import {
@@ -27,10 +28,10 @@ async function sumOrganizationReservationRevenue(
   organizationId: string,
 ): Promise<number> {
   const reservations = await db.reservation.findMany({
-    where: {
+    where: withVisibleReservationsFilter({
       property: { organizationId },
       status: { not: "CANCELLED" },
-    },
+    }),
     select: {
       id: true,
       totalAmount: true,
@@ -338,10 +339,10 @@ export async function listOwnerClients(
   const revenueByOrg = new Map<string, number>();
   if (orgIds.length > 0) {
     const revenueReservations = await db.reservation.findMany({
-      where: {
+      where: withVisibleReservationsFilter({
         property: { organizationId: { in: orgIds } },
         status: { not: "CANCELLED" },
-      },
+      }),
       select: {
         id: true,
         totalAmount: true,
@@ -452,6 +453,8 @@ export async function getOwnerClientDetail(organizationId: string) {
           status: true,
           trialEndsAt: true,
           currentPeriodEnd: true,
+          gracePeriodEndsAt: true,
+          billingLockedAt: true,
           metadata: true,
           invoices: {
             orderBy: { dueAt: "desc" },
@@ -529,6 +532,10 @@ export async function getOwnerClientDetail(organizationId: string) {
           trialEndsAt: org.billingAccount.trialEndsAt?.toISOString() ?? null,
           currentPeriodEnd:
             org.billingAccount.currentPeriodEnd?.toISOString() ?? null,
+          gracePeriodEndsAt:
+            org.billingAccount.gracePeriodEndsAt?.toISOString() ?? null,
+          billingLockedAt:
+            org.billingAccount.billingLockedAt?.toISOString() ?? null,
           metadata: org.billingAccount.metadata,
           trialRetrial,
           invoices: org.billingAccount.invoices.map((inv) => ({

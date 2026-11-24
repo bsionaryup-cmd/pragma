@@ -17,7 +17,7 @@ export default async function ForgotPasswordPage() {
   }
 
   return (
-    <PragmaAuthLayout backHref="/sign-in" backLabel="Iniciar sesión">
+    <PragmaAuthLayout backHref="/login" backLabel="Iniciar sesión">
       <Suspense fallback={<p className="text-sm text-muted-foreground">Cargando…</p>}>
         <EmailPasswordForgotPasswordForm />
       </Suspense>

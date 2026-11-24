@@ -1,0 +1,52 @@
+﻿{
+    "startedAt":  "2026-07-16T13:36:45.089Z",
+    "allPass":  true,
+    "checks":  {
+                   "reservationId":  "cmrnjyyj400009gtyk6plzpvn",
+                   "property":  "801",
+                   "ttlockBeforeGr":  {
+                                          "try":  null,
+                                          "generate":  {
+                                                           "ok":  false,
+                                                           "message":  "El huÃ©sped aÃºn no completÃ³ el registro. TTLock no generarÃ¡ cÃ³digo hasta entonces."
+                                                       },
+                                          "pass":  true
+                                      },
+                   "welcome":  {
+                                   "url":  "http://localhost:3000/guest-registration/7f4230e86e8a70cc74d468d4a63cfbb5e96de64c4db57763",
+                                   "welcome":  {
+                                                   "ok":  true,
+                                                   "message":  "Correo de bienvenida enviado",
+                                                   "providerId":  "03d9f064-691e-4f9e-9087-164f7045d247"
+                                               },
+                                   "welcomeDedupe":  {
+                                                         "ok":  true,
+                                                         "skipped":  true,
+                                                         "message":  "Correo de bienvenida ya enviado"
+                                                     },
+                                   "log":  [
+                                               {
+                                                   "at":  "2026-07-16T13:36:41.159Z",
+                                                   "status":  "success",
+                                                   "recipient":  "magvillafuerte@gmail.com",
+                                                   "providerId":  "03d9f064-691e-4f9e-9087-164f7045d247",
+                                                   "triggeredBy":  "auto"
+                                               }
+                                           ],
+                                   "pass":  true
+                               },
+                   "guestRegistration":  {
+                                             "completedAt":  "2026-07-16T13:36:42.474Z",
+                                             "pass":  true
+                                         },
+                   "ttlockAfterGr":  {
+                                         "credentialId":  "cmrnjz2qp00049gtygilv9wjs",
+                                         "code":  "499987#",
+                                         "deliveryStatus":  "SENT",
+                                         "status":  "SENT",
+                                         "pass":  true,
+                                         "deliveryStatusFinal":  "SENT"
+                                     },
+                   "cleanup":  "CANCELLED"
+               }
+}

@@ -1,0 +1,227 @@
+{
+  "startedAt": "2026-07-27T01:59:24.440Z",
+  "dryRun": false,
+  "scanned": 7,
+  "gapCount": 5,
+  "gaps": [
+    {
+      "id": "cmrd5g50a000004if0dlxvbzg",
+      "guest": "Ludwing  Eliu Azurdia Morales",
+      "unit": "804",
+      "status": "CHECKED_IN",
+      "checkIn": "2026-07-24T00:00:00.000Z",
+      "checkOut": "2026-07-27T00:00:00.000Z",
+      "adminNotifiedAt": "2026-07-25T05:26:27.347Z"
+    },
+    {
+      "id": "cmro6gj9b000004kyllt1siud",
+      "guest": "German Oviedo Cruz",
+      "unit": "801",
+      "status": "CONFIRMED",
+      "checkIn": "2026-07-26T00:00:00.000Z",
+      "checkOut": "2026-07-27T00:00:00.000Z",
+      "adminNotifiedAt": "2026-07-26T17:54:39.451Z"
+    },
+    {
+      "id": "cms28l192000004lcnd732agk",
+      "guest": "Angie Suarez",
+      "unit": "802",
+      "status": "CHECKED_IN",
+      "checkIn": "2026-07-26T00:00:00.000Z",
+      "checkOut": "2026-07-31T00:00:00.000Z",
+      "adminNotifiedAt": "2026-07-26T21:54:43.010Z"
+    },
+    {
+      "id": "cmqi7zld5000004jj2wlfbwen",
+      "guest": "German Oviedo Cruz",
+      "unit": "804",
+      "status": "CONFIRMED",
+      "checkIn": "2026-07-27T00:00:00.000Z",
+      "checkOut": "2026-07-30T00:00:00.000Z",
+      "adminNotifiedAt": "2026-07-26T18:23:05.526Z"
+    },
+    {
+      "id": "cms2hnf1800004otyf2dg75kx",
+      "guest": "UI Visibility Audit",
+      "unit": "801",
+      "status": "CONFIRMED",
+      "checkIn": "2026-09-25T00:00:00.000Z",
+      "checkOut": "2026-09-27T00:00:00.000Z",
+      "adminNotifiedAt": "2026-07-27T00:46:52.085Z"
+    }
+  ],
+  "results": [
+    {
+      "reservationId": "cmrd5g50a000004if0dlxvbzg",
+      "guest": "Ludwing  Eliu Azurdia Morales",
+      "unit": "804",
+      "comms": {
+        "reservationId": "cmrd5g50a000004if0dlxvbzg",
+        "ttlock": {
+          "ok": true,
+          "message": "Código enviado a TTLock"
+        },
+        "reception": {
+          "ok": true,
+          "message": "Correo enviado a administración"
+        },
+        "accessCode": {
+          "ok": true,
+          "message": "Código de acceso enviado por correo"
+        },
+        "tenantReport": {
+          "ok": true,
+          "message": "Reporte enviado a urbanovaloft@gmail.com"
+        }
+      },
+      "credential": {
+        "id": "cms2kwtb200012styfh4efdvd",
+        "status": "SENT",
+        "deliveryStatus": "SENT",
+        "ttlockCodeId": "98041830",
+        "validFrom": "2026-07-24T20:00:00.000Z",
+        "validTo": "2026-07-27T18:00:00.000Z",
+        "uiCode": "959666#"
+      },
+      "visibleOk": true
+    },
+    {
+      "reservationId": "cmro6gj9b000004kyllt1siud",
+      "guest": "German Oviedo Cruz",
+      "unit": "801",
+      "comms": {
+        "reservationId": "cmro6gj9b000004kyllt1siud",
+        "ttlock": {
+          "ok": true,
+          "message": "Código enviado a TTLock"
+        },
+        "reception": {
+          "ok": true,
+          "message": "Correo enviado a administración"
+        },
+        "accessCode": {
+          "ok": true,
+          "message": "Código de acceso enviado por correo"
+        },
+        "tenantReport": {
+          "ok": true,
+          "message": "Reporte enviado a urbanovaloft@gmail.com"
+        }
+      },
+      "credential": {
+        "id": "cms2kx1d000042stykr1eh9t5",
+        "status": "SENT",
+        "deliveryStatus": "SENT",
+        "ttlockCodeId": "98041850",
+        "validFrom": "2026-07-26T20:00:00.000Z",
+        "validTo": "2026-07-27T18:00:00.000Z",
+        "uiCode": "377618#"
+      },
+      "visibleOk": true
+    },
+    {
+      "reservationId": "cms28l192000004lcnd732agk",
+      "guest": "Angie Suarez",
+      "unit": "802",
+      "comms": {
+        "reservationId": "cms28l192000004lcnd732agk",
+        "ttlock": {
+          "ok": true,
+          "message": "Código enviado a TTLock"
+        },
+        "reception": {
+          "ok": true,
+          "message": "Correo enviado a administración"
+        },
+        "accessCode": {
+          "ok": true,
+          "message": "Código de acceso enviado por correo"
+        },
+        "tenantReport": {
+          "ok": true,
+          "message": "Reporte enviado a urbanovaloft@gmail.com"
+        }
+      },
+      "credential": {
+        "id": "cms2kxelc00072styi9ml5z1c",
+        "status": "SENT",
+        "deliveryStatus": "SENT",
+        "ttlockCodeId": "98041876",
+        "validFrom": "2026-07-26T20:00:00.000Z",
+        "validTo": "2026-07-31T18:00:00.000Z",
+        "uiCode": "976796#"
+      },
+      "visibleOk": true
+    },
+    {
+      "reservationId": "cmqi7zld5000004jj2wlfbwen",
+      "guest": "German Oviedo Cruz",
+      "unit": "804",
+      "comms": {
+        "reservationId": "cmqi7zld5000004jj2wlfbwen",
+        "ttlock": {
+          "ok": true,
+          "message": "Código enviado a TTLock"
+        },
+        "reception": {
+          "ok": true,
+          "message": "Correo enviado a administración"
+        },
+        "accessCode": {
+          "ok": true,
+          "message": "Código de acceso enviado por correo"
+        },
+        "tenantReport": {
+          "ok": true,
+          "message": "Reporte enviado a urbanovaloft@gmail.com"
+        }
+      },
+      "credential": {
+        "id": "cms2kxksz000a2sty6fd01rcg",
+        "status": "SENT",
+        "deliveryStatus": "SENT",
+        "ttlockCodeId": "98041910",
+        "validFrom": "2026-07-27T20:00:00.000Z",
+        "validTo": "2026-07-30T18:00:00.000Z",
+        "uiCode": "860162#"
+      },
+      "visibleOk": true
+    },
+    {
+      "reservationId": "cms2hnf1800004otyf2dg75kx",
+      "guest": "UI Visibility Audit",
+      "unit": "801",
+      "comms": {
+        "reservationId": "cms2hnf1800004otyf2dg75kx",
+        "ttlock": {
+          "ok": true,
+          "message": "Código enviado a TTLock"
+        },
+        "reception": {
+          "ok": true,
+          "message": "Correo enviado a administración"
+        },
+        "accessCode": {
+          "ok": true,
+          "message": "Código de acceso enviado por correo"
+        },
+        "tenantReport": {
+          "ok": true,
+          "message": "Reporte enviado a urbanovaloft@gmail.com"
+        }
+      },
+      "credential": {
+        "id": "cms2kxx28000d2stym4ntwb0s",
+        "status": "SENT",
+        "deliveryStatus": "SENT",
+        "ttlockCodeId": "98042060",
+        "validFrom": "2026-09-25T20:00:00.000Z",
+        "validTo": "2026-09-27T18:00:00.000Z",
+        "uiCode": "400337#"
+      },
+      "visibleOk": true
+    }
+  ],
+  "ok": true,
+  "finishedAt": "2026-07-27T02:00:25.527Z"
+}

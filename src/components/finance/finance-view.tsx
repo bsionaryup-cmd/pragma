@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Receipt, TrendingUp, Wallet } from "lucide-react";
+import { ChevronDown, Plus, Receipt, TrendingUp, Wallet } from "lucide-react";
 import { FinanceYearlyOverviewChart } from "@/components/finance/finance-yearly-overview-chart";
 import { ModuleShellFlow } from "@/components/layout/module-shell";
 import { useI18n } from "@/components/providers/i18n-provider";
 import {
-  ExpenseSubmodule,
-  OtherIncomeSubmodule,
+  ExpenseCreateDialog,
+  OtherIncomeCreateDialog,
 } from "@/components/finance/manual-finance-forms";
+import { Button } from "@/components/ui/button";
 import { KpiCard } from "@/components/ui/kpi-card";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
@@ -107,6 +108,54 @@ function FinanceSecondaryMetrics({
   );
 }
 
+function FinanceCollapsible({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+  className,
+}: {
+  title: string;
+  summary?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section
+      className={cn(
+        "mb-4 overflow-hidden rounded-lg border border-border bg-card",
+        className,
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+      >
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {title}
+          </p>
+          {!open && summary ? (
+            <div className="mt-1 text-sm text-foreground">{summary}</div>
+          ) : null}
+        </div>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open ? <div className="border-t border-border">{children}</div> : null}
+    </section>
+  );
+}
+
 function FinanceChannelSummary({ data }: { data: FinanceOverview }) {
   const { t } = useI18n();
   const { channelSummary } = data;
@@ -134,12 +183,17 @@ function FinanceChannelSummary({ data }: { data: FinanceOverview }) {
   ];
 
   return (
-    <section className="mb-4 rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-4 py-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t("finance.channel.title")}
-        </p>
-      </div>
+    <FinanceCollapsible
+      title={t("finance.channel.title")}
+      summary={
+        <span className="font-semibold tabular-nums">
+          {channelSummary.totalRevenueFormatted}
+          <span className="ml-2 font-normal text-muted-foreground">
+            · {channelSummary.totalReservations} {t("finance.channel.totalReservations")}
+          </span>
+        </span>
+      }
+    >
       <div className="grid gap-px bg-border sm:grid-cols-3">
         {rows.map((row) => (
           <div
@@ -159,7 +213,41 @@ function FinanceChannelSummary({ data }: { data: FinanceOverview }) {
           </div>
         ))}
       </div>
-    </section>
+    </FinanceCollapsible>
+  );
+}
+
+function FinancePrimaryActions({
+  canWrite,
+  onAddExpense,
+  onAddOtherIncome,
+}: {
+  canWrite: boolean;
+  onAddExpense: () => void;
+  onAddOtherIncome: () => void;
+}) {
+  const { t } = useI18n();
+  if (!canWrite) return null;
+
+  return (
+    <div className="sticky top-0 z-20 mb-4 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" onClick={onAddExpense} className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          {t("finance.actions.addExpense")}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onAddOtherIncome}
+          className="gap-1.5"
+        >
+          <Plus className="h-4 w-4" />
+          {t("finance.actions.addOtherIncome")}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -173,6 +261,8 @@ export function FinanceView({
   const formatAmount = (amount: number) => formatMoney(amount, undefined, locale);
   const isOperations = scope === "operations";
   const [activeTab, setActiveTab] = useState<FinanceTab>("revenue");
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [otherIncomeDialogOpen, setOtherIncomeDialogOpen] = useState(false);
   const selectedMonthIndex = Number(selectedMonth.split("-")[1]) - 1;
 
   const otherIncomeFlow = data.revenueFlow.filter(
@@ -189,6 +279,19 @@ export function FinanceView({
     { id: "otherIncome", label: t("finance.tabs.otherIncome") },
   ];
 
+  const createDialogs = canWrite ? (
+    <>
+      <ExpenseCreateDialog
+        open={expenseDialogOpen}
+        onOpenChange={setExpenseDialogOpen}
+      />
+      <OtherIncomeCreateDialog
+        open={otherIncomeDialogOpen}
+        onOpenChange={setOtherIncomeDialogOpen}
+      />
+    </>
+  ) : null;
+
   if (isOperations) {
     return (
       <ModuleShellFlow className="bg-background">
@@ -197,6 +300,12 @@ export function FinanceView({
             eyebrow={t("finance.eyebrow")}
             title={t("finance.operationsTitle")}
             description={t("finance.operationsDescription")}
+          />
+
+          <FinancePrimaryActions
+            canWrite={canWrite}
+            onAddExpense={() => setExpenseDialogOpen(true)}
+            onAddOtherIncome={() => setOtherIncomeDialogOpen(true)}
           />
 
           <section className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -217,6 +326,7 @@ export function FinanceView({
             <OtherIncomeFlowTable rows={otherIncomeFlow} canWrite={canWrite} />
           </div>
         </div>
+        {createDialogs}
       </ModuleShellFlow>
     );
   }
@@ -244,6 +354,12 @@ export function FinanceView({
               </Link>
             </div>
           }
+        />
+
+        <FinancePrimaryActions
+          canWrite={canWrite}
+          onAddExpense={() => setExpenseDialogOpen(true)}
+          onAddOtherIncome={() => setOtherIncomeDialogOpen(true)}
         />
 
         <section className="mb-4">
@@ -348,9 +464,13 @@ export function FinanceView({
 
         <FinanceChannelSummary data={data} />
 
-        <SectionCard
+        <FinanceCollapsible
           title={t("finance.annualSummaryTitle", { year: data.chartYear })}
-          description={t("finance.annualSummaryDescription")}
+          summary={
+            <span className="text-muted-foreground">
+              {t("finance.annualSummaryDescription")}
+            </span>
+          }
           className="mb-5"
         >
           <div className="p-4 sm:p-5">
@@ -361,7 +481,7 @@ export function FinanceView({
               selectedMonthIndex={selectedMonthIndex}
             />
           </div>
-        </SectionCard>
+        </FinanceCollapsible>
 
         <nav className="mb-4 flex gap-1 overflow-x-auto border-b border-border pb-px [-webkit-overflow-scrolling:touch]">
           {tabs.map((tab) => (
@@ -410,7 +530,7 @@ export function FinanceView({
                       <TableCell>
                         {row.reservationId ? (
                           <Link
-                            href={`/reservations?reservation=${row.reservationId}`}
+                            href={`/calendar?reservation=${row.reservationId}`}
                             className="block min-w-0 hover:underline"
                           >
                             <p className="truncate font-medium">
@@ -451,19 +571,14 @@ export function FinanceView({
         ) : null}
 
         {activeTab === "expenses" ? (
-          <div className="space-y-5">
-            <ExpenseFlowTable data={data} canWrite={canWrite} />
-            {canWrite ? <ExpenseSubmodule /> : null}
-          </div>
+          <ExpenseFlowTable data={data} canWrite={canWrite} />
         ) : null}
 
         {activeTab === "otherIncome" ? (
-          <div className="space-y-5">
-            <OtherIncomeFlowTable rows={otherIncomeFlow} canWrite={canWrite} />
-            {canWrite ? <OtherIncomeSubmodule /> : null}
-          </div>
+          <OtherIncomeFlowTable rows={otherIncomeFlow} canWrite={canWrite} />
         ) : null}
       </div>
+      {createDialogs}
     </ModuleShellFlow>
   );
 }

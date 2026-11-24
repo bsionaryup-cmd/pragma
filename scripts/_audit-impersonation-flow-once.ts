@@ -1,5 +1,5 @@
 /**
- * Local verification (no deploy): start + end impersonation against prod DB
+ * Local verification (no deploy): start + end impersonation against DB
  * using the owner user row. Does not call Clerk HTTP.
  */
 import { config } from "dotenv";

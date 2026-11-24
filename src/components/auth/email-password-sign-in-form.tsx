@@ -10,33 +10,32 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  getSignInFlowErrorMessage,
-  isAlreadySignedInAuthError,
-} from "@/lib/clerk-auth-errors";
-import { settleClerkSessionThenGo } from "@/lib/auth/post-auth-navigation";
-import { expireClientUatCookiesInBrowser } from "@/lib/auth/full-sign-out";
+import { getSignInFlowErrorMessage, isAlreadySignedInAuthError } from "@/lib/clerk-auth-errors";
 import {
   formatResendCooldown,
   isVerificationCodeActive,
   sanitizeAuthRedirectPath,
   VERIFICATION_RESEND_COOLDOWN_MS,
 } from "@/lib/auth/verification-flow";
+import {
+  settleClerkSessionThenGo,
+} from "@/lib/auth/post-auth-navigation";
+import { expireClientUatCookiesInBrowser } from "@/lib/auth/full-sign-out";
+import { APP_POST_LOGIN_PATH } from "@/lib/auth/auth-paths";
 
-const DEFAULT_POST_AUTH_PATH = "/panel";
-
+const DEFAULT_POST_AUTH_PATH = APP_POST_LOGIN_PATH;
 type Step = "credentials" | "verification";
 type VerificationStrategy = "email_code" | "phone_code" | "totp" | "backup_code";
-type VerificationReason = "client_trust" | "second_factor";
+type VerificationReason = "client_trust" | "second_factor" | "first_factor";
 
 type EmailPasswordSignInFormProps = {
   postAuthPath?: string;
   clearStaleSession?: boolean;
-  /** When false, hides the PMS sign-up link (used by INTIENDAS). Default true. */
+  /** When false, hides the PMS sign-up link. Default true. */
   showSignUpLink?: boolean;
   /**
    * Server already saw a Clerk userId. Show Continuar — never auto-navigate
-   * (document GET before cookies settle wipes the session).
+   * (document GET to /panel before cookies settle wipes the session).
    */
   serverSessionActive?: boolean;
 };
@@ -77,6 +76,9 @@ function verificationHint(
   email: string,
   reason: VerificationReason | null,
 ): string {
+  if (reason === "first_factor") {
+    return `Enviamos un código de acceso a ${email || "tu correo"}.`;
+  }
   if (reason === "client_trust") {
     switch (strategy) {
       case "email_code":
@@ -146,9 +148,11 @@ export function EmailPasswordSignInForm({
 }: EmailPasswordSignInFormProps) {
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email")?.trim().toLowerCase() ?? "";
+  const redirectFromQuery =
+    searchParams.get("next") ?? searchParams.get("redirect_url");
 
   const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
-  const { signOut, session, setActive } = useClerk();
+  const { signOut, setActive, session } = useClerk();
   const { signIn, errors, fetchStatus } = useSignIn();
 
   const [authBootstrapTimedOut, setAuthBootstrapTimedOut] = useState(false);
@@ -175,7 +179,10 @@ export function EmailPasswordSignInForm({
   const clerkReady = authLoaded && Boolean(signIn);
   const isFetching = fetchStatus === "fetching" || pending;
   const normalizedEmail = email.trim().toLowerCase();
-  const redirectPath = sanitizeAuthRedirectPath(postAuthPath, DEFAULT_POST_AUTH_PATH);
+  const redirectPath = sanitizeAuthRedirectPath(
+    redirectFromQuery ?? postAuthPath,
+    DEFAULT_POST_AUTH_PATH,
+  );
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -188,17 +195,9 @@ export function EmailPasswordSignInForm({
   }, [resendCooldown]);
 
   useEffect(() => {
-    // Custom Domains / FAPI proxy: authLoaded can lag; never block the form forever.
-    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 1500);
+    const timer = window.setTimeout(() => setAuthBootstrapTimedOut(true), 2500);
     return () => window.clearTimeout(timer);
   }, []);
-
-  useEffect(() => {
-    // Stale `__client_uat` without `__session` causes handshake wipe loops on prod.
-    if (typeof window === "undefined") return;
-    if (serverSessionActive || isSignedIn) return;
-    expireClientUatCookiesInBrowser();
-  }, [serverSessionActive, isSignedIn]);
 
   useEffect(() => {
     if (!authLoaded || !clearStaleSession) return;
@@ -206,8 +205,10 @@ export function EmailPasswordSignInForm({
     staleSessionCleanupRef.current = true;
 
     expireClientUatCookiesInBrowser();
+
     if (isSignedIn && !loginSucceededRef.current) {
-      // Ya estamos en /sign-in tras cerrar sesión: limpiar sesión sin redirigir de nuevo.
+      // Only after explicit logout (?signed_out=1). Clearing on every /login
+      // visit caused a bounce loop: module → login → signOut → login again.
       void signOut().catch(() => {
         // El formulario debe seguir usable aunque falle el cierre residual.
       });
@@ -281,8 +282,6 @@ export function EmailPasswordSignInForm({
       throw new Error("El servicio de autenticación no está listo.");
     }
 
-    // Do not navigate inside finalize — production custom domains often have
-    // client JWT without server `__session`. Settle cookies first, then hard go.
     const result = await signIn.finalize({
       navigate: async () => undefined,
     });
@@ -300,6 +299,12 @@ export function EmailPasswordSignInForm({
     await goAfterAuth(redirectPath);
   }
 
+  /**
+   * Production Clerk uses single_session_mode. If the identifier already has a
+   * live session (other tab/device, incomplete logout), password() surfaces
+   * "You're already signed in" / existingSession — activate that session and
+   * enter the app instead of blocking login.
+   */
   async function activateExistingSession(sessionId: string) {
     loginSucceededRef.current = true;
     await setActive({
@@ -309,20 +314,15 @@ export function EmailPasswordSignInForm({
     await goAfterAuth(redirectPath);
   }
 
-  function extractExistingSessionId(
-    result?: { error?: unknown } | null,
-  ): string | null {
+  function extractExistingSessionId(result?: { error?: unknown } | null): string | null {
     const fromSignIn = signIn?.existingSession?.sessionId;
     if (fromSignIn) return fromSignIn;
 
     const error = result?.error;
     if (!error || typeof error !== "object") return null;
     const meta =
-      "meta" in error
-        ? (error as { meta?: Record<string, unknown> | null }).meta
-        : null;
-    const fromMeta =
-      meta && typeof meta.sessionId === "string" ? meta.sessionId : null;
+      "meta" in error ? (error as { meta?: Record<string, unknown> | null }).meta : null;
+    const fromMeta = meta && typeof meta.sessionId === "string" ? meta.sessionId : null;
     return fromMeta;
   }
 
@@ -454,14 +454,75 @@ export function EmailPasswordSignInForm({
 
     startTransition(async () => {
       try {
-        if (signIn.status !== "needs_identifier") {
-          await signIn.reset();
+        // Live client session: enter app. Do not signOut first (that caused
+        // login → cookie wipe → bounce back to /login). After explicit logout
+        // (?signed_out=1) never reuse — force password flow.
+        if (isSignedIn && !loginSucceededRef.current && !clearStaleSession) {
+          await goAfterAuth(redirectPath);
+          return;
         }
 
-        const result = await signIn.password({
-          emailAddress: normalizedEmail,
-          password,
-        });
+        if (clearStaleSession && isSignedIn) {
+          expireClientUatCookiesInBrowser();
+          await signOut().catch(() => null);
+          // Clerk needs a beat after signOut before a fresh SignInFuture attempt.
+          await new Promise((r) => window.setTimeout(r, 400));
+          await signIn?.reset().catch(() => undefined);
+        }
+
+        async function attemptPasswordSignIn() {
+          if (!signIn) {
+            throw new Error("El servicio de autenticación no está listo.");
+          }
+
+          // Always reset so we don't reuse a half-open attempt with another identifier.
+          await signIn.reset().catch(() => undefined);
+
+          return signIn.password({
+            emailAddress: normalizedEmail,
+            password,
+          });
+        }
+
+        let result = await attemptPasswordSignIn();
+
+        const existingSessionId = extractExistingSessionId(result);
+        if (
+          !clearStaleSession &&
+          existingSessionId &&
+          (result.error || signIn.existingSession)
+        ) {
+          await activateExistingSession(existingSessionId);
+          return;
+        }
+
+        if (result.error && isAlreadySignedInAuthError(result)) {
+          const retrySessionId = extractExistingSessionId(result);
+          if (!clearStaleSession && retrySessionId) {
+            await activateExistingSession(retrySessionId);
+            return;
+          }
+          // Prefer entering the app over wiping the live Clerk client — never
+          // after explicit logout (?signed_out=1).
+          if (!clearStaleSession && isSignedIn) {
+            await goAfterAuth(redirectPath);
+            return;
+          }
+          await signIn.reset().catch(() => undefined);
+          result = await signIn.password({
+            emailAddress: normalizedEmail,
+            password,
+          });
+          const afterRetrySession = extractExistingSessionId(result);
+          if (
+            !clearStaleSession &&
+            afterRetrySession &&
+            (result.error || signIn.existingSession)
+          ) {
+            await activateExistingSession(afterRetrySession);
+            return;
+          }
+        }
 
         const message = getSignInFlowErrorMessage(
           result,
@@ -470,34 +531,53 @@ export function EmailPasswordSignInForm({
         );
 
         if (result.error) {
-          const existingId = extractExistingSessionId(result);
-          if (existingId || isAlreadySignedInAuthError(result.error)) {
-            if (existingId) {
-              await activateExistingSession(existingId);
-              return;
-            }
-          }
           setError(message);
           return;
         }
 
         await completeSignInIfReady();
       } catch (err) {
-        const existingId = extractExistingSessionId(
-          err && typeof err === "object" && "error" in err
-            ? (err as { error?: unknown })
-            : null,
-        );
-        if (existingId || isAlreadySignedInAuthError(err)) {
-          if (existingId) {
-            try {
-              await activateExistingSession(existingId);
+        if (isAlreadySignedInAuthError(err)) {
+          try {
+            if (clearStaleSession) {
+              expireClientUatCookiesInBrowser();
+              await signOut().catch(() => null);
+              await signIn?.reset().catch(() => undefined);
+              setError(
+                "Había una sesión residual. Intenta Entrar de nuevo con tu correo y contraseña.",
+              );
               return;
-            } catch {
-              // fall through
             }
+            const sessionId = extractExistingSessionId();
+            if (sessionId) {
+              await activateExistingSession(sessionId);
+              return;
+            }
+            if (isSignedIn) {
+              await goAfterAuth(redirectPath);
+              return;
+            }
+            if (signIn) {
+              await signIn.reset().catch(() => undefined);
+              const retry = await signIn.password({
+                emailAddress: normalizedEmail,
+                password,
+              });
+              const retrySession = extractExistingSessionId(retry);
+              if (retrySession) {
+                await activateExistingSession(retrySession);
+                return;
+              }
+              if (!retry.error) {
+                await completeSignInIfReady();
+                return;
+              }
+            }
+          } catch {
+            // fall through to generic error
           }
         }
+
         setError(
           err instanceof Error
             ? err.message
@@ -512,6 +592,10 @@ export function EmailPasswordSignInForm({
       throw new Error("El servicio de autenticación no está listo.");
     }
 
+    if (verificationReasonState === "first_factor") {
+      return signIn.emailCode.verifyCode({ code: trimmedCode });
+    }
+
     switch (verificationStrategy) {
       case "email_code":
         return signIn.mfa.verifyEmailCode({ code: trimmedCode });
@@ -524,6 +608,60 @@ export function EmailPasswordSignInForm({
       default:
         throw new Error("Método de verificación no soportado.");
     }
+  }
+
+  function startEmailCodeSignIn() {
+    if (!authBootstrapComplete || !signIn) return;
+    if (!normalizedEmail) {
+      setError("Ingresa tu correo electrónico.");
+      return;
+    }
+
+    setError(null);
+    setInfo(null);
+    verificationSendStartedRef.current = false;
+    restoredVerificationRef.current = false;
+
+    startTransition(async () => {
+      try {
+        if (isSignedIn && !loginSucceededRef.current && !clearStaleSession) {
+          await goAfterAuth(redirectPath);
+          return;
+        }
+        if (clearStaleSession && isSignedIn) {
+          expireClientUatCookiesInBrowser();
+          await signOut().catch(() => null);
+          await new Promise((r) => window.setTimeout(r, 400));
+        }
+
+        await signIn.reset().catch(() => undefined);
+        const result = await signIn.emailCode.sendCode({
+          emailAddress: normalizedEmail,
+        });
+        const message = getSignInFlowErrorMessage(
+          result,
+          errors,
+          "No se pudo enviar el código. En Clerk debe estar habilitado Email verification code.",
+        );
+        if (result.error) {
+          setError(message);
+          return;
+        }
+
+        setVerificationStrategy("email_code");
+        setVerificationReasonState("first_factor");
+        setStep("verification");
+        setCode("");
+        setInfo(verificationHint("email_code", normalizedEmail, "first_factor"));
+        startResendCooldown();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo enviar el código. Intenta de nuevo.",
+        );
+      }
+    });
   }
 
   function handleVerificationSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -559,10 +697,27 @@ export function EmailPasswordSignInForm({
 
         if (signIn.status !== "complete") {
           if (requiresSecondFactor(signIn.status)) {
-            setError("Verificación incompleta. Revisa el código e intenta de nuevo.");
-          } else {
-            setError("No se pudo completar el inicio de sesión. Intenta de nuevo.");
+            const strategy = resolveSecondFactorStrategy(signIn) ?? "email_code";
+            setVerificationStrategy(strategy);
+            setVerificationReasonState(verificationReason(signIn.status));
+            if (strategy === "email_code" || strategy === "phone_code") {
+              await sendVerificationCode(strategy);
+            }
+            setInfo(
+              verificationHint(
+                strategy,
+                normalizedEmail,
+                verificationReason(signIn.status),
+              ),
+            );
+            startResendCooldown();
+            return;
           }
+          if (signIn.status === "needs_first_factor") {
+            setError("Verificación incompleta. Revisa el código e intenta de nuevo.");
+            return;
+          }
+          setError("No se pudo completar el inicio de sesión. Intenta de nuevo.");
           return;
         }
 
@@ -587,19 +742,30 @@ export function EmailPasswordSignInForm({
     setError(null);
     startTransition(async () => {
       try {
-        verificationSendStartedRef.current = false;
-        const sent = await ensureVerificationCodeSent(verificationStrategy, {
-          force: true,
-        });
-        if (sent) {
-          setInfo(
-            `Reenviamos el código a ${
-              verificationStrategy === "phone_code"
-                ? "tu teléfono"
-                : normalizedEmail || "tu correo"
-            }.`,
+        if (verificationReasonState === "first_factor") {
+          const result = await signIn.emailCode.sendCode({
+            emailAddress: normalizedEmail,
+          });
+          const message = getSignInFlowErrorMessage(
+            result,
+            errors,
+            "No se pudo reenviar el código.",
           );
+          if (result.error) {
+            setError(message);
+            return;
+          }
+        } else {
+          await sendVerificationCode(verificationStrategy);
         }
+        setInfo(
+          verificationHint(
+            verificationStrategy,
+            normalizedEmail,
+            verificationReasonState,
+          ),
+        );
+        startResendCooldown();
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "No se pudo reenviar el código.",
@@ -775,15 +941,15 @@ export function EmailPasswordSignInForm({
         </div>
       ) : null}
 
-      {info ? (
-        <div className="rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-2.5 text-center text-sm text-foreground">
-          {info}
-        </div>
-      ) : null}
-
       {error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-center text-sm text-destructive">
           {error}
+        </div>
+      ) : null}
+
+      {info ? (
+        <div className="rounded-xl border border-pragma-cyan/30 bg-pragma-soft-cyan/40 px-3 py-2.5 text-center text-sm text-foreground">
+          {info}
         </div>
       ) : null}
 
@@ -812,7 +978,6 @@ export function EmailPasswordSignInForm({
           onChange={setPassword}
           autoComplete="current-password"
           placeholder="••••••••"
-          required
         />
         <p className="text-right text-xs">
           <Link
@@ -830,6 +995,16 @@ export function EmailPasswordSignInForm({
 
       <Button type="submit" variant="brand" className="h-11 w-full" disabled={isFetching}>
         {isFetching ? "Ingresando…" : "Iniciar sesión"}
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        className="h-11 w-full"
+        disabled={isFetching}
+        onClick={() => startEmailCodeSignIn()}
+      >
+        Entrar con código al correo
       </Button>
 
       {showSignUpLink ? (

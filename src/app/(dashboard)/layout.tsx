@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AirbnbAutoSyncLazy } from "@/components/airbnb/airbnb-auto-sync-lazy";
 import { DashboardDataRefreshLazy } from "@/components/dashboard/dashboard-data-refresh-lazy";
+import { ClerkSessionKeepAliveLazy } from "@/components/providers/clerk-session-keepalive-lazy";
 import { SupportBubbleLazy } from "@/components/support/support-bubble-lazy";
 import { DashboardBanners } from "@/components/billing/dashboard-banners";
 import { AppShell } from "@/components/layout/app-shell";
@@ -32,7 +33,6 @@ const AIRBNB_AUTO_SYNC_PREFIXES = [
   "/panel",
   "/calendar",
   "/properties",
-  "/reservations",
 ] as const;
 
 export default async function DashboardLayout({
@@ -132,6 +132,7 @@ export default async function DashboardLayout({
               </Suspense>
             </>
           )}
+          <ClerkSessionKeepAliveLazy />
           <AirbnbAutoSyncLazy enabled={canSyncAirbnb} />
           {!billingPaywall ? <DashboardDataRefreshLazy /> : null}
           {children}

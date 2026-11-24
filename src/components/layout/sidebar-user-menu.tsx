@@ -16,6 +16,7 @@ import {
   getUserInitials,
 } from "@/lib/helpers/user-display";
 import { hasPermission } from "@/lib/auth/permissions";
+import { APP_SIGNED_OUT_LOGIN_PATH } from "@/lib/auth/auth-paths";
 import { useClientSignOut } from "@/lib/auth/use-client-sign-out";
 import { cn } from "@/lib/utils";
 import type { SidebarUser } from "@/components/layout/sidebar-user-profile";
@@ -26,7 +27,7 @@ type SidebarUserMenuProps = {
 };
 
 export function SidebarUserMenu({ user, collapsed }: SidebarUserMenuProps) {
-  const signOut = useClientSignOut({ redirectUrl: "/sign-in?signed_out=1" });
+  const signOut = useClientSignOut({ redirectUrl: APP_SIGNED_OUT_LOGIN_PATH });
   const initials = getUserInitials(user.firstName, user.lastName, user.email);
   const displayName = getUserDisplayName(
     user.firstName,

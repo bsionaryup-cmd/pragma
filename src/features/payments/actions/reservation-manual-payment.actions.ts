@@ -59,7 +59,6 @@ export async function createReservationManualPaymentAction(
       ...parsed,
       createdById: user.id,
     });
-    revalidatePath("/reservations");
     revalidatePath("/calendar");
     revalidatePath("/finance");
     return { success: true as const };

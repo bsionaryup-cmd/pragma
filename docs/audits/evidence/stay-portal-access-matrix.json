@@ -1,0 +1,82 @@
+{
+  "at": "2026-07-27T07:11:41.540Z",
+  "dbStayPortalTokenDelegatePresent": true,
+  "neverThrew": true,
+  "allPass": true,
+  "cases": [
+    {
+      "id": "invalid_code",
+      "expected": "not_found",
+      "actual": "not_found",
+      "threw": false,
+      "pass": true
+    },
+    {
+      "id": "registration_pending_DIRECT",
+      "platform": "DIRECT",
+      "reservationCode": "DEMO-AM-05",
+      "expected": "registration_pending",
+      "actual": "registration_pending",
+      "threw": false,
+      "registrationUrl": "http://localhost:3000/guest-registration/b2246b105d15f9e7731cba5a1a88d478726fa56d0a1d1f32",
+      "pass": true
+    },
+    {
+      "id": "registration_pending_AIRBNB",
+      "platform": "AIRBNB+ical",
+      "reservationCode": "HMQHS8XW2R",
+      "expected": "registration_pending",
+      "actual": "registration_pending",
+      "threw": false,
+      "registrationUrl": "http://localhost:3000/guest-registration/20e24f528aa4763fc92918a4f3f43b808e3d4af7095fe26d",
+      "pass": true
+    },
+    {
+      "id": "registration_pending_ICAL",
+      "platform": "AIRBNB+ical",
+      "reservationCode": "HMQHS8XW2R",
+      "expected": "registration_pending",
+      "actual": "registration_pending",
+      "threw": false,
+      "registrationUrl": "http://localhost:3000/guest-registration/20e24f528aa4763fc92918a4f3f43b808e3d4af7095fe26d",
+      "pass": true
+    },
+    {
+      "id": "gr_complete_open_portal_DIRECT",
+      "platform": "DIRECT",
+      "expected": "ok+url (skipped — no fixture)",
+      "actual": "skipped",
+      "threw": false,
+      "pass": true
+    },
+    {
+      "id": "gr_complete_open_portal_AIRBNB",
+      "platform": "AIRBNB+ical",
+      "reservationCode": "HMMYRBF5HJ",
+      "expected": "ok+url (lazy token if missing)",
+      "actual": "ok",
+      "threw": false,
+      "url": "http://localhost:3000/stay/ed2bad77739fc2b2f3bc9e7ca0a95f3f9d3607f31be7dd22",
+      "pass": true
+    },
+    {
+      "id": "gr_complete_open_portal_ICAL",
+      "platform": "AIRBNB+ical",
+      "reservationCode": "HMMYRBF5HJ",
+      "expected": "ok+url (lazy token if missing)",
+      "actual": "ok",
+      "threw": false,
+      "url": "http://localhost:3000/stay/ed2bad77739fc2b2f3bc9e7ca0a95f3f9d3607f31be7dd22",
+      "pass": true
+    },
+    {
+      "id": "ended_reservation",
+      "platform": "AIRBNB",
+      "reservationCode": "HMTEFDXCKA",
+      "expected": "ended",
+      "actual": "ended",
+      "threw": false,
+      "pass": true
+    }
+  ]
+}

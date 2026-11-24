@@ -1,0 +1,41 @@
+{
+  "at": "2026-07-17T16:09:47.731Z",
+  "airbnbReservationsWithCode": 45,
+  "distinctOrganizations": 2,
+  "codeCompleteness": {
+    "guestLastName": 45,
+    "eligibleGuestLastName": 11,
+    "eligibleReservations": 11,
+    "guestEmail": 13,
+    "checkIn": 45
+  },
+  "codeShape": {
+    "minLength": 10,
+    "maxLength": 10,
+    "allAlphanumeric": false,
+    "patterns": {
+      "alphanumeric": 43,
+      "hyphenated": 45,
+      "containsWhitespace": 0,
+      "otherCharacters": 0
+    }
+  },
+  "duplicates": {
+    "codeOnlyGroups": 0,
+    "codeOnlyRowsInDuplicateGroups": 0,
+    "tenantCodeGroups": 0,
+    "codePlusCheckInGroups": 0
+  },
+  "statusCounts": {
+    "CHECKED_OUT": 33,
+    "CONFIRMED": 7,
+    "CANCELLED": 1,
+    "CHECKED_IN": 4
+  },
+  "completedCount": 13,
+  "completedDownstream": {
+    "withAccessCredential": 11,
+    "withDeliveredAccessCredential": 1,
+    "withAdminNotification": 1
+  }
+}

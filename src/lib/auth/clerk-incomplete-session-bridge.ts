@@ -18,7 +18,7 @@ export type IncompleteSessionBridgeDecision =
   | {
       action: "redirect";
       marker: "settle-bridge";
-      loginPath: "/sign-in" | "/owner-login" | "/login";
+      loginPath: typeof APP_LOGIN_PATH | "/sign-in" | "/owner-login" | "/login";
       /** Destination after login (path + optional search). */
       nextPath: string;
       /** Query param name Clerk / our forms already understand. */

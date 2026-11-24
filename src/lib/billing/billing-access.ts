@@ -16,7 +16,6 @@ export const BILLING_ALLOWED_PATH_PREFIXES = BILLING_LOCKED_ALLOWED_PATH_PREFIXE
 
 /** Sensitive PMS actions blocked when locked */
 export const BILLING_LOCKED_BLOCKED_PREFIXES = [
-  "/reservations/new",
   "/integrations",
   "/calendar",
   "/finance",

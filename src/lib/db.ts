@@ -1,12 +1,27 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { Pool, type PoolConfig } from "pg";
 
 /**
- * Debe coincidir con la última migración de schema.
- * Si cambia, el singleton en dev se recrea (evita cliente Prisma obsoleto en memoria).
+ * Bump when the Prisma schema changes so the dev singleton recycles.
+ * Do not hard-require product models here — probes must never take down Owner/PMS.
+ *
+ * 20260727020000: StayPortalToken (Guest Stay Portal). Stale clients without
+ * this bump left `db.stayPortalToken` undefined → TypeError on findFirst/findUnique.
+ * 20260728160000: DigitalReceptionist* — stale clients left
+ * `db.digitalReceptionistConfig` undefined → TypeError on upsert (Encender/Apagar).
  */
-const PRISMA_SCHEMA_VERSION = "20260823120000_pragma_web_builder";
+const PRISMA_SCHEMA_VERSION =
+  "20261124120000_reservation_guest_tra_fields";
+
+/** Product models that must exist on the live client when present in DMMF. */
+const GENERATED_PRODUCT_DELEGATES: Array<{
+  model: string;
+  delegate: string;
+}> = [
+  { model: "StayPortalToken", delegate: "stayPortalToken" },
+  { model: "TenantWebSite", delegate: "tenantWebSite" },
+];
 
 type PrismaGlobal = {
   prisma: PrismaClient | undefined;
@@ -69,19 +84,46 @@ function createAndCacheClient(): PrismaClient {
   return client;
 }
 
-function runtimeHasSupplierWhatsapp(client: PrismaClient): boolean {
-  const models = (client as unknown as { _runtimeDataModel?: { models?: Record<string, { fields?: Array<{ name: string }> }> } })
-    ._runtimeDataModel?.models;
-  const fields = models?.RetailSupplier?.fields ?? [];
-  return fields.some((field) => field.name === "whatsapp");
+/** Lodging PMS delegates required for Owner + tenant dashboards. */
+function hasPmsCoreDelegates(client: PrismaClient): boolean {
+  const c = client as unknown as Record<string, unknown>;
+  return (
+    Boolean(c.organization) &&
+    Boolean(c.user) &&
+    Boolean(c.property) &&
+    Boolean(c.reservation)
+  );
 }
 
-function hasCoreDelegates(client: PrismaClient): boolean {
-  return Boolean(client.mobilityAlly) && Boolean(client.retailStore);
+/**
+ * Detects HMR/stale singleton where DMMF already has a model but the cached
+ * PrismaClient instance was built before that model existed.
+ * Soft-recycle only — never throw (would take down Owner/PMS).
+ */
+function missingGeneratedProductDelegates(client: PrismaClient): string[] {
+  const c = client as unknown as Record<string, unknown>;
+  const dmmfModels = new Set(
+    Prisma.dmmf.datamodel.models.map((model) => model.name),
+  );
+  return GENERATED_PRODUCT_DELEGATES.filter(
+    ({ model, delegate }) => dmmfModels.has(model) && !c[delegate],
+  ).map(({ delegate }) => delegate);
 }
 
-function hasIntelDelegates(client: PrismaClient): boolean {
-  return Boolean(client.retailProductIntelProfile) && Boolean(client.retailIntelOutbox);
+function retireCachedClient(): void {
+  const oldPrisma = globalForPrisma.prisma;
+  const oldPool = globalForPrisma.pool;
+  globalForPrisma.prisma = undefined;
+  globalForPrisma.pool = undefined;
+  globalForPrisma.prismaSchemaVersion = undefined;
+  void (async () => {
+    try {
+      await oldPrisma?.$disconnect();
+      await oldPool?.end();
+    } catch (err) {
+      console.error("[db] Error al reciclar cliente Prisma:", err);
+    }
+  })();
 }
 
 function getPrismaClient(): PrismaClient {
@@ -90,43 +132,35 @@ function getPrismaClient(): PrismaClient {
     globalForPrisma.prismaSchemaVersion !== PRISMA_SCHEMA_VERSION;
 
   if (stale) {
-    const oldPrisma = globalForPrisma.prisma;
-    const oldPool = globalForPrisma.pool;
-    globalForPrisma.prisma = undefined;
-    globalForPrisma.pool = undefined;
-    globalForPrisma.prismaSchemaVersion = undefined;
-    void (async () => {
-      try {
-        await oldPrisma?.$disconnect();
-        await oldPool?.end();
-      } catch (err) {
-        console.error("[db] Error al reciclar cliente Prisma:", err);
-      }
-    })();
+    retireCachedClient();
   }
 
   let client = globalForPrisma.prisma ?? createAndCacheClient();
 
-  const needsRecycle =
-    !hasCoreDelegates(client) ||
-    !hasIntelDelegates(client) ||
-    !runtimeHasSupplierWhatsapp(client);
-
-  if (needsRecycle) {
-    console.warn("[db] Reciclando cliente Prisma (delegados/schema incompletos)…");
-    globalForPrisma.prisma = undefined;
+  if (!hasPmsCoreDelegates(client)) {
+    console.warn("[db] Reciclando cliente Prisma (faltan delegados PMS core)…");
+    retireCachedClient();
     client = createAndCacheClient();
   }
 
-  if (!hasCoreDelegates(client) || !runtimeHasSupplierWhatsapp(client)) {
-    throw new Error(
-      "[db] Prisma Client desactualizado (falta schema RetailSupplier.whatsapp). Ejecuta: npx prisma generate && npm run dev:clean && npm run dev",
+  const missingProduct = missingGeneratedProductDelegates(client);
+  if (missingProduct.length > 0) {
+    console.warn(
+      `[db] Reciclando cliente Prisma (faltan delegados generados: ${missingProduct.join(", ")})…`,
     );
+    retireCachedClient();
+    client = createAndCacheClient();
   }
 
-  if (!hasIntelDelegates(client)) {
+  // Soft checks only — never throw on optional product/runtime probes.
+  // Hard throws here take down Owner Dashboard and every authenticated page.
+  if (!hasPmsCoreDelegates(client)) {
     console.error(
-      "[db] Faltan delegados Inventory Intelligence. Ejecuta: npx prisma generate && npm run dev:clean",
+      "[db] Prisma Client incompleto (organization/user/property/reservation). Ejecuta: npx prisma generate",
+    );
+  } else if (missingGeneratedProductDelegates(client).length > 0) {
+    console.error(
+      "[db] Prisma Client incompleto (product delegates). Ejecuta: npx prisma generate",
     );
   }
 

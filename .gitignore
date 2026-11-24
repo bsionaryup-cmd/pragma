@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+/desktop/recepcionista-digital/node_modules
+/desktop/recepcionista-digital/STOP
+/desktop/recepcionista-digital/.secrets/
 /.pnp
 .pnp.*
 .yarn/*

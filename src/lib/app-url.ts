@@ -84,6 +84,43 @@ function isAllowedPublicAppUrl(url: string): boolean {
 }
 
 /**
+ * Force https for guest-facing public origins (email/SEO).
+ * Localhost http is preserved for local development only.
+ */
+export function ensureHttpsPublicOrigin(originOrUrl: string): string {
+  const trimmed = originOrUrl.trim().replace(/\/$/, "");
+  if (!trimmed) return PRAGMA_CANONICAL_PUBLIC_APP_ORIGIN;
+  try {
+    const normalized = normalizeBaseUrl(trimmed);
+    const parsed = new URL(normalized);
+    if (isLocalhostUrl(normalized)) {
+      return `${parsed.protocol}//${parsed.host}`;
+    }
+    if (shouldNormalizeToCanonicalPublicHost(parsed.hostname)) {
+      return PRAGMA_CANONICAL_PUBLIC_APP_ORIGIN;
+    }
+    parsed.protocol = "https:";
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch {
+    return PRAGMA_CANONICAL_PUBLIC_APP_ORIGIN;
+  }
+}
+
+/**
+ * Airbnb universal guest-registration entry (no token).
+ * Replaces `${window.location.origin}/guest-registration` which leaked http://.
+ */
+export function getAirbnbUniversalGuestRegistrationUrl(
+  browserOrigin?: string | null,
+): string {
+  const origin = browserOrigin?.trim();
+  if (origin && isLocalhostUrl(origin)) {
+    return `${origin.replace(/\/$/, "")}/guest-registration`;
+  }
+  return `${PRAGMA_CANONICAL_PUBLIC_APP_ORIGIN}/guest-registration`;
+}
+
+/**
  * Public app base URL for guest registration links and other shareable URLs.
  * Production canonical: https://www.pragmapms.com
  */

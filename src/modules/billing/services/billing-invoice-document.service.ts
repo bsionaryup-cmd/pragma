@@ -159,7 +159,7 @@ async function resolveBillingCustomer(organizationId?: string | null) {
   }
 
   const email =
-    process.env.PRAGMA_BILLING_EMAIL?.trim() ?? "cliente@pragma.co";
+    process.env.PRAGMA_BILLING_EMAIL?.trim() ?? "cliente@pragmapms.com";
 
   return {
     displayName: "Cliente PRAGMA",

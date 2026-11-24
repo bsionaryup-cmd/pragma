@@ -53,6 +53,54 @@ export type IcalSyncReservationRow = {
   platform: BookingPlatform;
 };
 
+export type IcalSyncReservationUpdate = ReturnType<
+  typeof buildIcalSyncReservationUpdate
+>;
+
+/**
+ * Split iCal updates so guestName writes can be applied with a DB guard
+ * (`guestRegistrationCompletedAt IS NULL`) — closes TOCTOU vs Guest Registration.
+ */
+export function splitIcalSyncUpdateForSafePersist(
+  update: IcalSyncReservationUpdate,
+): {
+  always: Omit<
+    IcalSyncReservationUpdate,
+    "guestName" | "guestFirstName" | "guestLastName"
+  > &
+    Partial<
+      Pick<
+        IcalSyncReservationUpdate,
+        "guestName" | "guestFirstName" | "guestLastName"
+      >
+    >;
+  guestNameOnlyIfUnlocked: {
+    guestName: string;
+    guestFirstName: string;
+    guestLastName: string | null;
+  } | null;
+} {
+  if (!("guestName" in update) || update.guestName === undefined) {
+    return { always: update, guestNameOnlyIfUnlocked: null };
+  }
+
+  const {
+    guestName,
+    guestFirstName = guestName.split(/\s+/)[0] ?? guestName,
+    guestLastName = null,
+    ...always
+  } = update;
+
+  return {
+    always,
+    guestNameOnlyIfUnlocked: {
+      guestName,
+      guestFirstName,
+      guestLastName,
+    },
+  };
+}
+
 /** True when applying `update` would leave the reservation row unchanged. */
 export function reservationMatchesIcalSyncUpdate(
   existing: IcalSyncReservationRow,

@@ -44,8 +44,31 @@ import { db } from "@/lib/db";
 import {
   buildIcalSyncReservationUpdate,
   reservationMatchesIcalSyncUpdate,
+  splitIcalSyncUpdateForSafePersist,
   type IcalSyncReservationRow,
 } from "@/services/airbnb/ical-guest-name-sync";
+
+async function persistIcalSyncReservationUpdate(
+  reservationId: string,
+  updateData: ReturnType<typeof buildIcalSyncReservationUpdate>,
+): Promise<{ guestNameWritten: boolean }> {
+  const split = splitIcalSyncUpdateForSafePersist(updateData);
+  await db.reservation.update({
+    where: { id: reservationId },
+    data: split.always,
+  });
+  if (!split.guestNameOnlyIfUnlocked) {
+    return { guestNameWritten: false };
+  }
+  const guestWrite = await db.reservation.updateMany({
+    where: {
+      id: reservationId,
+      guestRegistrationCompletedAt: null,
+    },
+    data: split.guestNameOnlyIfUnlocked,
+  });
+  return { guestNameWritten: guestWrite.count > 0 };
+}
 
 const FETCH_HEADERS = {
   "User-Agent": "PRAGMA-PMS/1.0 (iCal sync)",
@@ -371,23 +394,29 @@ export async function syncPropertyIcalCalendarInner(
           continue;
         }
 
-        await db.reservation.update({
-          where: { id: existing.id },
-          data: updateData,
-        });
+        const { guestNameWritten } = await persistIcalSyncReservationUpdate(
+          existing.id,
+          updateData,
+        );
         reservationByUid.set(event.uid, {
           ...existing,
           ...updateData,
           guestFirstName:
-            "guestFirstName" in updateData && updateData.guestFirstName !== undefined
+            guestNameWritten &&
+            "guestFirstName" in updateData &&
+            updateData.guestFirstName !== undefined
               ? updateData.guestFirstName
               : existing.guestFirstName,
           guestLastName:
-            "guestLastName" in updateData && updateData.guestLastName !== undefined
+            guestNameWritten &&
+            "guestLastName" in updateData &&
+            updateData.guestLastName !== undefined
               ? updateData.guestLastName
               : existing.guestLastName,
           guestName:
-            "guestName" in updateData && updateData.guestName !== undefined
+            guestNameWritten &&
+            "guestName" in updateData &&
+            updateData.guestName !== undefined
               ? updateData.guestName
               : existing.guestName,
         });
@@ -446,23 +475,29 @@ export async function syncPropertyIcalCalendarInner(
           const updateData = buildIcalSyncReservationUpdate(payload, overlapRow);
 
           if (!reservationMatchesIcalSyncUpdate(overlapRow, updateData)) {
-            await db.reservation.update({
-              where: { id: overlap.id },
-              data: updateData,
-            });
+            const { guestNameWritten } = await persistIcalSyncReservationUpdate(
+              overlap.id,
+              updateData,
+            );
             reservationByUid.set(event.uid, {
               ...overlapRow,
               ...updateData,
               guestFirstName:
-                "guestFirstName" in updateData && updateData.guestFirstName !== undefined
+                guestNameWritten &&
+                "guestFirstName" in updateData &&
+                updateData.guestFirstName !== undefined
                   ? updateData.guestFirstName
                   : overlapRow.guestFirstName,
               guestLastName:
-                "guestLastName" in updateData && updateData.guestLastName !== undefined
+                guestNameWritten &&
+                "guestLastName" in updateData &&
+                updateData.guestLastName !== undefined
                   ? updateData.guestLastName
                   : overlapRow.guestLastName,
               guestName:
-                "guestName" in updateData && updateData.guestName !== undefined
+                guestNameWritten &&
+                "guestName" in updateData &&
+                updateData.guestName !== undefined
                   ? updateData.guestName
                   : overlapRow.guestName,
             });

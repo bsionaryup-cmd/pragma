@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth, useClerk } from "@clerk/nextjs";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import { formatPropertyLabel } from "@/lib/property-display";
 import { CALENDAR_DAY_WIDTH } from "@/features/calendar/constants";
 import { CalendarDayHeader } from "@/features/calendar/components/calendar-day-header";
 import { CalendarGrid } from "@/features/calendar/components/calendar-grid";
+import { CalendarReservationSearch } from "@/features/calendar/components/calendar-reservation-search";
 import { CalendarToolbar } from "@/features/calendar/components/calendar-toolbar";
 import { PropertySidebar } from "@/features/calendar/components/property-sidebar";
 import { CalendarCreateBudgetDialog } from "@/features/calendar/components/calendar-create-budget-dialog";
@@ -83,6 +85,8 @@ export function MultiCalendar({
   initialReservationId = null,
 }: MultiCalendarProps) {
   const router = useRouter();
+  const { getToken } = useAuth();
+  const { session } = useClerk();
   const viewport = data.viewport;
   const [search, setSearch] = useState("");
   const [displayMonth, setDisplayMonth] = useState(() => ({
@@ -597,20 +601,35 @@ export function MultiCalendar({
     setSelectionHoverDate(null);
 
     try {
+      // Refresh Clerk session cookie before Server Action (`__session` ~60s).
+      await Promise.all([
+        getToken({ skipCache: true }).catch(() => null),
+        session?.touch?.().catch(() => null) ?? Promise.resolve(null),
+      ]);
       const result = await getReservationInboxItemAction(reservationId);
       if (!result.success) {
-        toast.error(result.error);
+        toast.error(result.error || "No se pudo cargar la reserva");
         closeDrawer();
         return;
       }
       setSelectedReservation(result.reservation);
-    } catch {
-      toast.error("No se pudo cargar la reserva");
+    } catch (error) {
+      const raw =
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "No se pudo cargar la reserva";
+      const message = /unexpected response was received from the server/i.test(
+        raw,
+      )
+        ? "Sesión inválida o respuesta del servidor. Recarga la página e inténtalo de nuevo."
+        : raw;
+      console.error("[calendar] openReservationDetail failed", reservationId, error);
+      toast.error(message);
       closeDrawer();
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [getToken, session]);
 
   useEffect(() => {
     if (!initialReservationId || openedInitialReservationRef.current) return;
@@ -625,13 +644,17 @@ export function MultiCalendar({
       if (!reservationId) return;
 
       void (async () => {
+        await Promise.all([
+          getToken({ skipCache: true }).catch(() => null),
+          session?.touch?.().catch(() => null) ?? Promise.resolve(null),
+        ]);
         const result = await getReservationInboxItemAction(reservationId);
         if (result.success) {
           setSelectedReservation(result.reservation);
         }
       })();
     });
-  }, []);
+  }, [getToken, session]);
 
   function inboxToCalendarBar(
     reservation: ReservationInboxItem,
@@ -690,6 +713,14 @@ export function MultiCalendar({
         onCreateClick={handleToolbarCreateClick}
         onGoToToday={handleGoToToday}
         onOpenViewSettings={() => setViewSettingsOpen(true)}
+        reservationSearch={
+          <CalendarReservationSearch
+            className="min-w-0 max-w-[10rem] flex-1 sm:max-w-xs md:max-w-sm"
+            onSelect={(reservationId) => {
+              void openReservationDetail(reservationId);
+            }}
+          />
+        }
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

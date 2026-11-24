@@ -1,14 +1,19 @@
 "use client";
 
-import { SignOutButton } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { performFullSignOut } from "@/lib/auth/full-sign-out";
 
 export function OwnerSignOutButton() {
+  const { signOut } = useClerk();
   return (
-    <SignOutButton redirectUrl="/owner-login">
-      <Button type="button" variant="outline" size="sm">
-        Cerrar sesión
-      </Button>
-    </SignOutButton>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void performFullSignOut(signOut)}
+    >
+      Cerrar sesión
+    </Button>
   );
 }

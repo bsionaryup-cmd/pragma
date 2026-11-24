@@ -79,6 +79,8 @@ export type PriceLabsListingPricesResponse = {
 export type PriceLabsOverrideRecord = {
   date: string;
   price?: number;
+  /** Required by PriceLabs when `price` is set (fixed | percent | percent_stacked). */
+  price_type?: "fixed" | "percent" | "percent_stacked";
   min_stay?: number;
   min_price?: number;
   max_price?: number;
@@ -151,6 +153,49 @@ export type StoredPriceLabsBounds = {
   updatedAt?: string;
 };
 
+/** Listing-level PriceLabs customizations (Customer API /v1/customizations/listing). */
+export type PriceLabsLastMinuteProfile =
+  | "none"
+  | "recommended"
+  | "conservative"
+  | "aggressive"
+  | "linear"
+  | "linear_gradual"
+  | "fixed";
+
+export type PriceLabsFarOutProfile =
+  | "none"
+  | "recommended"
+  | "conservative"
+  | "aggressive"
+  | "linear"
+  | "fix";
+
+export type PriceLabsLastMinuteCustomization = {
+  last_min_factor_on: boolean;
+  last_min_factor_type?: PriceLabsLastMinuteProfile;
+  last_min_factor_value?: number;
+  last_min_factor_dfd?: number;
+};
+
+export type PriceLabsFarOutCustomization = {
+  far_out_premium_on: boolean;
+  far_out_premium_type?: PriceLabsFarOutProfile;
+  far_out_premium_value?: number;
+  far_out_premium_start?: number;
+  far_out_premium_step?: number;
+};
+
+export type PriceLabsListingCustomizations = {
+  last_minute_prices?: PriceLabsLastMinuteCustomization;
+  far_out_premium?: PriceLabsFarOutCustomization;
+  seasonality?: Record<string, unknown>;
+  day_of_week_adjustment?: Record<string, unknown>;
+  demand_factor?: Record<string, unknown>;
+  /** Unknown keys preserved for round-trip; never invent UI for unsupported specs. */
+  [key: string]: unknown;
+};
+
 export type StoredPriceLabsMeta = {
   /** Fuente canónica de límites editados desde PRAGMA. */
   bounds?: StoredPriceLabsBounds;
@@ -158,10 +203,15 @@ export type StoredPriceLabsMeta = {
   dailyPrices?: PriceLabsDailyPrice[];
   overrides?: PriceLabsOverrideRecord[];
   neighborhood?: PriceLabsNeighborhoodResponse;
+  /** Cached listing customizations (last_minute, far_out, etc.). */
+  customizations?: PriceLabsListingCustomizations;
   lastListingRefresh?: string;
   lastPricesSync?: string;
   lastBoundsUpdate?: string;
   lastOverridesSync?: string;
+  lastCustomizationsSync?: string;
+  lastCustomizationsWriteAt?: string;
+  lastCustomizationsWriteSource?: "pragma" | "remote";
   matchReason?: string;
   mode?: string;
 };

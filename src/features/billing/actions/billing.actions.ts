@@ -123,7 +123,6 @@ export async function reconcileBillingPaymentReturnAction(input?: {
     revalidateBilling();
     revalidatePath("/panel");
     revalidatePath("/calendar");
-    revalidatePath("/reservations");
     revalidatePath("/owner-dashboard");
     return result;
   } catch {

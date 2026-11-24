@@ -20,8 +20,6 @@ export const DASHBOARD_DATA_REFRESH_COOLDOWN_MS = 8_000;
 const LIVE_DASHBOARD_PREFIXES = [
   "/panel",
   "/calendar",
-  "/reservations",
-  "/inbox",
   "/smart-access",
 ] as const;
 

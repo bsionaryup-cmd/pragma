@@ -1,0 +1,227 @@
+{
+  "startedAt": "2026-07-17T04:15:26.325Z",
+  "propertyId": "cmpm0xani000004jgxfqjnih0",
+  "propertyName": "Loft 2P con Vista Premium | Laureles | Zona top",
+  "reservationId": "cmroahp2s000004l8e26ggi28",
+  "allOk": true,
+  "checks": [
+    {
+      "name": "get_property_guest_info",
+      "ok": true,
+      "detail": {
+        "status": "executed",
+        "wifiName": "SOMOSAPTO804",
+        "property": "Loft 2P con Vista Premium | Laureles | Zona top"
+      }
+    },
+    {
+      "name": "get_calendar",
+      "ok": true,
+      "detail": {
+        "status": "executed",
+        "count": 3
+      }
+    },
+    {
+      "name": "search_availability",
+      "ok": true,
+      "detail": {
+        "propertyId": "cmpm0xani000004jgxfqjnih0",
+        "checkIn": "2026-12-01",
+        "checkOut": "2026-12-05",
+        "available": true,
+        "availabilitySummary": "Disponible del 2026-12-01 al 2026-12-05.",
+        "conflict": null
+      }
+    },
+    {
+      "name": "calculate_stay_quote",
+      "ok": true,
+      "detail": {
+        "propertyId": "cmpm0xani000004jgxfqjnih0",
+        "propertyName": "Loft 2P con Vista Premium | Laureles | Zona top",
+        "checkIn": "2026-12-01",
+        "checkOut": "2026-12-05",
+        "nights": 4,
+        "baseRate": 209845,
+        "cleaningFee": 60000,
+        "stayTotal": 899380,
+        "currency": "COP",
+        "quoteSummary": "Loft 2P con Vista Premium | Laureles | Zona top: 4 noche(s) × 209845 + limpieza 60000 = 899380 COP (tarifa base; no incluye PriceLabs dinámico en Fase 6).",
+        "source": "property_base_rate"
+      }
+    },
+    {
+      "name": "get_operational_contacts",
+      "ok": true,
+      "detail": {
+        "status": "executed"
+      }
+    },
+    {
+      "name": "get_reservation",
+      "ok": true,
+      "detail": {
+        "guestName": "Sonianny Liz Medina Mavarez",
+        "ok": true
+      }
+    },
+    {
+      "name": "search_reservations",
+      "ok": true,
+      "detail": {
+        "count": 1
+      }
+    },
+    {
+      "name": "get_guest_registration_status",
+      "ok": true,
+      "detail": {
+        "reservationId": "cmroahp2s000004l8e26ggi28",
+        "guestRegistrationStatus": "COMPLETED",
+        "guestRegistrationUrl": "http://localhost:3000/guest-registration/c19f0fa3f584c3fbadc3bb26db1bbaa23c6526b81d34c99c",
+        "expiresAt": null,
+        "usedAt": "2026-07-17T02:04:11.717Z"
+      }
+    },
+    {
+      "name": "get_access_status",
+      "ok": true,
+      "detail": {
+        "hasCredential": true,
+        "hasCode": true
+      }
+    },
+    {
+      "name": "get_payment_balance",
+      "ok": true,
+      "detail": {
+        "remainingBalance": 196510
+      }
+    },
+    {
+      "name": "list_payment_links",
+      "ok": true,
+      "detail": {
+        "count": 0
+      }
+    },
+    {
+      "name": "tenant denial on missing property",
+      "ok": true,
+      "detail": {
+        "error": "Propiedad no encontrada"
+      }
+    }
+  ],
+  "auditTail": [
+    {
+      "at": "2026-07-17T04:15:23.845Z",
+      "toolName": "get_property_guest_info",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=18"
+    },
+    {
+      "at": "2026-07-17T04:15:24.101Z",
+      "toolName": "get_calendar",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=5"
+    },
+    {
+      "at": "2026-07-17T04:15:24.265Z",
+      "toolName": "search_availability",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=6"
+    },
+    {
+      "at": "2026-07-17T04:15:24.424Z",
+      "toolName": "calculate_stay_quote",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=11"
+    },
+    {
+      "at": "2026-07-17T04:15:24.585Z",
+      "toolName": "get_operational_contacts",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=4"
+    },
+    {
+      "at": "2026-07-17T04:15:24.824Z",
+      "toolName": "get_reservation",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=20"
+    },
+    {
+      "at": "2026-07-17T04:15:25.064Z",
+      "toolName": "search_reservations",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=2"
+    },
+    {
+      "at": "2026-07-17T04:15:25.222Z",
+      "toolName": "get_guest_registration_status",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=5"
+    },
+    {
+      "at": "2026-07-17T04:15:25.383Z",
+      "toolName": "get_access_status",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=8"
+    },
+    {
+      "at": "2026-07-17T04:15:26.091Z",
+      "toolName": "get_payment_balance",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=12"
+    },
+    {
+      "at": "2026-07-17T04:15:26.248Z",
+      "toolName": "list_payment_links",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": true,
+      "summary": "ok keys=3"
+    },
+    {
+      "at": "2026-07-17T04:15:26.325Z",
+      "toolName": "get_property_guest_info",
+      "organizationId": "cmplxfg0a000105jrs0gqtwyc",
+      "userId": "cmplxfg1a000305jr0c2led4j",
+      "runId": "phase6-audit",
+      "ok": false,
+      "error": "Propiedad no encontrada"
+    }
+  ]
+}

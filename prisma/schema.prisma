@@ -45,10 +45,16 @@ model Organization {
   monthlyFinanceMetrics  MonthlyFinanceMetric[]
   financialPlanningSetting FinancialPlanningSetting?
   paymentMethodConfig    OrganizationPaymentMethodConfig?
-  inboxAiDrafts          InboxAiDraft[]
-  prospectingLeads       ProspectingLead[]
   tenantWebSite          TenantWebSite?
   tenantWebMedia         TenantWebMedia[]
+  digitalReceptionistConfig           DigitalReceptionistConfig?
+  digitalReceptionistAuditEvents      DigitalReceptionistAuditEvent[]
+  digitalReceptionistOutboundLedger   DigitalReceptionistOutboundLedger[]
+  digitalReceptionistKnowledgeEntries DigitalReceptionistKnowledgeEntry[]
+  digitalReceptionistThreadFacts      DigitalReceptionistThreadFact[]
+  digitalReceptionistConversations    DigitalReceptionistConversation[]
+  digitalReceptionistMessages         DigitalReceptionistMessage[]
+  digitalReceptionistTurnJobs         DigitalReceptionistTurnJob[]
 
   @@map("organizations")
 }
@@ -82,7 +88,6 @@ model User {
 
   organization         Organization?          @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   properties           Property[]
-  assignedTasks        Task[]                 @relation("TaskAssignee")
   ttlockIntegrations   TTLockIntegration[]
   ttlockConfigured     TTLockIntegration[]  @relation("TTLockConfigurator")
   loginActivities      LoginActivity[]
@@ -110,8 +115,7 @@ model User {
   mobilityServicesCreated MobilityService[] @relation("MobilityServiceCreator")
   airbnbEmailIntegrationsConfigured TenantAirbnbEmailIntegration[] @relation("AirbnbEmailConfigurator")
   reservationActivitySeen          ReservationActivitySeen[]
-  inboxAiDraftsCreated             InboxAiDraft[] @relation("InboxAiDraftCreator")
-  inboxAiDraftAuditEvents          InboxAiDraftAuditEvent[] @relation("InboxAiDraftAuditActor")
+  digitalReceptionistConfigsUpdated DigitalReceptionistConfig[]    @relation("DigitalReceptionistConfigUpdater")
 
   @@index([role, isActive])
   @@index([organizationId])
@@ -185,6 +189,8 @@ model Property {
   status             PropertyStatus @default(ACTIVE)
   currency           String         @default("COP")
   notificationEmails Json           @default("[]")
+  operationalContacts Json          @default("[]")
+  guestRegistrationContactKey String?
   quickMessageTemplates Json?
   receptionWhatsapp  String?
   createdAt          DateTime       @default(now())
@@ -193,8 +199,8 @@ model Property {
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   reservations Reservation[]
-  tasks        Task[]
   propertyLock PropertyLock?
+  operationalAccessCredentials        OperationalAccessCredential[]
   priceLabs      PropertyPriceLabs?
   guestPaymentLinks GuestPaymentLink[]
   emailIngestionAudits EmailIngestionAudit[]
@@ -207,6 +213,7 @@ model Property {
   financialPlanningSettings FinancialPlanningSetting[]
   webSiteLinks TenantWebSiteProperty[]
   webMedia     TenantWebMedia[]
+  digitalReceptionistKnowledgeEntries DigitalReceptionistKnowledgeEntry[]
 
   @@index([ownerId, status])
   @@index([organizationId, status])
@@ -258,17 +265,22 @@ model Reservation {
   icalUid                      String?
   guestRegistrationToken       String?           @unique
   guestRegistrationCompletedAt           DateTime?
+  guestRegistrationInviteSentAt          DateTime?
+  guestRegistrationInviteError           String?
+  guestRegistrationInviteLog             Json              @default("[]")
   guestRegistrationAdminNotifiedAt       DateTime?
   guestRegistrationAdminNotificationError String?
+  guestRegistrationAdminNotificationLog Json              @default("[]")
   createdAt                              DateTime          @default(now())
   updatedAt                              DateTime          @updatedAt
 
   property                Property                 @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   guests                  ReservationGuest[]
   guestRegistrationTokens GuestRegistrationToken[]
+  stayPortalTokens        StayPortalToken[]
+  guestRegistrationLegalAcceptance GuestRegistrationLegalAcceptance?
   accessCredentials       AccessCredential[]
   accessEvents            AccessEvent[]
-  tasks                   Task[]
   paymentInvoices         PaymentInvoice[]
   guestPaymentLinks       GuestPaymentLink[]
   reservationPayments     ReservationPayment[]
@@ -281,7 +293,6 @@ model Reservation {
   observabilityEvents     ReservationEvent[]
   activityEntries         ReservationActivity[]
   activitySeenByUsers     ReservationActivitySeen[]
-  inboxAiDrafts           InboxAiDraft[]
 
   @@unique([propertyId, icalUid])
   @@index([propertyId, checkIn, checkOut])
@@ -312,6 +323,19 @@ model ReservationGuest {
   cityOfOrigin       String?
   /// TRA: motivo del viaje
   travelPurpose      String?
+  /// Canonical guest profile (additive). ISO / catalog codes — not free-form UI text.
+  sex                  String?
+  travelMotive         String?
+  occupation           String?
+  residenceCountry     String?
+  residenceAdminArea   String?
+  residenceCity        String?
+  originCountry        String?
+  originAdminArea      String?
+  originCity           String?
+  destinationCountry   String?
+  destinationAdminArea String?
+  destinationCity      String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
 
@@ -322,6 +346,33 @@ model ReservationGuest {
   @@index([reservationId, isPrimary])
   @@index([reservationId, status])
   @@map("reservation_guests")
+}
+
+/// Traceable lodging-contract + Habeas Data acceptance for one completed guest registration.
+model GuestRegistrationLegalAcceptance {
+  id                        String   @id @default(cuid())
+  reservationId             String   @unique
+  organizationId            String?
+  propertyId                String?
+  acceptedByGuestId         String
+  titularFullName           String
+  titularDocumentType       String
+  titularDocumentNumber     String
+  lodgingContractVersion    String
+  lodgingContractAcceptedAt DateTime
+  habeasDataPolicyVersion   String
+  habeasDataAcceptedAt      DateTime
+  acceptedAt                DateTime @default(now())
+  ipAddress                 String?
+  userAgent                 String?
+  locale                    String   @default("es-CO")
+  evidenceJson              Json?
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([acceptedAt])
+  @@map("guest_registration_legal_acceptances")
 }
 
 enum ReservationGuestStatus {
@@ -356,6 +407,31 @@ model GuestRegistrationToken {
 enum GuestRegistrationStatus {
   ACTIVE
   COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+/// Guest Stay Portal access after Guest Registration completes (separate from GR tokens).
+model StayPortalToken {
+  id            String               @id @default(cuid())
+  reservationId String
+  token         String               @unique
+  status        StayPortalTokenStatus @default(ACTIVE)
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  lastAccessAt  DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  @@index([reservationId, status])
+  @@index([token, status])
+  @@map("stay_portal_tokens")
+}
+
+enum StayPortalTokenStatus {
+  ACTIVE
   EXPIRED
   REVOKED
 }
@@ -415,6 +491,7 @@ model PropertyLock {
   integration       TTLockIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
   property          Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   accessCredentials AccessCredential[]
+  operationalAccessCredentials OperationalAccessCredential[]
 
   @@index([integrationId])
   @@index([ttlockLockId])
@@ -424,7 +501,7 @@ model PropertyLock {
 model TTLockAutomationSettings {
   id                                   String                   @id @default(cuid())
   integrationId                        String                   @unique
-  generateAfterGuestRegistration        Boolean                  @default(false)
+  generateAfterGuestRegistration        Boolean                  @default(true)
   revokeAfterCheckout                  Boolean                  @default(true)
   requireManualApproval                Boolean                  @default(true)
   autoSendCode                         Boolean                  @default(false)
@@ -462,6 +539,37 @@ model AccessCredential {
   @@index([propertyLockId])
   @@index([status])
   @@map("access_credentials")
+}
+
+/// Reservation-independent TTLock passcodes for cleaners, maintenance, owners,
+/// and other temporary operational visitors.
+model OperationalAccessCredential {
+  id             String                 @id @default(cuid())
+  organizationId String?
+  propertyId     String
+  propertyLockId String
+  createdById    String
+  idempotencyKey String                 @unique
+  label          String
+  type           AccessCodeType
+  codeEncrypted  String
+  ttlockCodeId   String?
+  validFrom      DateTime
+  validTo        DateTime
+  status         AccessCredentialStatus @default(PENDING)
+  lastError      String?
+  revokedAt      DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  propertyLock PropertyLock @relation(fields: [propertyLockId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyLockId, ttlockCodeId])
+  @@index([organizationId, status, validTo])
+  @@index([propertyId, createdAt(sort: Desc)])
+  @@index([propertyLockId, status])
+  @@map("operational_access_credentials")
 }
 
 model AccessEvent {
@@ -547,6 +655,7 @@ enum AccessEventType {
   CODE_GENERATION_READY
   CODE_GENERATED
   CODE_REVOKED
+  WINDOW_ADJUSTED
 }
 
 enum BookingPlatform {
@@ -931,39 +1040,7 @@ model ExternalIntegration {
   @@map("external_integrations")
 }
 
-// ─── Task ─────────────────────────────────────────────────────
-
-model Task {
-  id            String     @id @default(cuid())
-  propertyId    String?
-  reservationId String?
-  assigneeId    String?
-  type          TaskType
-  title         String
-  description   String?
-  dueDate       DateTime?
-  status        TaskStatus @default(PENDING)
-  completedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-
-  property    Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
-  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
-  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-
-  @@index([assigneeId, status])
-  @@index([propertyId, status])
-  @@map("tasks")
-}
-
-enum TaskType {
-  CLEANING
-  CHECK_IN
-  MAINTENANCE
-  LAUNDRY
-  PURCHASE
-  INVENTORY
-}
+// ─── Task status (shared by AirbnbEmailTask) ─────────────────
 
 enum TaskStatus {
   PENDING
@@ -1670,80 +1747,7 @@ enum ProspectSegment {
   OTHER
 }
 
-// Tenant-scoped business leads from Apify prospecting (distinct from landing `Lead` captures).
-enum ProspectingLeadSource {
-  GOOGLE_MAPS
-  AIRBNB
-  INSTAGRAM
-  FACEBOOK
-  BOOKING
-  LINKEDIN
-}
-
-enum ProspectingLeadStatus {
-  NEW
-  CONTACTED
-  RESPONDED
-  INTERESTED
-  FOLLOW_UP
-  DEMO
-  CUSTOMER
-  NOT_INTERESTED
-  ARCHIVED
-}
-
-enum ProspectingLeadType {
-  PROPERTY_MANAGER
-  CO_HOST
-  HOST
-  HOTEL
-  HOSTEL
-  VACATION_RENTAL_OPERATOR
-  UNKNOWN
-}
-
-enum ProspectingFitLevel {
-  LOW
-  MEDIUM
-  HIGH
-}
-
-model ProspectingLead {
-  id                      String                  @id @default(cuid())
-  organizationId          String
-  businessName            String
-  phone                   String?
-  website                 String?
-  email                   String?
-  address                 String?
-  city                    String?
-  hostUrl                 String?
-  listingsCount           Int?
-  rating                  Float?
-  reviews                 Int?
-  category                String?
-  source                  ProspectingLeadSource
-  status                  ProspectingLeadStatus   @default(NEW)
-  notes                   String?
-  lastContactDate         DateTime?
-  nextFollowUpDate        DateTime?
-  followUpCount           Int                     @default(0)
-  outreachMessage         String?
-  leadType                ProspectingLeadType?
-  estimatedSophistication ProspectingFitLevel?
-  potentialPragmaFit      ProspectingFitLevel?
-  activityLog             Json                    @default("[]")
-  createdAt               DateTime                @default(now())
-  updatedAt               DateTime                @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@index([organizationId, businessName])
-  @@index([organizationId, status])
-  @@index([source])
-  @@map("prospecting_leads")
-}
+// ─── Owner sales console prospects (platform-owner CRM) ───
 
 model Prospect {
   id                  String           @id @default(cuid())
@@ -2115,65 +2119,6 @@ model AirbnbFinancialBackfillLog {
   @@map("airbnb_financial_backfill_logs")
 }
 
-// ─── Inbox AI (borradores + auditoría) ───────────────────────
-
-enum InboxAiDraftStatus {
-  GENERATED
-  EDITED
-  DISCARDED
-}
-
-enum InboxAiDraftAuditAction {
-  GENERATED
-  EDITED
-  COPIED
-  DISCARDED
-}
-
-model InboxAiDraft {
-  id                 String             @id @default(cuid())
-  organizationId     String
-  reservationId      String
-  guestMessageId     String?
-  guestMessageBody   String             @db.Text
-  detectedIntent     String
-  intentConfidence   Decimal?           @db.Decimal(5, 4)
-  intentSource       String?
-  contextSnapshot    Json
-  generatedText      String             @db.Text
-  editedText         String?            @db.Text
-  generationProvider String
-  generationModel    String?
-  status             InboxAiDraftStatus @default(GENERATED)
-  createdById        String
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  reservation  Reservation             @relation(fields: [reservationId], references: [id], onDelete: Cascade)
-  createdBy    User                    @relation("InboxAiDraftCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  auditEvents  InboxAiDraftAuditEvent[]
-
-  @@index([reservationId, createdAt(sort: Desc)])
-  @@index([organizationId, createdAt(sort: Desc)])
-  @@map("inbox_ai_drafts")
-}
-
-model InboxAiDraftAuditEvent {
-  id          String                  @id @default(cuid())
-  draftId     String
-  action      InboxAiDraftAuditAction
-  actorUserId String
-  payload     Json?
-  createdAt   DateTime                @default(now())
-
-  draft InboxAiDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  actor User         @relation("InboxAiDraftAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-
-  @@index([draftId, createdAt])
-  @@map("inbox_ai_draft_audit_events")
-}
-
 // ─── QR Mobility (platform owner module — isolated from PMS domain) ───
 
 enum MobilityRecordStatus {
@@ -2383,12 +2328,23 @@ enum RetailIntelPriority {
   LOW
 }
 
+enum RetailInvoiceStatus {
+  ISSUED
+  VOID
+}
+
 model RetailStore {
   id             String   @id @default(cuid())
   organizationId String
   name           String
   slug           String?
   currency       String   @default("COP")
+  legalName      String?
+  taxId          String?
+  address        String?
+  phone          String?
+  invoicePrefix  String   @default("FV")
+  invoiceSeq     Int      @default(0)
   createdByUserId String?
   ownerUserId    String?
   accessPlan     RetailAccessPlan @default(MONTHLY)
@@ -2405,6 +2361,7 @@ model RetailStore {
   cashRegisters     RetailCashRegister[]
   cashSessions      RetailCashSession[]
   sales             RetailSale[]
+  invoices          RetailInvoice[]
   inventoryMoves    RetailInventoryMovement[]
   purchaseOrders    RetailPurchaseOrder[]
   customerPayments  RetailCustomerPayment[]
@@ -2630,6 +2587,7 @@ model RetailSale {
   cashSession RetailCashSession? @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
   customer    RetailCustomer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items       RetailSaleItem[]
+  invoice     RetailInvoice?
 
   @@unique([storeId, code])
   @@index([storeId, status, createdAt])
@@ -2637,6 +2595,32 @@ model RetailSale {
   @@index([customerId])
   @@index([cashSessionId])
   @@map("retail_sales")
+}
+
+model RetailInvoice {
+  id            String              @id @default(cuid())
+  storeId       String
+  saleId        String              @unique
+  number        String
+  status        RetailInvoiceStatus @default(ISSUED)
+  issuerName    String
+  issuerTaxId   String?
+  issuerAddress String?
+  issuerPhone   String?
+  buyerName     String?
+  buyerTaxId    String?
+  issuedAt      DateTime            @default(now())
+  voidedAt      DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  store RetailStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sale  RetailSale  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, number])
+  @@index([storeId, issuedAt])
+  @@index([storeId, status])
+  @@map("retail_invoices")
 }
 
 model RetailSaleItem {
@@ -3200,4 +3184,554 @@ model TenantWebSiteProperty {
   @@unique([siteId, propertyId])
   @@index([siteId, sortOrder])
   @@map("tenant_web_site_properties")
+}
+
+// ─── Recepcionista Digital (config only; no runtime) ────────
+
+enum DigitalReceptionistStatus {
+  OFF
+  CONFIG_ONLY
+  SUPERVISED
+  AUTONOMOUS
+}
+
+/// Platform Owner configuration for the Digital Receptionist employee.
+/// Cloud API path is primary for WhatsApp; desktop CDP is legacy.
+model DigitalReceptionistConfig {
+  id                        String                    @id @default(cuid())
+  organizationId            String                    @unique
+  status                    DigitalReceptionistStatus @default(OFF)
+  channelWhatsapp           Boolean                   @default(false)
+  channelAirbnb             Boolean                   @default(false)
+  /// Skill allowlist JSON — all false by default until explicitly enabled.
+  skills                    Json
+  tone                      String                    @default("cercano")
+  emojiLevel                String                    @default("light")
+  replyLength               String                    @default("corto")
+  languages                 Json                      @default("[\"es\"]")
+  timezone                  String                    @default("America/Bogota")
+  businessHoursJson         Json?
+  /// When true, runtime must not send messages (highest priority).
+  killSwitch                Boolean                   @default(true)
+  /// SHA-256 hex of desktop agent token (shown once on mint).
+  runtimeAgentTokenHash     String?
+  runtimeLastSeenAt         DateTime?
+  /// deterministic | llm — cloud agent engine preference.
+  agentEngine               String                    @default("deterministic")
+  /// Prompt pack version recorded in audits (e.g. v1).
+  promptVersion             String                    @default("v1")
+  /// Meta Cloud API phone_number_id for this org (optional; env fallback for pilot).
+  whatsappPhoneNumberId     String?
+  whatsappBusinessAccountId String?
+  whatsappCloudEnabled      Boolean                   @default(false)
+  ownerNotes                String?                   @db.Text
+  updatedById               String?
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+
+  organization   Organization                        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy      User?                               @relation("DigitalReceptionistConfigUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  auditEvents    DigitalReceptionistAuditEvent[]
+  outboundLedger DigitalReceptionistOutboundLedger[]
+
+  @@index([status])
+  @@map("digital_receptionist_configs")
+}
+
+enum DigitalReceptionistConversationStatus {
+  OPEN
+  ESCALATED
+  CLOSED
+}
+
+enum DigitalReceptionistTurnJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  DEAD
+}
+
+/// Normalized conversation thread (WhatsApp Cloud / future channels).
+model DigitalReceptionistConversation {
+  id             String                                @id @default(cuid())
+  organizationId String
+  channel        String
+  threadKey      String
+  externalUserId String?
+  contactName    String?
+  contactPhone   String?
+  status         DigitalReceptionistConversationStatus @default(OPEN)
+  summaryText    String?                               @db.Text
+  reservationId  String?
+  lastMessageAt  DateTime?
+  createdAt      DateTime                              @default(now())
+  updatedAt      DateTime                              @updatedAt
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages     DigitalReceptionistMessage[]
+  turnJobs     DigitalReceptionistTurnJob[]
+
+  @@unique([organizationId, channel, threadKey])
+  @@index([organizationId, status, lastMessageAt(sort: Desc)])
+  @@map("digital_receptionist_conversations")
+}
+
+model DigitalReceptionistMessage {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  conversationId     String
+  direction          String
+  body               String   @db.Text
+  externalMessageId  String?
+  /// Dedup key: `${channel}:${externalMessageId}`
+  channelExternalKey String?
+  payload            Json?
+  createdAt          DateTime @default(now())
+
+  organization Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation DigitalReceptionistConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, channelExternalKey])
+  @@index([conversationId, createdAt])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("digital_receptionist_messages")
+}
+
+model DigitalReceptionistTurnJob {
+  id             String                           @id @default(cuid())
+  organizationId String
+  conversationId String
+  status         DigitalReceptionistTurnJobStatus @default(PENDING)
+  attempts       Int                              @default(0)
+  lastError      String?
+  runAfter       DateTime                         @default(now())
+  lockedAt       DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                         @default(now())
+  updatedAt      DateTime                         @updatedAt
+
+  organization Organization                    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation DigitalReceptionistConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAfter])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("digital_receptionist_turn_jobs")
+}
+
+model DigitalReceptionistAuditEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  configId       String?
+  channel        String
+  threadKey      String?
+  eventType      String
+  payload        Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  config       DigitalReceptionistConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, eventType, createdAt(sort: Desc)])
+  @@map("digital_receptionist_audit_events")
+}
+
+model DigitalReceptionistOutboundLedger {
+  id             String   @id @default(cuid())
+  organizationId String
+  configId       String?
+  channel        String
+  threadKey      String
+  fingerprint    String
+  status         String   @default("CLAIMED")
+  replyPreview   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  config       DigitalReceptionistConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, channel, fingerprint])
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@map("digital_receptionist_outbound_ledger")
+}
+
+/// Editable FAQ / local knowledge for the Digital Receptionist (no hardcoded replies).
+model DigitalReceptionistKnowledgeEntry {
+  id             String   @id @default(cuid())
+  organizationId String
+  propertyId     String?
+  category       String
+  title          String
+  body           String   @db.Text
+  keywords       Json     @default("[]")
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive, category])
+  @@index([propertyId, isActive])
+  @@map("digital_receptionist_knowledge_entries")
+}
+
+/// Durable facts remembered per conversation thread (late arrival, crib, invoice, pet).
+model DigitalReceptionistThreadFact {
+  id             String   @id @default(cuid())
+  organizationId String
+  channel        String
+  threadKey      String
+  factKey        String
+  factValue      String   @db.Text
+  sourceMessage  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, channel, threadKey, factKey])
+  @@index([organizationId, channel, threadKey])
+  @@map("digital_receptionist_thread_facts")
+}
+
+// ─── AI Sales Agent (WhatsApp → Dropi) — Owner pilot, additive ───
+
+enum AiSalesConversationStage {
+  ICEBREAK
+  DISCOVERY
+  PAIN
+  PITCH
+  OBJECTIONS
+  CLOSE
+  SHIPPING
+  ORDERED
+}
+
+enum AiSalesTurnJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  DEAD
+}
+
+/// Singleton-style config for the Owner sales agent (one row, id = "default").
+model AiSalesAgentConfig {
+  id                     String   @id @default("default")
+  enabled                Boolean  @default(false)
+  killSwitch             Boolean  @default(true)
+  openaiKeyEncrypted     String?  @db.Text
+  waAccessTokenEncrypted String?  @db.Text
+  waPhoneNumberId        String?
+  waBusinessAccountId    String?
+  waVerifyTokenEncrypted String?  @db.Text
+  waAppSecretEncrypted   String?  @db.Text
+  dropiTokenEncrypted    String?  @db.Text
+  dropiApiBaseUrl        String   @default("https://api.dropi.co")
+  autoCreateOrder        Boolean  @default(true)
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
+
+  @@map("ai_sales_agent_configs")
+}
+
+model AiSalesConversation {
+  id              String                   @id @default(cuid())
+  threadKey       String                   @unique
+  waUserId        String
+  contactName     String?
+  stage           AiSalesConversationStage @default(ICEBREAK)
+  memoryJson      Json?
+  productInterest String?
+  lastMessageAt   DateTime?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  messages AiSalesMessage[]
+  turnJobs AiSalesTurnJob[]
+  orders   AiSalesOrderLog[]
+
+  @@index([waUserId])
+  @@index([stage, lastMessageAt(sort: Desc)])
+  @@map("ai_sales_conversations")
+}
+
+model AiSalesMessage {
+  id                 String   @id @default(cuid())
+  conversationId     String
+  direction          String
+  body               String   @db.Text
+  externalMessageId  String?
+  channelExternalKey String?  @unique
+  createdAt          DateTime @default(now())
+
+  conversation AiSalesConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_sales_messages")
+}
+
+model AiSalesTurnJob {
+  id             String               @id @default(cuid())
+  conversationId String
+  status         AiSalesTurnJobStatus @default(PENDING)
+  attempts       Int                  @default(0)
+  lastError      String?
+  runAfter       DateTime             @default(now())
+  lockedAt       DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  conversation AiSalesConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAfter])
+  @@map("ai_sales_turn_jobs")
+}
+
+enum AiSalesOrderStatus {
+  PENDING
+  VALIDATING
+  READY
+  SUBMITTING
+  SUBMITTED
+  CONFIRMED
+  FAILED_RETRYABLE
+  FAILED_PERMANENT
+  MANUAL_REVIEW
+  CANCELLED
+}
+
+/// Dropshipping order ledger (Sales → deterministic orchestrator → Dropi).
+model AiSalesOrderLog {
+  id             String             @id @default(cuid())
+  conversationId String?
+  dropiOrderId   String?
+  /// Stable Dropi shop_order_id — never includes Date.now(); unique for idempotency.
+  shopOrderId    String?            @unique
+  status         AiSalesOrderStatus @default(PENDING)
+  attempts       Int                @default(0)
+  lastError      String?
+  summaryJson    Json?
+  runAfter       DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  conversation AiSalesConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([status, runAfter])
+  @@index([conversationId, status])
+  @@map("ai_sales_order_logs")
+}
+
+model AiSalesAuditEvent {
+  id        String   @id @default(cuid())
+  eventType String
+  threadKey String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@map("ai_sales_audit_events")
+}
+
+// ─── AI Product Researcher + Media Buyer (additive Owner pilot) ───
+
+enum AiProductRecommendation {
+  LAUNCH
+  WAIT
+  DISCARD
+  SCALE
+}
+
+enum AiProductCandidateStatus {
+  DRAFT
+  SCORED
+  HANDED_OFF
+  ARCHIVED
+}
+
+enum AiResearchRunStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum AiAgentHandoffStatus {
+  PENDING
+  CLAIMED
+  DONE
+  REJECTED
+}
+
+enum AiMediaCampaignStatus {
+  DRAFT
+  PAUSED
+  ACTIVE
+  COMPLETED
+  ERROR
+}
+
+model AiProductResearcherConfig {
+  id                  String   @id @default("default")
+  enabled             Boolean  @default(false)
+  killSwitch          Boolean  @default(true)
+  openaiKeyEncrypted  String?  @db.Text
+  metaTokenEncrypted  String?  @db.Text
+  dropiTokenEncrypted String?  @db.Text
+  dropiApiBaseUrl     String   @default("https://api.dropi.co")
+  scoreThreshold      Int      @default(85)
+  autoHandoff         Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+  createdAt           DateTime @default(now())
+
+  @@map("ai_product_researcher_configs")
+}
+
+model AiProductResearchRun {
+  id           String              @id @default(cuid())
+  status       AiResearchRunStatus @default(PENDING)
+  keywordsJson Json?
+  notes        String?             @db.Text
+  urlsJson     Json?
+  lastError    String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  candidates AiProductCandidate[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@map("ai_product_research_runs")
+}
+
+model AiProductCandidate {
+  id               String                   @id @default(cuid())
+  runId            String?
+  name             String
+  category         String?
+  dropiProductId   String?
+  scoreDemand      Int                      @default(0)
+  scoreCompetition Int                      @default(0)
+  scoreVirality    Int                      @default(0)
+  scoreImpulse     Int                      @default(0)
+  scoreMargin      Int                      @default(0)
+  scoreAdEase      Int                      @default(0)
+  scoreWhatsapp    Int                      @default(0)
+  scoreScale       Int                      @default(0)
+  scoreTotal       Int                      @default(0)
+  trendLevel       String?
+  competitionLevel String?
+  recommendation   AiProductRecommendation  @default(WAIT)
+  status           AiProductCandidateStatus @default(DRAFT)
+  reportJson       Json?
+  signalsJson      Json?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  run       AiProductResearchRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  campaigns AiMediaCampaign[]
+  handoffs  AiAgentHandoff[]
+
+  @@index([scoreTotal(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("ai_product_candidates")
+}
+
+model AiAgentHandoff {
+  id          String               @id @default(cuid())
+  fromAgent   String
+  toAgent     String
+  candidateId String?
+  status      AiAgentHandoffStatus @default(PENDING)
+  payloadJson Json?
+  claimedAt   DateTime?
+  completedAt DateTime?
+  lastError   String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  candidate AiProductCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+
+  @@index([toAgent, status, createdAt])
+  @@map("ai_agent_handoffs")
+}
+
+model AiMediaBuyerConfig {
+  id                          String   @id @default("default")
+  enabled                     Boolean  @default(false)
+  killSwitch                  Boolean  @default(true)
+  openaiKeyEncrypted          String?  @db.Text
+  metaMarketingTokenEncrypted String?  @db.Text
+  metaAdAccountId             String?
+  metaPageId                  String?
+  waPhoneNumberId             String?
+  maxDailyBudget              Float    @default(50)
+  autoPublish                 Boolean  @default(false)
+  autoOptimize                Boolean  @default(false)
+  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime @default(now())
+
+  @@map("ai_media_buyer_configs")
+}
+
+model AiMediaCampaign {
+  id                  String                @id @default(cuid())
+  candidateId         String?
+  handoffId           String?
+  name                String
+  status              AiMediaCampaignStatus @default(DRAFT)
+  metaCampaignId      String?
+  metaAdSetId         String?
+  metaAdIdsJson       Json?
+  dailyBudget         Float?
+  strategyJson        Json?
+  creativesJson       Json?
+  metricsJson         Json?
+  recommendationsJson Json?
+  lastError           String?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  candidate AiProductCandidate? @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  actions   AiMediaActionLog[]
+  insights  AiMediaInsight[]
+
+  @@index([status, updatedAt(sort: Desc)])
+  @@map("ai_media_campaigns")
+}
+
+model AiMediaActionLog {
+  id         String   @id @default(cuid())
+  campaignId String?
+  action     String
+  detailJson Json?
+  undoHint   String?
+  createdAt  DateTime @default(now())
+
+  campaign AiMediaCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("ai_media_action_logs")
+}
+
+model AiMediaInsight {
+  id         String   @id @default(cuid())
+  campaignId String?
+  summary    String   @db.Text
+  detailJson Json?
+  createdAt  DateTime @default(now())
+
+  campaign AiMediaCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@map("ai_media_insights")
 }

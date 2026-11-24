@@ -6,7 +6,6 @@ import type {
   ReservationGuestStatus,
   ReservationStatus,
 } from "@prisma/client";
-import type { QuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
 
 export type ReservationPropertyDto = {
   id: string;
@@ -25,7 +24,6 @@ export type ReservationPropertyDto = {
   wifiName?: string | null;
   wifiPassword?: string | null;
   receptionWhatsapp?: string | null;
-  quickMessageTemplates?: QuickMessageTemplates | null;
 };
 
 export type ReservationRelatedBlock = {
@@ -55,6 +53,8 @@ export type ReservationAccessCodeDto = {
   status: string;
   code: string | null;
   isActive: boolean;
+  validFrom: string | null;
+  validTo: string | null;
 };
 
 export type ReservationGuestRegistrationDto = {
@@ -107,10 +107,37 @@ export type ReservationInboxItem = {
   internalNotes: string | null;
   guestRegistrationUrl?: string | null;
   guestRegistrationCompletedAt?: string | null;
+  guestRegistrationAdminNotification?: {
+    completed: boolean;
+    notifiedAt: string | null;
+    error: string | null;
+    sending: boolean;
+    sendingStale: boolean;
+    recipients: string[];
+    recipientSource?: "operational-contact" | "legacy-notification-emails";
+    selectedContact?: {
+      key: string;
+      name: string;
+      role: string;
+      email: string | null;
+      whatsapp: string | null;
+      isActive: boolean;
+    } | null;
+    attemptCount: number;
+    latestAttempt: {
+      at: string;
+      status: "success" | "partial" | "failed";
+      recipients: string[];
+      error?: string;
+      triggeredBy: "auto" | "manual";
+    } | null;
+  } | null;
   guestRegistration?: ReservationGuestRegistrationDto | null;
   guestRegistrationProgress?: {
     registered: number;
     capacity: number;
+    /** Reopened after occupancy increase; STAY blocked until complete. */
+    pendingUpdate?: boolean;
   } | null;
   accessCode?: ReservationAccessCodeDto | null;
   property: ReservationPropertyDto & { maxGuests?: number };

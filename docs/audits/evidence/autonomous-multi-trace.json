@@ -1,0 +1,102 @@
+{
+  "at": "2026-07-17T11:27:51.519Z",
+  "mode": "AUTONOMOUS",
+  "pairingOk": true,
+  "scenarios": 6,
+  "results": [
+    {
+      "text": "Hola",
+      "ok": true,
+      "turnId": "cmrouszgq002yk4tyr5e5dkhr",
+      "intent": "OTHER",
+      "path": "needs_llm",
+      "replyText": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1191,
+        "injectToVisible": 1706
+      }
+    },
+    {
+      "text": "¿Cómo estás?",
+      "ok": true,
+      "turnId": "cmrout0r30031k4ty2l0afsd7",
+      "intent": "OTHER",
+      "path": "needs_llm",
+      "replyText": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1166,
+        "injectToVisible": 1706
+      }
+    },
+    {
+      "text": "¿Cuánto cuesta?",
+      "ok": true,
+      "turnId": "cmrout23p0034k4tyu9yi4bli",
+      "intent": "COTIZACION",
+      "path": "needs_tools",
+      "replyText": "Para ayudarte necesito confirmar: quoteSummary. ¿Me das más detalles?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1177,
+        "injectToVisible": 1697
+      }
+    },
+    {
+      "text": "¿Hay disponibilidad?",
+      "ok": true,
+      "turnId": "cmrout3er0037k4tyxbi7v4ka",
+      "intent": "DISPONIBILIDAD",
+      "path": "needs_tools",
+      "replyText": "Para ayudarte necesito confirmar: availabilitySummary. ¿Me das más detalles?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1172,
+        "injectToVisible": 1679
+      }
+    },
+    {
+      "text": "¿Cuál es el WiFi?",
+      "ok": true,
+      "turnId": "cmrout4tt003ak4tyno7u6cga",
+      "intent": "WIFI",
+      "path": "needs_tools",
+      "replyText": "Para ayudarte necesito confirmar: wifiName, wifiPassword. ¿Me das más detalles?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1159,
+        "injectToVisible": 1676
+      }
+    },
+    {
+      "text": "Gracias.",
+      "ok": true,
+      "turnId": "cmrout60l003dk4tyx1yqv7qq",
+      "intent": "OTHER",
+      "path": "needs_llm",
+      "replyText": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?",
+      "mayAutoSend": true,
+      "sent": true,
+      "verifiedInChat": true,
+      "latencyMs": {
+        "injectToTurn": 1171,
+        "injectToVisible": 1682
+      }
+    }
+  ],
+  "outboundCount": 6,
+  "allAnswered": true,
+  "noDuplicates": true,
+  "pass": true
+}

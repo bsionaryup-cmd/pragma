@@ -22,7 +22,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
     const dbUser = await getUserByClerkId(userId);
 
     if (dbUser && !dbUser.isActive) {
-      redirect("/sign-in?inactive=1");
+      redirect("/login?inactive=1");
     }
 
     if (dbUser?.isActive) {
@@ -34,7 +34,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
 
   return (
     <PragmaAuthLayout
-      backHref="/sign-in"
+      backHref="/login"
       backLabel="Iniciar sesión"
       hint={
         <p className="text-sm text-muted-foreground">

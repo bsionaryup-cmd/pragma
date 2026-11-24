@@ -5,7 +5,8 @@ export const APP_DESCRIPTION =
   "Smart Property Management System — reservas, finanzas e integraciones en un Command Center.";
 export const APP_DEMO_CTA = "Empezar gratis";
 export const APP_LOGIN_CTA = "Log in";
-export const APP_SIGN_IN_PATH = "/sign-in";
+/** @deprecated Prefer APP_LOGIN_PATH from @/lib/auth/auth-paths — kept as alias. */
+export const APP_SIGN_IN_PATH = "/login";
 export const APP_SECONDARY_CTA = "Ver cómo funciona";
 export const APP_PRICING_HEADLINE = "Paga solo por las propiedades que gestionas";
 export const SUBSCRIPTION_TRIAL_LABEL = "7 días de prueba gratis";

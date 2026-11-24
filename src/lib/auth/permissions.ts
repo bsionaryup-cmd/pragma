@@ -18,8 +18,6 @@ export type Permission =
   | "reservations:write"
   | "reservations:delete"
   | "calendar:read"
-  | "tasks:read"
-  | "tasks:write"
   | "users:read"
   | "users:write"
   | "users:delete"
@@ -47,8 +45,6 @@ const ALL_PERMISSIONS: Permission[] = [
   "reservations:write",
   "reservations:delete",
   "calendar:read",
-  "tasks:read",
-  "tasks:write",
   "users:read",
   "users:write",
   "users:delete",
@@ -76,18 +72,13 @@ const ROLE_PERMISSIONS: Record<AppUserRole, readonly Permission[]> = {
     "reservations:create",
     "reservations:write",
     "calendar:read",
-    "tasks:read",
-    "tasks:write",
   ],
 };
 
 /** Rutas permitidas para recepcionista (operación diaria). */
 export const RECEPTIONIST_ROUTE_PREFIXES = [
   "/panel",
-  "/reservations",
-  "/novedades",
   "/calendar",
-  "/tasks",
 ] as const;
 
 /** Ruta → permiso mínimo para acceder */
@@ -96,10 +87,6 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/properties/new": "properties:write",
   "/properties": "properties:read",
   "/web-builder": "website:read",
-  "/reservations/new": "reservations:create",
-  "/reservations": "reservations:read",
-  "/novedades": "reservations:read",
-  "/inbox": "reservations:read",
   "/calendar": "calendar:read",
   "/revenue": "finance:revenue:read",
   "/finance": "finance:read",
@@ -113,12 +100,9 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
   "/integrations/pricelabs": "integrations:read",
   "/integrations/wompi": "integrations:read",
   "/integrations": "integrations:read",
-  "/prospecting": "integrations:read",
   "/smart-access": "access:read",
   "/settings/billing": "billing:manage",
   "/settings": "settings:read",
-  "/tasks/new": "tasks:write",
-  "/tasks": "tasks:read",
   "/users": "users:read",
   "/onboarding": "billing:manage",
 };
@@ -126,19 +110,14 @@ export const ROUTE_PERMISSIONS: Record<string, Permission> = {
 export const PROTECTED_DASHBOARD_PREFIXES = [
   "/panel",
   "/calendar",
-  "/reservations",
-  "/novedades",
   "/properties",
   "/web-builder",
   "/finance",
   "/revenue",
   "/smart-access",
   "/integrations",
-  "/prospecting",
   "/settings",
   "/users",
-  "/tasks",
-  "/inbox",
   "/onboarding",
 ] as const;
 
@@ -152,7 +131,9 @@ export function hasPermission(
   role: AppUserRole,
   permission: Permission,
 ): boolean {
-  return ROLE_PERMISSIONS[role].includes(permission);
+  const permissions = ROLE_PERMISSIONS[role];
+  if (!permissions) return false;
+  return permissions.includes(permission);
 }
 
 export function hasAnyPermission(

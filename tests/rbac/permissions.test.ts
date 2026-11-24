@@ -24,8 +24,6 @@ describe("RBAC permissions", () => {
     assert.equal(hasPermission("RECEPTIONIST", "reservations:create"), true);
     assert.equal(hasPermission("RECEPTIONIST", "reservations:write"), true);
     assert.equal(hasPermission("RECEPTIONIST", "reservations:delete"), false);
-    assert.equal(hasPermission("RECEPTIONIST", "tasks:read"), true);
-    assert.equal(hasPermission("RECEPTIONIST", "tasks:write"), true);
     assert.equal(hasPermission("RECEPTIONIST", "properties:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "finance:operations:read"), false);
     assert.equal(hasPermission("RECEPTIONIST", "finance:read"), false);
@@ -42,11 +40,11 @@ describe("RBAC permissions", () => {
 
   it("receptionist only accesses operational routes", () => {
     assert.equal(hasRouteAccess("RECEPTIONIST", "/panel"), true);
-    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations"), true);
-    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations/new"), true);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/calendar"), true);
-    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks"), true);
-    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks/new"), true);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/reservations/new"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks"), false);
+    assert.equal(hasRouteAccess("RECEPTIONIST", "/tasks/new"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/finance"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/finance/payment-links"), false);
     assert.equal(hasRouteAccess("RECEPTIONIST", "/finance/payment-history"), false);
@@ -59,7 +57,7 @@ describe("RBAC permissions", () => {
   });
 
   it("maps write routes to explicit permissions", () => {
-    assert.equal(getRequiredPermissionForPath("/reservations/new"), "reservations:create");
+    assert.equal(getRequiredPermissionForPath("/calendar"), "calendar:read");
     assert.equal(getRequiredPermissionForPath("/settings/billing"), "billing:manage");
     assert.equal(getRequiredPermissionForPath("/revenue"), "finance:revenue:read");
   });
@@ -67,5 +65,7 @@ describe("RBAC permissions", () => {
   it("protects core dashboard prefixes", () => {
     assert.ok(PROTECTED_DASHBOARD_PREFIXES.includes("/panel"));
     assert.ok(PROTECTED_DASHBOARD_PREFIXES.includes("/calendar"));
+    assert.equal(PROTECTED_DASHBOARD_PREFIXES.includes("/reservations" as never), false);
+    assert.equal(PROTECTED_DASHBOARD_PREFIXES.includes("/tasks" as never), false);
   });
 });

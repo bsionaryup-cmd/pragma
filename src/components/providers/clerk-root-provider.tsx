@@ -30,9 +30,9 @@ export function ClerkRootProvider({ children }: ClerkRootProviderProps) {
     <ClerkProvider
       publishableKey={publishableKey}
       dynamic
-      signInUrl="/sign-in"
+      signInUrl="/login"
       signUpUrl="/sign-up"
-      afterSignOutUrl="/sign-in?signed_out=1"
+      afterSignOutUrl="/login?signed_out=1"
       allowedRedirectOrigins={getClerkAllowedDevOrigins()}
       appearance={pragmaClerkAppearance}
       {...(proxyUrl ? { proxyUrl } : {})}

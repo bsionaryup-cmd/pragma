@@ -1,0 +1,38 @@
+{
+  "at": "2026-07-18T04:07:44.397Z",
+  "duplicateRegistrationDetail": "Este documento ya fue registrado en la reserva",
+  "duplicateRegistration": {
+    "ok": true
+  },
+  "multiGuestNationalitiesMinor": {
+    "ok": true,
+    "registered": 3
+  },
+  "completion": {
+    "ok": true,
+    "guestCount": 3
+  },
+  "contractReconstruction": {
+    "ok": true,
+    "lodgingContractVersion": "2026-07-18",
+    "hasTextSnapshot": true
+  },
+  "repeatAfterComplete": {
+    "ok": true
+  },
+  "invalidAirbnbCode": {
+    "ok": true
+  },
+  "airbnbResolve": {
+    "ok": true,
+    "code": "HM5JC2HP5S",
+    "state": "active",
+    "alreadyCompleted": false
+  },
+  "rateLimiting": {
+    "ok": true
+  },
+  "result": "PASS",
+  "cleanedUp": true,
+  "reservationId": "cmrpuj27c0000potylw3imij3"
+}

@@ -24,7 +24,6 @@ export type RoleScreenDefinition = {
 const TENANT_ADMIN_SCREENS = [
   "/panel",
   "/calendar",
-  "/reservations",
   "/properties",
   "/finance",
   "/revenue",
@@ -32,21 +31,18 @@ const TENANT_ADMIN_SCREENS = [
   "/integrations",
   "/settings",
   "/users",
-  "/tasks",
-  "/inbox",
   "/onboarding",
 ] as const;
 
 const TENANT_RECEPTIONIST_SCREENS = [
   "/panel",
   "/calendar",
-  "/reservations",
-  "/tasks",
 ] as const;
 
 const PLATFORM_OWNER_SCREENS = [
   OWNER_DASHBOARD_PATH,
   `${OWNER_DASHBOARD_PATH}/tenant/[id]`,
+  "/login",
   "/owner-login",
 ] as const;
 
@@ -75,7 +71,7 @@ export const ROLE_SCREEN_DEFINITIONS: Record<AccountKind, RoleScreenDefinition> 
     panelPath: "/panel",
     label: "Recepcionista",
     description:
-      "Operación diaria: panel, reservas, calendario y tareas. Sin finanzas, integraciones ni administración.",
+      "Operación diaria: panel y calendario. Sin finanzas, integraciones ni administración.",
     screens: TENANT_RECEPTIONIST_SCREENS,
   },
 };

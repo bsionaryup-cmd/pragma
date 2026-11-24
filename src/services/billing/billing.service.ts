@@ -39,7 +39,7 @@ import {
 } from "@/modules/billing/services/billing-lifecycle.service";
 import { reconcileOutstandingSubscriptionPayments } from "@/modules/billing/services/billing-subscription-reconcile.service";
 import { ensureOrganizationBillingAccount } from "@/services/organizations/organization.service";
-import { requireDbUser } from "@/lib/auth";
+import { requireDbUser, currentDbUser } from "@/lib/auth";
 
 function isBillingSchemaMissing(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
@@ -71,8 +71,17 @@ export async function ensureBillingAccount(
 export const getBillingAccountSafe = cache(async (): Promise<BillingAccount | null> => {
   try {
     const billingAccountId = await getCurrentBillingAccountId();
-    if (!billingAccountId) return null;
-    return await db.billingAccount.findUnique({ where: { id: billingAccountId } });
+    if (billingAccountId) {
+      return await db.billingAccount.findUnique({ where: { id: billingAccountId } });
+    }
+
+    // Fallback: resolve by the authenticated user's org without a second ensure hop.
+    // Avoids false "TRIAL / Activar suscripción" when the soft lookup misses.
+    const user = await currentDbUser();
+    if (!user?.organizationId) return null;
+    return await db.billingAccount.findUnique({
+      where: { organizationId: user.organizationId },
+    });
   } catch (error) {
     if (isBillingSchemaMissing(error)) return null;
     throw error;
@@ -309,9 +318,11 @@ export const getBillingAccessSnapshot = cache(
     try {
       let account = await getBillingAccountSafe();
       if (!account) {
+        // Unknown account: never pretend TRIAL — that shows "Activar suscripción"
+        // for paid tenants when the billing row briefly fails to resolve.
         return {
           locked: false,
-          status: BillingSubscriptionStatus.TRIAL,
+          status: BillingSubscriptionStatus.ACTIVE,
           trialEndsAt: null,
           gracePeriodEndsAt: null,
           reason: null,
@@ -352,7 +363,7 @@ export const getBillingAccessSnapshot = cache(
       if (isBillingSchemaMissing(error)) {
         return {
           locked: false,
-          status: BillingSubscriptionStatus.TRIAL,
+          status: BillingSubscriptionStatus.ACTIVE,
           trialEndsAt: null,
           gracePeriodEndsAt: null,
           reason: null,

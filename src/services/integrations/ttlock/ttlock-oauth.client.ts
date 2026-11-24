@@ -1,6 +1,5 @@
 import type { TTLockEnvironment } from "@prisma/client";
 import { getTTLockOAuthTokenUrl } from "@/lib/integrations/ttlock-config";
-import { isPlatformTTLockConfigured } from "@/lib/integrations/ttlock-platform";
 import { ttlockPasswordMd5 } from "@/services/integrations/ttlock/ttlock-crypto";
 
 export { ttlockPasswordMd5 };
@@ -40,9 +39,11 @@ export type TTLockOAuthCodeInput = {
 };
 
 export function isTTLockLiveApiEnabled(): boolean {
+  // Explicit opt-out only. Tenant integrations store OAuth tokens in DB; requiring
+  // platform TTLOCK_CLIENT_* env (or TTLOCK_API_ENABLED=true) blocked local/dev
+  // and caused GR→TTLock to skip with live_api_disabled while recepción still ran.
   if (process.env.TTLOCK_API_ENABLED === "false") return false;
-  if (process.env.TTLOCK_API_ENABLED === "true") return true;
-  return isPlatformTTLockConfigured();
+  return true;
 }
 
 function buildFormBody(entries: Record<string, string>): string {

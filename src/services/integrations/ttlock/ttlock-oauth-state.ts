@@ -4,13 +4,25 @@ const STATE_TTL_MS = 15 * 60 * 1000;
 
 export const TTLOCK_OAUTH_STATE_COOKIE = "pragma_ttlock_oauth_state";
 
-function signPayload(payload: string): string {
+function resolveOAuthStateSecret(): string {
   const secret =
-    process.env.TTLOCK_ENCRYPTION_KEY ||
-    process.env.CLERK_SECRET_KEY ||
-    process.env.DATABASE_URL ||
-    "pragma-ttlock-dev";
-  return createHmac("sha256", secret).update(payload).digest("base64url");
+    process.env.TTLOCK_ENCRYPTION_KEY?.trim() ||
+    process.env.CLERK_SECRET_KEY?.trim() ||
+    process.env.DATABASE_URL?.trim() ||
+    "";
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "TTLock OAuth state secret missing (set TTLOCK_ENCRYPTION_KEY)",
+    );
+  }
+  return "pragma-ttlock-dev";
+}
+
+function signPayload(payload: string): string {
+  return createHmac("sha256", resolveOAuthStateSecret())
+    .update(payload)
+    .digest("base64url");
 }
 
 export function createTTLockOAuthState(

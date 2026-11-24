@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import {
   PlatformOwnerForbiddenError,
+  PlatformOwnerUnauthorizedError,
   requirePlatformOwnerUser,
 } from "@/lib/platform/require-platform-owner";
 import {
@@ -22,6 +23,9 @@ function revalidateServices() {
 }
 
 function actionError(error: unknown) {
+  if (error instanceof PlatformOwnerUnauthorizedError) {
+    return { success: false as const, error: "Sesión expirada" };
+  }
   if (error instanceof PlatformOwnerForbiddenError) {
     return { success: false as const, error: "Acceso denegado" };
   }

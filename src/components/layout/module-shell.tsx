@@ -8,7 +8,7 @@ export const moduleShellClasses = {
   paneHeader: "border-b border-border bg-module-pane",
 } as const;
 
-/** Full viewport-height modules with internal panes (reservations, calendar, inbox). */
+/** Full viewport-height modules with internal panes (calendar, etc.). */
 export function ModuleShellFill({
   children,
   className,

@@ -18,7 +18,7 @@ export class PlatformOwnerForbiddenError extends Error {
 }
 
 /**
- * Owner APIs must not call requireDbUser() (it redirects to /sign-in).
+ * Owner APIs must not call requireDbUser() (it redirects to /login).
  * Resolve the DB user from the Clerk session and enforce platform role.
  */
 export async function requirePlatformOwnerUser(): Promise<User> {

@@ -1,0 +1,57 @@
+{
+  "at": "2026-07-17T12:07:39.492Z",
+  "targetMessage": "Hola [mrow6zuo]",
+  "scenario": "storm_shell_verify_fails_plus_60s_soak",
+  "pairingOk": true,
+  "messageReceivedCount": 2,
+  "turnIds": [
+    "cmrow723d00hwd8tyvpvzw41g"
+  ],
+  "turnCount": 1,
+  "clicksAfterFirst": 1,
+  "clicksAfterSoak": 1,
+  "clickLog": [
+    "2026-07-17T12:06:38.693Z|Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puede"
+  ],
+  "soakStartedAt": "2026-07-17T12:06:38.892Z",
+  "soakMs": 60000,
+  "channelStatus": {
+    "at": "2026-07-17T12:07:36.659Z",
+    "channel": "whatsapp_web",
+    "connected": true,
+    "error": "send_click_without_outgoing_message",
+    "hasGuestMessage": true,
+    "lastIntent": "OTHER",
+    "lastMessageAt": "2026-07-17T12:06:42.301Z",
+    "mayAutoSend": true,
+    "mode": "autonomous",
+    "outboundDispatched": true,
+    "outboundError": "send_click_without_outgoing_message",
+    "outboundVerified": false,
+    "role": "presence",
+    "sent": false,
+    "suggestedPreview": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesit",
+    "tabVisible": true,
+    "threadId": "wa:622dp3"
+  },
+  "lastOutbound": {
+    "at": "2026-07-17T12:06:38.505Z",
+    "clickExecuted": true,
+    "composerFilled": true,
+    "composerFound": true,
+    "dispatchSkipped": false,
+    "enterFallback": false,
+    "error": "send_click_without_outgoing_message",
+    "sendButtonFound": true,
+    "textPreview": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesit",
+    "verifiedInChat": false
+  },
+  "checks": {
+    "exactlyOneClick": true,
+    "noExtraDuringSoak": true,
+    "exactlyOneTurn": true,
+    "messageReceivedAtLeastOnce": true,
+    "messageReceivedOk": true
+  },
+  "pass": true
+}

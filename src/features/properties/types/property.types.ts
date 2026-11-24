@@ -2,8 +2,6 @@ import type {
   PropertyStatus,
   PropertyType,
   ReservationStatus,
-  TaskStatus,
-  TaskType,
 } from "@prisma/client";
 
 export type PropertyUpcomingReservation = {
@@ -33,14 +31,6 @@ export type PropertyGridItem = {
   monthOccupancyPercent: number;
 };
 
-export type PropertyTaskItem = {
-  id: string;
-  title: string;
-  type: TaskType;
-  status: TaskStatus;
-  dueDate: string | null;
-};
-
 export type PropertyDetailDto = PropertyGridItem & {
   description: string | null;
   address: string;
@@ -55,7 +45,6 @@ export type PropertyDetailDto = PropertyGridItem & {
   cleaningFee: string | null;
   currency: string;
   upcomingReservations: PropertyUpcomingReservation[];
-  pendingTasks: PropertyTaskItem[];
   monthRevenue: string;
   createdAt: string;
   airbnbListingUrl: string | null;
@@ -63,15 +52,16 @@ export type PropertyDetailDto = PropertyGridItem & {
   lastIcalSyncedAt: string | null;
   /** Multiline text for the property form (one email per line). */
   notificationEmails: string;
+  operationalContacts: Array<{
+    key: string;
+    name: string;
+    role: string;
+    email: string;
+    whatsapp: string;
+    isActive: boolean;
+  }>;
+  guestRegistrationContactKey: string;
   receptionWhatsapp: string;
-  useDefaultQuickMessages: boolean;
-  quickMessageWELCOME: string;
-  quickMessageREGISTRATION: string;
-  quickMessageACCESS: string;
-  quickMessageFOLLOW_UP: string;
-  quickMessageHOUSE_RULES: string;
-  quickMessageCHECKOUT: string;
-  quickMessageREVIEW: string;
   smartAccess?: {
     lock: import("@/modules/integrations/ttlock/ttlock.types").SmartLockSnapshot | null;
     integrationConnected: boolean;

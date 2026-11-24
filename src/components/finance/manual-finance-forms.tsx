@@ -11,6 +11,13 @@ import {
 import { FinanceDateField } from "@/components/finance/finance-date-field";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SectionCard } from "@/components/ui/section-card";
@@ -77,11 +84,227 @@ function AttachmentField({
   );
 }
 
+function ExpenseFormFields({
+  pending,
+  formId = "expense",
+}: {
+  pending: boolean;
+  formId?: string;
+}) {
+  const { t } = useI18n();
+  const today = todayDateInputValue();
+
+  return (
+    <>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${formId}-description`}>{t("finance.manual.description")}</Label>
+        <Input
+          id={`${formId}-description`}
+          name="description"
+          required
+          placeholder={t("finance.manual.expenseDescriptionPlaceholder")}
+          disabled={pending}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-category`}>{t("finance.flows.category")}</Label>
+        <Input
+          id={`${formId}-category`}
+          name="category"
+          required
+          placeholder={t("finance.manual.categoryPlaceholder")}
+          disabled={pending}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-amount`}>{t("finance.manual.amountCop")}</Label>
+        <Input
+          id={`${formId}-amount`}
+          name="amount"
+          type="number"
+          min="0"
+          step="1"
+          required
+          disabled={pending}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-method`}>{t("finance.manual.paymentMethod")}</Label>
+        <select
+          id={`${formId}-method`}
+          name="paymentMethod"
+          className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
+          defaultValue="CASH"
+          disabled={pending}
+        >
+          <option value="CASH">{t("finance.manual.methods.cash")}</option>
+          <option value="TRANSFER">{t("finance.manual.methods.transfer")}</option>
+          <option value="CARD">{t("finance.manual.methods.card")}</option>
+          <option value="OTHER">{t("finance.manual.methods.other")}</option>
+        </select>
+      </div>
+      <FinanceDateField
+        id={`${formId}-date`}
+        name="expenseDate"
+        label={t("finance.flows.date")}
+        defaultValue={today}
+        required
+        disabled={pending}
+      />
+      <AttachmentField id={formId} disabled={pending} />
+      <Button type="submit" size="sm" disabled={pending} className="sm:col-span-2">
+        <Receipt className="mr-2 h-4 w-4" />
+        {t("finance.manual.saveExpense")}
+      </Button>
+    </>
+  );
+}
+
+function OtherIncomeFormFields({
+  pending,
+  formId = "income",
+}: {
+  pending: boolean;
+  formId?: string;
+}) {
+  const { t } = useI18n();
+  const today = todayDateInputValue();
+
+  return (
+    <>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${formId}-description`}>{t("finance.manual.description")}</Label>
+        <Input
+          id={`${formId}-description`}
+          name="description"
+          required
+          placeholder={t("finance.manual.incomeDescriptionPlaceholder")}
+          disabled={pending}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={`${formId}-amount`}>{t("finance.manual.amountCop")}</Label>
+        <Input
+          id={`${formId}-amount`}
+          name="amount"
+          type="number"
+          min="0"
+          step="1"
+          required
+          disabled={pending}
+        />
+      </div>
+      <FinanceDateField
+        id={`${formId}-date`}
+        name="incomeDate"
+        label={t("finance.flows.date")}
+        defaultValue={today}
+        required
+        disabled={pending}
+      />
+      <Button type="submit" size="sm" disabled={pending} className="sm:col-span-2">
+        <TrendingUp className="mr-2 h-4 w-4" />
+        {t("finance.manual.saveIncome")}
+      </Button>
+    </>
+  );
+}
+
+type CreateDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+export function ExpenseCreateDialog({ open, onOpenChange }: CreateDialogProps) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [formKey, setFormKey] = useState(0);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!pending) onOpenChange(next);
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{t("finance.modules.expenses.title")}</DialogTitle>
+          <DialogDescription>{t("finance.modules.expenses.description")}</DialogDescription>
+        </DialogHeader>
+        <form
+          key={formKey}
+          className="grid gap-4 sm:grid-cols-2"
+          action={(fd) =>
+            startTransition(async () => {
+              try {
+                await createManualExpenseAction(fd);
+                toast.success(t("finance.manual.expenseSaved"));
+                setFormKey((k) => k + 1);
+                onOpenChange(false);
+                router.refresh();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : t("common.loading"));
+              }
+            })
+          }
+        >
+          <ExpenseFormFields pending={pending} formId="dialog-expense" />
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function OtherIncomeCreateDialog({ open, onOpenChange }: CreateDialogProps) {
+  const { t } = useI18n();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [formKey, setFormKey] = useState(0);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!pending) onOpenChange(next);
+      }}
+    >
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t("finance.modules.otherIncome.title")}</DialogTitle>
+          <DialogDescription>
+            {t("finance.modules.otherIncome.description")}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          key={formKey}
+          className="grid gap-4 sm:grid-cols-2"
+          action={(fd) =>
+            startTransition(async () => {
+              try {
+                await createOtherIncomeAction(fd);
+                toast.success(t("finance.manual.incomeSaved"));
+                setFormKey((k) => k + 1);
+                onOpenChange(false);
+                router.refresh();
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : t("common.loading"));
+              }
+            })
+          }
+        >
+          <OtherIncomeFormFields pending={pending} formId="dialog-income" />
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ExpenseSubmodule() {
   const { t } = useI18n();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const today = todayDateInputValue();
 
   return (
     <SectionCard
@@ -102,66 +325,7 @@ export function ExpenseSubmodule() {
           })
         }
       >
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="expense-description">{t("finance.manual.description")}</Label>
-          <Input
-            id="expense-description"
-            name="description"
-            required
-            placeholder={t("finance.manual.expenseDescriptionPlaceholder")}
-            disabled={pending}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="expense-category">{t("finance.flows.category")}</Label>
-          <Input
-            id="expense-category"
-            name="category"
-            required
-            placeholder={t("finance.manual.categoryPlaceholder")}
-            disabled={pending}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="expense-amount">{t("finance.manual.amountCop")}</Label>
-          <Input
-            id="expense-amount"
-            name="amount"
-            type="number"
-            min="0"
-            step="1"
-            required
-            disabled={pending}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="expense-method">{t("finance.manual.paymentMethod")}</Label>
-          <select
-            id="expense-method"
-            name="paymentMethod"
-            className="flex h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
-            defaultValue="CASH"
-            disabled={pending}
-          >
-            <option value="CASH">{t("finance.manual.methods.cash")}</option>
-            <option value="TRANSFER">{t("finance.manual.methods.transfer")}</option>
-            <option value="CARD">{t("finance.manual.methods.card")}</option>
-            <option value="OTHER">{t("finance.manual.methods.other")}</option>
-          </select>
-        </div>
-        <FinanceDateField
-          id="expense-date"
-          name="expenseDate"
-          label={t("finance.flows.date")}
-          defaultValue={today}
-          required
-          disabled={pending}
-        />
-        <AttachmentField id="expense" disabled={pending} />
-        <Button type="submit" size="sm" disabled={pending} className="sm:col-span-2">
-          <Receipt className="mr-2 h-4 w-4" />
-          {t("finance.manual.saveExpense")}
-        </Button>
+        <ExpenseFormFields pending={pending} />
       </form>
     </SectionCard>
   );
@@ -171,7 +335,6 @@ export function OtherIncomeSubmodule() {
   const { t } = useI18n();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const today = todayDateInputValue();
 
   return (
     <SectionCard
@@ -192,46 +355,13 @@ export function OtherIncomeSubmodule() {
           })
         }
       >
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="income-description">{t("finance.manual.description")}</Label>
-          <Input
-            id="income-description"
-            name="description"
-            required
-            placeholder={t("finance.manual.incomeDescriptionPlaceholder")}
-            disabled={pending}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="income-amount">{t("finance.manual.amountCop")}</Label>
-          <Input
-            id="income-amount"
-            name="amount"
-            type="number"
-            min="0"
-            step="1"
-            required
-            disabled={pending}
-          />
-        </div>
-        <FinanceDateField
-          id="income-date"
-          name="incomeDate"
-          label={t("finance.flows.date")}
-          defaultValue={today}
-          required
-          disabled={pending}
-        />
-        <Button type="submit" size="sm" disabled={pending} className="sm:col-span-2">
-          <TrendingUp className="mr-2 h-4 w-4" />
-          {t("finance.manual.saveIncome")}
-        </Button>
+        <OtherIncomeFormFields pending={pending} />
       </form>
     </SectionCard>
   );
 }
 
-/** @deprecated Use ExpenseSubmodule / OtherIncomeSubmodule */
+/** @deprecated Use ExpenseCreateDialog / OtherIncomeCreateDialog */
 export function ManualFinanceForms() {
   return (
     <div className="grid gap-6 lg:grid-cols-2">

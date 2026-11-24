@@ -1,0 +1,90 @@
+{
+  "at": "2026-07-17T11:26:54.217Z",
+  "targetMessage": "Hola",
+  "mode": "AUTONOMOUS",
+  "pairingOk": true,
+  "timingsMs": {
+    "sw_ready": 1800,
+    "paired": 13886,
+    "wa_loaded": 15617,
+    "shell_ready": 16436,
+    "guest_message_injected": 16442,
+    "turn_processed": 17888,
+    "reply_visible_in_chat": 18416
+  },
+  "latency": {
+    "injectToTurnMs": 1446,
+    "injectToVisibleReplyMs": 1974
+  },
+  "messageReceived": {
+    "id": "cmrourxfd002sk4ty47oumvzj",
+    "at": "2026-07-17T11:26:52.921Z",
+    "result": "accepted",
+    "metadata": {
+      "channel": "whatsapp_web"
+    }
+  },
+  "conversationState": {
+    "id": "cmrouqlk3002pk4tym8f7ypk1",
+    "channel": "whatsapp_web",
+    "threadHash": "74dbf2b8b1c493ad0fe5270880f14c02556f757758967c22ad6ce1742bb04a30",
+    "lastIntent": "OTHER",
+    "lastPath": "needs_llm",
+    "messageCount": 2,
+    "lastProcessedAt": "2026-07-17T11:26:53.008Z"
+  },
+  "turn": {
+    "id": "cmrourxk1002uk4tyy3usckpo",
+    "conversationStateId": "cmrouqlk3002pk4tym8f7ypk1",
+    "at": "2026-07-17T11:26:53.089Z",
+    "result": "success",
+    "intent": "OTHER",
+    "path": "needs_llm",
+    "toolNames": [],
+    "channel": "whatsapp_web"
+  },
+  "channelStatus": {
+    "at": "2026-07-17T11:26:53.586Z",
+    "channel": "whatsapp_web",
+    "connected": true,
+    "error": null,
+    "hasGuestMessage": true,
+    "lastIntent": "OTHER",
+    "lastMessageAt": "2026-07-17T11:26:53.370Z",
+    "mayAutoSend": true,
+    "mode": "autonomous",
+    "outboundError": null,
+    "outboundVerified": true,
+    "role": "presence",
+    "sent": true,
+    "suggestedPreview": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesit",
+    "tabVisible": true,
+    "threadId": "wa:1objf5d"
+  },
+  "lastOutbound": {
+    "at": "2026-07-17T11:26:53.173Z",
+    "clickExecuted": true,
+    "composerFilled": true,
+    "composerFound": true,
+    "enterFallback": false,
+    "error": null,
+    "sendButtonFound": true,
+    "textPreview": "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesit",
+    "verifiedInChat": true
+  },
+  "outboundTexts": [
+    "Voy a escalar tu consulta con el equipo para darte una respuesta precisa. ¿Puedes confirmar el detalle de lo que necesitas?"
+  ],
+  "outboundVisibleInDom": true,
+  "stages": {
+    "1_mutation_observer_detected_guest": true,
+    "2_3_content_to_background": true,
+    "4_backend_received": true,
+    "5_6_conversation_and_turn": true,
+    "7_8_reply_and_mayAutoSend": true,
+    "9_10_extension_received_reply": true,
+    "11_16_write_click_verify": true,
+    "17_guest_visible_message_out": true
+  },
+  "pass": true
+}

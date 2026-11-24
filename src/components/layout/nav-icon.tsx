@@ -2,13 +2,13 @@
 
 import {
   Building2,
+  Bot,
   CalendarDays,
   ClipboardList,
   CreditCard,
   Globe,
   KeyRound,
   LayoutDashboard,
-  ListChecks,
   Bell,
   MessageCircle,
   LineChart,
@@ -29,13 +29,13 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   ribbon: Ribbon,
   "line-chart": LineChart,
   "key-round": KeyRound,
-  "list-checks": ListChecks,
   bell: Bell,
   "credit-card": CreditCard,
   wallet: Wallet,
   settings: Settings,
   "scan-search": ScanSearch,
   globe: Globe,
+  bot: Bot,
 };
 
 type NavIconProps = {

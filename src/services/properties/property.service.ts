@@ -3,6 +3,11 @@ import {
   type PropertyFormValues,
 } from "@/features/properties/schemas/property.schema";
 import { formatNotificationEmailsForForm } from "@/lib/property-notification-emails";
+import {
+  guestRegistrationContactKeyFromFormValue,
+  guestRegistrationContactKeyToFormValue,
+  parseOperationalContacts,
+} from "@/lib/operational-contacts";
 import { mapSmartLockSnapshot } from "@/modules/integrations/ttlock/ttlock.mapper";
 import {
   isTTLockIntegrationConnected,
@@ -22,7 +27,6 @@ import { startOfDay } from "@/lib/helpers/date";
 import type {
   PropertyDetailDto,
   PropertyGridItem,
-  PropertyTaskItem,
   PropertyUpcomingReservation,
 } from "@/features/properties/types/property.types";
 import {
@@ -31,14 +35,7 @@ import {
   ReservationStatus,
 } from "@prisma/client";
 import { isOrphanAirbnbReservation } from "@/services/airbnb/airbnb-ical-orphan.service";
-import { Prisma } from "@prisma/client";
 import { sortPropertiesByUnitNumber } from "@/lib/property-display";
-import {
-  formFieldsToQuickMessageTemplates,
-  hasCustomQuickMessageTemplates,
-  parsePropertyQuickMessageTemplates,
-  quickMessageTemplatesToFormFields,
-} from "@/lib/reservations/quick-message-templates";
 import { formatAccessCode } from "@/lib/access-code";
 import {
   hasActiveAirbnbIcalImport,
@@ -296,20 +293,6 @@ export async function getPropertyDetail(
         orderBy: { checkIn: "asc" },
         take: 20,
       },
-      tasks: {
-        where: {
-          status: { in: ["PENDING", "IN_PROGRESS"] },
-        },
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          status: true,
-          dueDate: true,
-        },
-        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-        take: 6,
-      },
     },
   });
 
@@ -371,14 +354,6 @@ export async function getPropertyDetail(
     monthEnd,
   );
 
-  const pendingTasks: PropertyTaskItem[] = property.tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    type: t.type,
-    status: t.status,
-    dueDate: t.dueDate?.toISOString() ?? null,
-  }));
-
   const integration = await resolveTTLockIntegrationForProperty(id);
   const integrationConnected = integration
     ? isTTLockIntegrationConnected(integration)
@@ -405,7 +380,6 @@ export async function getPropertyDetail(
       property.icalUrl,
       enrichedPropertyReservations,
     ).map(toUpcomingReservation),
-    pendingTasks,
     monthRevenue: String(
       sumMonthRevenue(
         enrichedAllMonthReservations,
@@ -426,13 +400,18 @@ export async function getPropertyDetail(
     ),
     createdAt: property.createdAt.toISOString(),
     notificationEmails: formatNotificationEmailsForForm(property.notificationEmails),
+    operationalContacts: parseOperationalContacts(property.operationalContacts).map((contact) => ({
+      key: contact.key,
+      name: contact.name,
+      role: contact.role,
+      email: contact.email ?? "",
+      whatsapp: contact.whatsapp ?? "",
+      isActive: contact.isActive,
+    })),
+    guestRegistrationContactKey: guestRegistrationContactKeyToFormValue(
+      property.guestRegistrationContactKey,
+    ),
     receptionWhatsapp: property.receptionWhatsapp ?? "",
-    useDefaultQuickMessages: !hasCustomQuickMessageTemplates(
-      parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
-    ),
-    ...quickMessageTemplatesToFormFields(
-      parsePropertyQuickMessageTemplates(property.quickMessageTemplates),
-    ),
     smartAccess: {
       lock: property.propertyLock
         ? mapSmartLockSnapshot({
@@ -505,17 +484,12 @@ function normalizeFormData(data: PropertyFormValues) {
     coverImageUrl: data.coverImageUrl?.trim() || null,
     status: data.status,
     notificationEmails: notificationEmailsFormToJson(data.notificationEmails),
+    operationalContacts: parseOperationalContacts(data.operationalContacts ?? []),
+    guestRegistrationContactKey: guestRegistrationContactKeyFromFormValue(
+      data.guestRegistrationContactKey,
+    ),
     receptionWhatsapp: data.receptionWhatsapp?.trim() || null,
-    quickMessageTemplates: quickMessageTemplatesForPrisma(data),
   };
-}
-
-function quickMessageTemplatesForPrisma(
-  data: PropertyFormValues,
-): Prisma.InputJsonValue | typeof Prisma.JsonNull {
-  const templates = formFieldsToQuickMessageTemplates(data);
-  if (templates === null) return Prisma.JsonNull;
-  return templates as Prisma.InputJsonValue;
 }
 
 export async function createProperty(ownerId: string, data: PropertyFormValues) {

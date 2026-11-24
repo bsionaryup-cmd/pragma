@@ -125,7 +125,7 @@ export async function POST(request: Request) {
     })
       .then((result) => {
         if (result.recorded) {
-          revalidatePath("/novedades");
+          revalidatePath("/calendar");
         }
       })
       .catch((error) => {
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
   });
 
   if (outcome.auditId) {
-    revalidatePath("/novedades");
+    revalidatePath("/calendar");
   }
 
   return NextResponse.json({ ok: true, outcome });

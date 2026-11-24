@@ -29,7 +29,7 @@ export async function DashboardBanners({ user }: DashboardBannersProps) {
     ]);
     const showTrialBanner =
       !needsTrialSetup &&
-      billingAccess.status === BillingSubscriptionStatus.TRIAL &&
+      billingAccount?.status === BillingSubscriptionStatus.TRIAL &&
       !billingAccess.locked;
     const expiryNotice = !isAdmin
       ? buildSubscriptionExpiryNotice(billingAccess, billingAccount)

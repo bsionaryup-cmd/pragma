@@ -200,7 +200,7 @@ function PropertySidebarComponent({
                 type="search"
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Buscar..."
+                placeholder="Alojamiento…"
                 className="h-7 w-full rounded-md border border-[var(--cal-border)] bg-white pl-7 pr-2 text-[12px] text-[var(--cal-text-day)] outline-none transition-colors placeholder:text-[var(--cal-text-muted)] focus:border-[var(--cal-border-strong)]"
               />
             </div>

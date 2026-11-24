@@ -73,7 +73,7 @@ export async function createReservationPaymentLinkAction(input: {
       createdById: user.id,
       issue: input.issue ?? true,
     });
-    revalidatePath("/reservations");
+    revalidatePath("/calendar");
     revalidatePath("/finance/payment-links");
     revalidatePath("/finance");
     return { success: true as const, link: serializeGuestPaymentLink(link) };
@@ -105,7 +105,7 @@ export async function createManualPaymentLinkAction(
       : draft;
 
     revalidatePath("/finance/payment-links");
-    revalidatePath("/reservations");
+    revalidatePath("/calendar");
     return {
       success: true as const,
       link: serializeGuestPaymentLink(link),
@@ -153,7 +153,7 @@ export async function duplicatePaymentLinkAction(linkId: string) {
   try {
     const link = await duplicateGuestPaymentLink(linkId, user.id);
     revalidatePath("/finance/payment-links");
-    revalidatePath("/reservations");
+    revalidatePath("/calendar");
     return { success: true as const, link: serializeGuestPaymentLink(link) };
   } catch (error) {
     return {

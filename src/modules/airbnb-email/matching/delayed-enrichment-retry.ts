@@ -161,12 +161,13 @@ export async function attemptDelayedEnrichmentRetry(
   if (audit.reservationId && hasMeaningfulEnrichedFields(audit.reservationEvent?.enrichedFields)) {
     const reservation = await db.reservation.findUnique({
       where: { id: audit.reservationId },
-      select: { totalAmount: true },
+      select: { totalAmount: true, guestName: true },
     });
     const needsFinancialRepair =
       isZeroReservationAmount(reservation?.totalAmount) &&
       audit.classification === AirbnbEmailEventKind.CANCELED;
-    if (!needsFinancialRepair) {
+    const needsGuestNameRepair = isPlaceholderGuestName(reservation?.guestName);
+    if (!needsFinancialRepair && !needsGuestNameRepair) {
       airbnbEmailLog.info("retry_enrichment_skipped", {
         auditId: audit.id,
         reason: "already_enriched",

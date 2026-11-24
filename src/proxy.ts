@@ -23,26 +23,69 @@ import {
   PLATFORM_OWNER_API_PREFIX,
 } from "@/lib/platform/middleware-paths";
 
+/** Server Actions use `Next-Action`; a 302/401 from middleware breaks Flight. */
+function isNextServerAction(request: NextRequest): boolean {
+  return (
+    request.method === "POST" &&
+    (request.headers.has("next-action") || request.headers.has("Next-Action"))
+  );
+}
+
 const isOwnerRoute = createRouteMatcher([
   `${OWNER_DASHBOARD_PATH}(.*)`,
   `${PLATFORM_OWNER_API_PREFIX}(.*)`,
 ]);
 
 const isOwnerLoginRoute = createRouteMatcher([`${OWNER_LOGIN_PATH}(.*)`]);
-const isRetailRoute = createRouteMatcher(["/intiendas(.*)"]);
+
+/**
+ * Canonical app prefixes (lowercase). Typos like /OWNer-dashboard must not 404.
+ * Only redirects when casing differs — exact paths are untouched.
+ */
+const CASE_CANONICAL_PREFIXES = [
+  OWNER_DASHBOARD_PATH,
+  OWNER_LOGIN_PATH,
+  "/panel",
+  "/calendar",
+  "/properties",
+  "/web-builder",
+  "/integrations",
+  "/smart-access",
+  "/finance",
+  "/settings",
+  "/login",
+  "/sign-in",
+  "/sign-up",
+  "/owner-login",
+  "/post-login",
+  "/auth/continue",
+  "/onboarding",
+  "/unauthorized",
+] as const;
+
+function canonicalizePathnameCasing(pathname: string): string | null {
+  if (!pathname || pathname === "/") return null;
+  const lower = pathname.toLowerCase();
+  for (const canonical of CASE_CANONICAL_PREFIXES) {
+    if (lower === canonical || lower.startsWith(`${canonical}/`)) {
+      const normalized = canonical + lower.slice(canonical.length);
+      return normalized === pathname ? null : normalized;
+    }
+  }
+  return null;
+}
 
 const isPublicRoute = createRouteMatcher([
   "/",
   "/pricing",
   "/contact",
   "/demo",
+  "/login(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
-  "/login(.*)",
+  "/owner-login(.*)",
+  "/auth/continue",
   "/forgot-password",
-  "/intiendas/login",
-  "/intiendas/login/recuperar",
-  `${OWNER_LOGIN_PATH}(.*)`,
   "/account-suspended",
   "/api/auth/session-ready",
   "/api/auth/establish-session",
@@ -54,17 +97,16 @@ const isPublicRoute = createRouteMatcher([
   "/api/inbound/(.*)",
   "/api/integrations/ttlock/callback",
   "/api/integrations/ttlock/webhook/(.*)",
+  "/guest-registration",
   "/guest-registration/(.*)",
+  "/stay",
   "/stay/(.*)",
   "/m/(.*)",
-  "/offer/(.*)",
   "/landing-product-screenshot-preview",
   "/urbanovaloft",
   "/urbanovaloft/(.*)",
   "/api/web-builder(.*)",
 ]);
-
-const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
 
 /** APIs that authenticate inside the route handler — skip duplicate Clerk auth in proxy. */
 const isSelfAuthedApi = createRouteMatcher([
@@ -75,12 +117,7 @@ const isSelfAuthedApi = createRouteMatcher([
   "/api/integrations/ttlock/test",
 ]);
 
-const clerkMiddlewareOptions = {
-  frontendApiProxy: {
-    enabled: (url: URL) => shouldProxyClerkFrontendApi(url),
-    path: CLERK_PROXY_PATH,
-  },
-};
+const isUnauthorizedPage = createRouteMatcher(["/unauthorized"]);
 
 /** Public tenant sites: `/w/{slug}` only (not `/w/{slug}/preview`). */
 function isPublicTenantWebSitePath(pathname: string): boolean {
@@ -89,6 +126,17 @@ function isPublicTenantWebSitePath(pathname: string): boolean {
   const segments = pathname.slice(3).split("/").filter(Boolean);
   return segments.length === 1;
 }
+
+/**
+ * Sole Clerk FAPI proxy: middleware `frontendApiProxy` (App Router duplicate removed).
+ * enabled(url) keeps www + Vercel Preview proxied; localhost never (host_invalid).
+ */
+const clerkMiddlewareOptions = {
+  frontendApiProxy: {
+    enabled: (url: URL) => shouldProxyClerkFrontendApi(url),
+    path: CLERK_PROXY_PATH,
+  },
+};
 
 function forwardWithPathname(request: NextRequest | Request, pathname: string) {
   const requestHeaders = new Headers(request.headers);
@@ -101,6 +149,7 @@ function forwardWithPathname(request: NextRequest | Request, pathname: string) {
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
+/** Expire stale `__client_uat` so the next document hit does not re-handshake. */
 function expireStaleClientUatCookies(
   response: NextResponse,
   request: NextRequest,
@@ -110,16 +159,19 @@ function expireStaleClientUatCookies(
   const names = clientUatCookieNamesFromHeader(request.headers.get("cookie"));
   const domainTargets = clientUatExpireTargets(requestUrl.hostname);
 
+  // Use append: response.cookies.set() overwrites same-name cookies and would
+  // drop the host-only expire when also setting Domain=pragmapms.com.
   const appendExpire = (name: string, domain?: string) => {
     const parts = [
       `${name}=`,
       "Path=/",
       "Max-Age=0",
+      "Expires=Thu, 01 Jan 1970 00:00:00 GMT",
       "SameSite=Lax",
-      ...(secure ? ["Secure"] : []),
-      ...(domain ? [`Domain=${domain}`] : []),
     ];
-    response.headers.append("set-cookie", parts.join("; "));
+    if (secure) parts.push("Secure");
+    if (domain) parts.push(`Domain=${domain}`);
+    response.headers.append("Set-Cookie", parts.join("; "));
   };
 
   for (const name of names) {
@@ -133,8 +185,12 @@ function expireStaleClientUatCookies(
 }
 
 /**
+ * @clerk/backend may still emit handshake Location against broken custom FAPI
+ * hosts; rewrite onto same-origin `/__clerk` when this request is proxied.
+ *
  * Incomplete cookies (`client-uat-but-no-session-token`): do NOT follow handshake
- * (it wipes cookies). Auth surfaces clear UAT; protected routes → login.
+ * (it wipes cookies). Protected routes → one hop to login + clear UAT.
+ * Auth surfaces → clear UAT + one reload (never self-loop; avoids RSC 500 with dirty jar).
  */
 function rewriteClerkFapiHandshakeLocation(
   response: Response,
@@ -155,6 +211,8 @@ function rewriteClerkFapiHandshakeLocation(
 
     if (decision.action === "pass-through") {
       const reload = request.nextUrl.clone();
+      // One-shot clear: expire UAT then reload. Avoid next() on the dirty request
+      // (auth()/RSC can 500 while __client_uat is still on the inbound Cookie header).
       if (reload.searchParams.get("uat_cleared") !== "1") {
         reload.searchParams.set("uat_cleared", "1");
         const clearRedirect = NextResponse.redirect(reload, 307);
@@ -210,6 +268,61 @@ function rewriteClerkFapiHandshakeLocation(
 const clerkHandler = clerkMiddleware(async (auth, request) => {
   const pathname = request.nextUrl.pathname;
 
+  const cased = canonicalizePathnameCasing(pathname);
+  if (cased) {
+    const url = request.nextUrl.clone();
+    url.pathname = cased;
+    return NextResponse.redirect(url);
+  }
+
+  // Legacy list UI removed — calendar is the only reservations surface.
+  const lowerPath = pathname.toLowerCase();
+  if (lowerPath === "/reservations" || lowerPath.startsWith("/reservations/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/calendar";
+    return NextResponse.redirect(url);
+  }
+
+  // Master Simplification: Bandeja / Novedades / Tareas / AI Concierge folded into /panel.
+  if (
+    lowerPath === "/novedades" ||
+    lowerPath.startsWith("/novedades/") ||
+    lowerPath === "/inbox" ||
+    lowerPath.startsWith("/inbox/") ||
+    lowerPath === "/tasks" ||
+    lowerPath.startsWith("/tasks/") ||
+    lowerPath === "/ai-concierge" ||
+    lowerPath.startsWith("/ai-concierge/")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/panel";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // INTIENDAS product retired: only PMS unified /login.
+  if (lowerPath === "/intiendas" || lowerPath.startsWith("/intiendas/")) {
+    const url = request.nextUrl.clone();
+    if (
+      lowerPath === "/intiendas/login" ||
+      lowerPath.startsWith("/intiendas/login/")
+    ) {
+      url.pathname = "/login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    url.pathname = "/panel";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (lowerPath === "/owner-dashboard/intiendas" || lowerPath.startsWith("/owner-dashboard/intiendas/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = OWNER_DASHBOARD_PATH;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   if (isPublicRoute(request) || isPublicTenantWebSitePath(pathname)) {
     return forwardWithPathname(request, pathname);
   }
@@ -222,24 +335,20 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
     return forwardWithPathname(request, pathname);
   }
 
-  if (isRetailRoute(request)) {
-    const authState = await auth();
-    if (!authState.userId) {
-      const loginUrl = new URL("/intiendas/login", request.url);
-      loginUrl.searchParams.set("next", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+  if (isNextServerAction(request)) {
     return forwardWithPathname(request, pathname);
   }
 
   if (isOwnerRoute(request)) {
+    // Owner APIs authenticate inside requirePlatformOwnerUser (Node). Avoid Edge
+    // middleware 401s that surface as "Unauthorized" while the dashboard RSC is signed-in.
     if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
       return forwardWithPathname(request, pathname);
     }
     const authState = await auth();
     if (!authState.userId) {
-      const loginUrl = new URL("/sign-in", request.url);
-      loginUrl.searchParams.set("next", pathname);
+      const loginUrl = new URL(OWNER_LOGIN_PATH, request.url);
+      loginUrl.searchParams.set("redirect_url", pathname);
       return NextResponse.redirect(loginUrl);
     }
     return forwardWithPathname(request, pathname);
@@ -251,16 +360,19 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
 
   const authState = await auth();
   if (!authState.userId) {
-    const signInUrl = new URL("/sign-in", request.url);
-    const nextPath = `${pathname}${request.nextUrl.search}`;
-    signInUrl.searchParams.set("next", nextPath || "/panel");
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const signInUrl = new URL(OWNER_LOGIN_PATH, request.url);
+    signInUrl.searchParams.set("redirect_url", pathname);
     return NextResponse.redirect(signInUrl);
   }
 
+  // WEB BUILDER draft preview: signed-in + website:read only.
   if (pathname.startsWith("/w/") && pathname.endsWith("/preview")) {
     const permission = getRequiredPermissionForPath("/web-builder");
-    const role = getRoleFromSessionClaims(authState.sessionClaims);
-    if (!role || !permission || !hasPermission(role, permission)) {
+    const previewRole = getRoleFromSessionClaims(authState.sessionClaims);
+    if (!previewRole || !permission || !hasPermission(previewRole, permission)) {
       const url = new URL("/unauthorized", request.url);
       return NextResponse.redirect(url);
     }
@@ -287,32 +399,6 @@ const clerkHandler = clerkMiddleware(async (auth, request) => {
 }, clerkMiddlewareOptions);
 
 export default async function proxy(request: NextRequest, event: NextFetchEvent) {
-  const pathname = request.nextUrl.pathname;
-  const lowerPath = pathname.toLowerCase();
-
-  // Master Simplification: retire obsolete list UIs (align with local 0995c7f).
-  // Calendar is the only reservations surface; inbox/tasks fold into panel/calendar.
-  if (lowerPath === "/reservations" || lowerPath.startsWith("/reservations/")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/calendar";
-    return NextResponse.redirect(url);
-  }
-  if (
-    lowerPath === "/novedades" ||
-    lowerPath.startsWith("/novedades/") ||
-    lowerPath === "/inbox" ||
-    lowerPath.startsWith("/inbox/") ||
-    lowerPath === "/tasks" ||
-    lowerPath.startsWith("/tasks/") ||
-    lowerPath === "/ai-concierge" ||
-    lowerPath.startsWith("/ai-concierge/")
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/panel";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
   const response = await clerkHandler(request, event);
   if (!response) {
     return NextResponse.next();

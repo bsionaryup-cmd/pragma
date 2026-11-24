@@ -22,6 +22,19 @@ config({ path: ".env.local", override: true });
 delete process.env.NEXT_PUBLIC_CLERK_PROXY_URL;
 delete process.env.CLERK_PROXY_URL;
 
+const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+if (publishableKey.startsWith("pk_live_")) {
+  console.warn(
+    "\n[clerk] WARNING: .env.local usa pk_live (Production). En localhost el proxy está desactivado;",
+  );
+  console.warn(
+    "[clerk] FAPI custom (clerk.www.pragmapms.com) tiene TLS roto → login local fallará.",
+  );
+  console.warn(
+    "[clerk] Usa pk_test/sk_test de la instancia Development en Clerk Dashboard.\n",
+  );
+}
+
 const lockPath = join(process.cwd(), ".next", "dev", "lock");
 
 function ensureSingleDevServer() {
@@ -129,6 +142,21 @@ if (port !== "3000") {
 
 const devOrigin = `http://localhost:${port}`;
 
+// Force local public URLs so Server Actions / redirects / Clerk callbacks
+// match the browser origin (stale ngrok APP_URL breaks reservation detail).
+if (
+  !process.env.APP_URL ||
+  /ngrok|vercel\.app|pragmapms\.com/i.test(process.env.APP_URL)
+) {
+  process.env.APP_URL = devOrigin;
+}
+if (
+  !process.env.NEXT_PUBLIC_APP_URL ||
+  /ngrok|vercel\.app|pragmapms\.com/i.test(process.env.NEXT_PUBLIC_APP_URL)
+) {
+  process.env.NEXT_PUBLIC_APP_URL = devOrigin;
+}
+
 // Turbopack (default in Next 16) can hang on Windows in this project — webpack is stable.
 const child = spawn("npx", ["next", "dev", "--webpack", "-p", port], {
   stdio: "inherit",
@@ -136,6 +164,8 @@ const child = spawn("npx", ["next", "dev", "--webpack", "-p", port], {
   env: {
     ...process.env,
     PORT: port,
+    APP_URL: process.env.APP_URL,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_DEV_ORIGIN: devOrigin,
   },
   cwd: process.cwd(),

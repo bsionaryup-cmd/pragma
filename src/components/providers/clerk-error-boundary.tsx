@@ -3,6 +3,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { PragmaLogo } from "@/components/brand/pragma-logo";
 import { Button } from "@/components/ui/button";
+import { APP_SIGNED_OUT_LOGIN_PATH } from "@/lib/auth/auth-paths";
+import { performFullSignOut } from "@/lib/auth/full-sign-out";
 import { redirectToSignOut } from "@/lib/auth/use-client-sign-out";
 
 type Props = { children: ReactNode };
@@ -41,7 +43,7 @@ export class ClerkErrorBoundary extends Component<Props, State> {
 }
 
 function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
-  const signedOutUrl = "/sign-in?signed_out=1";
+  const signedOutUrl = APP_SIGNED_OUT_LOGIN_PATH;
 
   return (
     <div
@@ -65,7 +67,10 @@ function ClerkRecoveryPanel({ onRetry }: { onRetry: () => void }) {
           variant="outline"
           onClick={() => {
             onRetry();
-            redirectToSignOut(signedOutUrl);
+            // May render outside ClerkProvider — expire UAT then hard-navigate.
+            void performFullSignOut(async () => {
+              redirectToSignOut(signedOutUrl);
+            }, signedOutUrl);
           }}
         >
           Cerrar sesión

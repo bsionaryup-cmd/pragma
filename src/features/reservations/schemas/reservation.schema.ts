@@ -152,6 +152,23 @@ export const reservationEditSchema = reservationStep1BaseSchema
 
 export type ReservationEditValues = z.infer<typeof reservationEditSchema>;
 
+/** Occupancy-only edit (Airbnb + Direct) — does not touch titular/dates/amount. */
+export const reservationOccupancyEditSchema = z
+  .object({
+    adults: z.number().int().min(1, "Mínimo 1 adulto"),
+    children: z.number().int().min(0),
+    infants: z.number().int().min(0),
+    maxGuests: z.number().int().min(1).optional(),
+  })
+  .superRefine((data, ctx) => {
+    validateGuestCounts(data, ctx);
+    validateMaxGuests(data, ctx);
+  });
+
+export type ReservationOccupancyEditValues = z.infer<
+  typeof reservationOccupancyEditSchema
+>;
+
 /** @deprecated Usar reservationWizardSchema */
 export const reservationFormSchema = reservationWizardSchema;
 export type ReservationFormValues = ReservationWizardValues;

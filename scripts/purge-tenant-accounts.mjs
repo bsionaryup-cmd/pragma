@@ -52,9 +52,6 @@ async function deletePropertiesForOrganization(orgId) {
     await db.reservationGuest.deleteMany({
       where: { reservationId: { in: reservationIds } },
     });
-    await db.task.deleteMany({
-      where: { reservationId: { in: reservationIds } },
-    });
 
     const paymentInvoices = await db.paymentInvoice.findMany({
       where: { reservationId: { in: reservationIds } },
@@ -79,7 +76,6 @@ async function deletePropertiesForOrganization(orgId) {
     });
   }
 
-  await db.task.deleteMany({ where: { propertyId: { in: propertyIds } } });
   await db.propertyLock.deleteMany({ where: { propertyId: { in: propertyIds } } });
   await db.propertyPriceLabs.deleteMany({ where: { propertyId: { in: propertyIds } } });
   await db.property.deleteMany({ where: { id: { in: propertyIds } } });
@@ -137,9 +133,6 @@ async function deletePropertiesForOwner(ownerId) {
       });
       await db.reservationGuest.deleteMany({
         where: { reservationId: { in: reservationIds } },
-      });
-      await db.task.deleteMany({
-        where: { OR: [{ reservationId: { in: reservationIds } }, { propertyId: { in: propertyIds } }] },
       });
       await db.reservation.deleteMany({ where: { id: { in: reservationIds } } });
     }

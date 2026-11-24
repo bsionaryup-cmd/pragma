@@ -109,18 +109,37 @@ function isAdminProvisionedUpsert(options?: ClerkUpsertOptions): boolean {
   return Boolean(options?.organizationId);
 }
 
+type ClerkUpsertOptions = {
+  touchLogin?: boolean;
+  syncClerkMetadata?: boolean;
+  organizationId?: string;
+  role?: UserRole;
+  isAccountOwner?: boolean;
+  /**
+   * Caller already authenticated the Clerk session (requireDbUser path).
+   * Safe to relink clerkId when email matches an existing tenant user
+   * (Dev↔Prod instance drift, recreated Clerk user, etc.).
+   */
+  authenticatedRelink?: boolean;
+};
+
 async function relinkUserFromClerkSignup(
   existing: User,
   payload: ClerkUserPayload,
   options?: ClerkUpsertOptions,
 ): Promise<User> {
-  if (!isAdminProvisionedUpsert(options)) {
+  const allowAuthenticatedRelink = options?.authenticatedRelink === true;
+
+  if (!allowAuthenticatedRelink && !isAdminProvisionedUpsert(options)) {
     if (shouldRejectSelfSignupEmailReuse(existing, payload.id)) {
       throw new ExistingAccountConflictError(
         selfSignupEmailReuseMessage(existing),
       );
     }
-  } else if (shouldRejectSelfSignupForExistingUser(existing, payload.id)) {
+  } else if (
+    !allowAuthenticatedRelink &&
+    shouldRejectSelfSignupForExistingUser(existing, payload.id)
+  ) {
     throw new ExistingAccountConflictError();
   }
 
@@ -175,14 +194,6 @@ async function relinkUserFromClerkSignup(
   const normalized = await ensurePlatformOwnerTenancy(updated);
   return withUserPreferenceDefaults(normalized);
 }
-
-type ClerkUpsertOptions = {
-  touchLogin?: boolean;
-  syncClerkMetadata?: boolean;
-  organizationId?: string;
-  role?: UserRole;
-  isAccountOwner?: boolean;
-};
 
 async function resolveUserAfterCreateConflict(
   clerkId: string,
@@ -280,11 +291,19 @@ export function mapClerkUserToPayload(user: {
   firstName: string | null;
   lastName: string | null;
   imageUrl: string;
-  emailAddresses: Array<{ emailAddress: string }>;
+  primaryEmailAddressId?: string | null;
+  emailAddresses: Array<{ id?: string; emailAddress: string }>;
 }): ClerkUserPayload {
+  const primaryEmail =
+    user.emailAddresses.find(
+      (entry) => entry.id && entry.id === user.primaryEmailAddressId,
+    )?.emailAddress ??
+    user.emailAddresses[0]?.emailAddress ??
+    "";
+
   return clerkUserPayloadSchema.parse({
     id: user.id,
-    email: user.emailAddresses[0]?.emailAddress ?? "",
+    email: primaryEmail,
     firstName: user.firstName ?? null,
     lastName: user.lastName ?? null,
     imageUrl: user.imageUrl || null,
@@ -371,13 +390,7 @@ export async function syncClerkPublicMetadata(
 /** Upsert idempotente desde webhook o sesión */
 export async function upsertUserFromClerk(
   payload: ClerkUserPayload,
-  options?: {
-    touchLogin?: boolean;
-    syncClerkMetadata?: boolean;
-    organizationId?: string;
-    role?: UserRole;
-    isAccountOwner?: boolean;
-  },
+  options?: ClerkUpsertOptions,
 ): Promise<User> {
   const validated = clerkUserPayloadSchema.parse(payload);
   const clerkPayload: ClerkUserPayload = {

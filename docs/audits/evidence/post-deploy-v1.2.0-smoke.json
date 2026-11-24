@@ -1,0 +1,44 @@
+﻿{
+    "at":  "2026-07-18T04:16:16.8507753Z",
+    "production":  "https://www.pragmapms.com",
+    "checks":  {
+                   "concierge_health_unauth":  {
+                                                   "ok":  true,
+                                                   "url":  "https://www.pragmapms.com/api/concierge/health",
+                                                   "error":  "Error en el servidor remoto: (401) No autorizado.",
+                                                   "status":  401
+                                               },
+                   "guest_registration_body":  {
+                                                   "status":  200,
+                                                   "ok":  true,
+                                                   "hasCodeField":  true
+                                               },
+                   "home":  {
+                                "ok":  true,
+                                "url":  "https://www.pragmapms.com/",
+                                "status":  200,
+                                "length":  89585
+                            },
+                   "robots":  {
+                                  "ok":  false,
+                                  "url":  "https://www.pragmapms.com/robots.txt",
+                                  "error":  "Error en el servidor remoto: (404) No se encontró.",
+                                  "status":  404
+                              },
+                   "sign_in":  {
+                                   "ok":  true,
+                                   "url":  "https://www.pragmapms.com/sign-in",
+                                   "status":  200,
+                                   "length":  25386
+                               },
+                   "guest_registration_universal":  {
+                                                        "ok":  true,
+                                                        "url":  "https://www.pragmapms.com/guest-registration",
+                                                        "status":  200,
+                                                        "length":  18492
+                                                    }
+               },
+    "deployment":  "dpl_GYceYvAnoJCi69zT18NwsvtBKtbK",
+    "release":  "v1.2.0",
+    "result":  "PASS"
+}

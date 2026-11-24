@@ -10,21 +10,18 @@ describe("main navigation order", () => {
     );
 
     const hoyIndex = labels.indexOf("/panel");
-    const inboxIndex = labels.indexOf("/novedades");
-    const reservationsIndex = labels.indexOf("/reservations");
     const calendarIndex = labels.indexOf("/calendar");
-    const tasksIndex = labels.indexOf("/tasks");
     const financeIndex = labels.indexOf("finance");
     const propertiesIndex = labels.indexOf("/properties");
     const integrationsIndex = labels.indexOf("/integrations");
 
     assert.ok(hoyIndex >= 0);
-    assert.ok(inboxIndex > hoyIndex);
-    assert.ok(reservationsIndex > inboxIndex);
-    assert.ok(calendarIndex > reservationsIndex);
-    assert.ok(tasksIndex > calendarIndex);
-    assert.ok(financeIndex > tasksIndex);
+    assert.ok(calendarIndex > hoyIndex);
+    assert.ok(financeIndex > calendarIndex);
     assert.ok(propertiesIndex > financeIndex);
     assert.ok(integrationsIndex > propertiesIndex);
+    assert.equal(labels.includes("/reservations"), false);
+    assert.equal(labels.includes("/novedades"), false);
+    assert.equal(labels.includes("/inbox"), false);
   });
 });

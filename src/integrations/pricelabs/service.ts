@@ -4,6 +4,10 @@ import { fetchPriceLabsListings, updatePriceLabsListingBounds } from "@/integrat
 import { fetchPriceLabsNeighborhoodData } from "@/integrations/pricelabs/neighborhood";
 import { fetchPriceLabsOverrides, upsertPriceLabsOverrides, deletePriceLabsOverrides } from "@/integrations/pricelabs/overrides";
 import {
+  fetchListingCustomizations,
+  updateListingCustomizations,
+} from "@/integrations/pricelabs/customizations";
+import {
   buildPricingDateRange,
   matchListingsToProperties,
 } from "@/integrations/pricelabs/mapper";
@@ -22,6 +26,11 @@ import {
 } from "@/integrations/pricelabs/insights";
 import type {
   PriceLabsDailyPrice,
+  PriceLabsFarOutCustomization,
+  PriceLabsFarOutProfile,
+  PriceLabsLastMinuteCustomization,
+  PriceLabsLastMinuteProfile,
+  PriceLabsListingCustomizations,
   PriceLabsListingRecord,
   PriceLabsOverrideRecord,
   PriceLabsPricesSummary,
@@ -938,6 +947,11 @@ export async function syncSingleListing(
   if (!row?.ok) {
     return { ok: false, message: row?.message ?? batch.message };
   }
+
+  // Best-effort: refresh prices + customizations for this listing without failing the sync.
+  await refreshPropertyPriceLabsPrices({ propertyId, scope }).catch(() => null);
+  await refreshListingCustomizationsFromPanel(propertyId).catch(() => null);
+
   return {
     ok: true,
     message: "Listing sincronizado",
@@ -1601,7 +1615,10 @@ export async function savePriceLabsOverridesFromPanel(input: {
     ? parseOptionalRate(input.maxPrice)
     : null;
 
-  if (price != null) override.price = price;
+  if (price != null) {
+    override.price = price;
+    override.price_type = "fixed";
+  }
   if (minStay != null) override.min_stay = minStay;
   if (minPrice != null) override.min_price = minPrice;
   if (maxPrice != null) override.max_price = maxPrice;
@@ -1615,8 +1632,9 @@ export async function savePriceLabsOverridesFromPanel(input: {
     return { ok: false, message: "Indica al menos un valor para el override" };
   }
 
+  const pms = resolveListingPms(listingId, property, new Map());
   resetPriceLabsCircuitBreaker();
-  const api = await upsertPriceLabsOverrides(listingId, [override]);
+  const api = await upsertPriceLabsOverrides(listingId, [override], pms);
   if (!api.ok) {
     return { ok: false, message: api.message };
   }
@@ -1733,6 +1751,322 @@ export async function deletePriceLabsOverridesFromPanel(input: {
   });
 
   return { ok: true, message: "Override(s) eliminado(s)" };
+}
+
+const LAST_MINUTE_PROFILES = new Set<PriceLabsLastMinuteProfile>([
+  "none",
+  "recommended",
+  "conservative",
+  "aggressive",
+  "linear",
+  "linear_gradual",
+  "fixed",
+]);
+
+const FAR_OUT_PROFILES = new Set<PriceLabsFarOutProfile>([
+  "none",
+  "recommended",
+  "conservative",
+  "aggressive",
+  "linear",
+  "fix",
+]);
+
+async function persistListingCustomizationsMeta(input: {
+  property: NonNullable<Awaited<ReturnType<typeof getPropertyForPriceLabs>>>;
+  listingId: string;
+  customizations: PriceLabsListingCustomizations;
+  writeSource?: "pragma" | "remote";
+}) {
+  const existingMeta =
+    (input.property.priceLabs?.meta as StoredPriceLabsMeta | null) ?? {};
+  const now = new Date().toISOString();
+  await upsertPropertyPriceLabsSync({
+    propertyId: input.property.id,
+    listingId: input.listingId,
+    syncStatus: input.property.priceLabs!.syncStatus,
+    recommendedRate: input.property.priceLabs!.recommendedRate
+      ? Number.parseFloat(input.property.priceLabs!.recommendedRate.toString())
+      : null,
+    baseRateAtSync: input.property.priceLabs!.baseRateAtSync
+      ? Number.parseFloat(input.property.priceLabs!.baseRateAtSync.toString())
+      : null,
+    priceDelta: input.property.priceLabs!.priceDelta
+      ? Number.parseFloat(input.property.priceLabs!.priceDelta.toString())
+      : null,
+    weekendUpliftPct: input.property.priceLabs!.weekendUpliftPct
+      ? Number.parseFloat(input.property.priceLabs!.weekendUpliftPct.toString())
+      : null,
+    lastError: null,
+    meta: {
+      ...existingMeta,
+      customizations: input.customizations,
+      lastCustomizationsSync: now,
+      ...(input.writeSource
+        ? {
+            lastCustomizationsWriteAt: now,
+            lastCustomizationsWriteSource: input.writeSource,
+          }
+        : {}),
+    },
+  });
+}
+
+/** Pull listing customizations from PriceLabs and cache locally (no pipeline lock). */
+export async function refreshListingCustomizationsFromPanel(
+  propertyId: string,
+): Promise<{ ok: boolean; message: string }> {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, propertyId);
+
+  const property = await getPropertyForPriceLabs(propertyId, scope);
+  if (!property?.priceLabs?.listingId) {
+    return { ok: false, message: "Propiedad sin listing de PriceLabs vinculado" };
+  }
+  const listingId = property.priceLabs.listingId;
+  if (!isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Listing ID inválido. Ejecuta sync listings." };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof PriceLabsConfigError
+          ? error.message
+          : "API de PriceLabs deshabilitada",
+    };
+  }
+
+  const pms = resolveListingPms(listingId, property, new Map());
+  resetPriceLabsCircuitBreaker();
+  const api = await fetchListingCustomizations({
+    listingId,
+    pmsName: pms,
+    toggledOn: false,
+    keys: ["last_minute_prices", "far_out_premium"],
+  });
+  if (!api.ok) {
+    return { ok: false, message: api.message };
+  }
+
+  await persistListingCustomizationsMeta({
+    property,
+    listingId,
+    customizations: api.data,
+    writeSource: "remote",
+  });
+
+  await appendPriceLabsSyncLog({
+    action: "refresh_customizations",
+    result: "success",
+    message: "Estrategias tarifarias leídas desde PriceLabs",
+    source: "manual",
+    meta: { propertyId, listingId },
+  });
+
+  return { ok: true, message: "Estrategias actualizadas desde PriceLabs" };
+}
+
+export async function saveLastMinuteCustomizationFromPanel(input: {
+  propertyId: string;
+  enabled: boolean;
+  profile: PriceLabsLastMinuteProfile;
+  value?: number | null;
+  daysFromCheckIn?: number | null;
+}): Promise<{ ok: boolean; message: string }> {
+  if (!LAST_MINUTE_PROFILES.has(input.profile)) {
+    return { ok: false, message: "Perfil de último minuto inválido" };
+  }
+  const needsValue =
+    input.profile === "linear" ||
+    input.profile === "linear_gradual" ||
+    input.profile === "fixed";
+  if (input.enabled && needsValue) {
+    if (input.value == null || !Number.isFinite(input.value)) {
+      return { ok: false, message: "Indica el valor de ajuste para este perfil" };
+    }
+    if (
+      input.daysFromCheckIn == null ||
+      !Number.isFinite(input.daysFromCheckIn) ||
+      input.daysFromCheckIn < 1 ||
+      input.daysFromCheckIn > 90
+    ) {
+      return { ok: false, message: "Días desde check-in debe estar entre 1 y 90" };
+    }
+  }
+
+  const payload: PriceLabsLastMinuteCustomization = {
+    last_min_factor_on: input.enabled,
+  };
+  if (input.enabled) {
+    payload.last_min_factor_type = input.profile;
+    if (needsValue) {
+      payload.last_min_factor_value = input.value!;
+      payload.last_min_factor_dfd = Math.round(input.daysFromCheckIn!);
+    }
+  }
+
+  return writeListingCustomizationSlice({
+    propertyId: input.propertyId,
+    key: "last_minute_prices",
+    value: payload,
+    action: "save_last_minute",
+    successMessage: input.enabled
+      ? "Último minuto actualizado en PriceLabs"
+      : "Último minuto desactivado en PriceLabs",
+  });
+}
+
+export async function saveFarOutCustomizationFromPanel(input: {
+  propertyId: string;
+  enabled: boolean;
+  profile: PriceLabsFarOutProfile;
+  value?: number | null;
+  startDays?: number | null;
+  stepDays?: number | null;
+}): Promise<{ ok: boolean; message: string }> {
+  if (!FAR_OUT_PROFILES.has(input.profile)) {
+    return { ok: false, message: "Perfil de reservas anticipadas inválido" };
+  }
+  const needsLinear = input.profile === "linear";
+  const needsFix = input.profile === "fix";
+  if (input.enabled && (needsLinear || needsFix)) {
+    if (input.value == null || !Number.isFinite(input.value)) {
+      return { ok: false, message: "Indica el porcentaje de ajuste" };
+    }
+    if (
+      input.startDays == null ||
+      !Number.isFinite(input.startDays) ||
+      input.startDays < 1 ||
+      input.startDays > 999
+    ) {
+      return { ok: false, message: "Días de inicio debe estar entre 1 y 999" };
+    }
+    if (
+      needsLinear &&
+      (input.stepDays == null ||
+        !Number.isFinite(input.stepDays) ||
+        input.stepDays < 1 ||
+        input.stepDays > 999)
+    ) {
+      return { ok: false, message: "Paso (días) debe estar entre 1 y 999" };
+    }
+  }
+
+  const payload: PriceLabsFarOutCustomization = {
+    far_out_premium_on: input.enabled,
+  };
+  if (input.enabled) {
+    payload.far_out_premium_type = input.profile;
+    if (needsLinear || needsFix) {
+      payload.far_out_premium_value = Math.round(input.value!);
+      payload.far_out_premium_start = Math.round(input.startDays!);
+      if (needsLinear) {
+        payload.far_out_premium_step = Math.round(input.stepDays!);
+      }
+    }
+  }
+
+  return writeListingCustomizationSlice({
+    propertyId: input.propertyId,
+    key: "far_out_premium",
+    value: payload,
+    action: "save_far_out",
+    successMessage: input.enabled
+      ? "Reservas anticipadas actualizadas en PriceLabs"
+      : "Reservas anticipadas desactivadas en PriceLabs",
+  });
+}
+
+async function writeListingCustomizationSlice(input: {
+  propertyId: string;
+  key: "last_minute_prices" | "far_out_premium";
+  value: PriceLabsLastMinuteCustomization | PriceLabsFarOutCustomization;
+  action: string;
+  successMessage: string;
+}): Promise<{ ok: boolean; message: string }> {
+  const scope = await requireTenantDataScope();
+  await assertPropertyInScope(scope, input.propertyId);
+
+  const property = await getPropertyForPriceLabs(input.propertyId, scope);
+  if (!property?.priceLabs?.listingId) {
+    return { ok: false, message: "Propiedad sin listing de PriceLabs vinculado" };
+  }
+  const listingId = property.priceLabs.listingId;
+  if (!isValidPriceLabsListingId(listingId)) {
+    return { ok: false, message: "Listing ID inválido. Ejecuta sync listings." };
+  }
+
+  try {
+    assertPriceLabsLiveOrThrow();
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof PriceLabsConfigError
+          ? error.message
+          : "API de PriceLabs deshabilitada",
+    };
+  }
+
+  const pms = resolveListingPms(listingId, property, new Map());
+  const customizations: PriceLabsListingCustomizations = {
+    [input.key]: input.value,
+  };
+
+  resetPriceLabsCircuitBreaker();
+  const write = await updateListingCustomizations({
+    listingId,
+    pmsName: pms,
+    customizations,
+  });
+  if (!write.ok) {
+    await appendPriceLabsSyncLog({
+      action: input.action,
+      result: "failure",
+      message: write.message,
+      source: "manual",
+      meta: { propertyId: input.propertyId, listingId, code: write.code },
+    });
+    return { ok: false, message: write.message };
+  }
+
+  const refreshed = await fetchListingCustomizations({
+    listingId,
+    pmsName: pms,
+    toggledOn: false,
+    keys: ["last_minute_prices", "far_out_premium"],
+  });
+
+  await persistListingCustomizationsMeta({
+    property,
+    listingId,
+    customizations: refreshed.ok
+      ? refreshed.data
+      : {
+          ...((property.priceLabs.meta as StoredPriceLabsMeta | null)
+            ?.customizations ?? {}),
+          ...customizations,
+        },
+    writeSource: "pragma",
+  });
+
+  await appendPriceLabsSyncLog({
+    action: input.action,
+    result: "success",
+    message: input.successMessage,
+    source: "manual",
+    meta: {
+      propertyId: input.propertyId,
+      listingId,
+      applied: write.data.applied ?? [input.key],
+    },
+  });
+
+  return { ok: true, message: input.successMessage };
 }
 
 export async function getPriceLabsOverview(

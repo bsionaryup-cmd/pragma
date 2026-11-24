@@ -1,6 +1,6 @@
 # OCP Domain Registry
 
-**Last updated:** 2026-06-17  
+**Last updated:** 2026-08-14  
 **Protocol:** `docs/OCP-MASTER-EXECUTION-PROTOCOL.md`  
 **Global certification:** `docs/ocp/GLOBAL-CERTIFICATION.md`
 
@@ -27,8 +27,18 @@ OPEN → IN_PROGRESS → CERTIFIED → FROZEN → CLOSED
 | **Match / enrichment pipeline** | `applySafeReservationEnrichment` | FROZEN | `6cb5d90` | Prior release |
 | **iCal sync** | `airbnb-ical-sync.service.ts` | CLOSED | prior | stabilization |
 | **Performance / CPU** | stabilization RC | CLOSED | `3d256a3` | stabilization |
+| **AI Concierge native integration** | Removed in Master Simplification | CLOSED | `0995c7f` ancestry | Module/routes/extension deleted; registry was stale IN_PROGRESS |
+| **TTLock operational access** | `ttlock-operational-access.service.ts` | IN_PROGRESS | pending | Deployed 2026-08-14 (`dpl_BdqFU7U35fsuhKGxZerJohRDSRyX`); random/custom 4–9 digit PIN, migration/table/auth smoke PASS. Pending controlled live-lock create/revoke smoke + certified commit. |
 
-**Deploy (Phase 10):** OPEN — awaiting owner localhost approval
+### Additive Owner modules (not OCP consistency domains)
+
+These are **outside** the OCP PMS consistency program. Tracked here for visibility only — they do not block Phase 10 OCP.
+
+| Module | SSOT | Notes |
+|--------|------|-------|
+| **Dropshipping (Owner hub)** | `/owner-dashboard/dropshipping` + `src/services/platform/dropshipping/**` | Hardening 2026-08-13: orchestrator + idempotency; reuses `ai-sales-agent`, `ai-product-researcher`, `ai-media-buyer`. Deploy only with owner approval. See `docs/audits/DROPSHIPPING-HARDENING-REAUDIT-2026-08-13.md`. |
+
+**Deploy (Phase 10):** superseded by later releases — see Stay Portal / auth commits on `cursor/apify-prospecting-engine`
 
 ---
 

@@ -1,0 +1,23 @@
+{
+  "at": "2026-07-27T06:11:47.289Z",
+  "afterDevServerRestart": true,
+  "stayLookup": { "url": "http://localhost:3000/stay", "status": 200 },
+  "stayPortalTokenPage": {
+    "url": "http://localhost:3000/stay/ed2bad77739fc2b2f3bc9e7ca0a95f3f9d3607f31be7dd22",
+    "status": 200,
+    "contentHits": [
+      "Mi estad",
+      "WiFi",
+      "Código de acceso",
+      "Dirección",
+      "Check-in",
+      "Contacto"
+    ],
+    "runtimeError": false
+  },
+  "preRestartFailure": {
+    "status": 500,
+    "error": "TypeError: Cannot read properties of undefined (reading 'findUnique')",
+    "cause": "stale PrismaClient singleton without stayPortalToken delegate"
+  }
+}

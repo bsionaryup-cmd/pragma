@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/airbnb-ical-sync",
-      "schedule": "15 6 * * *"
+      "schedule": "20 * * * *"
     },
     {
       "path": "/api/cron/airbnb-email-enrichment-retry",
@@ -26,7 +26,11 @@
     },
     {
       "path": "/api/cron/ttlock-sync",
-      "schedule": "15 7 * * *"
+      "schedule": "40 * * * *"
+    },
+    {
+      "path": "/api/cron/retail-intel-outbox",
+      "schedule": "0 8 * * *"
     }
   ]
 }

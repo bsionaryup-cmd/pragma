@@ -17,6 +17,7 @@ import {
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import {
   mergeReservationScope,
+  type TenantDataScope,
 } from "@/lib/platform/tenant-data-scope";
 import { touchPropertyIcalExport } from "@/services/airbnb/airbnb-export-push.service";
 import { emitBookingCancelled, emitBookingConfirmed } from "@/modules/integrations/ttlock/ttlock.events";
@@ -42,14 +43,15 @@ import { requireTenantContext } from "@/lib/platform/tenant-context";
 import { writePlatformAuditLog } from "@/services/platform/platform-audit.service";
 import { activateReservationPaymentHold } from "@/services/reservations/reservation-hold.service";
 import { resolveReservationDisplayGuestName } from "@/lib/reservations/display-guest-name";
-import { parsePropertyQuickMessageTemplates } from "@/lib/reservations/quick-message-templates";
-import { formatPropertyAddressForMessage } from "@/lib/reservations/quick-message-templates";
+import { formatPropertyAddressForMessage } from "@/lib/property-display";
 import {
   isOtaImportedReservation,
   OTA_RESERVATION_DELETE_MESSAGE,
 } from "@/lib/reservations/reservation-ota";
 import { getAirbnbEnrichedGuestNameByReservationIds } from "@/services/reservations/airbnb-display-guest-name.service";
 import { getGuestRegistrationMaxCapacity } from "@/lib/guest-registration/guest-registration-capacity";
+import { isGuestRegistrationPendingUpdate } from "@/lib/reservations/guest-registration-pending-update";
+import { buildGuestRegistrationAdminNotificationStatus } from "@/services/guests/guest-registration-admin-notification.service";
 
 function computeGuestRegistrationProgress(input: {
   guests?: ReservationDetailItem["guests"];
@@ -73,7 +75,12 @@ function computeGuestRegistrationProgress(input: {
     guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
     registeredCount: registered > 0 ? registered : undefined,
   });
-  return { registered, capacity };
+  const pendingUpdate = isGuestRegistrationPendingUpdate({
+    guestRegistrationCompletedAt: input.guestRegistrationCompletedAt,
+    registered,
+    capacity,
+  });
+  return { registered, capacity, pendingUpdate };
 }
 
 function buildGuestName(firstName: string, lastName?: string | null): string {
@@ -107,7 +114,14 @@ type ReservationRow = {
   internalNotes: string | null;
   guestRegistrationToken?: string | null;
   guestRegistrationCompletedAt?: Date | null;
-  property: ReservationInboxItem["property"];
+  guestRegistrationAdminNotifiedAt?: Date | null;
+  guestRegistrationAdminNotificationError?: string | null;
+  guestRegistrationAdminNotificationLog?: unknown;
+  property: ReservationInboxItem["property"] & {
+    notificationEmails?: unknown;
+    operationalContacts?: unknown;
+    guestRegistrationContactKey?: string | null;
+  };
   guests?: ReservationDetailItem["guests"];
   guestRegistration?: ReservationInboxItem["guestRegistration"];
   guestRegistrationProgress?: ReservationInboxItem["guestRegistrationProgress"];
@@ -173,8 +187,37 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
       r.guestRegistration?.usedAt ??
       r.guestRegistrationCompletedAt?.toISOString() ??
       null,
+    guestRegistrationAdminNotification:
+      r.guestRegistrationCompletedAt &&
+      "guestRegistrationAdminNotifiedAt" in r
+        ? (() => {
+            try {
+              return buildGuestRegistrationAdminNotificationStatus({
+                guestRegistrationCompletedAt: r.guestRegistrationCompletedAt,
+                guestRegistrationAdminNotifiedAt:
+                  r.guestRegistrationAdminNotifiedAt ?? null,
+                guestRegistrationAdminNotificationError:
+                  r.guestRegistrationAdminNotificationError ?? null,
+                guestRegistrationAdminNotificationLog:
+                  r.guestRegistrationAdminNotificationLog ?? [],
+                notificationEmails: r.property.notificationEmails ?? [],
+                operationalContacts: r.property.operationalContacts ?? [],
+                guestRegistrationContactKey:
+                  r.property.guestRegistrationContactKey ?? null,
+                reservationUpdatedAt: r.updatedAt,
+              });
+            } catch (error) {
+              console.warn(
+                "[toInboxItem] admin notification status skipped:",
+                error,
+              );
+              return null;
+            }
+          })()
+        : null,
     guestRegistration: r.guestRegistration ?? null,
     guestRegistrationProgress: progress,
+    accessCode: r.accessCode ?? null,
     property: {
       id: r.property.id,
       name: r.property.name,
@@ -208,10 +251,6 @@ function toInboxItem(r: ReservationRow): ReservationInboxItem {
         "wifiPassword" in r.property ? r.property.wifiPassword : undefined,
       receptionWhatsapp:
         "receptionWhatsapp" in r.property ? r.property.receptionWhatsapp : undefined,
-      quickMessageTemplates:
-        "quickMessageTemplates" in r.property
-          ? parsePropertyQuickMessageTemplates(r.property.quickMessageTemplates)
-          : null,
     },
     activityUnreadCount: r.activityUnreadCount ?? 0,
     activityUnreadHint: r.activityUnreadHint ?? null,
@@ -281,6 +320,68 @@ async function getRegistrationsByReservationIds(reservationIds: string[]) {
 
 const INBOX_RESERVATION_LIMIT = 1000;
 
+export type ReservationSearchHit = {
+  id: string;
+  guestName: string;
+  reservationCode: string | null;
+  checkIn: string;
+  checkOut: string;
+  propertyName: string;
+  propertyUnitNumber: string | null;
+};
+
+const CALENDAR_SEARCH_LIMIT = 20;
+
+/** Búsqueda ligera org-scoped para el calendario (huésped / código / id). */
+export async function searchReservationsForCalendar(
+  query: string,
+  limit = CALENDAR_SEARCH_LIMIT,
+): Promise<ReservationSearchHit[]> {
+  const q = query.trim();
+  if (q.length < 1) return [];
+
+  const scope = await requireTenantDataScope();
+  const take = Math.min(Math.max(limit, 1), 50);
+  const rows = await db.reservation.findMany({
+    where: withVisibleReservationsFilter(
+      mergeReservationScope(scope, {
+        OR: [
+          { guestName: { contains: q, mode: "insensitive" } },
+          { guestFirstName: { contains: q, mode: "insensitive" } },
+          { guestLastName: { contains: q, mode: "insensitive" } },
+          { reservationCode: { contains: q, mode: "insensitive" } },
+          { id: { contains: q, mode: "insensitive" } },
+        ],
+      }),
+    ),
+    take,
+    select: {
+      id: true,
+      guestName: true,
+      reservationCode: true,
+      checkIn: true,
+      checkOut: true,
+      property: {
+        select: {
+          name: true,
+          unitNumber: true,
+        },
+      },
+    },
+    orderBy: [{ checkIn: "desc" }],
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    guestName: row.guestName,
+    reservationCode: row.reservationCode,
+    checkIn: prismaDateToKey(row.checkIn),
+    checkOut: prismaDateToKey(row.checkOut),
+    propertyName: row.property.name,
+    propertyUnitNumber: row.property.unitNumber ?? null,
+  }));
+}
+
 export async function listReservationsForInbox(): Promise<ReservationInboxItem[]> {
   const scope = await requireTenantDataScope();
   await purgeGhostReservationsThrottled(scope);
@@ -335,9 +436,6 @@ export async function listReservationsForInbox(): Promise<ReservationInboxItem[]
       property: {
         ...row.property,
         neighborhood: row.property.neighborhood,
-        quickMessageTemplates: parsePropertyQuickMessageTemplates(
-          row.property.quickMessageTemplates,
-        ),
       },
       guests: guestsByReservation.get(row.id) ?? [],
       guestRegistration: registrationsByReservation.get(row.id) ?? null,
@@ -406,9 +504,10 @@ export async function getReservationMutationContext(id: string) {
 /** Detalle completo para panel/drawer (respeta filtros de visibilidad del calendario). */
 export async function getReservationForInbox(
   id: string,
+  scopeOverride?: TenantDataScope,
 ): Promise<ReservationDetailItem | null> {
-  const scope = await requireTenantDataScope();
-  const row = await db.reservation.findFirst({
+  const scope = scopeOverride ?? (await requireTenantDataScope());
+  let row = await db.reservation.findFirst({
     where: withVisibleReservationsFilter(
       mergeReservationScope(scope, { id }),
     ),
@@ -416,6 +515,15 @@ export async function getReservationForInbox(
       property: true,
     },
   });
+
+  // Calendar already showed this bar — if the orphan filter races with iCal
+  // disconnect, still open detail within tenant scope (SSOT: don't 404 the click).
+  if (!row) {
+    row = await db.reservation.findFirst({
+      where: mergeReservationScope(scope, { id }),
+      include: { property: true },
+    });
+  }
   if (!row) return null;
 
   const blockRows = await db.reservation.findMany({
@@ -444,50 +552,102 @@ export async function getReservationForInbox(
     checkOut: prismaDateToKey(b.checkOut),
   }));
 
-  const [guestsByReservation, registration, accessCredential, airbnbGuestByReservation, activityUnreadMap] =
-    await Promise.all([
-    getGuestsByReservationIds([row.id]),
-    getActiveGuestRegistrationForReservation(row.id),
-    db.accessCredential.findFirst({
-      where: { reservationId: row.id },
-      orderBy: { createdAt: "desc" },
-      select: { status: true, codeEncrypted: true },
+  const emptyGuests = new Map<string, ReservationDetailItem["guests"]>();
+  const emptyAirbnbNames = new Map<string, string>();
+  const emptyActivity = new Map<
+    string,
+    { unreadCount: number; hint: string | null }
+  >();
+
+  const [
+    guestsByReservation,
+    registration,
+    accessCredential,
+    airbnbGuestByReservation,
+    activityUnreadMap,
+  ] = await Promise.all([
+    getGuestsByReservationIds([row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] guests skipped:", error);
+      return emptyGuests;
     }),
-    getAirbnbEnrichedGuestNameByReservationIds([row.id]),
-    getReservationActivityUnreadMap(scope, [row.id]),
+    getActiveGuestRegistrationForReservation(row.id).catch((error) => {
+      console.warn("[getReservationForInbox] registration skipped:", error);
+      return null;
+    }),
+    db.accessCredential
+      .findFirst({
+        where: {
+          reservationId: row.id,
+          ttlockCodeId: { not: null },
+          status: {
+            in: ["GENERATED", "SENT", "ACTIVE"],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        select: {
+          status: true,
+          codeEncrypted: true,
+          ttlockCodeId: true,
+          validFrom: true,
+          validTo: true,
+        },
+      })
+      .catch((error) => {
+        console.warn("[getReservationForInbox] access skipped:", error);
+        return null;
+      }),
+    getAirbnbEnrichedGuestNameByReservationIds([row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] airbnb name skipped:", error);
+      return emptyAirbnbNames;
+    }),
+    getReservationActivityUnreadMap(scope, [row.id]).catch((error) => {
+      console.warn("[getReservationForInbox] activity skipped:", error);
+      return emptyActivity;
+    }),
   ]);
 
-  const accessCode = accessCredential
-    ? {
-        status: accessCredential.status,
-        code: formatAccessCode(decryptTTLockSecret(accessCredential.codeEncrypted)),
-        isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
-          accessCredential.status,
-        ),
-      }
-    : null;
+  let accessCode: ReservationDetailItem["accessCode"] = null;
+  try {
+    accessCode = accessCredential
+      ? {
+          status: accessCredential.status,
+          code: formatAccessCode(
+            decryptTTLockSecret(accessCredential.codeEncrypted),
+          ),
+          isActive: ["GENERATED", "SENT", "ACTIVE"].includes(
+            accessCredential.status,
+          ),
+          validFrom: accessCredential.validFrom?.toISOString() ?? null,
+          validTo: accessCredential.validTo?.toISOString() ?? null,
+        }
+      : null;
+  } catch (error) {
+    console.warn("[getReservationForInbox] access code skipped:", error);
+  }
 
   const unread = activityUnreadMap.get(row.id);
 
-  return toDetailItem(
-    {
-      ...row,
-      property: {
-        ...row.property,
-        neighborhood: row.property.neighborhood,
-        quickMessageTemplates: parsePropertyQuickMessageTemplates(
-          row.property.quickMessageTemplates,
-        ),
+  try {
+    return toDetailItem(
+      {
+        ...row,
+        property: {
+          ...row.property,
+          neighborhood: row.property.neighborhood,
+        },
+        guests: guestsByReservation.get(row.id) ?? [],
+        guestRegistration: registration,
+        accessCode,
+        airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
+        activityUnreadCount: unread?.unreadCount ?? 0,
+        activityUnreadHint: unread?.hint ?? null,
       },
-      guests: guestsByReservation.get(row.id) ?? [],
-      guestRegistration: registration,
-      accessCode,
-      airbnbEnrichmentGuestName: airbnbGuestByReservation.get(row.id) ?? null,
-      activityUnreadCount: unread?.unreadCount ?? 0,
-      activityUnreadHint: unread?.hint ?? null,
-    },
-    relatedBlocks,
-  );
+      relatedBlocks,
+    );
+  } catch (error) {
+    console.error("[getReservationForInbox] toDetailItem failed:", id, error);
+    throw error;
+  }
 }
 
 export async function createReservation(data: ReservationWizardValues) {
@@ -591,24 +751,30 @@ export async function createReservation(data: ReservationWizardValues) {
     ownerId: created.property.ownerId,
   });
 
-  const requiresPaymentHold = data.totalAmount > 0;
+  // Bienvenida Direct: al confirmar, con correo válido — antes del hold de pago.
+  // Si totalAmount > 0 el hold se activa después; post-hold reintenta de forma idempotente.
+  if (
+    created.platform === BookingPlatform.DIRECT &&
+    isGuestRegistrationEligiblePlatform(created.platform) &&
+    isGuestRegistrationEligibleStatus(created.status)
+  ) {
+    await ensureGuestRegistrationForReservation(created.id);
+    if (created.guestEmail?.trim()) {
+      await sendGuestRegistrationEmailForReservation(created.id, {
+        triggeredBy: "auto",
+      }).catch((err) => {
+        console.warn("[guest-registration-email] No enviado", created.id, err);
+      });
+    }
+  }
 
+  const requiresPaymentHold = data.totalAmount > 0;
   if (requiresPaymentHold) {
     await activateReservationPaymentHold({
       reservationId: created.id,
       createdById: tenantCtx.userId,
       totalAmount: data.totalAmount,
     });
-  } else if (
-    isGuestRegistrationEligiblePlatform(created.platform) &&
-    isGuestRegistrationEligibleStatus(created.status)
-  ) {
-    await ensureGuestRegistrationForReservation(created.id);
-    if (created.guestEmail?.trim()) {
-      await sendGuestRegistrationEmailForReservation(created.id).catch((err) => {
-        console.warn("[guest-registration-email] No enviado", created.id, err);
-      });
-    }
   }
 
   return created;
@@ -625,9 +791,23 @@ export async function updateReservation(
   await assertReservationInScope(scope, id);
   const existing = await db.reservation.findFirst({
     where: { id },
-    select: { checkIn: true, checkOut: true, status: true, propertyId: true },
+    select: {
+      checkIn: true,
+      checkOut: true,
+      status: true,
+      propertyId: true,
+      adults: true,
+      children: true,
+      infants: true,
+    },
   });
   if (!existing) throw new Error("Reserva no encontrada");
+
+  const previousOccupancy = {
+    adults: existing.adults,
+    children: existing.children,
+    infants: existing.infants,
+  };
 
   const allowHistoricalOverride = canUseHistoricalReservationOverride(tenantCtx);
   const existingCheckIn = prismaDateToKey(existing.checkIn);
@@ -689,6 +869,27 @@ export async function updateReservation(
     );
   }
 
+  const registeredForCapacity = await db.reservationGuest.count({
+    where: {
+      reservationId: id,
+      status: { not: ReservationGuestStatus.PENDING_REGISTRATION },
+    },
+  });
+  const nextExpected = getGuestRegistrationMaxCapacity({
+    platform: BookingPlatform.DIRECT,
+    adults: data.adults,
+    children: data.children,
+    infants: data.infants,
+    propertyMaxGuests: property.maxGuests,
+    registeredCount:
+      registeredForCapacity > 0 ? registeredForCapacity : undefined,
+  });
+  if (registeredForCapacity > nextExpected) {
+    throw new Error(
+      `Ya hay ${registeredForCapacity} huésped${registeredForCapacity === 1 ? "" : "es"} registrado${registeredForCapacity === 1 ? "" : "s"}. No puedes bajar la ocupación de registro por debajo de ese número.`,
+    );
+  }
+
   const checkIn = dateKeyToPrismaDate(data.checkIn);
   const checkOut = dateKeyToPrismaDate(data.checkOut);
   await assertNoReservationOverlap(data.propertyId, checkIn, checkOut, id);
@@ -725,6 +926,21 @@ export async function updateReservation(
     await touchPropertyIcalExport(existing.propertyId);
   }
   await touchPropertyIcalExport(data.propertyId);
+
+  const occupancyChanged =
+    previousOccupancy.adults !== data.adults ||
+    previousOccupancy.children !== data.children ||
+    previousOccupancy.infants !== data.infants;
+  if (occupancyChanged) {
+    const { syncGuestRegistrationAfterOccupancyChange } = await import(
+      "@/services/reservations/reservation-occupancy-manual.service"
+    );
+    await syncGuestRegistrationAfterOccupancyChange(id, {
+      previousOccupancy,
+    }).catch((error) => {
+      console.warn("[updateReservation] occupancy GR sync failed", id, error);
+    });
+  }
 
   return updated;
 }

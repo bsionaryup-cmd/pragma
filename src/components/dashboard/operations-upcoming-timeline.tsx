@@ -30,7 +30,7 @@ function resolveUnitNumber(row: PanelReservationRow): string | null {
 
 function dateForTab(row: PanelReservationRow, tab: PanelTab): string {
   if (tab === "departures") return formatPanelDate(row.checkOut);
-  if (tab === "current") return formatPanelDate(row.checkIn);
+  if (tab === "current") return formatPanelDate(row.checkOut);
   return formatPanelDate(row.checkIn);
 }
 
@@ -59,12 +59,17 @@ export function OperationsUpcomingTimeline({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border/80 bg-card shadow-pragma-soft">
-      <div className="border-b border-border/60 px-5 py-4 sm:px-6">
-        <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
-          {t("dashboard.sections.upcoming")}
-        </h2>
+      <div className="border-b border-border/60 px-5 py-3.5 sm:px-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+            {t("dashboard.sections.upcoming")}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {t("dashboard.sections.upcomingDesc")}
+          </p>
+        </div>
         <nav
-          className="mt-4 flex gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mt-3 flex gap-1.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
         >
           {tabs.map((tab) => {
@@ -77,7 +82,7 @@ export function OperationsUpcomingTimeline({
                 aria-selected={isActive}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors",
+                  "shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                   isActive
                     ? "bg-foreground text-background"
                     : "bg-muted/40 text-muted-foreground hover:text-foreground",
@@ -91,58 +96,43 @@ export function OperationsUpcomingTimeline({
       </div>
 
       {rows.length === 0 ? (
-        <p className="px-5 py-10 text-center text-sm text-muted-foreground sm:px-6">
+        <p className="px-5 py-8 text-center text-sm text-muted-foreground sm:px-6">
           {t("common.noRecordsDetail")}
         </p>
       ) : (
-        <ol className="relative px-5 py-2 sm:px-6">
-          <div
-            className="absolute bottom-4 left-[calc(1.25rem+3.5rem)] top-4 w-px bg-border/70 sm:left-[calc(1.5rem+3.5rem)]"
-            aria-hidden
-          />
-          {rows.map((row, index) => {
+        <ul className="divide-y divide-border/40">
+          {rows.map((row) => {
             const unit = resolveUnitNumber(row);
             const dateLabel = dateForTab(row, activeTab);
 
             return (
-              <li key={row.id} className="relative">
+              <li key={row.id}>
                 <button
                   type="button"
-                  onClick={() => router.push(`/novedades?reservation=${row.id}`)}
-                  className="group flex w-full items-start gap-4 py-3.5 text-left transition-colors hover:bg-muted/10"
+                  onClick={() => router.push(`/calendar?reservation=${row.id}`)}
+                  className="group flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-muted/10 sm:px-6"
                 >
-                  <div className="w-14 shrink-0 pt-0.5">
+                  <div className="w-14 shrink-0">
                     <p className="text-xs font-medium tabular-nums text-muted-foreground">
                       {dateLabel}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      "relative z-[1] mt-1.5 h-2 w-2 shrink-0 rounded-full ring-4 ring-card",
-                      index === 0 ? "bg-pragma-caramel" : "bg-border",
-                    )}
-                    aria-hidden
-                  />
-                  <div className="min-w-0 flex-1 pb-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">
-                          {row.guestName}
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {unit ?? row.property.name}
-                        </p>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                        {statusLabel}
-                      </span>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {row.guestName}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {unit ?? row.property.name}
+                    </p>
                   </div>
+                  <span className="shrink-0 rounded-md bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {statusLabel}
+                  </span>
                 </button>
               </li>
             );
           })}
-        </ol>
+        </ul>
       )}
     </section>
   );

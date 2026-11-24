@@ -2,13 +2,18 @@
 
 import {
   AlertTriangle,
+  Bell,
   CheckCircle2,
   Circle,
+  Key,
   Mail,
   MessageCircleQuestion,
+  Shield,
+  UserCheck,
 } from "lucide-react";
 import type { ReservationActivityType } from "@prisma/client";
 import type { ReservationDetailItem } from "@/features/reservations/types/reservation.types";
+import type { AccessEventRow } from "@/features/reservations/actions/reservation-activity.actions";
 import {
   displayStatusLabels,
   resolveDisplayStatus,
@@ -22,9 +27,21 @@ import {
 } from "@/features/reservations/lib/inquiry-activity";
 import { cn } from "@/lib/utils";
 
+type TimelineKind =
+  | ReservationActivityType
+  | "RESERVATION_CREATED"
+  | "GUEST_REGISTRATION"
+  | "INVITE_EMAIL_SENT"
+  | "ADMIN_NOTIFIED"
+  | "CODE_GENERATED"
+  | "CODE_REVOKED"
+  | "WINDOW_ADJUSTED"
+  | "LOCK_SYNCED"
+  | "LOCK_SYNC_FAILED";
+
 type TimelineEntry = {
   id: string;
-  kind: ReservationActivityType | "RESERVATION_CREATED" | "GUEST_REGISTRATION";
+  kind: TimelineKind;
   title: string;
   content: string;
   senderName: string | null;
@@ -107,6 +124,67 @@ function buildSyntheticTimelineEntries(
   return entries;
 }
 
+function buildAccessEventEntries(events: AccessEventRow[]): TimelineEntry[] {
+  const accessEventLabels: Record<string, { title: string; content: string }> = {
+    CODE_GENERATED: { title: "Código TTLock generado", content: "Se generó y sincronizó el código de acceso con la cerradura." },
+    CODE_REVOKED: { title: "Código revocado", content: "El código de acceso fue revocado." },
+    CODE_GENERATION_READY: { title: "Listo para generar código", content: "El sistema está listo para generar el código de acceso." },
+    WINDOW_ADJUSTED: { title: "Ventana de acceso ajustada", content: "Se modificó el horario de check-in o check-out del código." },
+    LOCK_SYNCED: { title: "Cerradura sincronizada", content: "Estado de la cerradura sincronizado correctamente." },
+    LOCK_SYNC_FAILED: { title: "Error de sincronización", content: "No se pudo sincronizar con la cerradura TTLock." },
+    TOKEN_REFRESHED: { title: "Token TTLock renovado", content: "Se renovó la sesión de autenticación con TTLock." },
+  };
+
+  return events
+    .filter((e) => e.eventType !== "TOKEN_REFRESHED")
+    .map((e) => {
+      const label = accessEventLabels[e.eventType] ?? { title: e.eventType, content: "" };
+      return {
+        id: e.id,
+        kind: (e.eventType === "CODE_GENERATED" || e.eventType === "CODE_REVOKED" ||
+          e.eventType === "WINDOW_ADJUSTED" || e.eventType === "LOCK_SYNCED" ||
+          e.eventType === "LOCK_SYNC_FAILED"
+          ? e.eventType
+          : "CODE_GENERATED") as TimelineKind,
+        title: label.title,
+        content: label.content,
+        senderName: "Sistema",
+        createdAt: e.createdAt,
+        createdAtFormatted: formatDateTime(e.createdAt, "—", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }),
+        metadata: e.payload,
+      };
+    });
+}
+
+function buildInviteAndNotificationEntries(
+  reservation: ReservationDetailItem,
+): TimelineEntry[] {
+  const entries: TimelineEntry[] = [];
+
+  if (reservation.guestRegistrationAdminNotification?.latestAttempt) {
+    const attempt = reservation.guestRegistrationAdminNotification.latestAttempt;
+    entries.push({
+      id: `${reservation.id}-admin-notified`,
+      kind: "ADMIN_NOTIFIED",
+      title: "Recepción notificada",
+      content: attempt.status === "success"
+        ? `Notificación enviada a ${attempt.recipients.join(", ")}.`
+        : `Error al notificar: ${attempt.error ?? "desconocido"}.`,
+      senderName: "Sistema",
+      createdAt: attempt.at,
+      createdAtFormatted: formatDateTime(attempt.at, "—", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    });
+  }
+
+  return entries;
+}
+
 function mapActivityRows(rows: ReservationActivityRow[]): TimelineEntry[] {
   return rows.map((row) => ({
     id: row.id,
@@ -126,9 +204,12 @@ function mapActivityRows(rows: ReservationActivityRow[]): TimelineEntry[] {
 function mergeTimelineEntries(
   reservation: ReservationDetailItem,
   activities: ReservationActivityRow[],
+  accessEvents: AccessEventRow[] = [],
 ): TimelineEntry[] {
   const merged = [
     ...buildSyntheticTimelineEntries(reservation),
+    ...buildInviteAndNotificationEntries(reservation),
+    ...buildAccessEventEntries(accessEvents),
     ...mapActivityRows(activities),
   ];
   return merged.sort(
@@ -136,7 +217,7 @@ function mergeTimelineEntries(
   );
 }
 
-function entryAccent(kind: TimelineEntry["kind"], title: string, metadata?: unknown) {
+function entryAccent(kind: TimelineKind, title: string, metadata?: unknown) {
   const isInquiry =
     title === "Consulta" ||
     isInquiryActivityMetadata(metadata) ||
@@ -163,6 +244,24 @@ function entryAccent(kind: TimelineEntry["kind"], title: string, metadata?: unkn
     return {
       dot: "border-primary/40 bg-primary/10 text-primary",
       card: "border-border/70 bg-muted/20",
+    };
+  }
+  if (kind === "CODE_GENERATED" || kind === "WINDOW_ADJUSTED") {
+    return {
+      dot: "border-emerald-400 bg-emerald-50 text-emerald-700",
+      card: "border-emerald-200/60 bg-emerald-50/30",
+    };
+  }
+  if (kind === "CODE_REVOKED" || kind === "LOCK_SYNC_FAILED") {
+    return {
+      dot: "border-red-400 bg-red-50 text-red-700",
+      card: "border-red-200/60 bg-red-50/30",
+    };
+  }
+  if (kind === "ADMIN_NOTIFIED" || kind === "INVITE_EMAIL_SENT") {
+    return {
+      dot: "border-blue-400 bg-blue-50 text-blue-700",
+      card: "border-blue-200/60 bg-blue-50/30",
     };
   }
   return {
@@ -198,6 +297,16 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
             <MessageCircleQuestion className="h-3.5 w-3.5" aria-hidden />
           ) : entry.kind === "AIRBNB_MESSAGE" ? (
             <Mail className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "CODE_GENERATED" || entry.kind === "CODE_REVOKED" || entry.kind === "WINDOW_ADJUSTED" ? (
+            <Key className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "LOCK_SYNCED" || entry.kind === "LOCK_SYNC_FAILED" ? (
+            <Shield className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "ADMIN_NOTIFIED" ? (
+            <Bell className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "INVITE_EMAIL_SENT" ? (
+            <Mail className="h-3.5 w-3.5" aria-hidden />
+          ) : entry.kind === "GUEST_REGISTRATION" ? (
+            <UserCheck className="h-3.5 w-3.5" aria-hidden />
           ) : (
             <Circle className="h-3 w-3 fill-current" aria-hidden />
           )}
@@ -259,15 +368,17 @@ function TimelineItem({ entry, isLast }: { entry: TimelineEntry; isLast: boolean
 type ReservationActivityTimelineProps = {
   reservation: ReservationDetailItem;
   activities: ReservationActivityRow[];
+  accessEvents?: AccessEventRow[];
   loading?: boolean;
 };
 
 export function ReservationActivityTimeline({
   reservation,
   activities,
+  accessEvents = [],
   loading = false,
 }: ReservationActivityTimelineProps) {
-  const entries = mergeTimelineEntries(reservation, activities);
+  const entries = mergeTimelineEntries(reservation, activities, accessEvents);
 
   if (loading) {
     return (

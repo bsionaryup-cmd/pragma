@@ -17,26 +17,29 @@ export type GuestRegistrationCapacityInput = {
   registeredCount?: number;
 };
 
-/** Ocupación operativa para registro: adultos + niños (bebés no cuentan). */
+/**
+ * Personas a registrar: adultos + niños + bebés.
+ * (La capacidad de plaza de la propiedad sigue siendo adultos+niños en el PMS;
+ * aquí solo se define el cupo del formulario/link de Guest Registration.)
+ */
 export function getGuestRegistrationOccupancyBase(input: {
   adults: number;
   children: number;
   infants: number;
   registeredCount?: number;
 }): number {
-  const base = Math.max(0, input.adults) + Math.max(0, input.children);
-  if (base > 0) return base;
-
   const totalCurrent =
     Math.max(0, input.adults) +
     Math.max(0, input.children) +
     Math.max(0, input.infants);
 
-  if (input.registeredCount != null && input.registeredCount > totalCurrent) {
-    return totalCurrent > 0 ? totalCurrent : 1;
+  if (totalCurrent > 0) return totalCurrent;
+
+  if (input.registeredCount != null && input.registeredCount > 0) {
+    return 1;
   }
 
-  return Math.max(1, totalCurrent);
+  return 1;
 }
 
 /** Airbnb iCal placeholder 1/0/0 antes de enriquecimiento por correo. */
@@ -52,7 +55,7 @@ export function isReservationGuestDataComplete(input: {
   return !isDefaultReservationOccupancy(input.adults, input.children, input.infants);
 }
 
-/** Límite operativo de la reserva: adultos + niños (sin bebés). */
+/** Límite operativo de registro: adultos + niños + bebés. */
 function getReservationRegistrationLimit(
   input: GuestRegistrationCapacityInput,
 ): number {

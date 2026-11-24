@@ -1,0 +1,23 @@
+{
+  "at": "2026-07-17T17:24:13.736Z",
+  "cases": {
+    "validAirbnb": {
+      "pass": true,
+      "result": "active",
+      "existingFlowTokenResolved": true
+    },
+    "nonexistentCode": {
+      "pass": true,
+      "result": "invalid"
+    },
+    "cancelledReservation": {
+      "pass": true,
+      "result": "invalid"
+    },
+    "completedRegistration": {
+      "pass": true,
+      "result": "completed"
+    }
+  },
+  "pass": true
+}

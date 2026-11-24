@@ -18,7 +18,10 @@ export function PragmaAuthLayout({
   backLabel,
 }: PragmaAuthLayoutProps) {
   return (
-    <div className="pragma-auth-shell flex h-dvh flex-col overflow-hidden bg-pragma-gradient-subtle lg:flex-row">
+    <div
+      className="pragma-auth-shell flex h-dvh flex-col overflow-hidden bg-pragma-gradient-subtle lg:flex-row"
+      data-pragma-auth-flow="login-settle-v2a"
+    >
       <ClerkAuthFooterCleanup />
 
       <div className="relative hidden min-h-0 flex-1 overflow-hidden bg-pragma-navy lg:flex lg:flex-col">

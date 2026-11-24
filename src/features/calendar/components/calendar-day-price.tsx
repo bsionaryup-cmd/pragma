@@ -1,6 +1,6 @@
 "use client";
 
-import { Users } from "lucide-react";
+import { Moon } from "lucide-react";
 import type { CalendarDayPricingDto } from "@/features/calendar/types/calendar.types";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +51,7 @@ export function CalendarDayPrice({
                 !highlighted && !occupied && pricing.isBooked && "opacity-60",
               )}
             >
-              <Users className="h-3 w-3 shrink-0" aria-hidden />
+              <Moon className="h-3 w-3 shrink-0" aria-hidden />
               <span>{minStay}</span>
             </div>
           ) : null}

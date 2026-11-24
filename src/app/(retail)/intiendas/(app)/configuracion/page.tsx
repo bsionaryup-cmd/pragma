@@ -67,6 +67,48 @@ export default async function RetailSettingsPage() {
                 className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
               />
             </label>
+            <label className="block text-sm text-[#718096]">
+              Razón social (facturas)
+              <input
+                name="legalName"
+                defaultValue={store.legalName ?? ""}
+                placeholder={store.name}
+                className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
+              />
+            </label>
+            <label className="block text-sm text-[#718096]">
+              NIT
+              <input
+                name="taxId"
+                defaultValue={store.taxId ?? ""}
+                className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
+              />
+            </label>
+            <label className="block text-sm text-[#718096]">
+              Dirección
+              <input
+                name="address"
+                defaultValue={store.address ?? ""}
+                className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
+              />
+            </label>
+            <label className="block text-sm text-[#718096]">
+              Teléfono
+              <input
+                name="phone"
+                defaultValue={store.phone ?? ""}
+                className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
+              />
+            </label>
+            <label className="block text-sm text-[#718096]">
+              Prefijo de factura
+              <input
+                name="invoicePrefix"
+                defaultValue={store.invoicePrefix ?? "FV"}
+                maxLength={12}
+                className="mt-1 h-10 w-full rounded-md border border-[#c5ced8] px-3 text-sm text-[#2d3748]"
+              />
+            </label>
             <TiendasOnSummaryRow label="Moneda operativa" value={store.currency} />
             <TiendasOnPrimaryButton type="submit">Guardar cambios</TiendasOnPrimaryButton>
           </form>

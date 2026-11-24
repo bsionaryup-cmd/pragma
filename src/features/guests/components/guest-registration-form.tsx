@@ -15,10 +15,24 @@ import {
   completeGuestRegistrationAction,
   registerGuestStepAction,
 } from "@/features/guests/actions/guest-registration.actions";
+import { GuestPlaceFields } from "@/features/guests/components/guest-place-fields";
 import {
   documentTypes,
   type GuestStepValues,
 } from "@/features/guests/schemas/guest-registration.schema";
+import {
+  GUEST_SEX_CODES,
+  GUEST_TRAVEL_MOTIVE_CODES,
+  ISO_COUNTRIES,
+  guestSexLabels,
+  guestTravelMotiveLabels,
+} from "@/lib/guest-registration/canonical-guest-catalogs";
+import {
+  GUEST_HABEAS_DATA_SUMMARY_ES,
+  GUEST_LODGING_CONTRACT_SUMMARY_ES,
+  GUEST_HABEAS_DATA_POLICY_VERSION,
+  GUEST_LODGING_CONTRACT_VERSION,
+} from "@/lib/guest-registration/guest-legal-versions";
 import {
   getGuestDocumentTypeLabel,
   guestDocumentTypeLabels,
@@ -32,20 +46,53 @@ import { PhoneInput } from "@/components/ui/phone-input";
 type WizardStep = "intro" | "register" | "hub" | "confirm" | "success";
 
 function emptyGuestForm(
-  prefill?: GuestRegistrationReservation["bookingPrefill"],
+  seed?: Partial<Omit<GuestStepValues, "token">>,
 ): Omit<GuestStepValues, "token"> {
   return {
-    firstName: prefill?.firstName ?? "",
-    lastName: prefill?.lastName ?? "",
-    documentType: "CC",
-    documentNumber: "",
+    firstName: seed?.firstName ?? "",
+    lastName: seed?.lastName ?? "",
+    documentType: seed?.documentType ?? "CC",
+    documentNumber: seed?.documentNumber ?? "",
+    email: seed?.email ?? "",
+    phone: seed?.phone ?? "",
+    nationality: seed?.nationality ?? "CO",
+    dateOfBirth: seed?.dateOfBirth ?? "",
+    sex: seed?.sex ?? "M",
+    travelMotive: seed?.travelMotive ?? "LEISURE",
+    occupation: seed?.occupation ?? "",
+    residenceCountry: seed?.residenceCountry ?? "CO",
+    residenceAdminArea: seed?.residenceAdminArea ?? "",
+    residenceCity: seed?.residenceCity ?? "",
+    originCountry: seed?.originCountry ?? "CO",
+    originAdminArea: seed?.originAdminArea ?? "",
+    originCity: seed?.originCity ?? "",
+    destinationCountry: seed?.destinationCountry ?? "CO",
+    destinationAdminArea: seed?.destinationAdminArea ?? "",
+    destinationCity: seed?.destinationCity ?? "",
+  };
+}
+
+function splitHolderName(name: string | null): { firstName: string; lastName: string } {
+  if (!name?.trim()) return { firstName: "", lastName: "" };
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0]!, lastName: "" };
+  return {
+    firstName: parts[0]!,
+    lastName: parts.slice(1).join(" "),
+  };
+}
+
+/** Titular prefill: booking contact (WEB BUILDER / direct) first, holder label as fallback. */
+function ownerSeedFromReservation(
+  reservation: GuestRegistrationReservation,
+): Partial<Omit<GuestStepValues, "token">> {
+  const holder = splitHolderName(reservation.holderDisplayName);
+  const prefill = reservation.bookingPrefill;
+  return {
+    firstName: prefill?.firstName || holder.firstName,
+    lastName: prefill?.lastName || holder.lastName,
     email: prefill?.email ?? "",
     phone: prefill?.phone ?? "",
-    nationality: "",
-    dateOfBirth: "",
-    cityOfResidence: "",
-    cityOfOrigin: "",
-    travelPurpose: "",
   };
 }
 
@@ -57,6 +104,9 @@ function resolveInitialStep(
   return "intro";
 }
 
+const selectClassName =
+  "h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-card";
+
 export function GuestRegistrationForm({
   reservation: initialReservation,
 }: {
@@ -67,13 +117,16 @@ export function GuestRegistrationForm({
   const [step, setStep] = useState<WizardStep>(() =>
     resolveInitialStep(initialReservation),
   );
-  const [form, setForm] = useState(() =>
-    emptyGuestForm(
+  const [form, setForm] = useState(() => {
+    return emptyGuestForm(
       initialReservation.registeredCount === 0
-        ? initialReservation.bookingPrefill
-        : null,
-    ),
-  );
+        ? ownerSeedFromReservation(initialReservation)
+        : undefined,
+    );
+  });
+  const [acceptLodging, setAcceptLodging] = useState(false);
+  const [acceptHabeas, setAcceptHabeas] = useState(false);
+  const [nationalityQuery, setNationalityQuery] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const isOwnerStep = reservation.registeredCount === 0;
@@ -85,8 +138,27 @@ export function GuestRegistrationForm({
     [reservation.guests],
   );
 
+  const filteredNationalities = useMemo(() => {
+    const q = nationalityQuery.trim().toLowerCase();
+    if (!q) return ISO_COUNTRIES;
+    return ISO_COUNTRIES.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) || c.iso.toLowerCase().includes(q),
+    );
+  }, [nationalityQuery]);
+
   function updateForm(patch: Partial<Omit<GuestStepValues, "token">>) {
     setForm((prev) => ({ ...prev, ...patch }));
+  }
+
+  function openRegisterStep() {
+    if (reservation.registeredCount === 0) {
+      setForm(emptyGuestForm(ownerSeedFromReservation(reservation)));
+    } else {
+      setForm(emptyGuestForm());
+    }
+    setNationalityQuery("");
+    setStep("register");
   }
 
   function handleRegisterGuest(e: React.FormEvent<HTMLFormElement>) {
@@ -112,10 +184,17 @@ export function GuestRegistrationForm({
   }
 
   function handleCompleteRegistration() {
+    if (!acceptLodging || !acceptHabeas) {
+      toast.error("Debes aceptar el contrato y la autorización de datos");
+      return;
+    }
     startTransition(async () => {
       const result = await completeGuestRegistrationAction({
         token: reservation.token,
         confirmAllGuests: true,
+        acceptLodgingContract: true,
+        acceptHabeasData: true,
+        locale: "es-CO",
       });
       if (!result.success) {
         toast.error(result.error);
@@ -128,25 +207,35 @@ export function GuestRegistrationForm({
   }
 
   if (step === "success") {
+    const stayPortalUrl = reservation.stayPortalUrl;
     return (
       <section className="rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success/10 text-success">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <h2 className="mt-4 text-xl font-semibold tracking-tight text-foreground">
-          Registro completado
+          Registro completado correctamente
         </h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           Registraste {registeredGuests.length} huésped
-          {registeredGuests.length === 1 ? "" : "es"}. El anfitrión ya puede
-          ver la información en PRAGMA y preparar tu acceso.
+          {registeredGuests.length === 1 ? "" : "es"}. Ya puedes consultar el
+          acceso y la información de tu estadía.
         </p>
-        <a
-          href={`/stay/${encodeURIComponent(reservation.token)}`}
-          className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary text-sm font-medium text-primary-foreground"
-        >
-          Ver mi página de estadía
-        </a>
+        {stayPortalUrl ? (
+          <a
+            href={stayPortalUrl}
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            Ir a mi Estadía
+          </a>
+        ) : (
+          <a
+            href="/stay"
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground"
+          >
+            Consultar mi estadía
+          </a>
+        )}
       </section>
     );
   }
@@ -164,26 +253,20 @@ export function GuestRegistrationForm({
                 Registra a quienes se hospedarán
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Esta propiedad admite hasta{" "}
+                Debes registrar a{" "}
                 <strong>{reservation.maxCapacity}</strong> huésped
-                {reservation.maxCapacity === 1 ? "" : "es"}. Registra al titular
-                de la reserva primero y luego agrega acompañantes uno por uno.
+                {reservation.maxCapacity === 1 ? "" : "es"} de esta reserva.
+                Registra al titular primero y luego agrega acompañantes. Solo te
+                pediremos estos datos una vez.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm text-foreground">
-          <p className="font-medium">Al finalizar te preguntaremos:</p>
-          <p className="mt-1 text-muted-foreground">
-            ¿Estos son todos los huéspedes que se hospedarán en esta reserva?
-          </p>
-        </div>
-
         <Button
           type="button"
           className="h-11 w-full"
-          onClick={() => setStep("register")}
+          onClick={openRegisterStep}
         >
           <UserPlus className="h-4 w-4" />
           Comenzar registro
@@ -224,7 +307,8 @@ export function GuestRegistrationForm({
                     {guest.fullName}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {getGuestDocumentTypeLabel(guest.documentType)} · {guest.documentNumber}
+                    {getGuestDocumentTypeLabel(guest.documentType)} ·{" "}
+                    {guest.documentNumber}
                   </p>
                 </div>
                 {guest.isReservationOwner ? (
@@ -247,7 +331,7 @@ export function GuestRegistrationForm({
               type="button"
               variant="outline"
               className="h-11"
-              onClick={() => setStep("register")}
+              onClick={openRegisterStep}
             >
               <Plus className="h-4 w-4" />
               Agregar otro huésped
@@ -257,7 +341,10 @@ export function GuestRegistrationForm({
             type="button"
             className="h-11"
             onClick={() => setStep("confirm")}
-            disabled={registeredGuests.length === 0}
+            disabled={
+              registeredGuests.length === 0 ||
+              reservation.registeredCount !== reservation.maxCapacity
+            }
           >
             Finalizar registro
           </Button>
@@ -271,12 +358,12 @@ export function GuestRegistrationForm({
       <section className="space-y-5">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
           <h2 className="text-lg font-semibold text-foreground">
-            ¿Estos son todos los huéspedes que se hospedarán?
+            Confirma huéspedes y acepta términos
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Confirmas que registraste a todas las personas que ingresarán a la
-            propiedad ({registeredGuests.length} de máximo{" "}
-            {reservation.maxCapacity}).
+            Registraste {registeredGuests.length} de máximo{" "}
+            {reservation.maxCapacity}. Al confirmar, guardamos tu aceptación
+            del contrato de hospedaje y la autorización de datos (Habeas Data).
           </p>
         </div>
 
@@ -290,6 +377,41 @@ export function GuestRegistrationForm({
             </li>
           ))}
         </ul>
+
+        <div className="space-y-3 rounded-2xl border border-border bg-card p-5 shadow-pragma-soft">
+          <label className="flex items-start gap-3 text-sm leading-6 text-foreground">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-input"
+              checked={acceptLodging}
+              onChange={(e) => setAcceptLodging(e.target.checked)}
+            />
+            <span>
+              <span className="font-semibold">
+                Acepto el contrato de hospedaje
+              </span>{" "}
+              <span className="text-muted-foreground">
+                (v{GUEST_LODGING_CONTRACT_VERSION}). {GUEST_LODGING_CONTRACT_SUMMARY_ES}
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 text-sm leading-6 text-foreground">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-input"
+              checked={acceptHabeas}
+              onChange={(e) => setAcceptHabeas(e.target.checked)}
+            />
+            <span>
+              <span className="font-semibold">
+                Autorizo el tratamiento de datos personales
+              </span>{" "}
+              <span className="text-muted-foreground">
+                (v{GUEST_HABEAS_DATA_POLICY_VERSION}). {GUEST_HABEAS_DATA_SUMMARY_ES}
+              </span>
+            </span>
+          </label>
+        </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
@@ -306,10 +428,10 @@ export function GuestRegistrationForm({
             type="button"
             className="h-11"
             onClick={handleCompleteRegistration}
-            disabled={isPending}
+            disabled={isPending || !acceptLodging || !acceptHabeas}
           >
             {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Sí, confirmar registro
+            Confirmar y finalizar
           </Button>
         </div>
       </section>
@@ -340,6 +462,7 @@ export function GuestRegistrationForm({
             <Label>Nombre</Label>
             <Input
               required
+              autoComplete="given-name"
               value={form.firstName}
               onChange={(e) => updateForm({ firstName: e.target.value })}
             />
@@ -348,6 +471,7 @@ export function GuestRegistrationForm({
             <Label>Apellido</Label>
             <Input
               required
+              autoComplete="family-name"
               value={form.lastName}
               onChange={(e) => updateForm({ lastName: e.target.value })}
             />
@@ -362,7 +486,7 @@ export function GuestRegistrationForm({
                   documentType: e.target.value as GuestStepValues["documentType"],
                 })
               }
-              className="h-10 w-full rounded-xl border border-input bg-white px-3.5 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-card"
+              className={selectClassName}
             >
               {documentTypes.map((type) => (
                 <option key={type} value={type}>
@@ -386,6 +510,7 @@ export function GuestRegistrationForm({
                 <Input
                   required
                   type="email"
+                  autoComplete="email"
                   value={form.email}
                   onChange={(e) => updateForm({ email: e.target.value })}
                 />
@@ -418,60 +543,133 @@ export function GuestRegistrationForm({
               </div>
             </>
           )}
-          <div className="space-y-2">
-            <Label>Nacionalidad (opcional)</Label>
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Nacionalidad</Label>
             <Input
+              value={nationalityQuery}
+              onChange={(e) => setNationalityQuery(e.target.value)}
+              placeholder="Buscar país…"
+              autoComplete="off"
+            />
+            <select
+              required
               value={form.nationality}
               onChange={(e) => updateForm({ nationality: e.target.value })}
-            />
+              className={`${selectClassName} mt-2`}
+            >
+              {filteredNationalities.map((c) => (
+                <option key={c.iso} value={c.iso}>
+                  {c.flag} {c.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-2">
-            <Label>Fecha de nacimiento (opcional)</Label>
+            <Label>Fecha de nacimiento</Label>
             <Input
+              required
               type="date"
+              max={new Date().toISOString().slice(0, 10)}
               value={form.dateOfBirth}
               onChange={(e) => updateForm({ dateOfBirth: e.target.value })}
             />
           </div>
-          {isOwnerStep ? (
-            <>
-              <div className="space-y-2 sm:col-span-2">
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Datos TRA (Tarjeta de Registro de Alojamiento — MINCIT).
-                  Obligatorios para el titular.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Ciudad de residencia</Label>
-                <Input
-                  required
-                  value={form.cityOfResidence ?? ""}
-                  onChange={(e) =>
-                    updateForm({ cityOfResidence: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Ciudad de procedencia</Label>
-                <Input
-                  required
-                  value={form.cityOfOrigin ?? ""}
-                  onChange={(e) => updateForm({ cityOfOrigin: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Motivo del viaje</Label>
-                <Input
-                  required
-                  placeholder="Turismo, trabajo, visita familiar…"
-                  value={form.travelPurpose ?? ""}
-                  onChange={(e) =>
-                    updateForm({ travelPurpose: e.target.value })
-                  }
-                />
-              </div>
-            </>
-          ) : null}
+          <div className="space-y-2">
+            <Label>Sexo</Label>
+            <select
+              required
+              value={form.sex}
+              onChange={(e) =>
+                updateForm({ sex: e.target.value as GuestStepValues["sex"] })
+              }
+              className={selectClassName}
+            >
+              {GUEST_SEX_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {guestSexLabels[code]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>Motivo principal de viaje</Label>
+            <select
+              required
+              value={form.travelMotive}
+              onChange={(e) =>
+                updateForm({
+                  travelMotive: e.target.value as GuestStepValues["travelMotive"],
+                })
+              }
+              className={selectClassName}
+            >
+              {GUEST_TRAVEL_MOTIVE_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {guestTravelMotiveLabels[code]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <Label>Ocupación / profesión</Label>
+            <Input
+              required
+              value={form.occupation}
+              onChange={(e) => updateForm({ occupation: e.target.value })}
+              placeholder="Ej. Ingeniero, estudiante…"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <GuestPlaceFields
+            idPrefix="residence"
+            label="Residencia habitual"
+            value={{
+              country: form.residenceCountry,
+              adminArea: form.residenceAdminArea,
+              city: form.residenceCity,
+            }}
+            onChange={(next) =>
+              updateForm({
+                residenceCountry: next.country,
+                residenceAdminArea: next.adminArea,
+                residenceCity: next.city,
+              })
+            }
+          />
+          <GuestPlaceFields
+            idPrefix="origin"
+            label="Procedencia (desde dónde viajas)"
+            value={{
+              country: form.originCountry,
+              adminArea: form.originAdminArea,
+              city: form.originCity,
+            }}
+            onChange={(next) =>
+              updateForm({
+                originCountry: next.country,
+                originAdminArea: next.adminArea,
+                originCity: next.city,
+              })
+            }
+          />
+          <GuestPlaceFields
+            idPrefix="destination"
+            label="Destino (hacia dónde continúas / ciudad de estancia)"
+            value={{
+              country: form.destinationCountry,
+              adminArea: form.destinationAdminArea,
+              city: form.destinationCity,
+            }}
+            onChange={(next) =>
+              updateForm({
+                destinationCountry: next.country,
+                destinationAdminArea: next.adminArea,
+                destinationCity: next.city,
+              })
+            }
+          />
         </div>
       </section>
 
@@ -487,11 +685,7 @@ export function GuestRegistrationForm({
             Cancelar
           </Button>
         ) : null}
-        <Button
-          type="submit"
-          className="h-11"
-          disabled={isPending}
-        >
+        <Button type="submit" className="h-11" disabled={isPending}>
           {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {isOwnerStep ? "Guardar titular" : "Guardar huésped"}
         </Button>

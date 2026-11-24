@@ -1,0 +1,136 @@
+{
+  "credential": {
+    "id": "cmrngv1pa0009k0tyr4mjdshk",
+    "deliveryStatus": "SENT",
+    "status": "SENT",
+    "codeEncrypted": "enc:v1:6njEbh2xw/UZlRUDbXxOVt3eHmzldtO5sJWtdi20EekLUA=="
+  },
+  "welcome": {
+    "httpStatus": 200,
+    "id": "0631694f-3264-491b-a10b-eee66e596645",
+    "from": "PRAGMA PMS <noreply@pragmapms.com>",
+    "to": [
+      "magvillafuerte@gmail.com"
+    ],
+    "subject": "Registro de huéspedes — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+    "created_at": "2026-07-16 12:09:32.738141+00",
+    "last_event": "delivered",
+    "htmlChecks": {
+      "pragmaBrand": true,
+      "guestRegistrationLink": true,
+      "code484300": false,
+      "markdownBoldCode": false
+    }
+  },
+  "admin": {
+    "httpStatus": 200,
+    "id": "d1c3c86f-04c3-4451-993e-7fbfd4303d96",
+    "from": "PRAGMA PMS <noreply@pragmapms.com>",
+    "to": [
+      "bsionaryup@gmail.com"
+    ],
+    "subject": "Registro de huéspedes — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+    "created_at": "2026-07-16 12:09:38.598344+00",
+    "last_event": "delivered",
+    "htmlChecks": {
+      "pragmaBrand": true,
+      "guestRegistrationLink": false,
+      "code484300": false,
+      "markdownBoldCode": false
+    }
+  },
+  "recentAccessCodeEmails": [
+    {
+      "id": "19cdba6c-72e6-45d6-a0c7-b01db3b4f8b5",
+      "to": [
+        "bsionaryup@gmail.com"
+      ],
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "created_at": "2026-07-16 12:09:38.858082+00",
+      "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "bcc": [],
+      "cc": [],
+      "reply_to": [],
+      "last_event": "delivered",
+      "scheduled_at": null,
+      "message_id": "<0103019f6ad51cc2-9f26c884-80a7-4e78-9d49-b1a4f3dd063a-000000@sa-east-1.amazonses.com>"
+    },
+    {
+      "id": "4a39231d-3c69-4622-99e5-3558268efa41",
+      "to": [
+        "magvillafuerte@gmail.com"
+      ],
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "created_at": "2026-07-16 12:09:38.520419+00",
+      "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "bcc": [],
+      "cc": [],
+      "reply_to": [],
+      "last_event": "delivered",
+      "scheduled_at": null,
+      "message_id": "<0103019f6ad51b75-40e0c40e-3997-4ea3-a0d7-5e8c09a4f344-000000@sa-east-1.amazonses.com>"
+    },
+    {
+      "id": "d580046f-c657-4d8f-afde-3d121c41bc19",
+      "to": [
+        "bsionaryup@gmail.com"
+      ],
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "created_at": "2026-07-16 12:08:36.802334+00",
+      "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "bcc": [],
+      "cc": [],
+      "reply_to": [],
+      "last_event": "delivered",
+      "scheduled_at": null,
+      "message_id": "<0103019f6ad42a5e-24ae6a9d-5365-451c-b934-55e0bc7c190f-000000@sa-east-1.amazonses.com>"
+    },
+    {
+      "id": "bd455c6e-8ff9-4dba-8120-2d8b516ea0c7",
+      "to": [
+        "magvillafuerte@gmail.com"
+      ],
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "created_at": "2026-07-16 12:08:36.617657+00",
+      "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "bcc": [],
+      "cc": [],
+      "reply_to": [],
+      "last_event": "delivered",
+      "scheduled_at": null,
+      "message_id": "<0103019f6ad4298e-7ba36446-815d-4795-89c1-74996f81af0e-000000@sa-east-1.amazonses.com>"
+    },
+    {
+      "id": "97be5496-9685-4c74-9c65-46b6dd687ff0",
+      "to": [
+        "bsionaryup@gmail.com"
+      ],
+      "from": "PRAGMA PMS <noreply@pragmapms.com>",
+      "created_at": "2026-07-16 11:25:32.840951+00",
+      "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+      "bcc": [],
+      "cc": [],
+      "reply_to": [],
+      "last_event": "delivered",
+      "scheduled_at": null,
+      "message_id": "<0103019f6aacbcba-f8a17d31-6ce2-4a50-819c-855fbd29255c-000000@sa-east-1.amazonses.com>"
+    }
+  ],
+  "accessCodeSample": {
+    "httpStatus": 200,
+    "id": "19cdba6c-72e6-45d6-a0c7-b01db3b4f8b5",
+    "from": "PRAGMA PMS <noreply@pragmapms.com>",
+    "to": [
+      "bsionaryup@gmail.com"
+    ],
+    "subject": "Tu código de acceso — 801 — Loft moderno para 4 personas | Laureles | A 10 min de la Comuna 13",
+    "created_at": "2026-07-16 12:09:38.858082+00",
+    "last_event": "delivered",
+    "htmlChecks": {
+      "pragmaBrand": true,
+      "guestRegistrationLink": false,
+      "code484300": true,
+      "markdownBoldCode": false
+    }
+  }
+}

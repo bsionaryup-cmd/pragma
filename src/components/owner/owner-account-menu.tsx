@@ -27,8 +27,10 @@ import {
   getUserDisplayName,
   getUserInitials,
 } from "@/lib/helpers/user-display";
+import { APP_SIGNED_OUT_LOGIN_PATH } from "@/lib/auth/auth-paths";
 import { useClientSignOut } from "@/lib/auth/use-client-sign-out";
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
+import { OwnerPmsEntryButton } from "@/components/owner/owner-pms-entry-button";
 import { cn } from "@/lib/utils";
 
 export type OwnerAccountMenuUser = {
@@ -49,7 +51,7 @@ export function OwnerAccountMenu({
   hasOwnOrganization,
   variant = "default",
 }: OwnerAccountMenuProps) {
-  const signOut = useClientSignOut({ redirectUrl: "/owner-login" });
+  const signOut = useClientSignOut({ redirectUrl: APP_SIGNED_OUT_LOGIN_PATH });
   const pathname = usePathname();
   const displayName = getUserDisplayName(
     user.firstName,
@@ -161,13 +163,17 @@ export function OwnerAccountMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Productos
+              Operación
             </DropdownMenuLabel>
-            <DropdownMenuItem asChild>
-              <Link href="/panel" className="cursor-pointer">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                PMS
-              </Link>
+            <DropdownMenuItem
+              className="cursor-pointer p-0 focus:bg-transparent"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <OwnerPmsEntryButton
+                label="Entrar al PMS (piloto)"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm"
+                idleClassName="hover:bg-accent hover:text-accent-foreground"
+              />
             </DropdownMenuItem>
           </>
         ) : null}

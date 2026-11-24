@@ -4,7 +4,7 @@ import {
   clampPropertyCount,
 } from "@/modules/billing/domain/plan-catalog";
 import type { BillingPlanCode } from "@prisma/client";
-import { parseSalesBillingMetadata } from "@/modules/sales/domain/sales-billing-metadata";
+import { parseSalesBillingMetadata } from "@/modules/billing/domain/sales-billing-metadata";
 
 export type BillingAccountMetadata = {
   propertySlots?: number;

@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { BRAND_ASSETS } from "@/lib/brand-assets";
 import { BRAND, SEO_KEYWORDS } from "@/lib/brand";
+import { ensureHttpsPublicOrigin } from "@/lib/app-url";
 
-const siteUrl =
+const siteUrl = ensureHttpsPublicOrigin(
   process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://pragmapms.com";
-
+    "https://www.pragmapms.com",
+);
 export function getSiteUrl(): string {
   return siteUrl;
 }

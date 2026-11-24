@@ -1,9 +1,9 @@
-/** Stub `server-only` so tsx scripts can import server modules. */
-const Module = require("module");
+/** Allow tsx scripts to import modules that use `import "server-only"`. */
+const Module = require("node:module");
 const originalLoad = Module._load;
-Module._load = function mockServerOnly(request, parent, isMain) {
+Module._load = function (request, parent, isMain) {
   if (request === "server-only") {
     return {};
   }
-  return originalLoad(request, parent, isMain);
+  return originalLoad.call(this, request, parent, isMain);
 };

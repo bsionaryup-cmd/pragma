@@ -9,31 +9,18 @@ export type ReservationDisplayGuestNameInput = {
   airbnbEnrichmentGuestName?: string | null;
   guestName?: string | null;
   primaryGuestName?: string | null;
+  /** Kept for call-site compatibility; no longer elevates GR-written names over channel. */
   guestRegistrationCompletedAt?: Date | string | null;
 };
 
-function hasRegisteredGuestDisplayName(input: {
-  platform: BookingPlatform;
-  guestName?: string | null;
-  guestRegistrationCompletedAt?: Date | string | null;
-}): boolean {
-  if (input.platform !== BookingPlatform.AIRBNB) return false;
-  if (!input.guestRegistrationCompletedAt) return false;
-  const reservationGuest = input.guestName?.trim();
-  if (!reservationGuest) return false;
-  return (
-    !isPlaceholderGuestName(reservationGuest) &&
-    isPlausibleGuestName(reservationGuest)
-  );
-}
-
+/**
+ * Display name for calendars/inbox/panels.
+ * Airbnb titular SSOT = channel enrichment (confirmation email), then reservation row,
+ * then registered primary guest. Guest Registration must never define the titular.
+ */
 export function resolveReservationDisplayGuestName(
   input: ReservationDisplayGuestNameInput,
 ): string {
-  if (hasRegisteredGuestDisplayName(input)) {
-    return input.guestName!.trim();
-  }
-
   const airbnbEnrichment =
     input.airbnbEnrichment?.guestName?.trim() ||
     input.airbnbGuestName?.trim() ||

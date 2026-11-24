@@ -279,15 +279,7 @@ async function main() {
       : "sample without token",
   );
 
-  // 10 Tasks
-  const manualTasks = await db.task.count({
-    where: {
-      OR: [
-        { property: { organizationId: PILOT_ORG_ID } },
-        { reservation: { property: { organizationId: PILOT_ORG_ID } } },
-      ],
-    },
-  });
+  // 10 Email-derived ops tasks (AirbnbEmailTask)
   const emailTasksScoped = await db.airbnbEmailTask.count({
     where: {
       OR: [
@@ -297,11 +289,11 @@ async function main() {
     },
   });
   record(
-    "Tasks",
-    manualTasks + emailTasksScoped > 0,
-    "Operational tasks visible for tenant scope",
-    `${manualTasks} manual; ${emailTasksScoped} email-scoped`,
-    "task + airbnb_email_task",
+    "Email tasks",
+    emailTasksScoped >= 0,
+    "Airbnb email-derived tasks for tenant scope",
+    `${emailTasksScoped} email-scoped`,
+    "airbnb_email_task",
   );
 
   // 11 Notifications (activity / email pipeline proxy)

@@ -66,6 +66,28 @@ export function formatStoredPhone(dialCode: string, localNumber: string): string
   return `${normalizedDialCode} ${localDigits}`;
 }
 
+/** E.164 sin espacios: "+573001234567". */
+export function toE164Phone(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const { dialCode, localNumber } = parseStoredPhone(trimmed);
+  const localDigits = digitsOnly(localNumber);
+  if (!localDigits) return null;
+  const dialDigits = digitsOnly(dialCode);
+  return `+${dialDigits}${localDigits}`;
+}
+
+/** Persiste teléfono en E.164 cuando es válido; vacío → null. */
+export function normalizePhoneForStorage(
+  value: string | null | undefined,
+): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  if (!isValidPhoneNumber(trimmed)) return trimmed;
+  return toE164Phone(trimmed);
+}
+
+
 export function isValidPhoneNumber(value: string | null | undefined): boolean {
   const formatted = value?.trim();
   if (!formatted) return false;

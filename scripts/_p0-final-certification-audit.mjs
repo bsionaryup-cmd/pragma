@@ -218,9 +218,9 @@ async function crossModuleSample(reservationId) {
   });
   if (!r) return null;
 
-  const [activities, tasks, guestReg, emailEvents] = await Promise.all([
+  const [activities, emailTasks, guestReg, emailEvents] = await Promise.all([
     db.reservationActivity.count({ where: { reservationId } }),
-    db.task.count({ where: { reservationId } }),
+    db.airbnbEmailTask.count({ where: { reservationId } }),
     db.guestRegistrationToken.findFirst({
       where: { reservationId },
       select: { id: true, status: true, token: true },
@@ -251,7 +251,7 @@ async function crossModuleSample(reservationId) {
     finance: contributesFinance ? "INCLUDED" : "EXCLUDED/ZERO",
     dashboard: ACCOUNTING.includes(r.status) ? "COUNTS" : "EXCLUDED",
     activities,
-    tasks,
+    tasks: emailTasks,
     emailEvents,
     guestRegistration: guestReg ? guestReg.status : null,
     correlationKey: r.reservationCode ?? r.id,

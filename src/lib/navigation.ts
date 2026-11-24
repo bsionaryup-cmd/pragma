@@ -25,10 +25,10 @@ export type NavIconName =
   | "settings"
   | "key-round"
   | "credit-card"
-  | "list-checks"
   | "bell"
   | "scan-search"
-  | "globe";
+  | "globe"
+  | "bot";
 
 export type NavItem = {
   /** Clave i18n bajo `nav.*` */

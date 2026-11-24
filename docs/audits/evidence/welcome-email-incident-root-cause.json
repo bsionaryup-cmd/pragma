@@ -1,0 +1,59 @@
+{
+  "incidentReservation": {
+    "id": "cmrnm2qbv000e04l7f17j5nih",
+    "platform": "DIRECT",
+    "status": "CONFIRMED",
+    "guestEmail": "urbanovaloft@gmail.com",
+    "totalAmount": "196510",
+    "holdExpiresAt": "2026-07-16T15:05:34.240Z",
+    "paymentStatus": "PENDING",
+    "guestRegistrationInviteSentAt": null,
+    "guestRegistrationInviteError": null,
+    "guestRegistrationInviteLog": [],
+    "guestRegistrationToken": null,
+    "createdAt": "2026-07-16T14:35:34.219Z",
+    "property": {
+      "unitNumber": "803",
+      "name": "Loft 2P con Vista Premium | Laureles | Zona top"
+    },
+    "total": 196510,
+    "inviteLog": []
+  },
+  "rootCauseHypothesis": {
+    "statement": "createReservation only sends welcome when totalAmount === 0. If totalAmount > 0 it activates payment hold and defers welcome until releaseReservationHoldIfDepositMet.",
+    "codePath": "reservation.service.ts L619-640; guest-registration-email.service.ts L281-287 (skip if holdExpiresAt)",
+    "whyAuditsPassed": "All prior E2E/smoke used totalAmount: 0",
+    "whyRealUIFails": "Wizard requires totalAmount; real Direct bookings almost always > 0 → hold path → no welcome until deposit"
+  },
+  "reproduction": {
+    "withHold": {
+      "id": "cmrnmlbmc0000i4tyznvwrepx",
+      "holdExpiresAt": "2026-07-16T15:20:01.604Z",
+      "sendWhileHold": {
+        "ok": true,
+        "skipped": true,
+        "message": "Reserva en hold de pago; bienvenida diferida"
+      },
+      "expected": "skipped: Reserva en hold de pago"
+    },
+    "zeroAmount": {
+      "id": "cmrnmlbr00001i4tyb8vuk5uh",
+      "sendZero": {
+        "ok": true,
+        "message": "Correo de bienvenida enviado",
+        "providerId": "36c926d0-baae-42ec-bff5-a7bb5b165a28"
+      },
+      "inviteSentAt": "2026-07-16T14:50:03.358Z",
+      "log": [
+        {
+          "at": "2026-07-16T14:50:03.358Z",
+          "status": "success",
+          "recipient": "magvillafuerte@gmail.com",
+          "providerId": "36c926d0-baae-42ec-bff5-a7bb5b165a28",
+          "triggeredBy": "auto"
+        }
+      ],
+      "expected": "welcome sent"
+    }
+  }
+}

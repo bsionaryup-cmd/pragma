@@ -245,62 +245,72 @@ export async function reconcilePendingGuestPaymentsFromWompi(): Promise<{
   let failed = 0;
 
   for (const link of pending) {
-    const reference = guestReferenceForLink(link.id);
-    let transactionId =
-      link.wompiLinkId ??
-      (typeof (link.metadata as Record<string, unknown> | null)?.lastWompiTransactionId ===
-      "string"
-        ? String((link.metadata as Record<string, unknown>).lastWompiTransactionId)
-        : null);
+    try {
+      const reference = guestReferenceForLink(link.id);
+      let transactionId =
+        link.wompiLinkId ??
+        (typeof (link.metadata as Record<string, unknown> | null)
+          ?.lastWompiTransactionId === "string"
+          ? String(
+              (link.metadata as Record<string, unknown>).lastWompiTransactionId,
+            )
+          : null);
 
-    const lookup = transactionId
-      ? await fetchWompiTransactionById({
-          organizationId: link.organizationId,
-          transactionId,
-        })
-      : await fetchWompiTransactionByReference({
-          organizationId: link.organizationId,
-          reference,
-        });
+      const lookup = transactionId
+        ? await fetchWompiTransactionById({
+            organizationId: link.organizationId,
+            transactionId,
+          })
+        : await fetchWompiTransactionByReference({
+            organizationId: link.organizationId,
+            reference,
+          });
 
-    if (!lookup.ok) {
-      failed += 1;
-      continue;
-    }
-
-    if (!transactionId && "transactionId" in lookup && lookup.transactionId) {
-      transactionId = lookup.transactionId;
-    }
-
-    const status =
-      lookup.status ?? PaymentTransactionStatus.PENDING;
-
-    if (status === PaymentTransactionStatus.PENDING) {
-      continue;
-    }
-
-    const result = await reconcileGuestPaymentFromProvider({
-      reference,
-      provider: PaymentProviderCode.WOMPI,
-      providerTransactionId: transactionId ?? undefined,
-      status,
-      paymentMethod:
-        "paymentMethod" in lookup ? lookup.paymentMethod : undefined,
-    });
-
-    if (result.ok && status === PaymentTransactionStatus.APPROVED) {
-      reconciled += 1;
-      if (transactionId) {
-        const meta = (link.metadata ?? {}) as Record<string, unknown>;
-        await db.guestPaymentLink.update({
-          where: { id: link.id },
-          data: {
-            metadata: { ...meta, lastWompiTransactionId: transactionId },
-          },
-        });
+      if (!lookup.ok) {
+        failed += 1;
+        continue;
       }
-    } else if (!result.ok) {
+
+      if (!transactionId && "transactionId" in lookup && lookup.transactionId) {
+        transactionId = lookup.transactionId;
+      }
+
+      const status = lookup.status ?? PaymentTransactionStatus.PENDING;
+
+      if (status === PaymentTransactionStatus.PENDING) {
+        continue;
+      }
+
+      const result = await reconcileGuestPaymentFromProvider({
+        reference,
+        provider: PaymentProviderCode.WOMPI,
+        providerTransactionId: transactionId ?? undefined,
+        status,
+        paymentMethod:
+          "paymentMethod" in lookup ? lookup.paymentMethod : undefined,
+      });
+
+      if (result.ok && status === PaymentTransactionStatus.APPROVED) {
+        reconciled += 1;
+        if (transactionId) {
+          const meta = (link.metadata ?? {}) as Record<string, unknown>;
+          await db.guestPaymentLink.update({
+            where: { id: link.id },
+            data: {
+              metadata: { ...meta, lastWompiTransactionId: transactionId },
+            },
+          });
+        }
+      } else if (!result.ok) {
+        failed += 1;
+      }
+    } catch (error) {
       failed += 1;
+      console.error(
+        "[guest-payment-reconcile] link failed",
+        link.id,
+        error instanceof Error ? error.message : error,
+      );
     }
   }
 

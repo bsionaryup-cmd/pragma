@@ -1,11 +1,13 @@
 "use client";
 
 import { useAuth, useClerk, useSignIn } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Mail } from "lucide-react";
 import { createRetailSignInTicketAction } from "@/domains/retail/actions/auth.actions";
 import { PasswordInput } from "@/components/auth/password-input";
 import { TiendasOnPrimaryButton } from "@/domains/retail/ui/tiendas-on/controls";
+import { settleClerkSessionThenGo } from "@/lib/auth/post-auth-navigation";
 import { sanitizeAuthRedirectPath } from "@/lib/auth/verification-flow";
 
 type RetailPasswordSignInFormProps = {
@@ -18,8 +20,10 @@ type RetailPasswordSignInFormProps = {
  */
 export function RetailPasswordSignInForm({ postAuthPath }: RetailPasswordSignInFormProps) {
   const redirectPath = sanitizeAuthRedirectPath(postAuthPath, "/intiendas/dashboard");
-  const { isLoaded: authLoaded, isSignedIn } = useAuth();
-  const { signOut } = useClerk();
+  const searchParams = useSearchParams();
+  const clearStaleSession = searchParams.get("signed_out") === "1";
+  const { isLoaded: authLoaded, isSignedIn, getToken } = useAuth();
+  const { signOut, session, setActive } = useClerk();
   const { signIn } = useSignIn();
 
   const [email, setEmail] = useState("");
@@ -28,6 +32,7 @@ export function RetailPasswordSignInForm({ postAuthPath }: RetailPasswordSignInF
   const [pending, startTransition] = useTransition();
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
   const staleCleanupRef = useRef(false);
+  const loginSucceededRef = useRef(false);
 
   const ready = authLoaded || bootstrapTimedOut;
   const isFetching = pending;
@@ -38,14 +43,16 @@ export function RetailPasswordSignInForm({ postAuthPath }: RetailPasswordSignInF
   }, []);
 
   useEffect(() => {
-    if (!authLoaded || staleCleanupRef.current) return;
+    if (!authLoaded || !clearStaleSession || staleCleanupRef.current) return;
     staleCleanupRef.current = true;
-    if (isSignedIn) {
+    // Only after explicit logout (?signed_out=1). Never wipe a live PMS session
+    // just because the user opened /intiendas/login.
+    if (isSignedIn && !loginSucceededRef.current) {
       void signOut().catch(() => {
         // El formulario debe seguir usable.
       });
     }
-  }, [authLoaded, isSignedIn, signOut]);
+  }, [authLoaded, clearStaleSession, isSignedIn, signOut]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -89,14 +96,26 @@ export function RetailPasswordSignInForm({ postAuthPath }: RetailPasswordSignInF
         }
 
         const finalized = await signIn.finalize({
-          navigate: ({ session, decorateUrl }) => {
-            if (session?.currentTask) return;
-            const url = decorateUrl(redirectPath);
-            if (url.startsWith("http")) {
-              window.location.href = url;
-            } else {
-              window.location.assign(url);
+          navigate: async ({ session: finalizedSession }) => {
+            if (finalizedSession?.currentTask) return;
+            loginSucceededRef.current = true;
+            if (finalizedSession?.id) {
+              await setActive({ session: finalizedSession.id });
             }
+            await settleClerkSessionThenGo({
+              getToken,
+              touchSession: () =>
+                finalizedSession?.touch?.() ??
+                session?.touch?.() ??
+                Promise.resolve(null),
+              path: redirectPath,
+              onPending: () => {
+                loginSucceededRef.current = false;
+                setError(
+                  "No se pudo sincronizar la sesión. Intenta Entrar de nuevo.",
+                );
+              },
+            });
           },
         });
 

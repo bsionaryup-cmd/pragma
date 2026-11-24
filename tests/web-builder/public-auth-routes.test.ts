@@ -6,19 +6,28 @@ import { describe, it } from "node:test";
 const root = process.cwd();
 
 describe("web-builder public auth routes", () => {
-  it("keeps urbanovaloft and /login public; signs in via /sign-in", async () => {
+  it("keeps urbanovaloft, /w/ sites and /login public; unified /login is canonical", async () => {
     const proxy = await readFile(path.join(root, "src", "proxy.ts"), "utf8");
     assert.match(proxy, /"\/urbanovaloft"/);
     assert.match(proxy, /"\/login\(\.\*\)"/);
-    assert.match(proxy, /new URL\("\/sign-in", request\.url\)/);
+    assert.match(proxy, /"\/api\/web-builder\(\.\*\)"/);
+    assert.match(proxy, /isPublicTenantWebSitePath/);
+    assert.match(proxy, /"\/stay\/\(\.\*\)"/);
+    assert.match(proxy, /"\/guest-registration\/\(\.\*\)"/);
+    assert.match(proxy, /new URL\(OWNER_LOGIN_PATH, request\.url\)/);
     assert.doesNotMatch(proxy, /await auth\.protect\(\)/);
 
-    const loginAlias = await readFile(
-      path.join(root, "src", "app", "(auth)", "login", "[[...rest]]", "page.tsx"),
+    const loginPage = await readFile(
+      path.join(root, "src", "app", "(auth)", "login", "page.tsx"),
       "utf8",
     );
-    assert.match(loginAlias, /\/sign-in\?next=/);
-    assert.match(loginAlias, /redirect_url/);
+    assert.match(loginPage, /EmailPasswordSignInForm/);
+
+    const signInAlias = await readFile(
+      path.join(root, "src", "app", "(auth)", "sign-in", "[[...sign-in]]", "page.tsx"),
+      "utf8",
+    );
+    assert.match(signInAlias, /APP_LOGIN_PATH/);
   });
 
   it("soft-fails TTLock decrypt on auth-tag mismatch", async () => {

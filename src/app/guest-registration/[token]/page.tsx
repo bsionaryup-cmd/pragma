@@ -2,6 +2,7 @@ import { BookingPlatform } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { GuestBrandMark } from "@/components/brand/guest-brand-mark";
 import { GuestRegistrationForm } from "@/features/guests/components/guest-registration-form";
+import { GuestRegistrationReservationHeader } from "@/features/guests/components/guest-registration-reservation-header";
 import { getGuestRegistrationLookupResult } from "@/services/guests/guest-registration.service";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,34 @@ export default async function GuestRegistrationPage({
   const result = await getGuestRegistrationLookupResult(token);
 
   if (result.state === "completed") {
-    redirect(`/stay/${encodeURIComponent(token)}`);
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
+        <section className="w-full max-w-lg rounded-3xl border border-border bg-card p-6 text-center shadow-pragma-soft">
+          <GuestBrandMark />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            Registro completado
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            La información de huéspedes ya fue registrada correctamente.
+          </p>
+          {result.stayPortalUrl ? (
+            <a
+              href={result.stayPortalUrl}
+              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
+            >
+              Ir a mi Estadía
+            </a>
+          ) : (
+            <a
+              href="/stay"
+              className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-semibold text-foreground"
+            >
+              Consultar mi estadía
+            </a>
+          )}
+        </section>
+      </main>
+    );
   }
 
   if (result.state !== "valid") {
@@ -47,77 +75,11 @@ export default async function GuestRegistrationPage({
       <div className="mx-auto max-w-3xl">
         <header className="mb-6 rounded-3xl border border-border bg-card p-6 shadow-pragma-soft">
           <GuestBrandMark />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
-            Registro de huéspedes
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Completa los datos de todas las personas que ingresarán a la
-            propiedad. Este registro está vinculado a tu reserva
-            {reservation.reservationCode
-              ? ` (${reservation.reservationCode})`
-              : ""}
-            .
-          </p>
-
-          <ol className="mt-4 list-decimal space-y-2 rounded-2xl bg-muted/50 p-4 pl-8 text-sm leading-6 text-muted-foreground">
-            <li>
-              Registra primero al titular de la reserva (nombre, contacto y
-              documento).
-            </li>
-            <li>
-              Agrega a cada acompañante con su tipo y número de documento.
-            </li>
-            <li>
-              Revisa que el total de personas no supere la capacidad de la
-              reserva ({reservation.maxCapacity}).
-            </li>
-            <li>
-              Finaliza el registro. El código de acceso se genera solo cuando se
-              cumplan los requisitos del proceso (registro completo y reglas de
-              la cerradura).
-            </li>
-          </ol>
-
+          <GuestRegistrationReservationHeader reservation={reservation} />
           {isWebDirect ? (
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
               Reservaste desde la página web: no necesitas esperar un correo o
               WhatsApp. Completa este formulario y listo.
-            </p>
-          ) : null}
-
-          <div className="mt-5 grid gap-3 rounded-2xl bg-muted/50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Propiedad
-              </p>
-              <p className="mt-1 font-medium">{reservation.propertyName}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Check-in
-              </p>
-              <p className="mt-1 font-medium">{reservation.checkIn}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Check-out
-              </p>
-              <p className="mt-1 font-medium">{reservation.checkOut}</p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Capacidad máxima
-              </p>
-              <p className="mt-1 font-medium">
-                {reservation.maxCapacity} huésped
-                {reservation.maxCapacity === 1 ? "" : "es"}
-              </p>
-            </div>
-          </div>
-          {reservation.registeredCount > 0 ? (
-            <p className="mt-4 text-sm text-muted-foreground">
-              Progreso actual: {reservation.registeredCount} /{" "}
-              {reservation.maxCapacity} huéspedes registrados
             </p>
           ) : null}
         </header>

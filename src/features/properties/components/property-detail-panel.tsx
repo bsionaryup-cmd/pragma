@@ -23,7 +23,6 @@ import {
   propertyStatusLabels,
   propertyTypeLabels,
   reservationStatusLabels,
-  taskTypeLabels,
 } from "@/lib/labels";
 import { formatCurrency } from "@/lib/helpers";
 import { formatDateTime } from "@/lib/helpers/date";
@@ -477,24 +476,6 @@ export function PropertyDetailPanel({
                   key={r.id}
                   title={r.guestName}
                   subtitle={`${r.checkIn} → ${r.checkOut} · ${reservationStatusLabels[r.status]}`}
-                />
-              ))}
-            </ul>
-          )}
-        </PropertyDetailSection>
-
-        <PropertyDetailSection title="Tareas pendientes">
-          {property.pendingTasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin tareas pendientes</p>
-          ) : (
-            <ul className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-pragma-soft">
-              {property.pendingTasks.map((t) => (
-                <PropertyCompactListItem
-                  key={t.id}
-                  title={t.title}
-                  subtitle={`${taskTypeLabels[t.type]}${
-                    t.dueDate ? ` · ${t.dueDate.slice(0, 10)}` : ""
-                  }`}
                 />
               ))}
             </ul>

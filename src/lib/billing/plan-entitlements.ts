@@ -5,9 +5,7 @@ export type PlanFeature =
   | "calendar"
   | "reservations"
   | "properties"
-  | "inbox"
   | "ical"
-  | "tasks"
   | "finance"
   | "revenue"
   | "ttlock"
@@ -33,16 +31,13 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
     "calendar",
     "reservations",
     "properties",
-    "inbox",
     "ical",
   ]),
   PRO: new Set([
     "calendar",
     "reservations",
     "properties",
-    "inbox",
     "ical",
-    "tasks",
     "finance",
     "revenue",
     "ttlock",
@@ -56,9 +51,7 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
     "calendar",
     "reservations",
     "properties",
-    "inbox",
     "ical",
-    "tasks",
     "finance",
     "revenue",
     "ttlock",
@@ -73,10 +66,7 @@ const PLAN_FEATURES: Record<BillingPlanCode, ReadonlySet<PlanFeature>> = {
 /** Rutas del dashboard → feature requerida (null = siempre permitido con permiso RBAC). */
 export const ROUTE_PLAN_FEATURE: Record<string, PlanFeature | null> = {
   "/panel": null,
-  "/reservations": "reservations",
   "/calendar": "calendar",
-  "/tasks": "tasks",
-  "/inbox": "inbox",
   "/properties": "properties",
   "/revenue": "revenue",
   "/smart-access": "ttlock",

@@ -19,15 +19,31 @@ import { getPublicAppUrl } from "@/lib/app-url";
 import { dateKeyToPrismaDate, prismaDateToKey } from "@/lib/dates";
 import { db } from "@/lib/db";
 import { formatPropertyLabel } from "@/lib/property-display";
-import { isValidPhoneNumber } from "@/lib/phone/phone-number";
+import {
+  isValidPhoneNumber,
+  normalizePhoneForStorage,
+} from "@/lib/phone/phone-number";
 import { requireTenantDataScope } from "@/lib/platform/require-tenant-data-scope";
 import { assertReservationInScope } from "@/lib/platform/tenant-access";
-import { onGuestRegistrationCompletedForTTLock } from "@/services/integrations/ttlock/ttlock-reservation.hooks";
 import {
   getGuestRegistrationMaxCapacity,
   getReservationGuestCount,
   type GuestRegistrationCapacityInput,
 } from "@/lib/guest-registration/guest-registration-capacity";
+import {
+  reconcileReservationOccupancyIfSafe,
+  resolveGuestRegistrationMaxCapacityForReservation,
+} from "@/lib/guest-registration/guest-registration-occupancy-reconcile";
+import {
+  GUEST_HABEAS_DATA_POLICY_VERSION,
+  GUEST_HABEAS_DATA_SUMMARY_ES,
+  GUEST_LEGAL_LOCALE_DEFAULT,
+  GUEST_LODGING_CONTRACT_SUMMARY_ES,
+  GUEST_LODGING_CONTRACT_VERSION,
+} from "@/lib/guest-registration/guest-legal-versions";
+import { isPlaceholderGuestName } from "@/modules/airbnb-email/domains/safe-reservation-enrichment";
+import { isPlausibleGuestName } from "@/modules/airbnb-email/parsing/guest-name-extract";
+import type { GuestRegistrationRequestMeta } from "@/features/guests/schemas/guest-registration.schema";
 
 export class GuestRegistrationError extends Error {
   constructor(message: string) {
@@ -164,6 +180,18 @@ export type GuestRegistrationGuest = {
   phone: string | null;
   nationality: string | null;
   dateOfBirth: string | null;
+  sex: string | null;
+  travelMotive: string | null;
+  occupation: string | null;
+  residenceCountry: string | null;
+  residenceAdminArea: string | null;
+  residenceCity: string | null;
+  originCountry: string | null;
+  originAdminArea: string | null;
+  originCity: string | null;
+  destinationCountry: string | null;
+  destinationAdminArea: string | null;
+  destinationCity: string | null;
 };
 
 export type GuestRegistrationBookingPrefill = {
@@ -178,6 +206,9 @@ export type GuestRegistrationReservation = {
   token: string;
   status: GuestRegistrationStatus;
   platform: BookingPlatform;
+  /** Public-safe reservation holder label for the guest-facing header. */
+  holderDisplayName: string | null;
+  /** Airbnb confirmation code when platform is AIRBNB; otherwise null. */
   reservationCode: string | null;
   propertyName: string;
   checkIn: string;
@@ -191,11 +222,13 @@ export type GuestRegistrationReservation = {
   guests: GuestRegistrationGuest[];
   /** Contact from the original booking — prefill titular form only. */
   bookingPrefill: GuestRegistrationBookingPrefill | null;
+  /** Present after GR complete when Stay Portal token was issued. */
+  stayPortalUrl?: string | null;
 };
 
 export type GuestRegistrationLookupResult =
   | { state: "valid"; reservation: GuestRegistrationReservation }
-  | { state: "completed" }
+  | { state: "completed"; stayPortalUrl?: string | null }
   | { state: "revoked" }
   | { state: "invalid" };
 
@@ -205,8 +238,14 @@ async function resolveGuestRegistrationMaxCapacity(
   reservation: GuestRegistrationCapacityInput & { id: string },
   registeredCount?: number,
 ): Promise<number> {
-  return getGuestRegistrationMaxCapacity({
-    ...reservation,
+  return resolveGuestRegistrationMaxCapacityForReservation({
+    id: reservation.id,
+    platform: reservation.platform,
+    adults: reservation.adults,
+    children: reservation.children,
+    infants: reservation.infants,
+    propertyMaxGuests: reservation.propertyMaxGuests,
+    guestRegistrationCompletedAt: reservation.guestRegistrationCompletedAt,
     registeredCount,
   });
 }
@@ -226,6 +265,18 @@ function mapGuestRecord(
     phone: string | null;
     nationality: string | null;
     dateOfBirth: Date | null;
+    sex: string | null;
+    travelMotive: string | null;
+    occupation: string | null;
+    residenceCountry: string | null;
+    residenceAdminArea: string | null;
+    residenceCity: string | null;
+    originCountry: string | null;
+    originAdminArea: string | null;
+    originCity: string | null;
+    destinationCountry: string | null;
+    destinationAdminArea: string | null;
+    destinationCity: string | null;
   },
 ): GuestRegistrationGuest {
   return {
@@ -244,6 +295,71 @@ function mapGuestRecord(
     dateOfBirth: guest.dateOfBirth
       ? prismaDateToKey(guest.dateOfBirth)
       : null,
+    sex: guest.sex,
+    travelMotive: guest.travelMotive,
+    occupation: guest.occupation,
+    residenceCountry: guest.residenceCountry,
+    residenceAdminArea: guest.residenceAdminArea,
+    residenceCity: guest.residenceCity,
+    originCountry: guest.originCountry,
+    originAdminArea: guest.originAdminArea,
+    originCity: guest.originCity,
+    destinationCountry: guest.destinationCountry,
+    destinationAdminArea: guest.destinationAdminArea,
+    destinationCity: guest.destinationCity,
+  };
+}
+
+function buildCanonicalGuestWriteData(parsed: {
+  firstName: string;
+  lastName: string;
+  documentType: string;
+  documentNumber: string;
+  email?: string | null;
+  phone?: string | null;
+  nationality: string;
+  dateOfBirth: string;
+  sex: string;
+  travelMotive: string;
+  occupation: string;
+  residenceCountry: string;
+  residenceAdminArea: string;
+  residenceCity: string;
+  originCountry: string;
+  originAdminArea: string;
+  originCity: string;
+  destinationCountry: string;
+  destinationAdminArea: string;
+  destinationCity: string;
+}) {
+  const firstName = parsed.firstName.trim();
+  const lastName = parsed.lastName.trim();
+  return {
+    firstName,
+    lastName,
+    fullName: `${firstName} ${lastName}`,
+    documentType: parsed.documentType,
+    documentNumber: parsed.documentNumber.trim(),
+    email: parsed.email?.trim() || null,
+    phone: normalizePhoneForStorage(parsed.phone),
+    nationality: parsed.nationality.trim(),
+    dateOfBirth: parseOptionalDateOfBirth(parsed.dateOfBirth),
+    sex: parsed.sex,
+    travelMotive: parsed.travelMotive,
+    occupation: parsed.occupation.trim(),
+    residenceCountry: parsed.residenceCountry.trim(),
+    residenceAdminArea: parsed.residenceAdminArea.trim(),
+    residenceCity: parsed.residenceCity.trim(),
+    originCountry: parsed.originCountry.trim(),
+    originAdminArea: parsed.originAdminArea.trim(),
+    originCity: parsed.originCity.trim(),
+    destinationCountry: parsed.destinationCountry.trim(),
+    destinationAdminArea: parsed.destinationAdminArea.trim(),
+    destinationCity: parsed.destinationCity.trim(),
+    // TRA legacy columns (main / WEB BUILDER) — mirrored from the canonical profile.
+    cityOfResidence: parsed.residenceCity.trim() || null,
+    cityOfOrigin: parsed.originCity.trim() || null,
+    travelPurpose: parsed.travelMotive || null,
   };
 }
 
@@ -333,13 +449,30 @@ async function buildGuestRegistrationReservationView(input: {
           phone: input.reservation.guestPhone?.trim() || "",
         }
       : null;
+  const ownerGuest =
+    mappedGuests.find((guest) => guest.isReservationOwner) ??
+    mappedGuests.find((guest) => guest.isPrimary) ??
+    null;
+  const ownerName = ownerGuest?.fullName?.trim() || null;
+  const reservationGuestName = input.reservation.guestName?.trim() || null;
+  const holderDisplayName =
+    ownerName ||
+    (reservationGuestName &&
+    !isPlaceholderGuestName(reservationGuestName) &&
+    isPlausibleGuestName(reservationGuestName)
+      ? reservationGuestName
+      : null);
 
   return {
     id: input.reservation.id,
     token: input.token,
     status: input.registration.status,
     platform: input.reservation.platform,
-    reservationCode: input.reservation.reservationCode ?? null,
+    holderDisplayName,
+    reservationCode:
+      input.reservation.platform === BookingPlatform.AIRBNB
+        ? input.reservation.reservationCode?.trim().toUpperCase() || null
+        : null,
     propertyName: formatPropertyLabel(input.reservation.property),
     checkIn: prismaDateToKey(input.reservation.checkIn),
     checkOut: prismaDateToKey(input.reservation.checkOut),
@@ -357,6 +490,10 @@ async function buildGuestRegistrationReservationView(input: {
 async function finalizeGuestRegistration(
   registrationId: string,
   reservationId: string,
+  legal: {
+    locale: string;
+    requestMeta: GuestRegistrationRequestMeta;
+  },
 ): Promise<void> {
   const guests = await db.reservationGuest.findMany({
     where: { reservationId },
@@ -374,13 +511,29 @@ async function finalizeGuestRegistration(
     );
   }
 
+  const reservationMeta = await db.reservation.findUnique({
+    where: { id: reservationId },
+    select: {
+      propertyId: true,
+      property: { select: { organizationId: true, ownerId: true } },
+    },
+  });
+
+  if (!reservationMeta) {
+    throw new GuestRegistrationError("Reserva no encontrada");
+  }
+
+  const acceptedAt = new Date();
+
   await db.$transaction(async (tx) => {
+    // Titular (guestName*) is SSOT from booking channel — GR must not overwrite it.
     await tx.reservation.update({
       where: { id: reservationId },
       data: {
         guestEmail: owner.email,
         guestPhone: owner.phone,
-        guestRegistrationCompletedAt: new Date(),
+        guestCountry: owner.nationality,
+        guestRegistrationCompletedAt: acceptedAt,
       },
     });
 
@@ -388,45 +541,79 @@ async function finalizeGuestRegistration(
       where: { id: registrationId },
       data: {
         status: GuestRegistrationStatus.COMPLETED,
-        usedAt: new Date(),
+        usedAt: acceptedAt,
         attempts: { increment: 1 },
+      },
+    });
+
+    await tx.guestRegistrationLegalAcceptance.upsert({
+      where: { reservationId },
+      create: {
+        reservationId,
+        organizationId: reservationMeta.property.organizationId,
+        propertyId: reservationMeta.propertyId,
+        acceptedByGuestId: owner.id,
+        titularFullName: owner.fullName,
+        titularDocumentType: owner.documentType,
+        titularDocumentNumber: owner.documentNumber,
+        lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+        lodgingContractAcceptedAt: acceptedAt,
+        habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+        habeasDataAcceptedAt: acceptedAt,
+        acceptedAt,
+        ipAddress: legal.requestMeta.ipAddress,
+        userAgent: legal.requestMeta.userAgent,
+        locale: legal.locale || GUEST_LEGAL_LOCALE_DEFAULT,
+        evidenceJson: {
+          guestCount: guests.length,
+          lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+          lodgingContractText: GUEST_LODGING_CONTRACT_SUMMARY_ES,
+          habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+          habeasDataText: GUEST_HABEAS_DATA_SUMMARY_ES,
+          acceptedAtUtc: acceptedAt.toISOString(),
+        },
+      },
+      update: {
+        acceptedByGuestId: owner.id,
+        titularFullName: owner.fullName,
+        titularDocumentType: owner.documentType,
+        titularDocumentNumber: owner.documentNumber,
+        lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+        lodgingContractAcceptedAt: acceptedAt,
+        habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+        habeasDataAcceptedAt: acceptedAt,
+        acceptedAt,
+        ipAddress: legal.requestMeta.ipAddress,
+        userAgent: legal.requestMeta.userAgent,
+        locale: legal.locale || GUEST_LEGAL_LOCALE_DEFAULT,
+        evidenceJson: {
+          guestCount: guests.length,
+          lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+          lodgingContractText: GUEST_LODGING_CONTRACT_SUMMARY_ES,
+          habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+          habeasDataText: GUEST_HABEAS_DATA_SUMMARY_ES,
+          acceptedAtUtc: acceptedAt.toISOString(),
+        },
       },
     });
   });
 
-  const accessContext = await db.reservation.findUnique({
-    where: { id: reservationId },
-    select: {
-      id: true,
-      propertyId: true,
-      property: { select: { ownerId: true } },
-    },
-  });
-
-  if (accessContext?.property) {
-    await onGuestRegistrationCompletedForTTLock({
-      reservationId: accessContext.id,
-      propertyId: accessContext.propertyId,
-      ownerId: accessContext.property.ownerId,
-      guestRegistrationCompleted: true,
+  if (reservationMeta.property) {
+    const { ensureStayPortalTokenForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    await ensureStayPortalTokenForReservation(reservationId).catch((error) => {
+      console.warn("[stay-portal] token ensure failed", reservationId, error);
     });
+
+    const { settleGuestRegistrationCompletionComms } = await import(
+      "@/services/guests/guest-registration-completion-comms.service"
+    );
+    // Await TTLock persist + revalidate before returning so reservation detail
+    // already has AccessCredential when the guest completes (historical SSOT).
+    // Emails remain non-blocking after the code is stored.
+    await settleGuestRegistrationCompletionComms(reservationId);
   }
-
-  scheduleAdminGuestRegistrationNotification(reservationId);
-}
-
-function scheduleAdminGuestRegistrationNotification(reservationId: string): void {
-  void import("@/services/guests/guest-registration-admin-notification.service")
-    .then(({ notifyAdminGuestRegistrationCompleted }) =>
-      notifyAdminGuestRegistrationCompleted(reservationId),
-    )
-    .catch((error) => {
-      console.error(
-        "[guest-registration-admin-notify] Unhandled",
-        reservationId,
-        error,
-      );
-    });
 }
 
 export function buildGuestRegistrationUrl(token: string): string {
@@ -607,7 +794,13 @@ export async function getGuestRegistrationLookupResult(
 
   if (!registration) return { state: "invalid" };
   if (registration.status === GuestRegistrationStatus.COMPLETED) {
-    return { state: "completed" };
+    const { getStayPortalUrlForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const stayPortalUrl = await getStayPortalUrlForReservation(
+      registration.reservationId,
+    ).catch(() => null);
+    return { state: "completed", stayPortalUrl };
   }
   if (registration.status === GuestRegistrationStatus.REVOKED) {
     return { state: "revoked" };
@@ -615,6 +808,8 @@ export async function getGuestRegistrationLookupResult(
   if (registration.status === GuestRegistrationStatus.EXPIRED) {
     return { state: "invalid" };
   }
+
+  await reconcileReservationOccupancyIfSafe(registration.reservationId);
 
   const reservation = await db.reservation.findUnique({
     where: { id: registration.reservationId },
@@ -707,6 +902,8 @@ export async function registerGuestStep(
     throw new GuestRegistrationError("El registro ya fue completado");
   }
 
+  await reconcileReservationOccupancyIfSafe(reservation.id);
+
   const registeredCount = await countRegisteredGuests(reservation.id);
   const maxCapacity = await resolveGuestRegistrationMaxCapacity(
     {
@@ -738,17 +935,17 @@ export async function registerGuestStep(
       );
     }
     // TRA (Res. 409/2022) — titular must declare residence, origin, and travel purpose.
-    if (!parsed.cityOfResidence?.trim()) {
+    if (!parsed.residenceCity?.trim()) {
       throw new GuestRegistrationError(
         "Ciudad de residencia requerida (TRA / Migración)",
       );
     }
-    if (!parsed.cityOfOrigin?.trim()) {
+    if (!parsed.originCity?.trim()) {
       throw new GuestRegistrationError(
         "Ciudad de procedencia requerida (TRA / Migración)",
       );
     }
-    if (!parsed.travelPurpose?.trim()) {
+    if (!parsed.travelMotive?.trim()) {
       throw new GuestRegistrationError(
         "Motivo del viaje requerido (TRA / Migración)",
       );
@@ -767,9 +964,7 @@ export async function registerGuestStep(
     throw new GuestRegistrationError("Este documento ya fue registrado en la reserva");
   }
 
-  const firstName = parsed.firstName.trim();
-  const lastName = parsed.lastName.trim();
-  const fullName = `${firstName} ${lastName}`;
+  const guestData = buildCanonicalGuestWriteData(parsed);
 
   await db.$transaction(async (tx) => {
     await tx.reservationGuest.create({
@@ -778,27 +973,18 @@ export async function registerGuestStep(
         isPrimary: isOwner,
         isReservationOwner: isOwner,
         status: ReservationGuestStatus.REGISTERED,
-        firstName,
-        lastName,
-        fullName,
-        documentType: parsed.documentType,
-        documentNumber,
-        email: parsed.email?.trim() || null,
-        phone: parsed.phone?.trim() || null,
-        nationality: parsed.nationality?.trim() || null,
-        dateOfBirth: parseOptionalDateOfBirth(parsed.dateOfBirth),
-        cityOfResidence: parsed.cityOfResidence?.trim() || null,
-        cityOfOrigin: parsed.cityOfOrigin?.trim() || null,
-        travelPurpose: parsed.travelPurpose?.trim() || null,
+        ...guestData,
       },
     });
 
     if (isOwner) {
+      // Contact only — never replace channel titular (guestName*).
       await tx.reservation.update({
         where: { id: reservation.id },
         data: {
-          guestEmail: parsed.email?.trim() || null,
-          guestPhone: parsed.phone?.trim() || null,
+          guestEmail: guestData.email,
+          guestPhone: guestData.phone,
+          guestCountry: guestData.nationality,
         },
       });
     }
@@ -819,6 +1005,10 @@ export async function registerGuestStep(
 
 export async function completeGuestRegistration(
   values: CompleteGuestRegistrationValues,
+  requestMeta: GuestRegistrationRequestMeta = {
+    ipAddress: null,
+    userAgent: null,
+  },
 ): Promise<GuestRegistrationReservation> {
   const parsed = completeGuestRegistrationSchema.parse(values);
   const registration = await db.guestRegistrationToken.findUnique({
@@ -847,6 +1037,44 @@ export async function completeGuestRegistration(
     );
   }
 
+  await reconcileReservationOccupancyIfSafe(registration.reservationId);
+
+  const reservationForCapacity = await db.reservation.findUnique({
+    where: { id: registration.reservationId },
+    select: {
+      id: true,
+      platform: true,
+      adults: true,
+      children: true,
+      infants: true,
+      guestRegistrationCompletedAt: true,
+      property: { select: { maxGuests: true } },
+    },
+  });
+  if (!reservationForCapacity) {
+    throw new GuestRegistrationError("Reserva no encontrada");
+  }
+
+  const maxCapacity = await resolveGuestRegistrationMaxCapacity(
+    {
+      id: reservationForCapacity.id,
+      platform: reservationForCapacity.platform,
+      adults: reservationForCapacity.adults,
+      children: reservationForCapacity.children,
+      infants: reservationForCapacity.infants,
+      propertyMaxGuests: reservationForCapacity.property.maxGuests,
+      guestRegistrationCompletedAt:
+        reservationForCapacity.guestRegistrationCompletedAt,
+    },
+    registeredCount,
+  );
+
+  if (registeredCount !== maxCapacity) {
+    throw new GuestRegistrationError(
+      `Registro incompleto: debes registrar a los ${maxCapacity} huéspedes de la reserva (${registeredCount}/${maxCapacity}).`,
+    );
+  }
+
   const ownerCount = await db.reservationGuest.count({
     where: {
       reservationId: registration.reservationId,
@@ -859,7 +1087,10 @@ export async function completeGuestRegistration(
     );
   }
 
-  await finalizeGuestRegistration(registration.id, registration.reservationId);
+  await finalizeGuestRegistration(registration.id, registration.reservationId, {
+    locale: parsed.locale ?? GUEST_LEGAL_LOCALE_DEFAULT,
+    requestMeta,
+  });
 
   const reservation = await db.reservation.findUnique({
     where: { id: registration.reservationId },
@@ -899,11 +1130,23 @@ export async function completeGuestRegistration(
     },
     reservation,
     guests,
+  }).then(async (view) => {
+    const { getStayPortalUrlForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    const stayPortalUrl = await getStayPortalUrlForReservation(
+      reservation.id,
+    ).catch(() => null);
+    return { ...view, stayPortalUrl };
   });
 }
 
 export async function submitGuestRegistration(
   values: GuestRegistrationValues,
+  requestMeta: GuestRegistrationRequestMeta = {
+    ipAddress: null,
+    userAgent: null,
+  },
 ): Promise<void> {
   const parsed = guestRegistrationSchema.parse(values);
   const registration = await db.guestRegistrationToken.findUnique({
@@ -934,7 +1177,10 @@ export async function submitGuestRegistration(
       children: true,
       infants: true,
       guestRegistrationCompletedAt: true,
-      property: { select: { maxGuests: true } },
+      propertyId: true,
+      property: {
+        select: { maxGuests: true, organizationId: true, ownerId: true },
+      },
     },
   });
 
@@ -954,8 +1200,14 @@ export async function submitGuestRegistration(
       "No puedes registrar más huéspedes de los permitidos en esta reserva.",
     );
   }
+  if (parsed.guests.length !== maxCapacity) {
+    throw new GuestRegistrationError(
+      `Registro incompleto: debes registrar a los ${maxCapacity} huéspedes de la reserva (${parsed.guests.length}/${maxCapacity}).`,
+    );
+  }
 
-  const primary = parsed.guests[0];
+  const primaryData = buildCanonicalGuestWriteData(parsed.guests[0]!);
+  const acceptedAt = new Date();
 
   await db.$transaction(async (tx) => {
     await tx.reservationGuest.deleteMany({
@@ -963,32 +1215,40 @@ export async function submitGuestRegistration(
     });
 
     await tx.reservationGuest.createMany({
-      data: parsed.guests.map((guest, index) => ({
-        reservationId: reservation.id,
-        isPrimary: index === 0,
-        isReservationOwner: index === 0,
-        status: ReservationGuestStatus.REGISTERED,
-        firstName: guest.firstName.trim(),
-        lastName: guest.lastName.trim(),
-        fullName: `${guest.firstName.trim()} ${guest.lastName.trim()}`,
-        documentType: guest.documentType,
-        documentNumber: guest.documentNumber.trim(),
-        email: guest.email?.trim() || null,
-        phone: guest.phone?.trim() || null,
-        nationality: guest.nationality?.trim() || null,
-        dateOfBirth: parseOptionalDateOfBirth(guest.dateOfBirth),
-        cityOfResidence: guest.cityOfResidence?.trim() || null,
-        cityOfOrigin: guest.cityOfOrigin?.trim() || null,
-        travelPurpose: guest.travelPurpose?.trim() || null,
-      })),
+      data: parsed.guests.map((guest, index) => {
+        const data = buildCanonicalGuestWriteData(guest);
+        return {
+          reservationId: reservation.id,
+          isPrimary: index === 0,
+          isReservationOwner: index === 0,
+          status: ReservationGuestStatus.REGISTERED,
+          ...data,
+        };
+      }),
     });
 
+    const owner = await tx.reservationGuest.findFirst({
+      where: { reservationId: reservation.id, isReservationOwner: true },
+      select: {
+        id: true,
+        fullName: true,
+        documentType: true,
+        documentNumber: true,
+      },
+    });
+
+    if (!owner) {
+      throw new GuestRegistrationError("No se pudo registrar el titular");
+    }
+
+    // Titular (guestName*) is SSOT from booking channel — GR must not overwrite it.
     await tx.reservation.update({
       where: { id: reservation.id },
       data: {
-        guestEmail: primary.email?.trim() || null,
-        guestPhone: primary.phone?.trim() || null,
-        guestRegistrationCompletedAt: new Date(),
+        guestEmail: primaryData.email,
+        guestPhone: primaryData.phone,
+        guestCountry: primaryData.nationality,
+        guestRegistrationCompletedAt: acceptedAt,
       },
     });
 
@@ -996,29 +1256,76 @@ export async function submitGuestRegistration(
       where: { id: registration.id },
       data: {
         status: GuestRegistrationStatus.COMPLETED,
-        usedAt: new Date(),
+        usedAt: acceptedAt,
         attempts: { increment: 1 },
+      },
+    });
+
+    await tx.guestRegistrationLegalAcceptance.upsert({
+      where: { reservationId: reservation.id },
+      create: {
+        reservationId: reservation.id,
+        organizationId: reservation.property.organizationId,
+        propertyId: reservation.propertyId,
+        acceptedByGuestId: owner.id,
+        titularFullName: owner.fullName,
+        titularDocumentType: owner.documentType,
+        titularDocumentNumber: owner.documentNumber,
+        lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+        lodgingContractAcceptedAt: acceptedAt,
+        habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+        habeasDataAcceptedAt: acceptedAt,
+        acceptedAt,
+        ipAddress: requestMeta.ipAddress,
+        userAgent: requestMeta.userAgent,
+        locale: parsed.locale ?? GUEST_LEGAL_LOCALE_DEFAULT,
+        evidenceJson: {
+          guestCount: parsed.guests.length,
+          lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+          lodgingContractText: GUEST_LODGING_CONTRACT_SUMMARY_ES,
+          habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+          habeasDataText: GUEST_HABEAS_DATA_SUMMARY_ES,
+          acceptedAtUtc: acceptedAt.toISOString(),
+          path: "legacy_bulk_submit",
+        },
+      },
+      update: {
+        acceptedByGuestId: owner.id,
+        titularFullName: owner.fullName,
+        titularDocumentType: owner.documentType,
+        titularDocumentNumber: owner.documentNumber,
+        lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+        lodgingContractAcceptedAt: acceptedAt,
+        habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+        habeasDataAcceptedAt: acceptedAt,
+        acceptedAt,
+        ipAddress: requestMeta.ipAddress,
+        userAgent: requestMeta.userAgent,
+        locale: parsed.locale ?? GUEST_LEGAL_LOCALE_DEFAULT,
+        evidenceJson: {
+          guestCount: parsed.guests.length,
+          lodgingContractVersion: GUEST_LODGING_CONTRACT_VERSION,
+          lodgingContractText: GUEST_LODGING_CONTRACT_SUMMARY_ES,
+          habeasDataPolicyVersion: GUEST_HABEAS_DATA_POLICY_VERSION,
+          habeasDataText: GUEST_HABEAS_DATA_SUMMARY_ES,
+          acceptedAtUtc: acceptedAt.toISOString(),
+          path: "legacy_bulk_submit",
+        },
       },
     });
   });
 
-  const accessContext = await db.reservation.findUnique({
-    where: { id: reservation.id },
-    select: {
-      id: true,
-      propertyId: true,
-      property: { select: { ownerId: true } },
-    },
-  });
-
-  if (accessContext?.property) {
-    await onGuestRegistrationCompletedForTTLock({
-      reservationId: accessContext.id,
-      propertyId: accessContext.propertyId,
-      ownerId: accessContext.property.ownerId,
-      guestRegistrationCompleted: true,
+  if (reservation.property) {
+    const { ensureStayPortalTokenForReservation } = await import(
+      "@/services/guests/stay-portal.service"
+    );
+    await ensureStayPortalTokenForReservation(reservation.id).catch((error) => {
+      console.warn("[stay-portal] token ensure failed", reservation.id, error);
     });
-  }
 
-  scheduleAdminGuestRegistrationNotification(reservation.id);
+    const { settleGuestRegistrationCompletionComms } = await import(
+      "@/services/guests/guest-registration-completion-comms.service"
+    );
+    await settleGuestRegistrationCompletionComms(reservation.id);
+  }
 }

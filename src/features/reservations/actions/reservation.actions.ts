@@ -1,16 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { BookingPlatform } from "@prisma/client";
 import {
   reservationWizardSchema,
   reservationEditSchema,
+  reservationOccupancyEditSchema,
   type ReservationWizardValues,
   type ReservationEditValues,
+  type ReservationOccupancyEditValues,
 } from "@/features/reservations/schemas/reservation.schema";
 import type { ReservationInboxItem, ReservationDetailItem } from "@/features/reservations/types/reservation.types";
 import { assertBillingUnlocked } from "@/lib/billing/billing-guard";
-import { requirePermission, requireAnyPermission } from "@/lib/auth";
+import {
+  currentDbUser,
+  hasPermission,
+  requirePermission,
+} from "@/lib/auth";
+import { buildTenantContext } from "@/lib/platform/tenant-context";
 import { ReservationConflictError } from "@/services/reservations/reservation-conflicts";
 import { ReservationMutationPolicyError } from "@/lib/reservations/reservation-mutation-policy";
 import { isPropertyLinkedToAirbnb } from "@/services/airbnb/airbnb-export-push.service";
@@ -20,8 +28,14 @@ import {
   getReservationForInbox,
   getReservationMutationContext,
   OtaReservationDeleteError,
+  searchReservationsForCalendar,
   updateReservation,
+  type ReservationSearchHit,
 } from "@/services/reservations/reservation.service";
+import {
+  ReservationOccupancyError,
+  updateReservationOccupancyManual,
+} from "@/services/reservations/reservation-occupancy-manual.service";
 import { prismaDateToKey } from "@/lib/dates";
 import { schedulePriceLabsRefresh } from "@/services/integrations/pricelabs/pricelabs-refresh";
 import { scheduleMonthlyFinanceMetricsRefreshForStay } from "@/services/finance/monthly-finance-metrics-refresh";
@@ -76,7 +90,6 @@ export async function createReservationAction(data: ReservationWizardValues) {
       checkOut: prismaDateToKey(created.checkOut),
     });
 
-    revalidatePath("/reservations");
     revalidatePath("/calendar");
     revalidatePath("/properties");
     revalidatePath("/");
@@ -103,18 +116,145 @@ export async function createReservationAction(data: ReservationWizardValues) {
 }
 
 export async function getReservationInboxItemAction(id: string) {
-  await requireAnyPermission("reservations:read", "calendar:read");
+  const reservationId = typeof id === "string" ? id.trim() : "";
+  if (!reservationId) {
+    return { success: false as const, error: "Reserva no válida" };
+  }
+
   try {
+    // Soft auth: never redirect() from this read path — redirects break the
+    // calendar drawer promise and only surface as "No se pudo cargar…".
+    const user = await currentDbUser();
+    if (!user) {
+      return {
+        success: false as const,
+        error: "Sesión expirada. Recarga la página e inicia sesión de nuevo.",
+      };
+    }
+
+    const tenant = await buildTenantContext(user);
+    const canRead =
+      hasPermission(tenant.effectiveRole, "reservations:read") ||
+      hasPermission(tenant.effectiveRole, "calendar:read");
+    if (!canRead) {
+      return {
+        success: false as const,
+        error: "No tienes permiso para ver esta reserva",
+      };
+    }
+
+    const reservation = await getReservationForInbox(reservationId, {
+      organizationId: tenant.organizationId,
+      userId: tenant.userId,
+    });
+    if (!reservation) {
+      return { success: false as const, error: "Reserva no encontrada" };
+    }
+
+    // Flight/Server Actions reject non-plain payloads (rare Decimal/Date leaks).
+    const safe = JSON.parse(JSON.stringify(reservation)) as typeof reservation;
+    return { success: true as const, reservation: safe };
+  } catch (error) {
+    if (isRedirectError(error)) {
+      return {
+        success: false as const,
+        error: "Sesión expirada. Recarga la página e inicia sesión de nuevo.",
+      };
+    }
+    console.error("[getReservationInboxItemAction]", reservationId, error);
+    const message =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : "No se pudo cargar la reserva";
+    return { success: false as const, error: message };
+  }
+}
+
+export async function searchReservationsAction(query: string) {
+  const q = typeof query === "string" ? query.trim() : "";
+  if (q.length < 1) {
+    return { success: true as const, results: [] as ReservationSearchHit[] };
+  }
+
+  try {
+    const user = await currentDbUser();
+    if (!user) {
+      return {
+        success: false as const,
+        error: "Sesión expirada. Recarga la página e inicia sesión de nuevo.",
+        results: [] as ReservationSearchHit[],
+      };
+    }
+
+    const tenant = await buildTenantContext(user);
+    const canRead =
+      hasPermission(tenant.effectiveRole, "reservations:read") ||
+      hasPermission(tenant.effectiveRole, "calendar:read");
+    if (!canRead) {
+      return {
+        success: false as const,
+        error: "No tienes permiso para buscar reservas",
+        results: [] as ReservationSearchHit[],
+      };
+    }
+
+    const results = await searchReservationsForCalendar(q);
+    return { success: true as const, results };
+  } catch (error) {
+    if (isRedirectError(error)) {
+      return {
+        success: false as const,
+        error: "Sesión expirada. Recarga la página e inicia sesión de nuevo.",
+        results: [] as ReservationSearchHit[],
+      };
+    }
+    console.error("[searchReservationsAction]", q, error);
+    return {
+      success: false as const,
+      error: "No se pudo buscar reservas",
+      results: [] as ReservationSearchHit[],
+    };
+  }
+}
+
+export async function updateReservationOccupancyAction(
+  id: string,
+  data: ReservationOccupancyEditValues,
+) {
+  await requirePermission("reservations:write");
+  await assertBillingUnlocked();
+  const parsed = reservationOccupancyEditSchema.parse(data);
+  const existing = await getReservationMutationContext(id);
+  if (!existing) {
+    return { success: false as const, error: "Reserva no encontrada" };
+  }
+
+  try {
+    const result = await updateReservationOccupancyManual(id, {
+      adults: parsed.adults,
+      children: parsed.children,
+      infants: parsed.infants,
+    });
+    schedulePriceLabsRefresh("reservation");
+    revalidatePath("/calendar");
+    revalidatePath("/properties");
+    revalidatePath("/");
+    revalidatePath("/smart-access");
+    revalidatePath("/panel");
+
     const reservation = await getReservationForInbox(id);
     if (!reservation) {
       return { success: false as const, error: "Reserva no encontrada" };
     }
-    return { success: true as const, reservation };
+    return { success: true as const, reservation, occupancy: result };
   } catch (error) {
-    console.error("[getReservationInboxItemAction]", error);
-    const message =
-      error instanceof Error ? error.message : "No se pudo cargar la reserva";
-    return { success: false as const, error: message };
+    if (error instanceof ReservationOccupancyError) {
+      return { success: false as const, error: error.message };
+    }
+    if (error instanceof Error) {
+      return { success: false as const, error: error.message };
+    }
+    throw error;
   }
 }
 
@@ -144,7 +284,6 @@ export async function updateReservationAction(
       { checkIn: parsed.checkIn, checkOut: parsed.checkOut },
     );
 
-    revalidatePath("/reservations");
     revalidatePath("/calendar");
     revalidatePath("/properties");
     revalidatePath("/");
@@ -190,7 +329,6 @@ export async function deleteReservationAction(id: string) {
     { checkIn: existing.checkIn, checkOut: existing.checkOut },
     null,
   );
-  revalidatePath("/reservations");
   revalidatePath("/calendar");
   revalidatePath("/");
   revalidatePath("/finance");

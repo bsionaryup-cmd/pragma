@@ -76,38 +76,8 @@ export async function enforceTenantDashboardAccess(
       redirect("/account-suspended");
     }
 
-    // Retail-only orgs must not enter PMS dashboards (shared Organization model).
-    // Soft-fail if INTIENDAS tables are absent so PMS access never dies on P2021.
-    const propertyCount = await db.property.count({
-      where: { organizationId: user.organizationId },
-    });
-    let retailStoreId: string | null = null;
-    try {
-      const retailStore = await db.retailStore.findFirst({
-        where: {
-          organizationId: user.organizationId,
-          deletedAt: null,
-          status: "ACTIVE",
-        },
-        select: { id: true },
-      });
-      retailStoreId = retailStore?.id ?? null;
-    } catch (error) {
-      const code =
-        error && typeof error === "object" && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : "";
-      const message = error instanceof Error ? error.message : String(error);
-      if (
-        code !== "P2021" &&
-        !/does not exist in the current database/i.test(message)
-      ) {
-        throw error;
-      }
-    }
-    if (retailStoreId && propertyCount === 0) {
-      redirect("/intiendas/dashboard");
-    }
+    // INTIENDAS retired: never divert PMS tenants to /intiendas even if a
+    // legacy retail_store row still exists for the organization.
   }
 
   return buildTenantContext(user);

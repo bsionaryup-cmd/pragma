@@ -1,0 +1,18 @@
+{
+  "at": "2026-07-27T06:03:52.593Z",
+  "hasModelInDmmf": true,
+  "hasDelegateOnFreshClient": true,
+  "tableExists": "stay_portal_tokens",
+  "columnCount": 9,
+  "indexNames": [
+    "stay_portal_tokens_pkey",
+    "stay_portal_tokens_reservationId_status_idx",
+    "stay_portal_tokens_token_key",
+    "stay_portal_tokens_token_status_idx"
+  ],
+  "prismaSchemaVersion": "20260727020000_stay_portal_tokens",
+  "versionBumpedForStayPortal": true,
+  "rootCause": "src/lib/db.ts PRISMA_SCHEMA_VERSION was not bumped after StayPortalToken; HMR singleton served a pre-model PrismaClient where db.stayPortalToken === undefined → TypeError on findFirst",
+  "fix": "Bump PRISMA_SCHEMA_VERSION to 20260727020000_stay_portal_tokens so getPrismaClient() recycles the singleton",
+  "ok": true
+}
