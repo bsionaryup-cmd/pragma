@@ -1,29 +1,7 @@
 import { redirect } from "next/navigation";
-import { QrMobilityDashboardView } from "@/components/qr-mobility/qr-mobility-dashboard-view";
-import { QrMobilitySectionShell } from "@/components/qr-mobility/qr-mobility-section-shell";
-import {
-  PlatformOwnerForbiddenError,
-  requirePlatformOwnerUser,
-} from "@/lib/platform/require-platform-owner";
-import { getMobilityDashboardStats } from "@/modules/qr-mobility/services/mobility-dashboard.service";
+import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants";
 
-export const dynamic = "force-dynamic";
-
-export default async function QrMobilityDashboardPage() {
-  try {
-    await requirePlatformOwnerUser();
-  } catch (error) {
-    if (error instanceof PlatformOwnerForbiddenError) {
-      redirect("/unauthorized");
-    }
-    throw error;
-  }
-
-  const stats = await getMobilityDashboardStats();
-
-  return (
-    <QrMobilitySectionShell activeSection="dashboard" sectionTitle="Resumen">
-      <QrMobilityDashboardView stats={stats} />
-    </QrMobilitySectionShell>
-  );
+/** QR Mobility owner console parked — PMS-first. */
+export default function QrMobilityDashboardPage() {
+  redirect(OWNER_DASHBOARD_PATH);
 }

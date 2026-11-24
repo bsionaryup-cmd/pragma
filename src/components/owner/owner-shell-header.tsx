@@ -11,30 +11,20 @@ import {
 import { OWNER_DASHBOARD_PATH } from "@/lib/platform/constants.client";
 import { cn } from "@/lib/utils";
 
+/** Owner platform nav: PMS-first. Heavy modules (Ventas/QR/INTIENDAS/Salud) removed from chrome. */
 const PLATFORM_NAV = [
-  { href: OWNER_DASHBOARD_PATH, label: "Resumen", activePrefix: OWNER_DASHBOARD_PATH, exact: true },
+  {
+    href: OWNER_DASHBOARD_PATH,
+    label: "Resumen",
+    activePrefix: OWNER_DASHBOARD_PATH,
+    exact: true,
+  },
   { href: "/panel", label: "PMS", activePrefix: "/panel" },
   {
-    href: "/owner-dashboard/sales/prospects",
-    label: "Consola de ventas",
-    activePrefix: "/owner-dashboard/sales",
+    href: "/owner-dashboard/support",
+    label: "Soporte",
+    activePrefix: "/owner-dashboard/support",
   },
-  {
-    href: "/owner-dashboard/qr-mobility",
-    label: "QR Mobility",
-    activePrefix: "/owner-dashboard/qr-mobility",
-  },
-  {
-    href: "/owner-dashboard/intiendas",
-    label: "INTIENDAS",
-    activePrefix: "/owner-dashboard/intiendas",
-  },
-  {
-    href: "/owner-dashboard/salud",
-    label: "Salud",
-    activePrefix: "/owner-dashboard/salud",
-  },
-  { href: "/owner-dashboard/support", label: "Soporte", activePrefix: "/owner-dashboard/support" },
 ] as const;
 
 type OwnerShellHeaderProps = {
@@ -81,7 +71,10 @@ export function OwnerShellHeader({
           </Link>
 
           {context === "platform" ? (
-            <nav className="hidden items-center gap-1 md:flex" aria-label="Owner platform">
+            <nav
+              className="hidden items-center gap-1 md:flex"
+              aria-label="Owner platform"
+            >
               {PLATFORM_NAV.map((item) => {
                 const isActive =
                   "exact" in item && item.exact

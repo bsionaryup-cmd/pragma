@@ -88,6 +88,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
         try {
           const res = await fetch(url, {
             method: "PATCH",
+            credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
@@ -129,6 +130,7 @@ export function OwnerTenantDetailView({ tenant }: OwnerTenantDetailViewProps) {
       try {
         const res = await fetch(url, {
           method: "POST",
+          credentials: "include",
           headers: body ? { "Content-Type": "application/json" } : undefined,
           body: body ? JSON.stringify(body) : undefined,
         });

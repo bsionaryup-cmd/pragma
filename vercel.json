@@ -27,10 +27,6 @@
     {
       "path": "/api/cron/ttlock-sync",
       "schedule": "15 7 * * *"
-    },
-    {
-      "path": "/api/cron/retail-intel-outbox",
-      "schedule": "0 8 * * *"
     }
   ]
 }

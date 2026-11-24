@@ -111,11 +111,13 @@ export default clerkMiddleware(
     }
 
     if (isOwnerRoute(request)) {
+      // Owner APIs authenticate inside requirePlatformOwnerUser (Node). Avoid Edge
+      // middleware 401s that surface as "Unauthorized" while the dashboard RSC is signed-in.
+      if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
+        return forwardWithPathname(request, pathname);
+      }
       const authState = await auth();
       if (!authState.userId) {
-        if (pathname.startsWith(PLATFORM_OWNER_API_PREFIX)) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
         const loginUrl = new URL(OWNER_LOGIN_PATH, request.url);
         loginUrl.searchParams.set("next", pathname);
         return NextResponse.redirect(loginUrl);
